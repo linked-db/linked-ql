@@ -1,0 +1,5 @@
+.*
+!/.gitignore
+!.eslintrc.yml
+coverage
+node_modules

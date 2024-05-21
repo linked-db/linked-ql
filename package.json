@@ -1,0 +1,79 @@
+{
+  "name": "@webqit/objective-sql",
+  "title": "Objective-SQL",
+  "description": "The Succinct, fullstack SQL for modern web apps.",
+  "keywords": [
+    "Objective SQL",
+    "Arrow Joins",
+    "User Access Control (UAC)",
+    "IndexedDB",
+    "In-memory DB",
+    "MySQL",
+    "SQL parser",
+    "SQL runner"
+  ],
+  "homepage": "https://webqit.io/tooling/objective-sql",
+  "icon": "https://webqit.io/icon.svg",
+  "version": "0.2.75",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/webqit/objective-sql.git"
+  },
+  "bugs": {
+    "url": "https://github.com/webqit/objective-sql/issues"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./odb": "./src/database/odb/ODBClient.js",
+    "./idb": "./src/database/idb/IDBClient.js",
+    "./sql": "./src/database/sql/SQLClient.js"
+  },
+  "scripts": {
+    "test": "mocha --extension .pg.test.js --exit",
+    "test:coverage": "c8 --reporter=text-lcov npm run test | coveralls",
+    "build": "esbuild main=src/browser-entry.js odb=src/database/odb/ODBClient.js idb=src/database/idb/IDBClient.js sql=src/database/sql/SQLClient.js --bundle --minify --sourcemap --outdir=dist",
+    "preversion": "npm run test && npm run build && git add -A dist",
+    "postversion": "npm publish",
+    "postpublish": "git push && git push --tags"
+  },
+  "dependencies": {
+    "@webqit/util": "file:../util"
+  },
+  "devDependencies": {
+    "chai": "^4.3.4",
+    "chai-as-promised": "^7.1.1",
+    "coveralls": "^3.1.0",
+    "esbuild": "^0.20.2",
+    "mocha": "^10.3.0",
+    "mocha-lcov-reporter": "^1.3.0",
+    "mysql2": "^2.3.3",
+    "pg": "^8.11.3"
+  },
+  "author": "Oxford Harrison <oxharris.dev@gmail.com>",
+  "maintainers": [
+    "Oxford Harrison <oxharris.dev@gmail.com>"
+  ],
+  "contributors": [],
+  "funding": {
+    "type": "patreon",
+    "url": "https://patreon.com/ox_harris"
+  },
+  "badges": {
+    "list": [
+      "npmversion",
+      "npmdownloads",
+      "patreon"
+    ],
+    "config": {
+      "patreonUsername": "ox_harris",
+      "githubUsername": "webqit",
+      "githubRepository": "objective-sql",
+      "githubSlug": "webqit/objective-sql",
+      "npmPackageName": "@webqit/objective-sql"
+    }
+  }
+}
