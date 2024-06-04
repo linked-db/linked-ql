@@ -1,11 +1,10 @@
-# Objective SQL
+# Linked QL
 
 <!-- BADGES/ -->
 
 <span class="badge-npmversion"><a href="https://npmjs.org/package/@webqit/objective-sql" title="View this project on NPM"><img src="https://img.shields.io/npm/v/@webqit/objective-sql.svg" alt="NPM version" /></a></span>
 <span class="badge-npmdownloads"><a href="https://npmjs.org/package/@webqit/objective-sql" title="View this project on NPM"><img src="https://img.shields.io/npm/dm/@webqit/objective-sql.svg" alt="NPM downloads" /></a></span>
-<a href='https://coveralls.io/github/webqit/objective-sql?branch=master'><img src='https://coveralls.io/repos/github/webqit/objective-sql/badge.svg?branch=master' alt='Coverage Status' /></a>
-<span class="badge-patreon"><a href="https://patreon.com/ox_harris" title="Donate to this project using Patreon"><img src="https://img.shields.io/badge/patreon-donate-yellow.svg" alt="Patreon donate button" /></a></span>
+<a href='https://coveralls.io/github/linked-db/linked-ql?branch=master'><img src='https://coveralls.io/repos/github/linked-db/linked-ql/badge.svg?branch=master' alt='Coverage Status' /></a>
 
 <!-- /BADGES -->
 
@@ -13,7 +12,7 @@ The object-oriented, adaptive SQL client for modern apps - query anything from t
 
 ## Overview
 
-Objective SQL is a query client that wraps powerful concepts in a simple, succint API.
+Linked QL is a query client that wraps powerful concepts in a simple, succint API.
 
 1. It lets you query different types of databases using one consistent syntax and API.
     1. Both SQL databases (like MySQL, PostgreSQL) and client-side, non-SQL databases (like [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API)).
