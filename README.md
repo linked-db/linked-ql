@@ -1,51 +1,47 @@
 # Linked QL
 
-<!-- BADGES/ -->
+A query client that extends standard SQL with new syntax sugars for simpler queries and enables auto-versioning capabilities on any database. And what's more, ready to talk to any DB!
 
-<span class="badge-npmversion"><a href="https://npmjs.org/package/@webqit/objective-sql" title="View this project on NPM"><img src="https://img.shields.io/npm/v/@webqit/objective-sql.svg" alt="NPM version" /></a></span>
-<span class="badge-npmdownloads"><a href="https://npmjs.org/package/@webqit/objective-sql" title="View this project on NPM"><img src="https://img.shields.io/npm/dm/@webqit/objective-sql.svg" alt="NPM downloads" /></a></span>
-<a href='https://coveralls.io/github/linked-db/linked-ql?branch=master'><img src='https://coveralls.io/repos/github/linked-db/linked-ql/badge.svg?branch=master' alt='Coverage Status' /></a>
++ **Magic Paths.** Express relationships graphically. Meet the magic path operators that leverage heuristics to let you connect to columns on other tables without writing a JOIN.
 
-<!-- /BADGES -->
++ **Auto-Versioning.** Create, Drop, Alter schemas without needing to manually version each operation. Linked QL automatically adds auto-versioning capabilities to your database.
 
-The object-oriented, adaptive SQL client for modern apps - query anything from the plain JSON object, to the client-side IndexedDB, to the server-side DB.
++ **Omni-DB.** Talk to YOUR DB of choice - from the server-side PostgreSQL and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), to the plain JSON object. One syntax to rule them all.
 
-## Overview
-
-Linked QL is a query client that wraps powerful concepts in a simple, succint API.
-
-1. It lets you query different types of databases using one consistent syntax and API.
-    1. Both SQL databases (like MySQL, PostgreSQL) and client-side, non-SQL databases (like [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API)).
-    2. One syntax and API to rule them all!
-2. It implements a superset of the SQL language that lets you access relationships without constructing JOINS.
-    1. Goodbye query complexity!
-    2. Goodbye ORMs!
-
-Take a one-minute overview of Objective SQL.
+Linked QL wraps all the powerful concepts in a simple, succint API.
 
 ## Basic Usage
 
-Obtain an Objective SQL query client for your target database:
+Install Linked QL:
 
-1. For SQL databases, import and instantiate the *SQL* language driver. (You'll pass in the name of an appropriate database connection driver that works for your database.)
+```cmd
+npm install @linked-db/linked-ql
+```
+
+Obtain the Linked QL client for your target database:
+
+1. For SQL databases, install the regular SQL client you use for your DB - `pg` for PostgreSQL, `mysql2` for MySQL databases:
+
+    ```cmd
+    npm install pg
+    ```
+
+    Import and instantiate Linked QL over your DB client:
 
     ```js
-    // Import SQL
-    import { SQL } from '@webqit/objective-sql';
-    
-    // Using the 'mysql2' connector (npm install mysql2)
-    const connectionDriver = 'mysql2';
-    const connectionParams = {
-	    host: '127.0.0.1',
-	    user: 'root',
-	    password: '',
-    };
+    // Import SQL as LinkedQl
+    import pg from 'pg';
+    import LinkedQl from '@linked-db/linked-ql/sql';
 
-    // Create an instance by calling .connect().
-    const client = SQL.connect(connectionDriver, connectionParams);
-    
-    // Or by using the 'new' keyword.
-    const client = new SQL(connectionDriver, connectionParams);
+    // Connect
+    const pgClient = new pg.Client({
+        host: 'localhost',
+        port: 5432,
+    });
+    await pgClient.connect();
+
+    // Use as a wrapper
+    const linkedQlClient = new LinkedQl(pgClient, { dialect: 'postgres' });
     ```
     
 2. For the client-side [*IndexedDB*](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API) database, import and instantiate the *IDB* language driver.
@@ -53,28 +49,28 @@ Obtain an Objective SQL query client for your target database:
     > IndexedDB is a low-level API for client-side storage.
     
     ```js
-    // Import IDB
-    import { IDB } from '@webqit/objective-sql';
+    // Import IDB as LinkedQl
+    import LinkedQl from '@linked-db/linked-ql/idb';
     
     // Create an instance.
-    const client = new IDB;
+    const linkedQlClient = new LinkedQl;
     ```
     
-3. To work with Objective SQL's in-memory object storage, import and instantiate the *ODB* language driver.
+3. To work with Linked QL's in-memory object storage, import and instantiate the *ODB* language driver.
 
     > This is an environment-agnostic in-memory store.
 
     ```js
-    // Import IDB
-    import { ODB } from '@webqit/objective-sql';
+    // Import ODB as LinkedQl
+    import LinkedQl from '@linked-db/linked-ql';
     
     // Create an instance.
-    const client = new ODB;
+    const LinkedQlClient = new LinkedQl;
     ```
 
-All `client` instances above implement the same interface:
+All `LinkedQl` instances above implement the same interface:
 
-1. The `client.query()` method lets you run any SQL query on your database.
+1. The `LinkedQlClient.query()` method lets you run any SQL query on your database.
 
     ```js
     // Run a query
