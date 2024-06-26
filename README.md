@@ -1,14 +1,12 @@
 # Linked QL
 
-A query client that extends standard SQL with new syntax sugars for simpler queries and enables auto-versioning capabilities on any database. And what's more, ready to talk to any DB!
+A query client that extends standard SQL with new syntax sugars and enables auto-versioning capabilities on any database. And what's more, a client that can talk to your DB of choice - from the server-side PostgreSQL and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), to the plain JSON object!
 
-+ **Magic Paths.** Express relationships graphically. Meet the magic path operators that leverage heuristics to let you connect to columns on other tables without writing a JOIN.
+Wrapped in this little API are:
 
-+ **Auto-Versioning.** Create, Drop, Alter schemas without needing to manually version each operation. Linked QL automatically adds auto-versioning capabilities to your database.
++ **Magic Paths.** Express relationships graphically. Meet the magic path operators that let you connect to columns on other tables without writing a JOIN. Linked QL uses heuristics to figure how your data is linked. ([Jump to section](#magic-paths).)
 
-+ **Omni-DB.** Talk to YOUR DB of choice - from the server-side PostgreSQL and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), to the plain JSON object. One syntax to rule them all.
-
-Linked QL wraps all the powerful concepts in a simple, succint API.
++ **Auto-Versioning.** Create, Drop, Alter schemas without needing to worry about schema versioning. Linked QL automatically adds auto-versioning capabilities to your database. Meet Schema savepoints and rollbacks. ([Jump to section](#auto-versioning).)
 
 ## Basic Usage
 
@@ -20,45 +18,43 @@ npm install @linked-db/linked-ql
 
 Obtain the Linked QL client for your target database:
 
-1. For SQL databases, install the regular SQL client you use for your DB - `pg` for PostgreSQL, `mysql2` for MySQL databases:
+1. For SQL databases, install the regular SQL client you use for your DB. (Typically, `pg` for PostgreSQL, `mysql2` for MySQL databases.)
+
+    Install the `pg` client (given a Postgres DB):
 
     ```cmd
     npm install pg
     ```
 
-    Import and instantiate Linked QL over your DB client:
+    Use Linked QL as a wrapper over that:
 
     ```js
-    // Import SQL as LinkedQl
+    // Import pg as LinkedQl
     import pg from 'pg';
     import LinkedQl from '@linked-db/linked-ql/sql';
 
-    // Connect
+    // Connect pg
     const pgClient = new pg.Client({
         host: 'localhost',
         port: 5432,
     });
     await pgClient.connect();
 
-    // Use as a wrapper
-    const linkedQlClient = new LinkedQl(pgClient, { dialect: 'postgres' });
+    // Use LinkedQl as a wrapper over that
+    const client = new LinkedQl(pgClient, { dialect: 'postgres' });
     ```
     
-2. For the client-side [*IndexedDB*](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API) database, import and instantiate the *IDB* language driver.
-
-    > IndexedDB is a low-level API for client-side storage.
+2. For the client-side *IndexedDB*, import and instantiate the *IDB* client.
     
     ```js
     // Import IDB as LinkedQl
     import LinkedQl from '@linked-db/linked-ql/idb';
     
     // Create an instance.
-    const linkedQlClient = new LinkedQl;
+    const client = new LinkedQl;
     ```
     
-3. To work with Linked QL's in-memory object storage, import and instantiate the *ODB* language driver.
-
-    > This is an environment-agnostic in-memory store.
+3. To work with Linked QL's in-memory object storage, import and instantiate the *ODB* client.
 
     ```js
     // Import ODB as LinkedQl
@@ -68,9 +64,32 @@ Obtain the Linked QL client for your target database:
     const LinkedQlClient = new LinkedQl;
     ```
 
-All `LinkedQl` instances above implement the same interface:
+Now, all `client` instances above implement the same interface:
 
-1. The `LinkedQlClient.query()` method lets you run any SQL query on your database.
+```js
+client.query('SELECT fname, lname FROM users').then(result => {
+    console.log(result);
+});
+```
+
+```js
+const result = await client.query('SELECT fname, lname FROM users');
+console.log(result);
+```
+
+Other APIs are covered just ahead in the [API](#api) section.
+
+And then the magic wands:
+
+## Magic Paths
+
+## Auto-Versioning
+
+## API
+
+<!--
+
+1. The `client.query()` method lets you run any SQL query on your database.
 
     ```js
     // Run a query
@@ -78,6 +97,7 @@ All `LinkedQl` instances above implement the same interface:
         console.log(result);
     });
     ```
+
 2. Other methods give us a programmatic way to manipulate or query the database. (Docs coming soon.)
     1. The `client.createDatabase()` and `client.createDatabaseIfNotExists()` methods. (Returning a `Database` instance (`database`).)
     2. The `client.dropDatabase()` and `client.dropDatabaseIfExists()` methods.
@@ -112,6 +132,7 @@ SELECT post_title, author_id->fname AS author_name FROM posts;
 
 ## Documentation
 [Objective SQL Documentions](https://webqit.io/tooling/objective-sql)
+-->
 
 ## Issues
 To report bugs or request features, please submit an issue to this repository.
