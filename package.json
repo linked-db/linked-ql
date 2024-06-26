@@ -1,27 +1,24 @@
 {
-  "name": "@webqit/objective-sql",
-  "title": "Objective-SQL",
-  "description": "The Succinct, fullstack SQL for modern web apps.",
+  "name": "@linked-db/linked-ql",
+  "title": "Linked QL",
+  "description": "A query client that extends standard SQL with new syntax sugars and enables auto-versioning capabilities on any database",
   "keywords": [
-    "Objective SQL",
+    "Linked DB",
     "Arrow Joins",
-    "User Access Control (UAC)",
     "IndexedDB",
-    "In-memory DB",
     "MySQL",
-    "SQL parser",
-    "SQL runner"
+    "PostgreSQL"
   ],
-  "homepage": "https://webqit.io/tooling/objective-sql",
+  "homepage": "https://linked-ql.netlify.app/",
   "icon": "https://webqit.io/icon.svg",
   "version": "0.2.76",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/webqit/objective-sql.git"
+    "url": "git+https://github.com/linked-db/linked-ql.git"
   },
   "bugs": {
-    "url": "https://github.com/webqit/objective-sql/issues"
+    "url": "https://github.com/linked-db/linked-ql/issues"
   },
   "type": "module",
   "sideEffects": false,
@@ -68,10 +65,10 @@
     ],
     "config": {
       "patreonUsername": "ox_harris",
-      "githubUsername": "webqit",
-      "githubRepository": "objective-sql",
-      "githubSlug": "webqit/objective-sql",
-      "npmPackageName": "@webqit/objective-sql"
+      "githubUsername": "linked-db",
+      "githubRepository": "linked-ql",
+      "githubSlug": "linked-db/linked-ql",
+      "npmPackageName": "linked-db/linked-ql"
     }
   }
 }
