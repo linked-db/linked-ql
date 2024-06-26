@@ -28,14 +28,12 @@
   "main": "./src/index.js",
   "exports": {
     ".": "./src/index.js",
-    "./odb": "./src/database/odb/ODBClient.js",
-    "./idb": "./src/database/idb/IDBClient.js",
-    "./sql": "./src/database/sql/SQLClient.js"
+    "./sql": "./src/api/sql/SQLClient.js"
   },
   "scripts": {
     "test": "mocha --extension .pg.test.js --exit",
     "test:coverage": "c8 --reporter=text-lcov npm run test | coveralls",
-    "build": "esbuild main=src/browser-entry.js odb=src/database/odb/ODBClient.js idb=src/database/idb/IDBClient.js sql=src/database/sql/SQLClient.js --bundle --minify --sourcemap --outdir=dist",
+    "build": "esbuild main=src/browser-entry.js sql=src/api/sql/SQLClient.js --bundle --minify --sourcemap --outdir=dist",
     "preversion": "npm run test && npm run build && git add -A dist",
     "postversion": "npm publish",
     "postpublish": "git push && git push --tags"

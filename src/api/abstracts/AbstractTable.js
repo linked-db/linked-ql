@@ -218,7 +218,7 @@ export default class AbstractTable {
 			inserts.push(await this.add(rowObj));
 		}
 		// OnDuplicateKey updates
-		if (forUpdates.length) { inserts = inserts.concat(await this.putAll(forUpdates)); }
+		if (forUpdates.length) { inserts.push(...(await this.putAll(forUpdates))); }
 		return inserts.filter((n, i) => n !== 0 && inserts.indexOf(n) === i);
 	}
 		
