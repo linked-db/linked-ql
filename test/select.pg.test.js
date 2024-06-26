@@ -112,8 +112,8 @@ describe(`SELECT QUERIES`, function() {
             await query1.expand();
             const sql1 = query1 + '';
             console.log(sql1);
-            /*
             console.log(sql2);
+            /*
             console.log(JSON.stringify(query1.toJson(), null, 3));
             console.log(JSON.stringify(query2.toJson(), null, 3));
             */

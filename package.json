@@ -41,7 +41,7 @@
     "postpublish": "git push && git push --tags"
   },
   "dependencies": {
-    "@webqit/util": "file:../util"
+    "@webqit/util": "^0.8.14"
   },
   "devDependencies": {
     "chai": "^4.3.4",

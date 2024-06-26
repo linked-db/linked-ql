@@ -103,6 +103,7 @@ export default class Column extends Node {
         // Type
         instance.type(parseCallback(instance, columnType.trim(), [DataType]));
         // Constraints
+        console.log('.............--...........', tokens);
         for (const constraint of tokens) {
             instance.constraint(parseCallback(instance, constraint, [ColumnLevelConstraint]));
         }
