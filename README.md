@@ -136,7 +136,7 @@ PRO: *Whole namespacing exercise now eliminated, plus 70% less code, all without
 
 *Create, Drop, Alter schemas without needing to worry about schema versioning.* Linked QL automatically adds auto-versioning capabilities to your database. Meet Schema Savepoints and Rollbacks.
 
-Where you normally would maintain a history of schema files (i.e. migration files) within your application, with a naming convention that must encode the idea of *versioning* and *chronology*...
+Where you normally would maintain a history of schema files (i.e. migration files) within your application, with a naming convention that must carry a sense of *versioning* and *chronology*...
 
 ```js
 app
