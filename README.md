@@ -7,6 +7,7 @@ Jump to sections and features:
 + [Basic Usage](#basic-usage)
 + [Magic Paths](#introducing-magic-paths)
 + [Auto-Versioning](#introducing-auto-versioning)
++ [API](#api)
 
 ## Basic Usage
 
@@ -109,7 +110,6 @@ CREATE TABLE users (
     role int references roles (id),
     created_time timestamp,
 );
-
 -- The books table
 CREATE TABLE books (
     id int primary key generated always as identity,
@@ -183,14 +183,14 @@ console.log(savepoint.savepoint_desc); // Create users table
 
 PRO: *DB versioning concerns now taken out of the client application - to the DB itself; without any upfront setup!*
 
-Now, when it's time to rollback:
+Now, when it's time to rollback? A magic wand button:
 
 ```js
 // Rollback all associated changes
 await savepoint.rollback();
 ```
 
-and to go many levels back:
+and you can go many levels back:
 
 ```js
 // Rollback to a point in time
@@ -201,7 +201,7 @@ while(savepoint = await client.database('public').savepoint()) {
 }
 ```
 
-and to "redo" a rollback:
+and you can "redo" a rollback; i.e. roll forward:
 
 ```js
 let savepoint = await client.database('public').savepoint({ direction: 'forward' });
