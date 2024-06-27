@@ -1,6 +1,6 @@
 # Linked QL
 
-A query client that extends standard SQL with new syntax sugars and enables auto-versioning capabilities on any database; usable over your DB of choice - from the server-side PostgreSQL and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), to the plain JSON object!
+A query client that extends standard SQL with new syntax sugars and enables auto-versioning capabilities on any database; usable over your DB of choice - from the server-side Postgres and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), to the plain JSON object!
 
 Jump to sections and features:
 
@@ -18,7 +18,7 @@ npm install @linked-db/linked-ql
 
 Obtain the Linked QL client for your target database:
 
-1. For SQL databases, install the regular SQL client you use for your DB. (Typically, `pg` for PostgreSQL, `mysql2` for MySQL databases.)
+1. For SQL databases, install the regular SQL client you use for your DB. (Typically, `pg` for Postgres, `mysql2` for MySQL databases.)
 
     Given a Postgres DB, install the `pg` client:
 
@@ -106,8 +106,10 @@ CREATE TABLE users (
     id int primary key generated always as identity,
     title varchar,
     name varchar,
+    role int references roles (id),
     created_time timestamp,
 );
+
 -- The books table
 CREATE TABLE books (
     id int primary key generated always as identity,
@@ -132,6 +134,24 @@ FROM books
 
 PRO: *Whole namespacing exercise now eliminated, plus 70% less code; without any upfront setup!*
 
+Additionally, paths can be multi-level:
+
+```sql
+-- Linked QL
+SELECT ..., author ~> role ~> name 
+FROM books
+```
+
+and can be used to express incoming references:
+
+```sql
+-- Linked QL
+SELECT ..., author <~ books ~> title 
+FROM users
+```
+
+> DOCS coming soon.
+
 ## Introducing Auto-Versioning
 
 *Create, Drop, Alter schemas without needing to worry about schema versioning.* Linked QL automatically adds auto-versioning capabilities to your database. Meet Schema Savepoints and Rollbacks.
@@ -146,7 +166,7 @@ app
   ├── ...
 ```
 
-Linked QL lets you just alter your DB however you may with automatic savepoints happening within your DB as you go:
+Linked QL lets you just alter your DB however you may, but this time, with automatic savepoints happening within your DB as you go:
 
 ```js
 // Alter schema
@@ -163,8 +183,36 @@ console.log(savepoint.savepoint_desc); // Create users table
 
 PRO: *DB versioning concerns now taken out of the client application - to the DB itself; without any upfront setup!*
 
+Now, when it's time to rollback:
+
+```js
+// Rollback all associated changes
+await savepoint.rollback();
+```
+
+and to go many levels back:
+
+```js
+// Rollback to a point in time
+let savepoint;
+while(savepoint = await client.database('public').savepoint()) {
+    await savepoint.rollback();
+    if (savepoint.id === '...') break;
+}
+```
+
+and to "redo" a rollback:
+
+```js
+let savepoint = await client.database('public').savepoint({ direction: 'forward' });
+await savepoint.rollback();
+```
+
+> DOCS coming soon.
+
 ## API
 
+*Coming soon.*
 <!--
 
 1. The `client.query()` method lets you run any SQL query on your database.
