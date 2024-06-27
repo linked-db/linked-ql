@@ -129,18 +129,20 @@ SELECT id, title, content, created_time, author ~> id, author ~> title, author ~
 FROM books
 ```
 
+*Whole namespacing exercise now eliminated, plus 70% less code, plus without any upfront setup!*
+
 ## Introducing Auto-Versioning
 
 Create, Drop, Alter schemas without needing to worry about schema versioning. Linked QL automatically adds auto-versioning capabilities to your database. Meet Schema savepoints and rollbacks.
 
-Where you normally would maintain a history of schema files within your application and manually version each:
+Where you normally would maintain a history of schema files within your application, with a naming convention that tries to equate to a versioning system...
 
 ```js
 app
- └── migrations
+ ├── migrations
   ├── 20240523_1759_create_users_table_and_drop_accounts_table.sql
   ├── 20240523_1760_add_last_login_to_users_table_and_add_index_on_order_status_table.sql
-  └── ...
+  ├── ...
 ```
 
 Linked QL lets you just alter your DB however you may with automatic savepoints happening within your DB as you go:
@@ -150,11 +152,15 @@ Linked QL lets you just alter your DB however you may with automatic savepoints 
 await client.query('CREATE TABLE users (...)', {
     savepointDesc: 'Create users table',
 });
+```
 
+```js
 // Inspect the automatic savepoint created for you
 const savepoint = await client.database('public').savepoint();
 console.log(savepoint.savepoint_desc); // Create users table
 ```
+
+*DB versioning concerns now taken out of the client application - to the DB itself, plus without any upfront setup!*
 
 ## API
 
