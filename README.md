@@ -79,8 +79,6 @@ console.log(result);
 
 Other APIs are covered just ahead in the [API](#api) section.
 
-And then the magic wands:
-
 ## Introducing Magic Paths
 
 Express relationships graphically. Meet the magic path operators, a syntax extension to SQL, that let you connect to columns on other tables without writing a JOIN. Linked QL uses heuristics to figure how your data is linked.
