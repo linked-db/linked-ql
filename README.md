@@ -132,7 +132,7 @@ SELECT id, title, content, created_time, author ~> id, author ~> title, author ~
 FROM books
 ```
 
-PRO: *Whole namespacing exercise now eliminated, plus 70% less code; without any upfront setup!*
+PRO: *Whole namespacing exercise is now eliminated; 70% less code; all with zero upfront setup!*
 
 Additionally, paths can be multi-level:
 
@@ -142,7 +142,7 @@ SELECT ..., author ~> role ~> name
 FROM books
 ```
 
-and can be used to express incoming references:
+and they can also be used to express incoming references:
 
 ```sql
 -- Linked QL
@@ -156,7 +156,7 @@ FROM users
 
 *Create, Drop, Alter schemas without needing to worry about schema versioning.* Linked QL automatically adds auto-versioning capabilities to your database. Meet Schema Savepoints and Rollbacks.
 
-Where you normally would maintain a history of schema files (i.e. migration files) within your application, with a naming convention that must carry a sense of *versioning* and *chronology*...
+Where you normally would maintain a history of schema files (i.e. migration files) within your application, with a naming convention that, among other things, must carry a sense of *versioning*...
 
 ```js
 app
@@ -166,7 +166,7 @@ app
   ├── ...
 ```
 
-Linked QL lets you just alter your DB however you may, but this time, with automatic savepoints happening within your DB as you go:
+Linked QL lets you just alter your DB however you may, this time, with automatic savepoints happening within your DB as you go:
 
 ```js
 // Alter schema
@@ -181,7 +181,7 @@ const savepoint = await client.database('public').savepoint();
 console.log(savepoint.savepoint_desc); // Create users table
 ```
 
-PRO: *DB versioning concerns now taken out of the client application - to the DB itself; without any upfront setup!*
+PRO: *DB versioning concerns are now taken out of the client application - to the DB itself; all with zero upfront setup!*
 
 Now, when it's time to rollback? A magic wand button:
 
