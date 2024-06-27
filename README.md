@@ -1,12 +1,12 @@
 # Linked QL
 
-A query client that extends standard SQL with new syntax sugars and enables auto-versioning capabilities on any database. And what's more, a client that can talk to your DB of choice - from the server-side PostgreSQL and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), to the plain JSON object!
+A query client that extends standard SQL with new syntax sugars and enables auto-versioning capabilities on any database; usable over your DB of choice - from the server-side PostgreSQL and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), to the plain JSON object!
 
-Wrapped in this little API are:
+Jump to sections and features:
 
-+ **Magic Paths.** Express relationships graphically. Meet the magic path operators that let you connect to columns on other tables without writing a JOIN. Linked QL uses heuristics to figure how your data is linked. ([Jump to section](#magic-paths).)
-
-+ **Auto-Versioning.** Create, Drop, Alter schemas without needing to worry about schema versioning. Linked QL automatically adds auto-versioning capabilities to your database. Meet Schema savepoints and rollbacks. ([Jump to section](#auto-versioning).)
++ [Basic Usage](#basic-usage)
++ [Magic Paths](#magic-paths)
++ [Auto-Versioning](#auto-versioning)
 
 ## Basic Usage
 
@@ -83,7 +83,51 @@ And then the magic wands:
 
 ## Magic Paths
 
+Express relationships graphically. Meet the magic path operators that let you connect to columns on other tables without writing a JOIN. Linked QL uses heuristics to figure how your data is linked.
+
+Where you normally would write:
+
+```sql
+SELECT title, users.fname AS author_name FROM posts
+LEFT JOIN users ON users.id = posts.author
+```
+
+Linked QL lets you draw the relationships as paths:
+
+```sql
+SELECT title, author ~> fname AS author_name FROM posts
+```
+
 ## Auto-Versioning
+
+Create, Drop, Alter schemas without needing to worry about schema versioning. Linked QL automatically adds auto-versioning capabilities to your database. Meet Schema savepoints and rollbacks.
+
+Where you normally would maintain a history of schema files within your application and manually version each:
+
+```js
+./migrations/20240523_1759_create_users_table_and_drop_accounts_table.sql
+```
+
+```js
+./migrations/20240523_1760_add_last_login_to_users_table_and_add_index_on_order_status_table.sql
+```
+
+```js
+...
+```
+
+Linked QL lets you just alter your DB however you may with automatic savepoints happening within your DB as you go:
+
+```js
+// Alter schema
+await client.query('CREATE TABLE users (...)', {
+    savepointDesc: 'Create users table',
+});
+
+// Inspect the automatic savepoint created for you
+const savepoint = await client.database('public').savepoint();
+console.log(savepoint.savepoint_desc); // Create users table
+```
 
 ## API
 
