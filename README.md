@@ -81,7 +81,7 @@ Other APIs are covered just ahead in the [API](#api) section.
 
 ## Introducing Magic Paths
 
-Express relationships graphically. Meet the magic path operators, a syntax extension to SQL, that let you connect to columns on other tables without writing a JOIN. Linked QL uses heuristics to figure how your data is linked.
+*Express relationships graphically.* Meet the magic path operators, a syntax extension to SQL, that let you connect to columns on other tables without writing a JOIN. Linked QL uses heuristics to figure how your data is linked.
 
 Where you normally would write...
 
@@ -133,7 +133,7 @@ FROM books
 
 ## Introducing Auto-Versioning
 
-Create, Drop, Alter schemas without needing to worry about schema versioning. Linked QL automatically adds auto-versioning capabilities to your database. Meet Schema savepoints and rollbacks.
+*Create, Drop, Alter schemas without needing to worry about schema versioning.* Linked QL automatically adds auto-versioning capabilities to your database. Meet Schema Savepoints and Rollbacks.
 
 Where you normally would maintain a history of schema files (i.e. migration files) within your application, with a naming convention that must encode the idea of *versioning* and *chronology*...
 
