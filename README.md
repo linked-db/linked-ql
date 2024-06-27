@@ -64,7 +64,7 @@ Obtain the Linked QL client for your target database:
     const LinkedQlClient = new LinkedQl;
     ```
 
-Now, all `client` instances above implement the same interface:
+All `client` instances above implement the same interface:
 
 ```js
 client.query('SELECT fname, lname FROM users').then(result => {
@@ -81,7 +81,7 @@ Other APIs are covered just ahead in the [API](#api) section.
 
 ## Introducing Magic Paths
 
-*Express relationships graphically.* Meet the magic path operators, a syntax extension to SQL, that let you connect to columns on other tables without writing a JOIN. Linked QL uses heuristics to figure how your data is linked.
+*Express relationships graphically.* Meet the magic path operators, a syntax extension to SQL, that let you connect to columns on other tables without writing a JOIN. Linked QL uses heuristics of your DB structure to figure out the details and the relevant JOINs.
 
 Where you normally would write...
 
@@ -101,13 +101,14 @@ SELECT title, author ~> fname AS author_name FROM posts
 Here's another instance showing an example schema and a typical query each:
 
 ```sql
--- The schema
+-- The users table
 CREATE TABLE users (
     id int primary key generated always as identity,
     title varchar,
     name varchar,
     created_time timestamp,
 );
+-- The books table
 CREATE TABLE books (
     id int primary key generated always as identity,
     title varchar,
@@ -129,7 +130,7 @@ SELECT id, title, content, created_time, author ~> id, author ~> title, author ~
 FROM books
 ```
 
-*Whole namespacing exercise now eliminated, plus 70% less code, all without any upfront setup!*
+PRO: *Whole namespacing exercise now eliminated, plus 70% less code, all without any upfront setup!*
 
 ## Introducing Auto-Versioning
 
@@ -160,7 +161,7 @@ const savepoint = await client.database('public').savepoint();
 console.log(savepoint.savepoint_desc); // Create users table
 ```
 
-*DB versioning concerns now taken out of the client application - to the DB itself, all without any upfront setup!*
+PRO: *DB versioning concerns now taken out of the client application - to the DB itself, all without any upfront setup!*
 
 ## API
 
