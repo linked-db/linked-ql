@@ -86,6 +86,7 @@ Express relationships graphically. Meet the magic path operators, a syntax exten
 Where you normally would write...
 
 ```sql
+-- Regular SQL
 SELECT title, users.fname AS author_name FROM posts
 LEFT JOIN users ON users.id = posts.author
 ```
@@ -93,17 +94,37 @@ LEFT JOIN users ON users.id = posts.author
 Linked QL lets you draw a path to express the relationship:
 
 ```sql
+-- Linked QL
 SELECT title, author ~> fname AS author_name FROM posts
 ```
 
-Here's another instance for contrast:
+Here's another instance showing an example schema and a typical query each:
 
 ```sql
+-- The schema
+CREATE TABLE users (
+    id int primary key generated always as identity,
+    title varchar,
+    name varchar,
+    created_time timestamp,
+);
+CREATE TABLE books (
+    id int primary key generated always as identity,
+    title varchar,
+    content varchar,
+    author int references users (id),
+    created_time timestamp,
+);
+```
+
+```sql
+-- Regular SQL
 SELECT book.id, book.title, content, book.created_time, user.id AS author_id, user.title AS author_title, user.name AS author_name 
 FROM books AS book LEFT JOIN users AS user ON user.id = book.author
 ```
 
 ```sql
+-- Linked QL
 SELECT id, title, content, created_time, author ~> id, author ~> title, author ~> name 
 FROM books
 ```
