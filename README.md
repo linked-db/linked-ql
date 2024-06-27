@@ -81,7 +81,7 @@ Other APIs are covered just ahead in the [API](#api) section.
 
 ## Introducing Magic Paths
 
-*Express relationships graphically.* Meet the magic path operators, a syntax extension to SQL, that let you connect to columns on other tables without writing a JOIN. Linked QL uses heuristics of your DB structure to figure out the details and the relevant JOINs.
+*Express relationships graphically.* Meet the magic path operators, a syntax extension to SQL, that let you connect to columns on other tables without writing a JOIN. Linked QL uses heuristics on your DB structure to figure out the details and the relevant JOINs.
 
 Where you normally would write...
 
