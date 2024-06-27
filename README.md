@@ -5,8 +5,8 @@ A query client that extends standard SQL with new syntax sugars and enables auto
 Jump to sections and features:
 
 + [Basic Usage](#basic-usage)
-+ [Magic Paths](#magic-paths)
-+ [Auto-Versioning](#auto-versioning)
++ [Magic Paths](#introducing-magic-paths)
++ [Auto-Versioning](#introducing-auto-versioning)
 
 ## Basic Usage
 
@@ -20,7 +20,7 @@ Obtain the Linked QL client for your target database:
 
 1. For SQL databases, install the regular SQL client you use for your DB. (Typically, `pg` for PostgreSQL, `mysql2` for MySQL databases.)
 
-    Install the `pg` client (given a Postgres DB):
+    Given a Postgres DB, install the `pg` client:
 
     ```cmd
     npm install pg
@@ -29,7 +29,7 @@ Obtain the Linked QL client for your target database:
     Use Linked QL as a wrapper over that:
 
     ```js
-    // Import pg as LinkedQl
+    // Import pg and LinkedQl
     import pg from 'pg';
     import LinkedQl from '@linked-db/linked-ql/sql';
 
@@ -81,39 +81,47 @@ Other APIs are covered just ahead in the [API](#api) section.
 
 And then the magic wands:
 
-## Magic Paths
+## Introducing Magic Paths
 
-Express relationships graphically. Meet the magic path operators that let you connect to columns on other tables without writing a JOIN. Linked QL uses heuristics to figure how your data is linked.
+Express relationships graphically. Meet the magic path operators, a syntax extension to SQL, that let you connect to columns on other tables without writing a JOIN. Linked QL uses heuristics to figure how your data is linked.
 
-Where you normally would write:
+Where you normally would write...
 
 ```sql
 SELECT title, users.fname AS author_name FROM posts
 LEFT JOIN users ON users.id = posts.author
 ```
 
-Linked QL lets you draw the relationships as paths:
+Linked QL lets you draw a path to express the relationship:
 
 ```sql
 SELECT title, author ~> fname AS author_name FROM posts
 ```
 
-## Auto-Versioning
+Here's another instance for contrast:
+
+```sql
+SELECT book.id, book.title, content, book.created_time, user.id AS author_id, user.title AS author_title, user.name AS author_name 
+FROM books AS book LEFT JOIN users AS user ON user.id = book.author
+```
+
+```sql
+SELECT id, title, content, created_time, author ~> id, author ~> title, author ~> name 
+FROM books
+```
+
+## Introducing Auto-Versioning
 
 Create, Drop, Alter schemas without needing to worry about schema versioning. Linked QL automatically adds auto-versioning capabilities to your database. Meet Schema savepoints and rollbacks.
 
 Where you normally would maintain a history of schema files within your application and manually version each:
 
 ```js
-./migrations/20240523_1759_create_users_table_and_drop_accounts_table.sql
-```
-
-```js
-./migrations/20240523_1760_add_last_login_to_users_table_and_add_index_on_order_status_table.sql
-```
-
-```js
-...
+app
+ └── migrations
+  ├── 20240523_1759_create_users_table_and_drop_accounts_table.sql
+  ├── 20240523_1760_add_last_login_to_users_table_and_add_index_on_order_status_table.sql
+  └── ...
 ```
 
 Linked QL lets you just alter your DB however you may with automatic savepoints happening within your DB as you go:
