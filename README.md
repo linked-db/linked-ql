@@ -130,7 +130,7 @@ SELECT id, title, content, created_time, author ~> id, author ~> title, author ~
 FROM books
 ```
 
-PRO: *Whole namespacing exercise now eliminated, plus 70% less code, all without any upfront setup!*
+PRO: *Whole namespacing exercise now eliminated, plus 70% less code; without any upfront setup!*
 
 ## Introducing Auto-Versioning
 
@@ -161,7 +161,7 @@ const savepoint = await client.database('public').savepoint();
 console.log(savepoint.savepoint_desc); // Create users table
 ```
 
-PRO: *DB versioning concerns now taken out of the client application - to the DB itself, all without any upfront setup!*
+PRO: *DB versioning concerns now taken out of the client application - to the DB itself; without any upfront setup!*
 
 ## API
 
