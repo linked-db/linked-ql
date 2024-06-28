@@ -54,12 +54,13 @@ export default class DropTable extends StatementNode {
 	 * @inheritdoc
 	 */
 	static parse(context, expr) {
-		const [ match, ifExists, namePart ] = /^DROP\s+TABLE\s+(IF\s+EXISTS\s+)?([\s\S]+)$/i.exec(expr) || [];
+		const [ match, ifExists, namePart, cascade, namePartAlt ] = /^DROP\s+TABLE\s+(IF\s+EXISTS\s+)?(?:(.+)\s+(CASCADE)$|(.+)$)/i.exec(expr) || [];
 		if (!match) return;
-		const [tblName, dbName] = this.parseIdent(context, namePart.trim(), true) || [];
+		const [tblName, dbName] = this.parseIdent(context, (namePart || namePartAlt).trim(), true) || [];
 		if (!tblName) return;
 		const instance = new this(context, tblName, dbName);
 		if (ifExists) instance.withFlag('IF_EXISTS');
+		if (cascade) instance.withFlag('CASCADE');
 		return instance;
 	}
 

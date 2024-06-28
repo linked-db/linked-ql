@@ -269,7 +269,7 @@ There's a lot here:
 + Implement support for IndexedDB and in-mem.
 + Write detailed tests.
 
-> Much of that could happen sooner with your support! If you'd like to help out, consider a [sponsorship](https://github.com/sponsors/ox-harris). Plus PRs are always welcome.
+> Much of that could happen sooner with your support! If you'd like to help out, please consider a [sponsorship](https://github.com/sponsors/ox-harris). PRs are also always welcome.
 
 ## Issues
 

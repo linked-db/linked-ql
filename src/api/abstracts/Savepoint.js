@@ -160,6 +160,7 @@ export default class Savepoint {
                 q.set('rollback_date', x => x.call('now'));
                 q.where( x => x.or(
                     y => y.equals('id', z => z.literal(this.id)),
+                    // the following is faulty. forces unrolled back savepoints to a rolled back state
                     y => y.and( z => z.equals('name_snapshot', z => z.literal(this.current_name) ), z => z.isNull('rollback_date') )
                 ) );
             });
