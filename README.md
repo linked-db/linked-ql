@@ -108,7 +108,7 @@ CREATE TABLE users (
     title varchar,
     name varchar,
     role int references roles (id),
-    created_time timestamp,
+    created_time timestamp
 );
 -- The books table
 CREATE TABLE books (
@@ -116,7 +116,7 @@ CREATE TABLE books (
     title varchar,
     content varchar,
     author int references users (id),
-    created_time timestamp,
+    created_time timestamp
 );
 ```
 
