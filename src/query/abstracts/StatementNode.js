@@ -35,5 +35,5 @@ export default class StatementNode extends Node {
     /**
      * @returns Node
      */
-    async expand(asClone = false) { return asClone ? this.clone() : this; }
+    async expand(inPlace = false) { return !inPlace ? this.clone() : this; }
 }

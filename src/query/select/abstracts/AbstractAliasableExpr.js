@@ -104,7 +104,7 @@ export default class AbstractAliasableExpr extends Node {
 		// E.g: SELECT first_name AS fname, 4 + 5 AS result, 5 + 5
 		// Without an "AS" clause, its hard to determine if an expression is actually aliased...
 		// E.g: In the statement SELECT first_name fname, 4 + 5 result, 5 + 5, (SELECT ...) alias FROM ...,
-		let [ , $expr, $separator, aliasUnescaped, /*esc*/, aliasEscaped ] = (new RegExp(`^([\\s\\S]+?)` + `(?:` + `(\\s+AS\\s+|\\s+)` + `(?:([\\w]+)|(${ escChar })((?:\\4\\4|[^\\4])+)\\4)` + `)?$`, 'i')).exec(expr.trim()) || [];
+		let [ , $expr, $separator, aliasUnescaped, /*esc*/, aliasEscaped ] = (new RegExp(`^([\\s\\S]+?)` + `(?:` + `(\\s+AS\\s+|(?<!(?:~>|<~))\\s+)` + `(?:([\\w]+)|(${ escChar })((?:\\4\\4|[^\\4])+)\\4)` + `)?$`, 'i')).exec(expr.trim()) || [];
 		let exprNode, $alias = aliasUnescaped || aliasEscaped;
 		if ($alias && !$separator?.trim() && !$expr.trim().endsWith(')')) {
 			try {

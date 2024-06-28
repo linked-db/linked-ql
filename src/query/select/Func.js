@@ -50,7 +50,7 @@ export default class Func extends Node {
 	 */
 	static parse(context, expr, parseCallback) {
 		if (!expr.endsWith(')') || Lexer.match(expr, [' ']).length) return;
-		const [ , name, args ] = /^(\w+)\(([\s\S]+)\)$/i.exec(expr);
+		const [ , name, args = '' ] = /^(\w+)\(([\s\S]+)?\)$/i.exec(expr);
 		const instance = new this(context);
 		instance.call(name, ...Lexer.split(args, [',']).map(arg => parseCallback(instance, arg.trim())));
 		return instance;

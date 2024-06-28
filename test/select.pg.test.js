@@ -2,7 +2,6 @@
 /**
  * @imports
  */
-import Lexer from '@webqit/util/str/Lexer.js';
 import { expect } from 'chai';
 import Parser from '../src/query/Parser.js';
 import pg from 'pg';

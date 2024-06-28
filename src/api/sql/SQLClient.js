@@ -1,7 +1,6 @@
 
-import Identifier from '../../query/select/Identifier.js';
 import Lexer from '../../query/Lexer.js';
-import Parser from '../../query/Parser.js';
+import Identifier from '../../query/select/Identifier.js';
 import AbstractClient from '../abstracts/AbstractClient.js';
 import SQLDatabase from './SQLDatabase.js';	
 
@@ -165,14 +164,15 @@ export default class SQLClient extends AbstractClient {
 	/**
      * @inheritdoc
 	 */
-	async query(query, params = {}) {
-        return this.queryCallback((query, params) => {
+	async query(...query) {
+        return this.queryCallback(async (query, params) => {
+            if (query.expandable) await query.expand(true);
             return new Promise((resolve, reject) => {
                 this.driver.query(`${ query }`, (err, result) => {
                     if (err) return reject(err);
                     resolve(result.rows || result);
                 });
             });
-        }, query, params, true/*acceptsSql*/);
+        }, ...query);
     }
 }

@@ -55,8 +55,6 @@ export default class Delete extends StatementNode {
 	 * Builds the statement's FROM_LIST
 	 * - as either Table objects or Identifiers (in connection with a USING_LIST, in which case "false" should be first argument)
 	 * 
-	 * .from(false, 't11, 't2');
-	 * 
 	 * .from(
 	 * 		t1 => t1.name('tbl1').as('alias'),
 	 * 		t2 => t2.name('tbl2')
@@ -69,7 +67,7 @@ export default class Delete extends StatementNode {
 	/**
 	 * Builds the statement's USING_LIST
 	 * 
-	 * .from(
+	 * .using(
 	 * 		t1 => t1.name('tbl1').as('alias'),
 	 * 		t2 => t2.name('tbl2')
 	 * );

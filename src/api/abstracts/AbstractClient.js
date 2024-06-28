@@ -180,7 +180,7 @@ export default class AbstractClient {
             for (let db of await callback()) {
                 if (typeof db === 'string') { db = { name: db }; }
                 if (schemasMap.has(db.name)) {
-                    delete schemasMap.has(db.name).hiddenAs;
+                    delete schemasMap.get(db.name).hiddenAs;
                 } else { schemasMap.set(db.name, { ...db, tables: new Map }); }
             }
         }
@@ -320,7 +320,6 @@ export default class AbstractClient {
                     if (diff.type === 'DROP') { await dbApi.dropTable(diff.argument, params); }
                     if (diff.type === 'ADD') { await dbApi.createTable(diff.argument, params); }
                     if (diff.type === 'ALTER') { await dbApi.alterTable(diff.argument, params); }
-                    
                 }
                 delete dbSchema.schemaEdit; // Cleanup
             };
@@ -431,23 +430,50 @@ export default class AbstractClient {
     /**
      * Base logic for dropDatabase()
      * 
-     * @param Function          callback
-     * @param String|Function   query
-     * @param Object            params
-     * @param Bool              acceptsSql
+     * @param Function                  callback
+     * @param String|Object|Function    ...query
      * 
      * @return Object
      */
-    async queryCallback(callback, query, params = {}, acceptsSql = false) {
-        if (typeof query === 'string' && (!acceptsSql/*always parse*/ || (/^SELECT[ ]/i.test(query) && !params.isStandardSql/*needs parsing*/))) {
-            query = Parser.parse(this, query);
-        } else if (typeof query === 'function') {
-            const Types = { Insert, Update, Delete, Select, DropDatabase, DropTable, CreateDatabase, CreateTable, AlterDatabase, AlterTable };
-            const type = params.type?.toLowerCase().replace(/^\w|_./g, m => m.toUpperCase().replace('_', '')) || 'Select';
-            const $query = new Types[type](this);
-            query = (query($query), $query);
+    async queryCallback(callback, ...args) {
+        const Types = [ Insert, Update, Delete, Select, DropDatabase, DropTable, CreateDatabase, CreateTable, AlterDatabase, AlterTable ];
+        const params = typeof args[args.length - 1] === 'object' ? args.pop() : {};
+        const exec = async instance => {
+            if (instance instanceof CreateDatabase) return await this.createDatabase(instance, params);
+            if (instance instanceof AlterDatabase) return await this.alterDatabase(instance, params);
+            if (instance instanceof DropDatabase) return await this.dropDatabase(instance, params);
+            let basename = instance.BASENAME;
+            if (!basename) {
+                const searchPath = await this.searchPath();
+                basename = searchPath.find(s => !s.startsWith('$')) || searchPath[0];
+            }
+            if (instance instanceof CreateTable) return await this.database(basename).createTable(instance, params);
+            if (instance instanceof AlterTable) return await this.database(basename).alterTable(instance, params);
+            if (instance instanceof DropTable) return await this.database(basename).dropTable(instance, params);
+            // For Insert, Update, Delete, Select queries...
+            return await callback(instance, params);
+        };
+        if (typeof args[0] === 'string' && typeof args[1] === 'function') {
+            const $queryType = args.shift(), queryType = $queryType.toLowerCase().replace(/^\w|_./g, m => m.toUpperCase().replace('_', ''));
+            const Type = Types.find(Type => Type.name === queryType);
+            if (!Type) throw new Error(`Unknown query type: ${ $queryType }.`);
+            const instance = new Type(this);
+            args.forEach((arg, i) => {
+                if (typeof arg !== 'function') throw new Error(`Invalid argument at #${ i }.`);
+                arg(instance);
+            });
+            return await exec(instance);
         }
-        return await callback(query, params);
+        if (args.length > 1) throw new Error(`Invalid argument count.`);
+        if (typeof args[0] === 'object' && args[0]) {
+            const instance = Types.reduce((prev, Type) => prev || Type.fromJson(this, args[0]), null);
+            if (instance) return await exec(instance);
+        }
+        if (typeof args[0] === 'string') {
+            const instance = Parser.parse(this, args[0]);
+            return await exec(instance);
+        } 
+        throw new Error(`Invalid arguments.`);
     }
 
     /**
@@ -492,7 +518,7 @@ export default class AbstractClient {
         const dbName = [OBJ_INFOSCHEMA_DB,'database_savepoints'];
         let where = x => x.in( y => y.literal(entry.name_snapshot || entry.current_name), ['active','name_snapshot'], ['active','current_name']);
         while(where) {
-            const rolledbackSavepoints = await this.query(q => {
+            const rolledbackSavepoints = await this.query('select', q => {
                 q.select(['active','id'], x => x.name(['following','id']).as('id_following'));
                 q.from(dbName).as('active');
                 q.leftJoin(dbName).as('following').on( x => x.equals(['following','name_snapshot'], ['active','current_name']) );
@@ -502,10 +528,10 @@ export default class AbstractClient {
                 q.limit(1);
             });
             if (rolledbackSavepoints[0]?.id) {
-                await this.query(q => {
+                await this.query('delete', q => {
                     q.from(dbName);
                     q.where( x => x.equals('id', y => y.literal(rolledbackSavepoints[0].id) ) );
-                }, { type: 'delete' });
+                });
             }
             if (rolledbackSavepoints[0]?.id_following) { where = x => x.equals(['active','id'], y => y.literal(rolledbackSavepoints[0].id_following) ); }
             else { where = null; }

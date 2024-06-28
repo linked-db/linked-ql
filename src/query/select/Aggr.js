@@ -3,7 +3,7 @@ import Lexer from '../Lexer.js';
 import WindowSpec from './window/WindowSpec.js';
 import OrderByClause from './OrderByClause.js';
 import Func from './Func.js';
-		
+
 export default class Aggr extends Func {
 
 	/**
@@ -70,7 +70,7 @@ export default class Aggr extends Func {
 		const [ func, over ] = Lexer.split(expr, ['OVER\\s+'], { useRegex: 'i' }).map(s => s.trim());
 		if (!func.endsWith(')') || Lexer.match(func, [' ']).length) return;
 		// Match any ALL|DISTINCT flags; also assert that it's an aggr function
-		const [ , name, allOrDistinct, args ] = /^(\w+)\((?:(ALL|DISTINCT)\s+)?([\s\S]+)\)$/i.exec(func);
+		const [ , name, allOrDistinct, args = '' ] = /^(\w+)\((?:\s+)?(?:(ALL|DISTINCT)\s+)?([\s\S]+)?\)$/i.exec(func);
 		if (!this.names.flat().includes(name.toUpperCase())) return;
 		// Break off any ORDER BY clause, then render
 		const [ , $args, orderByClause ] = /^([\s\S]+)(?:\s+(ORDER\s+BY\s+.+))$/i.exec(args) || [ , args ];

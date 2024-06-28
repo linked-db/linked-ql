@@ -57,7 +57,7 @@ export default class AbstractTable {
             const tblName = [OBJ_INFOSCHEMA_DB,'table_savepoints'];
 			const tblFields = ['name_snapshot', 'columns_snapshot', 'constraints_snapshot', 'indexes_snapshot', 'current_name'];
 			const dbFields = ['id', 'name_snapshot', 'savepoint_desc', 'savepoint_date', 'rollback_date', 'current_name'];
-            const result = await this.database.client.query(q => {
+            const result = await this.database.client.query('select', q => {
                 q.from(tblName).as('tbl');
 				q.select( ...tblFields.map(name => ['tbl',name]) );
 				q.select( ...dbFields.map(name => f => f.name(['db',name]).as(`db_${ name }`)) );

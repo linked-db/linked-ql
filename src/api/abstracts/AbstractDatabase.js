@@ -131,7 +131,7 @@ export default class AbstractDatabase {
         if ((await this.client.databases({ name: OBJ_INFOSCHEMA_DB }))[0]) {
             const forward = params.direction === 'forward';
             const dbName = [OBJ_INFOSCHEMA_DB,'database_savepoints'];
-            const result = await this.client.query(q => {
+            const result = await this.client.query('select', q => {
                 q.from(dbName).as(forward ? 'active' : 'preceding');
                 if (forward) {
                     q.select( ['following','*'], f => f.name(['active','id']).as('id_active') );
@@ -345,7 +345,7 @@ export default class AbstractDatabase {
             let tblDropRequest;
             if (tblName instanceof DropTable) {
                 tblDropRequest = tblName;
-                tblName = tblDropRequest.name;
+                tblName = tblDropRequest.NAME;
             } else {
                 // First we validate operation
                 const tblFound = (await this.tables({ name: tblName }))[0];

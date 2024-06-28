@@ -246,11 +246,11 @@ export default class Select extends StatementNode {
 	/**
 	 * @inheritdoc
 	 */
-	async expand(asClone = false) {
-		const instance = asClone ? this.clone() : this;
+	async expand(inPlace = false) {
+		const instance = !inPlace ? this.clone() : this;
 		if (!instance.expandable) return instance;
 		for (const path of instance.PATHS) await path.plot();
-		for (const query of instance.SUBQUERIES) await query.expand();
+		for (const query of instance.SUBQUERIES) await query.expand(true);
 		return instance;
 	}
 

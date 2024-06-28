@@ -82,7 +82,7 @@ export default class Savepoint {
      */
     async getAssociatedSnapshots() {
         const OBJ_INFOSCHEMA_DB = this.client.constructor.OBJ_INFOSCHEMA_DB;
-        return this.client.query(q => {
+        return this.client.query('select', q => {
             q.select('*');
             q.from([OBJ_INFOSCHEMA_DB,'table_savepoints']);
             q.where( c => c.equals('savepoint_id', q => q.literal(this.id)) );
@@ -148,21 +148,21 @@ export default class Savepoint {
         const dbName = [OBJ_INFOSCHEMA_DB,'database_savepoints'];
         if (this.direction === 'forward') {
             this.$.details.rollback_date = null;
-            await this.client.query(q => {
+            await this.client.query('update', q => {
                 q.table(dbName);
                 q.set('rollback_date', null);
                 q.where( x => x.equals('current_name', y => y.literal(this.name_snapshot)), x => x.isNotNull('rollback_date') );
-            }, { type: 'update' });
+            });
         } else {
             this.$.details.rollback_date = new Date;
-            await this.client.query(q => {
+            await this.client.query('update', q => {
                 q.table(dbName);
                 q.set('rollback_date', x => x.call('now'));
                 q.where( x => x.or(
                     y => y.equals('id', z => z.literal(this.id)),
                     y => y.and( z => z.equals('name_snapshot', z => z.literal(this.current_name) ), z => z.isNull('rollback_date') )
                 ) );
-            }, { type: 'update' });
+            });
         }
         return true;
     }
