@@ -59,6 +59,16 @@ export default class AbstractClient {
     async searchPath(...args) { return this.searchPathCallback(() => {}, ...arguments); }
 
     /**
+     * Returns internal schemas object.
+     * 
+     * @return Map
+     */
+    async schemas() {
+        if (!this.$.schemas.size) await this.databases();
+        return this.$.schemas;
+    }
+
+    /**
      * Returns list of databases.
      * 
      * @param Object            params
@@ -225,7 +235,7 @@ export default class AbstractClient {
         // ------
         // Must be before db changes below
         const dbApi = this.database(dbSchema.name, params);
-        const schemasMap = this.$.schemas, tablesSavepoints = new Set;
+        const schemasMap = await this.schemas(), tablesSavepoints = new Set;
         // DB changes now
         let onAfterCreateCalled;
         const onAfterCreate = async () => {
@@ -268,7 +278,7 @@ export default class AbstractClient {
      * @return Object
      */
     async alterDatabaseCallback(callback, dbAlterRequest, editCallback, params = {}) {
-        const schemasMap = this.$.schemas, tablesSavepoints = new Set;
+        const schemasMap = await this.schemas(), tablesSavepoints = new Set;
         let dbAlterInstance, dbName, dbSchema;
         let onAfterAfterCalled, onAfterAlter = () => {};
         if (dbAlterRequest instanceof AlterDatabase) {
@@ -385,7 +395,7 @@ export default class AbstractClient {
             if (params.ifExists) dbDropInstance.withFlag('IF_EXISTS');
             if (params.cascade) dbDropInstance.withFlag('CASCADE');
         }
-        const schemasMap = this.$.schemas;
+        const schemasMap = await this.schemas();
         const dbSchema = schemasMap.get(dbName);
         if (dbSchema.schemaEdit) throw new Error(`Cannot delete database when already in edit mode.`);
         // -----------------

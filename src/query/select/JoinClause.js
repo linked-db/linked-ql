@@ -14,14 +14,62 @@ export default class JoinClause extends Table {
 	CORRELATION = null;
 
 	/**
-	 * Sets the tyoe
+	 * Creates a full join
 	 * 
-	 * @param String type
+	 * @param Any table
 	 * 
 	 * @returns Void
 	 */
-	join(type, table) {
-		this.TYPE = type.toUpperCase();
+	full(table) {
+		this.TYPE = 'JOIN';
+		return (this.expr(table), this);
+	}
+
+	/**
+	 * Creates a left join
+	 * 
+	 * @param Any table
+	 * 
+	 * @returns Void
+	 */
+	left(table) {
+		this.TYPE = 'LEFT_JOIN';
+		return (this.expr(table), this);
+	}
+
+	/**
+	 * Creates a right join
+	 * 
+	 * @param Any table
+	 * 
+	 * @returns Void
+	 */
+	right(table) {
+		this.TYPE = 'RIGHT_JOIN';
+		return (this.expr(table), this);
+	}
+
+	/**
+	 * Creates an inner join
+	 * 
+	 * @param Any table
+	 * 
+	 * @returns Void
+	 */
+	inner(table) {
+		this.TYPE = 'INNER_JOIN';
+		return (this.expr(table), this);
+	}
+
+	/**
+	 * Creates a cross join
+	 * 
+	 * @param Any table
+	 * 
+	 * @returns Void
+	 */
+	cross(table) {
+		this.TYPE = 'CROSS_JOIN';
 		return (this.expr(table), this);
 	}
 
@@ -59,7 +107,7 @@ export default class JoinClause extends Table {
 	 */
 	static fromJson(context, json) {
 		const instance = super.fromJson(context, json);
-		if (!instance) return;
+		if (!instance || !json.type) return;
 		if (json?.expr && json.type) instance.TYPE = json.type;
 		if (json?.expr && json.correlation) instance.build('CORRELATION', [json.correlation], [Identifier,Condition]);
 		return instance;
@@ -82,9 +130,9 @@ export default class JoinClause extends Table {
 	static parse(context, expr, parseCallback) {
 		const [ joinMatch, type, joinSpec ] = expr.match(new RegExp(`^${ this.regex }([\\s\\S]*)$`, 'i')) || [];
 		if (!joinMatch) return;
-		const { tokens: [ $table, $correlation ], matches } = Lexer.split(joinSpec, ['ON|USING'], { useRegex:'i' });
+		const { tokens: [ $table, $correlation ], matches } = Lexer.lex(joinSpec, ['ON|USING'], { useRegex:'i' });
 		const instance = super.parse(context, $table.trim(), parseCallback);
-		instance.TYPE = type.replace(/\s+/g, '_');
+		instance.TYPE = type.trim().toUpperCase() + '_JOIN';
 		if (/^USING$/i.test(matches[0])) {
 			instance.using(parseCallback(instance, $correlation.trim(), [Identifier]));
 		} else if (/^ON$/i.test(matches[0])) {

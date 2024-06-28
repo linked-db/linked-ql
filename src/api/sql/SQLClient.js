@@ -168,7 +168,8 @@ export default class SQLClient extends AbstractClient {
         return this.queryCallback(async (query, params) => {
             if (query.expandable) await query.expand(true);
             return new Promise((resolve, reject) => {
-                this.driver.query(`${ query }`, (err, result) => {
+                console.log('..........////////', params);
+                this.driver.query(`${ query }`, params.params || [], (err, result) => {
                     if (err) return reject(err);
                     resolve(result.rows || result);
                 });

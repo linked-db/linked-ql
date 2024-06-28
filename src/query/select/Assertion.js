@@ -306,7 +306,7 @@ export default class Assertion extends Node {
 	 * @inheritdoc
 	 */
 	static fromJson(context, json) {
-		if (typeof json?.operator !== 'string' || !(new RegExp(this.regex)).test(` ${ json.operator } `/*intentional space around*/) || !Array.isArray(json.operands)) return;
+		if (!Array.isArray(json?.operands) || typeof json?.operator !== 'string' || !this.regexes.some(re => (new RegExp(re.regex || re.test || re)).test(` ${ json.operator } `/*intentional space around*/))) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
 		instance.assert(json.operator, ...json.operands);
 		return instance;
@@ -332,7 +332,7 @@ export default class Assertion extends Node {
 	 * @inheritdoc
 	 */
 	static parse(context, expr, parseCallback) {
-		const { tokens: [lhs, rhs = ''], matches: [operator] } = Lexer.lex(expr, [this.regex], { useRegex: 'i' });
+		const { tokens: [lhs, rhs = ''], matches: [operator] } = Lexer.lex(expr, this.regexes, { useRegex: 'i' });
 		if (!operator) return;
 		const $operator = operator.trim().toUpperCase();
 		const $operands = [lhs];
@@ -349,5 +349,9 @@ export default class Assertion extends Node {
 	/**
 	 * @property String
 	 */
-	static regex = '((\\s+(?:NOT\\s+)?IS\\s+(?:NOT\\s+)?(TRUE|FALSE|NULL|UNKNOWN|DISTINCT\\s+FROM)\\s+)|\\s+(ISNULL|NOTNULL|IN|ANY|LIKE|(?:NOT\\s+)?BETWEEN(?:\\s+SYMMETRIC)?)\\s+|(?:\\s+)?(=|<|<=|>=|>|!=|<>)(?:\\s+)?)';
+	static regexes = [
+		{ test: '<(?!~)' },
+		{ backtest: '^(?!.*~$)', test: '>', regex: '(?<!~)>' },
+		'((\\s+(?:NOT\\s+)?IS\\s+(?:NOT\\s+)?(TRUE|FALSE|NULL|UNKNOWN|DISTINCT\\s+FROM)\\s+)|\\s+(ISNULL|NOTNULL|IN|ANY|LIKE|(?:NOT\\s+)?BETWEEN(?:\\s+SYMMETRIC)?)\\s+|(?:\\s+)?(=|<=|>=|!=|<>)(?:\\s+)?)',
+	];
 }

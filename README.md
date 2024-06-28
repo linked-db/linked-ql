@@ -68,13 +68,13 @@ Obtain the Linked QL client for your target database:
 All `client` instances above implement the same interface:
 
 ```js
-client.query('SELECT fname, lname FROM users').then(result => {
+client.query('SELECT fname, lname FROM users WHERE role = $1', { params: ['admin'] }).then(result => {
     console.log(result);
 });
 ```
 
 ```js
-const result = await client.query('SELECT fname, lname FROM users');
+const result = await client.query('SELECT fname, lname FROM users WHERE role = $1', { params: ['admin'] });
 console.log(result);
 ```
 

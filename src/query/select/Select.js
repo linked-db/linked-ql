@@ -90,7 +90,7 @@ export default class Select extends StatementNode {
 	 * 
 	 * @return array
 	 */
-	join(table) { return this.build('JOIN_LIST', ['JOIN',table], JoinClause, 'join'); }
+	join(table) { return this.build('JOIN_LIST', [table], JoinClause, 'full'); }
 
 	/**
 	 * A variant of the join()
@@ -99,7 +99,7 @@ export default class Select extends StatementNode {
 	 * 
 	 * @returns 
 	 */
-	leftJoin(table) { return this.build('JOIN_LIST', ['LEFT_JOIN',table], JoinClause, 'join'); }
+	leftJoin(table) { return this.build('JOIN_LIST', [table], JoinClause, 'left'); }
 
 	/**
 	 * A variant of the join()
@@ -108,7 +108,7 @@ export default class Select extends StatementNode {
 	 * 
 	 * @returns 
 	 */
-	rightJoin(table) { return this.build('JOIN_LIST', ['RIGHT_JOIN',table], JoinClause, 'join'); }
+	rightJoin(table) { return this.build('JOIN_LIST', [table], JoinClause, 'right'); }
 
 	/**
 	 * A variant of the join()
@@ -117,7 +117,7 @@ export default class Select extends StatementNode {
 	 * 
 	 * @returns 
 	 */
-	innerJoin(table) { return this.build('JOIN_LIST', ['INNER_JOIN',table], JoinClause, 'join'); }
+	innerJoin(table) { return this.build('JOIN_LIST', [table], JoinClause, 'inner'); }
 
 	/**
 	 * A variant of the join()
@@ -126,7 +126,7 @@ export default class Select extends StatementNode {
 	 * 
 	 * @returns 
 	 */
-	crossJoin(table) { return this.build('JOIN_LIST', ['CROSS_JOIN',table], JoinClause, 'join'); }
+	crossJoin(table) { return this.build('JOIN_LIST', [table], JoinClause, 'cross'); }
 
 	/**
 	 * Builds the statement's WHERE_CLAUSE
@@ -330,7 +330,8 @@ export default class Select extends StatementNode {
 		}
 		// CLAUSES
 		for (const clause of clauses) {
-			const clauseRe = new RegExp(clause.replace(/\s+/g, ''), 'i'), clauseKey = Object.keys(clausesMap).find(key => clauseRe.test(key));
+			const $clause = clause.replace(/\s+/g, '');
+			const clauseKey = Object.keys(clausesMap).find(key => (new RegExp(key, 'i')).test($clause));
 			// FROM_LIST
 			if (clauseKey === 'from') {
 				for (const tblExpr of Lexer.split(tokens.shift(), [','])) {

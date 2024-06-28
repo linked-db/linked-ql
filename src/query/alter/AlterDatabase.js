@@ -1,4 +1,5 @@
 
+import Lexer from '../Lexer.js';
 import StatementNode from '../abstracts/StatementNode.js';
 import Action from './Action.js';
 
@@ -74,13 +75,14 @@ export default class AlterDatabase extends StatementNode {
 	static parse(context, expr) {
 		const [ match, ifExists, rest ] = /^ALTER\s+DATABASE\s+(IF\s+EXISTS\s+)?([\s\S]+)$/i.exec(expr) || [];
 		if (!match) return;
-		const [ name1Part, name2Part ] = Lexer.split(rest, ['RENAME\s+TO'], { useRegex: 'i' });
+		const [ name1Part, name2Part ] = Lexer.split(rest, ['RENAME\\s+TO'], { useRegex: 'i' });
 		const [name1] = this.parseIdent(context, name1Part.trim(), true) || [];
 		const [name2] = this.parseIdent(context, name2Part.trim(), true) || [];
 		if (!name1 || !name2) return;
 		const instance = new this(context, name1);
 		if (ifExists) instance.withFlag('IF_EXISTS');
-		return instance.renameTo(name2);
+		instance.renameTo(name2);
+		return instance;
 	}
 	
 	/**

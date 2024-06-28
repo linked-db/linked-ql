@@ -89,7 +89,7 @@ export default class WindowSpec extends Node {
 	 */
 	static fromJson(context, json) {
 		if (typeof json === 'string') json = { window_ref: json };
-		else if (typeof json?.name !== 'string' && typeof json?.window_ref !== 'string' && !json?.partition_by_clause && !json?.order_by_clause) return;
+		else if (!(typeof json === 'object' && json) || !['name', 'window_ref', 'partition_by_clause', 'order_by_clause'].some(k => k in json)) return;
 		const instance = new this(context);
 		if (json.name) instance.name(json.name);
 		if (json.window_ref) instance.extends(json.window_ref);
