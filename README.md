@@ -138,16 +138,16 @@ Additionally, paths can be multi-level:
 
 ```sql
 -- Linked QL
-SELECT ..., author ~> role ~> name 
-FROM books
+SELECT * FROM books
+WHERE author ~> role ~> name = 'admin'
 ```
 
 and they can also be used to express incoming references:
 
 ```sql
 -- Linked QL
-SELECT ..., author <~ books ~> title 
-FROM users
+SELECT * FROM users
+WHERE author <~ books ~> title = 'Beauty and the Beast'
 ```
 
 > DOCS coming soon.
@@ -260,10 +260,23 @@ SELECT post_title, author_id->fname AS author_name FROM posts;
 [Objective SQL Documentions](https://webqit.io/tooling/objective-sql)
 -->
 
+## TODO
+
+There's a lot here:
+
++ Write detailed docs.
++ Upgrade support for MySQL.
++ Implement support for IndexedDB and in-mem.
++ Write detailed tests.
+
+> Much of that could happen sooner with your support! If you'd like to help out, consider a [sponsorship](https://github.com/sponsors/ox-harris). Plus PRs are always welcome.
+
 ## Issues
+
 To report bugs or request features, please submit an issue to this repository.
 
 ## License
+
 MIT.
 
 <!--
