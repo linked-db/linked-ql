@@ -1,12 +1,12 @@
 # Linked QL
 
-_**JOINS are a difficult thing to comprehend in any query any day.** That's why you suck hard at relational queries and want an ORM. **And schema management is cursed pretty much on any database!** That's why you resent it any day._
+_**JOINS are a difficult thing to comprehend in any query any day.** That's why you suck hard at relational queries and want an ORM. **And schema management is cursed pretty much on any database!** That's why you iterate so slowly, and at large, struggle as a team._
 
 We're writing this little piece to change that!
 
-Linked QL is a DB query client that simplfies how you interact with, and manage, your database: let's you write smarter queries (using new syntax sugars, [introducing Magic Paths](#introducing-magic-paths)) and smarter schema management code (using new magic wand features, [introducing Auto-Versioning](#introducing-auto-versioning))!
+Linked QL is a DB query client that simplfies how you interact with your database and manage your schemas: let's you write smarter queries with new syntax sugars, ([introducing magic paths](#introducing-magic-paths)); takes the labour out of schema management with new magic wand functions, ([introducing auto-versioning](#introducing-auto-versioning))!
 
-Linked QL is usable over your DB of choice - from the server-side Postgres and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), to the plain JSON object!
+_Linked QL is usable over your DB of choice - from the server-side Postgres and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), to the plain JSON object!_
 
 Jump to sections and features:
 
