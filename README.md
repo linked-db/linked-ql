@@ -1,6 +1,6 @@
 # Linked QL
 
-_**SQL JOINS are complex and unreadable by default.** That's why you suck hard at relational queries. **And schema management is cursed pretty much on any database!** That's why you resent it any day._
+_**JOINS are a difficult thing to crack any day.** That's why you suck hard at relational queries and want an ORM. **And schema management is cursed pretty much on any database!** That's why you resent it any day._
 
 We're writing this little piece to change that!
 
