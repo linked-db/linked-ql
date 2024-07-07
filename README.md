@@ -1,6 +1,12 @@
 # Linked QL
 
-A query client that extends standard SQL with new syntax sugars and enables auto-versioning capabilities on any database; usable over your DB of choice - from the server-side Postgres and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), to the plain JSON object!
+_**SQL JOINS are complex and unreadable by default.** That's why you suck hard at relational queries.**And schema management is cursed pretty much on any database!** That's why you resent it any day._
+
+We're writing this little piece to change that!
+
+Linked QL is a query client for your database that let's you write smarter queries (using new syntax sugars) and smarter migrations (using new schema savepoint and rollback capabilities)!
+
+Linked QL is usable over your DB of choice - from the server-side Postgres and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), to the plain JSON object!
 
 Jump to sections and features:
 
