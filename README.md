@@ -4,7 +4,7 @@ _**JOINS are the most difficult thing to comprehend in any query.** That's why y
 
 We're writing this little piece, Linked QL, to change that!
 
-Linked QL is a DB query client that simplfies how you interact with your database and manage your schemas: let's you write smarter queries with new syntax sugars ([introducing magic paths](#introducing-magic-paths)), and takes the labour out of schema management with new magic wand functions ([introducing auto-versioning](#introducing-auto-versioning))!
+Linked QL is a DB query client that simplfies how you interact with your database and manage your schemas; let's you write smarter queries with new syntax sugars ([introducing magic paths](#introducing-magic-paths)), and takes the labour out of schema management with new magic wand functions ([introducing auto-versioning](#introducing-auto-versioning))!
 
 Linked QL is usable over your DB of choice - from the server-side Postgres and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), to the plain JSON object!
 
