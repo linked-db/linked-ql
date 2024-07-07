@@ -4,9 +4,9 @@ _**JOINS are a difficult thing to comprehend in any query any day.** That's why 
 
 We're writing this little piece to change that!
 
-Linked QL is a DB query client that simplfies how you interact with your database and manage your schemas: let's you write smarter queries with new syntax sugars, ([introducing magic paths](#introducing-magic-paths)); takes the labour out of schema management with new magic wand functions, ([introducing auto-versioning](#introducing-auto-versioning))!
+Linked QL is a DB query client that simplfies how you interact with your database and manage your schemas: let's you write smarter queries with new syntax sugars ([introducing magic paths](#introducing-magic-paths)); takes the labour out of schema management with new magic wand functions ([introducing auto-versioning](#introducing-auto-versioning))!
 
-_Linked QL is usable over your DB of choice - from the server-side Postgres and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), to the plain JSON object!_
+Linked QL is usable over your DB of choice - from the server-side Postgres and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), to the plain JSON object!
 
 Jump to sections and features:
 
@@ -51,7 +51,7 @@ Obtain the Linked QL client for your target database:
     const client = new LinkedQl(pgClient, { dialect: 'postgres' });
     ```
     
-2. For the client-side *IndexedDB*, import and instantiate the *IDB* client.
+2. For the client-side *IndexedDB*, import and instantiate the *IDB* client. _(Coming soon)_
     
     ```js
     // Import IDB as LinkedQl
@@ -61,7 +61,7 @@ Obtain the Linked QL client for your target database:
     const client = new LinkedQl;
     ```
     
-3. To work with Linked QL's in-memory object storage, import and instantiate the *ODB* client.
+3. To work with Linked QL's in-memory object storage, import and instantiate the *ODB* client. _(Coming soon)_
 
     ```js
     // Import ODB as LinkedQl
