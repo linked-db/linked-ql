@@ -1,6 +1,6 @@
 # Linked QL
 
-_**JOINS are a difficult thing to comprehend in any query any day.** That's why you suck hard at relational queries and want an ORM. **And schema management is cursed pretty much on any database!** That's why you iterate so slowly, and at large, struggle as a team._
+_**JOINS are a difficult thing to comprehend in any query any day.** That's why you fiddle so badly with relational queries and defer to an ORM. **And schema management adds to that a whole new layer of complexity!** That's why you iterate so slowly, and at large, struggle as a team._
 
 We're writing this little piece to change that!
 
