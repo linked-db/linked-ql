@@ -1,6 +1,6 @@
 # Linked QL
 
-_**JOINS are the most difficult thing to comprehend in any query.** (That's why you fiddle any day with relational queries and defer to an ORM.) **Managing schemas, too, comes as the most manual thing about structured data(bases)!** (That's why you iterate so slowly, and at large, crawl as a team.)_
+_**JOINS are the most difficult thing to comprehend in any query.** (That's why you fiddle with relational queries any day and defer to an ORM.) **Managing schemas, too, comes as the most manual thing about structured data(bases)!** (That's why you iterate so slowly, and at large, crawl as a team.)_
 
 We're writing this little piece, Linked QL, to change that!
 
