@@ -352,6 +352,6 @@ export default class Assertion extends Node {
 	static regexes = [
 		{ test: '<(?!~)' },
 		{ backtest: '^(?!.*~$)', test: '>', regex: '(?<!~)>' },
-		'((\\s+(?:NOT\\s+)?IS\\s+(?:NOT\\s+)?(TRUE|FALSE|NULL|UNKNOWN|DISTINCT\\s+FROM)\\s+)|\\s+(ISNULL|NOTNULL|IN|ANY|LIKE|(?:NOT\\s+)?BETWEEN(?:\\s+SYMMETRIC)?)\\s+|(?:\\s+)?(=|<=|>=|!=|<>)(?:\\s+)?)',
+		'((\\s+(?:NOT\\s+)?IS\\s+(?:NOT\\s+)?(TRUE|FALSE|NULL|UNKNOWN|DISTINCT\\s+FROM\\s+))|\\s+(ISNULL|NOTNULL|IN|ANY|LIKE|(?:NOT\\s+)?BETWEEN(?:\\s+SYMMETRIC)?)\\s+|(?:\\s+)?(=|<=|>=|!=|<>)(?:\\s+)?)',
 	];
 }

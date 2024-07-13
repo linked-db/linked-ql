@@ -111,7 +111,7 @@ export default class AbstractAliasableExpr extends Node {
 				exprNode = parseCallback(instance, $expr, this.exprTypes);
 			} catch(e) {}
 			if (!exprNode) {
-				aliasUnescaped = aliasEscaped = null;
+				$alias = aliasUnescaped = aliasEscaped = null;
 				$expr = expr; // IMPORTANT
 			}
 		}

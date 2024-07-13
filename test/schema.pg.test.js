@@ -20,7 +20,6 @@ let $pgClient = { query(sql, ...args) {
     return pgClient.query(sql, ...args);
 } };
 const sqlClient = new SQLClient($pgClient, { dialect: 'postgres' });
-console.log('\n\n\n\n\nn\n\n;;;;;;;;;;;;;;;;;;;;;;;;', await sqlClient.searchPath(), '\n\n\n\n\n');
 // --------------------------
 
 describe(`Postgres Create Table & Alter Table statements`, function() {
@@ -69,7 +68,7 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
 
                 ADD FULLTEXT INDEX (ft_name),
 
-                ADD column new_col varchar(10) references distant_tbl (id) on update restrict on delete cascade FIRST,
+                MODIFY column new_col varchar(10) references distant_tbl (id) on update restrict on delete cascade FIRST,
                 ADD column new_col2 int AFTER refColumn,
 
                 DROP constraint if    exists constraint_name3 cascade,
@@ -79,15 +78,15 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
                 DROP col_name,
 
                 ALTER column "column _name" set data type varchar(60),
-                ALTER constraint constraint_name4 INVISIBLE,
+                ALTER CONSTRAINT constraint_name4 INVISIBLE,
                 ALTER COLUMN column_name8 SET COMPRESSION compression_method,
                 ALTER constraint constraint_name8 DEFERRABLE
             `;
-            const tblAlterInstance1 = await Parser.parse({ name: 'some_database' }, alterTableSql);
+            const tblAlterInstance1 = Parser.parse({ name: 'some_database' }, alterTableSql);
             const tblAlterInstance2 = AlterTable.fromJson(tblAlterInstance1.CONTEXT, tblAlterInstance1.toJson());
             const sql1 = tblAlterInstance1 + '';
             const sql2 = tblAlterInstance2 + '';
-            console.log(sql1);
+            console.log(sql2);
             /*
             console.log(sql2);
             console.log(JSON.stringify(tblAlterInstance1.toJson(), null, 3));
@@ -97,39 +96,35 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
         });
         
         it(`DO: Diffs 2 schemas into an Alter Table statement`, async function() {
-            const schemaA = {
+            const schema = {
                 name: 'testt',
+                $name: 'testtttt',
                 basename: 'public',
                 columns: [
-                    { name: 'id', type: { name: 'VARCHAR', maxLen: 30 }, default: 20 },
-                    { name: 'author', type: { name: 'INT' }, references: { constraintName: 'fkk', table: 'table1', columns: ['col3', 'col4']} },
+                    { name: 'id', $name: 'iddd', type: { name: 'VARCHAR', precision: 30 }, $type: 'int', default: 20, $default: 9, notNull: true },
+                    { name: 'author', type: { name: 'INT' }, references: { name: 'fkk', targetTable: 'table1', targetColumns: ['col3', 'col4']}, status: 'UP' },
                 ],
                 constraints: [
-                    { type: 'FOREIGN_KEY', columns: ['col1', 'col2'], references: { table: 'table1', columns: ['col3', 'col4']} },
-                    { type: 'PRIMARY_KEY', columns: 'col5' },
+                    { type: 'FOREIGN_KEY', name: 'constraint_name1', columns: ['id', 'author'], targetTable: 'testt', targetColumns: ['col5', 'author'] },
+                    { type: 'PRIMARY_KEY', columns: 'col5', $columns: ['uuu', 'lll'], name: 'pk', $name: 'pk2' },
                 ],
                 indexes: []
             };
-            const schemaB = {
-                name: 'testt',
-                basename: 'public2',
-                columns: [
-                    { name: 'id3', $name: 'id', notNull: true, type: { name: 'vARCHAR', maxLen: 70 }, default: 20 },
-                    { name: 'author', type: { name: 'INT' }, references: { constraintName: 'fkk222', $constraintName: 'fkk', table: 'table1', columns: ['col3', 'col5']} },
-                ],
-                constraints: [
-                    { type: 'FOREIGN_KEY', columns: ['col1', 'col2'], references: { table: 'table1', columns: ['col3', 'col4']} },
-                    { type: 'PRIMARY_KEY', columns: 'col5' },
-                ],
-                indexes: []
-            };
-            const tblAlterInstance1 = AlterTable.fromDiffing({}, schemaA, schemaB);
+            const schemaInstance = CreateTable.fromJson({}, schema);
+            //schemaInstance.status('UP', true);
+            schemaInstance.column('author').status('DOWN');//.name('author2');
+            //schemaInstance.reverseAlt(true);
+            schemaInstance.cascadeAlt();
+            const tblAlterInstance1 = schemaInstance.getAlt();
+
+            
             const tblAlterInstance2 = AlterTable.fromJson(tblAlterInstance1.CONTEXT, tblAlterInstance1.toJson());
             const sql1 = tblAlterInstance1 + '';
             const sql2 = tblAlterInstance2 + '';
-            /*
             console.log(sql1);
+            /*
             console.log(sql2);
+            console.log(JSON.stringify(schemaInstance.toJson(), null, 3));
             console.log(JSON.stringify(tblAlterInstance1.toJson(), null, 3));
             console.log(JSON.stringify(tblAlterInstance2.toJson(), null, 3));
             */

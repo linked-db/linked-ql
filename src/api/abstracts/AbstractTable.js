@@ -12,7 +12,7 @@ export default class AbstractTable {
 	constructor(database, tblName, params = {}) {
         this.$ = {
             database,
-            schema: database.$.schema.tables.get(tblName),
+            name: tblName,
             params
         };
 	}
@@ -20,7 +20,7 @@ export default class AbstractTable {
     /**
      * @property String
      */
-    get name() { return this.$.schema.name; }
+    get name() { return this.$.name; }
 
     /**
      * @property Database
@@ -41,40 +41,6 @@ export default class AbstractTable {
      * @returns Object
      */
 	async schema() { return await this.database.describeTable(this.name); }
-
-    /**
-	 * Returns the table's current savepoint.
-	 * 
-     * @param Object params
-	 * 
-	 * @returns Object
-     */
-    async savepoint(params = {}) {
-		const OBJ_INFOSCHEMA_DB = this.database.client.constructor.OBJ_INFOSCHEMA_DB;
-		if ((await this.database.client.databases({ name: OBJ_INFOSCHEMA_DB }))[0]) {
-			const forward = params.direction === 'forward';
-            const dbName = [OBJ_INFOSCHEMA_DB,'database_savepoints'];
-            const tblName = [OBJ_INFOSCHEMA_DB,'table_savepoints'];
-			const tblFields = ['name_snapshot', 'columns_snapshot', 'constraints_snapshot', 'indexes_snapshot', 'current_name'];
-			const dbFields = ['id', 'name_snapshot', 'savepoint_desc', 'savepoint_date', 'rollback_date', 'current_name'];
-            const result = await this.database.client.query('select', q => {
-                q.from(tblName).as('tbl');
-				q.select( ...tblFields.map(name => ['tbl',name]) );
-				q.select( ...dbFields.map(name => f => f.name(['db',name]).as(`db_${ name }`)) );
-				q.rightJoin(dbName).as('db').on( x => x.equals(['db','id'], ['tbl','savepoint_id']), x => x.in( y => y.literal(this.database.name), ['db','name_snapshot'], ['db','current_name'] ), x => x[forward ? 'isNotNull' : 'isNull'](['db','rollback_date']) );
-				q.where( x => x.in( x => x.literal(this.name), ['tbl','name_snapshot'], ['tbl','current_name'] ) );
-				q.orderBy(['db','savepoint_date']).withFlag(forward ? 'ASC' : 'DESC');
-                q.limit(1);
-            });
-			if (!result[0]) return;
-			const [ tblDetails, dbDetails ] = Object.keys(result[0]).reduce(([tblDetails, dbDetails], key) => {
-				if (key.startsWith('db_')) return [tblDetails, { ...dbDetails, [key.replace('db_', '')]: result[0][key] }];
-				return [{ ...tblDetails, [key]: result[0][key] }, dbDetails];
-			}, [{}, {}]);
-			const context = new Savepoint(this.database.client, dbDetails, params.direction);
-			return Object.defineProperty(tblDetails, 'context', { get: () => context, });
-		}
-    }
 
 	/**
 	 * ----------
@@ -98,7 +64,7 @@ export default class AbstractTable {
 	 */
 	async columnsForConstraint(constraintType) {
 		const schema = await this.database.describeTable(this.name);
-		const inlineConstraintTypesMap = { 'PRIMARY_KEY': 'primaryKey', 'UNIQUE': 'uniqueKey', 'CHECK': 'check', 'FOREIGN_KEY': 'references' };
+		const inlineConstraintTypesMap = { 'PRIMARY_KEY': 'primaryKey', 'UNIQUE_KEY': 'uniqueKey', 'CHECK': 'check', 'FOREIGN_KEY': 'references' };
 		let columns = !(constraintType in inlineConstraintTypesMap) ? [] : schema.columns.filter(col => col[inlineConstraintTypesMap[constraintType]]).map(col => [col.name]);
 		if (schema.constraints.length) { columns = columns.concat(schema.constraints.filter(cnst => cnst.type === constraintType).reduce((cols, cnst) => cols.concat([cnst.columns]))); }
 		return columns;
@@ -149,7 +115,7 @@ export default class AbstractTable {
 		}
 		// -----------
 		const primaryKeyColumns = await this.primaryKeyColumns();
-		const uniqueKeyColumns = await this.columnsForConstraint('UNIQUE');
+		const uniqueKeyColumns = await this.columnsForConstraint('UNIQUE_KEY');
 		primaryKeyColumns.concat(uniqueKeyColumns).map(columns => {
 			return `(${ columns.map(col => `${ this.quote(obj[col]) } IN (${ columns.join(',') })`).join(' AND ') })`;
 		}).join(' OR ');

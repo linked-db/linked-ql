@@ -37,18 +37,35 @@ export default class Node {
 	/**
 	 * @property Node
 	 */
-	get rootNode() { return this.CONTEXT && this.CONTEXT instanceof Node ? this.CONTEXT.rootNode : this; }
+	get rootNode() { return this.CONTEXT instanceof Node ? this.CONTEXT.rootNode : this; }
 
 	/**
 	 * @property Node
 	 */
-	get statementNode() { return this.CONTEXT && this.CONTEXT instanceof Node ? this.CONTEXT.statementNode : this; }
+	get statementNode() { return this.CONTEXT instanceof Node ? this.CONTEXT.statementNode : null; }
 
 	/**
 	 * -----------
 	 * QUOTES and ESCAPING
 	 * -----------
 	 */
+
+	/**
+	 * @property Array
+	 */
+	get quoteChars() { return this.constructor.getQuoteChars(this); }
+
+	/**
+	 * A Quote helper
+	 * 
+	 * @param String string
+	 * 
+	 * @returns String
+	 */
+	quote(string) {
+		const quoteChar = this.quoteChars[0];
+		return `${ quoteChar }${ string.replace(new RegExp(quoteChar, 'g'), quoteChar.repeat(2)) }${ quoteChar }`;
+	}
 	
 	/**
 	 * Determines the proper quote characters for the active SQL dialect ascertained from context.
@@ -59,13 +76,33 @@ export default class Node {
 	 */
 	static getQuoteChars(context, asInputDialect = false) {
 		const dialect = (asInputDialect && context?.params?.inputDialect) || context?.params?.dialect;
-		return dialect === 'mysql' && !context.params.ansiQuotes ? ['"', "'"] : ["'"];
+		return dialect === 'mysql' && !context.params.ansiQuotes ? ["'", '"'] : ["'"];
 	}
 
 	/**
-	 * @property Array
+	 * @property String
 	 */
-	get quoteChars() { return this.constructor.getQuoteChars(this); }
+	get escChar() { return this.constructor.getEscChar(this); }
+
+	/**
+	 * An Escape helper
+	 * 
+	 * @param String|Array string_s 
+	 * 
+	 * @returns String
+	 */
+	autoEsc(string_s) {
+		const $strings = (Array.isArray(string_s) ? string_s : [string_s]).map(s => s && !/^(\*|[\w]+)$/.test(s) ? `${ this.escChar }${ s.replace(new RegExp(this.escChar, 'g'), this.escChar.repeat(2)) }${ this.escChar }` : s );
+		return Array.isArray(string_s) ? $strings : $strings[0];
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	static autoUnesc(context, expr, asInputDialect = false) {
+		const escChar = this.getEscChar(context, asInputDialect);
+		return (expr || '').replace(new RegExp(escChar + escChar, 'g'), escChar);
+	}
 
 	/**
 	 * Determines the proper escape character for the active SQL dialect ascertained from context.
@@ -78,19 +115,6 @@ export default class Node {
 		const dialect = (asInputDialect && context?.params?.inputDialect) || context?.params?.dialect;
 		return dialect === 'mysql' && !context.params.ansiQuotes ? '`' : '"';
 	}
-
-	/**
-	 * @property String
-	 */
-	get escChar() { return this.constructor.getEscChar(this); }
-
-	/**
-	 * @inheritdoc
-	 */
-	static autoUnesc(context, expr, asInputDialect = false) {
-		const escChar = this.getEscChar(context, asInputDialect);
-		return (expr || '').replace(new RegExp(escChar + escChar, 'g'), escChar);
-	}
 	
 	/**
 	 * @inheritdoc
@@ -102,18 +126,6 @@ export default class Node {
 		if (parses.length !== parts.length) return;
 		const get = x => x?.[1] || this.autoUnesc(context, x?.[3]);
 		return [get(parses.pop()), get(parses.pop())];
-	}
-
-	/**
-	 * An Escape helper
-	 * 
-	 * @param String|Array string_s 
-	 * 
-	 * @returns String
-	 */
-	autoEsc(string_s) {
-		const $strings = (Array.isArray(string_s) ? string_s : [string_s]).map(s => s && !/^(\*|[\w]+)$/.test(s) ? `${ this.escChar }${ s.replace(new RegExp(this.escChar, 'g'), this.escChar.repeat(2)) }${ this.escChar }` : s );
-		return Array.isArray(string_s) ? $strings : $strings[0];
 	}
 
 	/**
@@ -142,8 +154,34 @@ export default class Node {
 	 * @return this
 	 */
 	withFlag(...flags) {
-		this.FLAGS.push(...flags.filter(f => f).map(flag => flag.toUpperCase()));
+		flags = new Set(flags.filter(f => f));
+		this.FLAGS = this.FLAGS.reduce(($flags, $flag) => {
+			const a = $flag.split(':');
+			for (const flag of flags) {
+				const b = flag.split(':');
+				if (b[0] === a[0]) {
+					$flag = [...(new Set([...a, ...b]))].join(':');
+					flags.delete(flag);
+				}
+			}
+			return $flags.concat($flag);
+		}, []).concat(...flags);
 		return this;
+	}
+
+	/**
+	 * Helper for inspecting flags on the instance.
+	 * 
+	 * @params String flag
+	 * 
+	 * @return String
+	 */
+	getFlag(flag) {
+		const b = flag.toUpperCase().split(':');
+		return this.FLAGS.find($flag => {
+			const a = $flag.split(':');
+			return b[0] === a[0] && b.every(f => a.includes(f));
+		});
 	}
 
 	/**
@@ -153,7 +191,7 @@ export default class Node {
 	 * 
 	 * @return Bool
 	 */
-	hasFlag(flag) { return this.FLAGS.includes(flag.toUpperCase()); }
+	hasFlag(flag) { return !!this.getFlag(flag); }
 
 	/**
 	 * Helper for adding clauses to the instance.
@@ -222,7 +260,7 @@ export default class Node {
 				set(instance);
 				continue;
 			}
-			throw new Error(`Arguments must be of type ${ Types.map(Type => Type.name).join(', ') } or a JSON equivalent. Recieved: ${ typeof arg }`);
+			throw new Error(`Arguments must be of type ${ Types.map(Type => Type.name).join(', ') } or a JSON equivalent. Recieved: ${ typeof arg === 'object' && arg ? arg.constructor.name : typeof arg }`);
 		}
 	}
 

@@ -2,14 +2,9 @@
 import { _isObject, _isNull, _isNumeric } from '@webqit/util/js/index.js';
 import SQLInsertQueryInspector from './SQLInsertQueryInspector.js';
 import SQLDeleteQueryInspector from './SQLDeleteQueryInspector.js';
+import Identifier from '../../query/select/Identifier.js';
 import AbstractTable from '../abstracts/AbstractTable.js';
 import SQLCursor from './SQLCursor.js';
-
-/**
- * ---------------------------
- * SQLTable class
- * ---------------------------
- */
 
 export default class SQLTable extends AbstractTable {
 
@@ -97,7 +92,7 @@ export default class SQLTable extends AbstractTable {
 	 */
 	async add(rowObj) {
 		return new Promise((resolve, reject) => {
-			let insertSql = `INSERT INTO ${ this.database.name }.${ this.name }\n\t(${ Object.keys(rowObj).join(',') })\n\t`;
+			let insertSql = `INSERT INTO ${ this.database.name }.${ this.name }\n\t(${ Object.keys(rowObj).map(key => Identifier.fromJson(this, key)).join(', ') })\n\t`;
 			insertSql += `VALUES\n\t${ formatAddRow(Object.values(rowObj), this.database.client.params.dialect) }\n\t`;
 			insertSql += 'RETURNING *';
 			this.database.client.driver.query(insertSql, (err, result) => {
@@ -191,10 +186,15 @@ const formatVal = (val, dialect) => {
 		try { return `'${ val.toISOString().split('.')[0] }'`; }
 		catch(e) { return 'NULL'; }
 	}
-	return _isNumeric(val) ? val : (_isNull(val) ? 'NULL' : (dialect === 'mysql' ? `'${ val.replace(/'/g, `\\'`) }'` : `'${ val.replace(/'/g, `''`) }'`));
+	if (val instanceof String) return val + '';
+	if (_isNumeric(val)) return val;
+	if (_isNull(val)) return 'NULL';
+	if (Array.isArray(val) || _isObject(val)) (val = JSON.stringify(val));
+	if (typeof val === 'string') return `'${ val.replace(/'/g, `''`) }'`;
+	throw new Error(`Couldn't serialize payload.`);
 };
 const formatAddRow = (values, dialect) => '(' + values.map(val => formatVal(val, dialect)).join(',') + ')';
-const formatAssignments = (rowObj, dialect) => Object.keys(rowObj).map(key => `${ key } = ${ formatVal(rowObj[key], dialect) }`).join(',');
+const formatAssignments = (rowObj, dialect) => Object.keys(rowObj).map(key => `${ Identifier.fromJson(this, key) } = ${ formatVal(rowObj[key], dialect) }`).join(',');
 const formatPutRow = (rowObj, dialect) => {
 	const assignments = formatAssignments(rowObj, dialect);
 	return `SET ${ assignments } ${ dialect === 'mysql' ? 'ON DUPLICATE KEY UPDATE' : /*postgres*/'ON CONFLICT DO UPDATE SET' } ${ assignments }`;

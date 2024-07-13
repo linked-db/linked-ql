@@ -1,6 +1,7 @@
 
 import Lexer from '../Lexer.js';
 import Assertion from './Assertion.js';
+import Parens from './Parens.js';
 import Node from '../abstracts/Node.js';
 
 export default class Condition extends Node {
@@ -29,7 +30,7 @@ export default class Condition extends Node {
 	and(...assertions) {
 		if (this.LOGIC === 'OR') return (new this.constructor(this)).and(this, ...assertions);
 		this.LOGIC = 'AND';
-		return (this.build('ASSERTIONS', assertions, [Condition,Assertion]), this);
+		return (this.build('ASSERTIONS', assertions, [Condition,Assertion,Parens]), this);
 	}
 
 	/**
@@ -42,7 +43,7 @@ export default class Condition extends Node {
 	or(...assertions) {
 		if (this.LOGIC === 'AND') return (new this.constructor(this)).or(this, ...assertions);
 		this.LOGIC = 'OR';
-		return (this.build('ASSERTIONS', assertions, [Condition,Assertion]), this);
+		return (this.build('ASSERTIONS', assertions, [Condition,Assertion,Parens]), this);
 	}
 
 	/**

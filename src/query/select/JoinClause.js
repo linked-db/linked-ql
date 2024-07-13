@@ -130,12 +130,12 @@ export default class JoinClause extends Table {
 	static parse(context, expr, parseCallback) {
 		const [ joinMatch, type, joinSpec ] = expr.match(new RegExp(`^${ this.regex }([\\s\\S]*)$`, 'i')) || [];
 		if (!joinMatch) return;
-		const { tokens: [ $table, $correlation ], matches } = Lexer.lex(joinSpec, ['ON|USING'], { useRegex:'i' });
+		const { tokens: [ $table, $correlation ], matches } = Lexer.lex(joinSpec, ['\\s+(?:ON|USING)\\s+'], { useRegex:'i' });
 		const instance = super.parse(context, $table.trim(), parseCallback);
 		instance.TYPE = type.trim().toUpperCase() + '_JOIN';
-		if (/^USING$/i.test(matches[0])) {
+		if (/USING/i.test(matches[0])) {
 			instance.using(parseCallback(instance, $correlation.trim(), [Identifier]));
-		} else if (/^ON$/i.test(matches[0])) {
+		} else if (/ON/i.test(matches[0])) {
 			instance.on(parseCallback(instance, $correlation.trim(), [Condition,Assertion]));
 		}
 		return instance;

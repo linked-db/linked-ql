@@ -6,30 +6,31 @@ export default class DropTable extends StatementNode {
 	/**
 	 * Instance properties
 	 */
-	NAME = '';
-	BASENAME = '';
+	NAME;
+	BASENAME;
 
 	/**
-	 * @constructor
+	 * Returns name or sets name.
+	 * 
+	 * @param Void|String name
+	 * 
+	 * @returns String
 	 */
-	constructor(context, name, basename) {
-		super(context);
-		this.NAME = name;
-		this.BASENAME = basename;
+	name(name) {
+		if (!arguments.length) return this.NAME;
+		return (this.NAME = name, this);
 	}
 
 	/**
-	 * Sets the name
+	 * Returns basename or sets basename.
 	 * 
-	 * @param Array|String name
+	 * @param Void|String name
 	 * 
-	 * @returns Void
+	 * @returns String
 	 */
-	name(name) {
-		const nameParts = Array.isArray(name) ? [...name] : [name];
-		this.NAME = nameParts.pop();
-		this.BASENAME = nameParts.pop();
-		if (nameParts.length) throw new Error(`Idents can be maximum of two parts. Recieved: ${ nameParts.reverse().join('.') }.${ this.BASENAME }.${ this.NAME }`);
+	basename(basename) {
+		if (!arguments.length) return this.BASENAME;
+		return (this.BASENAME = basename, this);
 	}
 	
 	/**
@@ -42,7 +43,7 @@ export default class DropTable extends StatementNode {
 	 */
 	static fromJson(context, json) {
 		if (typeof json?.name !== 'string') return;
-		return (new this(context, json.name, json.basename)).withFlag(...(json.flags || []));
+		return (new this(context)).name(json.name).basename(json.basename).withFlag(...(json.flags || []));
 	}
 	
 	/**
@@ -58,7 +59,7 @@ export default class DropTable extends StatementNode {
 		if (!match) return;
 		const [tblName, dbName] = this.parseIdent(context, (namePart || namePartAlt).trim(), true) || [];
 		if (!tblName) return;
-		const instance = new this(context, tblName, dbName);
+		const instance = (new this(context)).name(tblName).basename(dbName);
 		if (ifExists) instance.withFlag('IF_EXISTS');
 		if (cascade) instance.withFlag('CASCADE');
 		return instance;

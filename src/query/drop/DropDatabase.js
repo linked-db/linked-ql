@@ -6,24 +6,19 @@ export default class DropDatabase extends StatementNode {
 	/**
 	 * Instance properties
 	 */
-	NAME = '';
+	NAME;
 
 	/**
-	 * @constructor
+	 * Returns name or sets name.
+	 * 
+	 * @param Void|String name
+	 * 
+	 * @returns String
 	 */
-	constructor(context, name) {
-		super(context);
-		this.NAME = name;
+	name(name) {
+		if (!arguments.length) return this.NAME;
+		return (this.NAME = name, this);
 	}
-
-	/**
-	 * Sets the name
-	 * 
-	 * @param String name
-	 * 
-	 * @returns Void
-	 */
-	name(name) { this.NAME = name; }
 	
 	/**
 	 * @inheritdoc
@@ -35,7 +30,7 @@ export default class DropDatabase extends StatementNode {
 	 */
 	static fromJson(context, json) {
 		if (typeof json?.name !== 'string') return;
-		return (new this(context, json.name)).withFlag(...(json.flags || []));;
+		return (new this(context)).name(json.name).withFlag(...(json.flags || []));;
 	}
 	
 	/**
@@ -51,7 +46,7 @@ export default class DropDatabase extends StatementNode {
 		if (!match) return;
 		const [dbName] = this.parseIdent(context, (namePart || namePartAlt).trim(), true) || [];
 		if (!dbName) return;
-		const instance = new this(context, dbName);
+		const instance = (new this(context)).name(dbName);
 		if (ifExists) instance.withFlag('IF_EXISTS');
 		if (cascade) instance.withFlag('CASCADE');
 		return instance;

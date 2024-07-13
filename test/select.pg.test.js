@@ -25,7 +25,7 @@ describe(`SELECT QUERIES`, function() {
     describe(`Parse a complex select statement`, function() {
 
         it(`"parse()" the expression and stringify to compare with original`, async function() {
-            const query1 = await Parser.parse({}, expr1, null, { explain: false });
+            const query1 = await Parser.parse({}, expr1, null, { log: false });
             const query2 = Select.fromJson(query1.CONTEXT, query1.toJson());
             const sql1 = query1 + '';
             const sql2 = query2 + '';
