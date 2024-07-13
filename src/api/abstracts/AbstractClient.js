@@ -169,7 +169,7 @@ export default class AbstractClient {
                 } else if (query instanceof AlterTable && !query.resultSchema && basename) {
                     const resultSchema = CreateTable.fromJson(dbApi, await dbApi.describeTable(query.name())).status('UP', 'UP').alterWith(query); // Simulate edits;
                     query.with({ resultSchema });
-                } else if (query instanceof CreateTable && basename) (console.log('```````````````````````' + query),query.with({ resultSchema: query }));
+                } else if (query instanceof CreateTable && basename) query.with({ resultSchema: query });
                 // -- But this is what we'll use as snapshot
                 if (!params.noCreateSavepoint && basename) {
                     scope.savepoint = CreateDatabase.fromJson(this, {
