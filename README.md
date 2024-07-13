@@ -13,7 +13,7 @@ Jump to sections and features:
 + [Auto-Versioning](#introducing-auto-versioning)
 + [API](#api)
 
-## Basic Usage
+## Setup
 
 Install Linked QL:
 

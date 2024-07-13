@@ -299,7 +299,7 @@ export default class Select extends StatementNode {
 		const sql = ['SELECT'];
 		if (this.FLAGS.length) sql.push(this.FLAGS.map(s => s.replace(/_/g, ' ')));
 		sql.push(this.SELECT_LIST.join(', '));
-		sql.push('FROM', this.FROM_LIST.join(', '));
+		if (this.FROM_LIST.length) sql.push('FROM', this.FROM_LIST.join(', '));
 		if (this.JOIN_LIST.length) sql.push(...this.JOIN_LIST);
 		if (this.WHERE_CLAUSE) sql.push('WHERE', this.WHERE_CLAUSE);
 		if (this.GROUP_BY_CLAUSE) sql.push(this.GROUP_BY_CLAUSE);

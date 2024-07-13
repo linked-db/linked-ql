@@ -22,6 +22,7 @@ const lqlClient = new SQLClient({
 
 
 
+console.log('DROP 4', await lqlClient.query('SELECT 2 + 3 as summm'));
 console.log('DROP 4', await lqlClient.query('DROP DATABASE if exists obj_information_schema CASCADE'));
 console.log('DROP 3', await lqlClient.query('DROP TABLE if exists public.books'));
 console.log('DROP 2', await lqlClient.query('DROP TABLE if exists public.users'));
