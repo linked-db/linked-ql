@@ -1,24 +1,41 @@
 import Lexer from '../Lexer.js';
 import { _unwrap } from '@webqit/util/str/index.js';
-import Node from '../abstracts/Node.js';
+import AbstractNode from './abstracts/AbstractNode.js';
 
-export default class Index extends Node {
+export default class Index extends AbstractNode {
+
+	TYPE;
+	$TYPE;
+	COLUMNS = [];
+	$COLUMNS = [];
 
 	/**
-	 * Instance properties
+	 * @inheritdoc
 	 */
-	INDEX_NAME = '';
-	TYPE = '';
-	COLUMNS = [];
+	static get WRITABLE_PROPS() { return ['TYPE', 'COLUMNS'].concat(super.WRITABLE_PROPS); }
 
-    /**
-	 * @constructor
+	/**
+	 * Sets/gets the index type,
+	 * 
+	 * @param Void|String value
+	 * 
+	 * @returns this
 	 */
-    constructor(context, indexName, type, columns) {
-        super(context);
-        this.INDEX_NAME = indexName;
-        this.TYPE = type;
-        this.COLUMNS = columns;
+	type(value) {
+		if (!arguments.length) return this[this.smartKey('TYPE')];
+        return (this[this.smartKey('TYPE', true)] = value, this);
+    }
+
+	/**
+	 * Sets/gets the index columns,
+	 * 
+	 * @param Void|Array columns
+	 * 
+	 * @returns this
+	 */
+	columns(columns) {
+		if (!arguments.length) return this[this.smartKey('COLUMNS')];
+		return (this[this.smartKey('COLUMNS', true)] = [].concat(columns), this);
     }
 
 	/**
@@ -27,15 +44,32 @@ export default class Index extends Node {
 	toJson() {
 		return {
 			type: this.TYPE,
+			...(this.$TYPE ? { $type: this.$TYPE } : {}),
 			columns: this.COLUMNS,
-			...(this.INDEX_NAME ? { indexName: this.INDEX_NAME } : {})
+			...(this.$COLUMNS.length ? { $columns: this.$COLUMNS } : {}),
+			...super.toJson(), // Status
 		};
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	static fromJson(context, json) {
+		if (typeof json?.type !== 'string' || !/^(INDEX|KEY|FULLTEXT)$/i.test(json.type) || !json.columns?.length) return;
+		return super.fromJson(context, json, () => {
+			const instance = (new this(context))
+				.columns(json.columns)
+				.type(json.type);
+			instance.hardSet(json.$columns, val => instance.columns(val));
+			instance.hardSet(json.$type, val => instance.type(val));
+			return instance;
+		});
 	}
 	
 	/**
 	 * @inheritdoc
 	 */
-	stringify() { return `${ this.TYPE }${ this.INDEX_NAME ? ` ${ this.INDEX_NAME }` : '' } (${ this.COLUMNS.join(', ') })`; }
+	stringify() { return `${ this.type() }${ this.name() ? ` ${ this.name() }` : '' } (${ this.columns().join(', ') })`; }
 
     /**
 	 * @inheritdoc
@@ -48,22 +82,9 @@ export default class Index extends Node {
 		const columns = Lexer.split(_unwrap(columnsPart, '(', ')'), [',']).map(columnExpr => {
 			return this.parseIdent(context, columnExpr.trim(), true)[0];
 		});
-        return new this(context, name, type.toUpperCase(), columns);
+        return (new this(context))
+			.type(type.replace(/\s+(INDEX|KEY)/i, '').toUpperCase())
+			.columns(columns)
+			.name(name);
     }
-
-	/**
-	 * @inheritdoc
-	 */
-	static fromJson(context, json) {
-		if (typeof json.indexName !== 'string' && (typeof json?.type !== 'string' || !json.type.match(/INDEX|KEY|FULLTEXT/i))) return;
-		return new this(context, json.indexName, json.type, json.columns);
-	}
-
-    /**
-     * @property Object
-     */
-    static attrEquivalents = {
-        fulltext: 'FULLTEXT',
-        index: 'INDEX',
-    };
 }

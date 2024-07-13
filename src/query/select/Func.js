@@ -43,7 +43,7 @@ export default class Func extends Node {
 	/**
 	 * @inheritdoc
 	 */
-	stringify() { return `${ this.NAME.toUpperCase() }(${ this.ARGS.join(',') })`; }
+	stringify() { return `${ this.NAME.toUpperCase() }(${ this.ARGS.join(', ') })`; }
 	
 	/**
 	 * @inheritdoc

@@ -1,26 +1,37 @@
 
 import Lexer from '../Lexer.js';
-import { _after, _before, _unwrap, _toCamel } from '@webqit/util/str/index.js';
-import ColumnLevelConstraint from './ColumnLevelConstraint.js';
+import { _toCamel, _fromCamel } from '@webqit/util/str/index.js';
+import AbstractNode from './abstracts/AbstractNode.js';
+import AutoIncrement from './constraints/AutoIncrement.js';
+import Identity from './constraints/Identity.js';
+import Expression from './constraints/Expression.js';
+import Default from './constraints/Default.js';
+import NotNull from './constraints/NotNull.js';
+import PrimaryKey1 from './constraints/PrimaryKey1.js';
+import ForeignKey1 from './constraints/ForeignKey1.js';
+import UniqueKey1 from './constraints/UniqueKey1.js';
+import Check from './constraints/Check.js';
 import DataType from './DataType.js';		
-import Node from '../abstracts/Node.js';
 
-export default class Column extends Node {
+export default class Column extends AbstractNode {
 
     /**
 	 * Instance properties
 	 */
-	NAME = '';
-	TYPE = null;
+	TYPE;
+	$TYPE;
 	CONSTRAINTS = [];
 
     /**
-	 * @constructor
-	 */
-    constructor(context, name) {
-        super(context);
-        this.NAME = name;
-    }
+     * @var Array
+     */
+    static get WRITABLE_PROPS() { return ['TYPE'].concat(super.WRITABLE_PROPS); }
+	static get SUBTREE_PROPS() { return ['CONSTRAINTS']; }
+
+    /**
+     * @var Array
+     */
+    static CONSTRAINT_TYPES = [AutoIncrement,Identity,Expression,Default,NotNull,PrimaryKey1,ForeignKey1,UniqueKey1,Check];
 
 	/**
 	 * Sets the column type,
@@ -29,59 +40,137 @@ export default class Column extends Node {
 	 * 
 	 * @returns this
 	 */
-	type(value) { return this.build('TYPE', [value], DataType); }
+	type(value) {
+        if (!arguments.length) return this[this.smartKey('TYPE')];
+        return (this.build(this.smartKey('TYPE', true), [value], DataType), this);
+    }
+
+    /**
+     * AUTO_INCREMENT
+     */
+    autoIncrement(trueFalse = null) { return this.constraint('AUTO_INCREMENT', ...arguments); }
+
+    /**
+     * IDENTITY
+     */
+    identity(trueFalse = null) { return this.constraint('IDENTITY', ...arguments); }
+
+    /**
+     * EXPRESSION
+     */
+    expression(trueFalse = null) { return this.constraint('EXPRESSION', ...arguments); }
+
+    /**
+     * DEFAULT
+     */
+    default(trueFalse = null) { return this.constraint('DEFAULT', ...arguments); }
+
+    /**
+     * NOT_NULL
+     */
+    notNull(trueFalse = null) { return this.constraint('NOT_NULL', ...arguments); }
+
+    /**
+     * PRIMARY_KEY
+     */
+    primaryKey(trueFalse = null) { return this.constraint('PRIMARY_KEY', ...arguments); }
+
+    /**
+     * FOREIGN_KEY
+     */
+    foreignKey(trueFalse = null) { return this.constraint('FOREIGN_KEY', ...arguments); }
+
+    /**
+     * UNIQUE_KEY
+     */
+    uniqueKey(trueFalse = null) { return this.constraint('UNIQUE_KEY', ...arguments); }
+
+    /**
+     * CHECK
+     */
+    check(trueFalse = null) { return this.constraint('CHECK', ...arguments); }
 
 	/**
 	 * Adds a column-level constraint to the column,
 	 * 
-	 * @param ColumnLevelConstraint constraint
+	 * @param String type
+	 * @param Bool setting
 	 * 
 	 * @returns this
 	 */
-	constraint(...constraints) { return this.build('CONSTRAINTS', constraints, ColumnLevelConstraint); }
+	constraint(type, setting = null) {
+        const existing = this.CONSTRAINTS.find(cons => cons.TYPE === type);
+        if (arguments.length === 1) return existing;
+        if (setting) {
+            if (existing) {
+                if (setting === true || !Object.keys(setting).length) return;
+                throw new Error(`${ type } already exists in column. Granular modification of a constraint must be done on an instance of the contraint itself.`);
+            }
+            this.build('CONSTRAINTS', [{ type, ...(typeof setting === 'object' ? setting : {})  }], this.constructor.CONSTRAINT_TYPES);
+            return this.constraint(type);
+        }
+        if (existing) existing.status('DOWN');
+        return this;
+    }
 	
 	/**
 	 * @inheritdoc
 	 */
 	toJson() {
         let json = {
-            name: this.NAME,
-            type: this.TYPE?.toJson(),
+            type: this.TYPE.toJson(),
+            ...(this.$TYPE ? { $type: this.$TYPE.toJson() } : {}),
         };
-        for (const constraint of this.CONSTRAINTS) {
-            const { constraintName, type, detail } = constraint.toJson();
-            const equivProperty = Object.keys(ColumnLevelConstraint.attrEquivalents).find(prop => ColumnLevelConstraint.attrEquivalents[prop] === type);
-            json = { ...json, [ equivProperty ]: { constraintName, ...detail } };
+        for (const cons of this.CONSTRAINTS) {
+            const { type, ...constraintDef } = cons.toJson();
+            const propName = type === 'FOREIGN_KEY' ? 'references' : _toCamel(type.toLowerCase().replace('_', ' '));
+            const props = Object.keys(constraintDef);
+            const lonePropValue = props.length === 1 ? constraintDef[props[0]] : null;
+            const propValue = !props.length ? true : (lonePropValue === 'DOWN' ? false : (props.length === 1 && props[0] === 'expr' ? lonePropValue : constraintDef));
+            json = { ...json, [ propName ]: propValue };
         }
-        return json;
+        return { ...json, ...super.toJson()/** Status */ };
     }
 
 	/**
 	 * @inheritdoc
 	 */
 	static fromJson(context, json) {
-		if (typeof json?.name !== 'string') return;
-        const instance = new this(context, json.name);
-        // Constraints
-        for (const property in ColumnLevelConstraint.attrEquivalents) {
-            if (!json[property]) continue;
-            const { constraintName, ...detail } = json[property];
-            const type = ColumnLevelConstraint.attrEquivalents[property];
-            instance.constraint(ColumnLevelConstraint.fromJson(instance, { constraintName, type, detail }));
-        }
-        // An instance with just the name is used in AlterTable.fromJson() for DROP col_name
-        if (json.type) instance.type(DataType.fromJson(instance, json.type));
-		return instance;
+        const { type, $type, name: _, $name: __, status: ___, ...constraints } = json;
+        if (!DataType.fromJson({}, type)) return;
+        return super.fromJson(context, json, () => {
+			const instance = new this(context);
+            instance.type(DataType.fromJson(instance, type));
+            instance.hardSet($type, val => instance.type(DataType.fromJson(instance, val)));
+            const constraintsNormalized = Object.entries(constraints).reduce((normalized, [name, value]) => {
+                if (!['boolean','number','string'].includes(typeof value) && !(typeof value === 'object' && value)) {
+                    throw new Error(`Invalid value for constraint "${ name }"`);
+                }
+                let cons = { ...(value === false ? { status: 'DOWN' } : (value === true ? {} : (['number','string'].includes(typeof value) ? { expr: value } : value))) };
+                if (name.startsWith('$')) {
+                    cons = Object.fromEntries(Object.entries(cons).map(([name, val]) => [`$${ name }`, val]));
+                    name = name.slice(1);
+                }
+                if (name === 'references') name = 'foreignKey';
+                if (name in normalized) Object.assign(normalized[name], cons);
+                else normalized[name] = cons;
+                return normalized;
+            }, {});
+            // Constraints
+            for (const name in constraintsNormalized) {
+                instance.constraint(_fromCamel(name, '_').toUpperCase(), constraintsNormalized[name]);
+            }
+            return instance;
+		});
 	}
 	
 	/**
 	 * @inheritdoc
 	 */
 	stringify() {
-        // Render constraints in the order of ColumnLevelConstraint.attrEquivalents;
-        let constraints = Object.values(ColumnLevelConstraint.attrEquivalents).map(type => this.CONSTRAINTS.find(cnst => cnst.TYPE === type)).filter(c => c);
+        let constraints = this.CONSTRAINTS;
         if (this.params.dialect === 'mysql') { constraints = constraints.filter(c => c.TYPE !== 'FOREIGN_KEY'); }
-        return `${ this.autoEsc(this.NAME) } ${ this.TYPE }${ constraints.length ? ` ${ constraints.join(' ') }` : '' }`;
+        return `${ this.autoEsc(this.name()) } ${ this.type() }${ constraints.length ? ` ${ constraints.join(' ') }` : '' }`;
     }
     
     /**
@@ -91,7 +180,7 @@ export default class Column extends Node {
 		const [ namePart, bodyPart ] = Lexer.split(expr, ['\\s+'], { useRegex: true, limit: 1 });
         const [name] = this.parseIdent(context, namePart.trim(), true) || [];
         if (!name) return;
-        const instance = new this(context, name);
+        const instance = (new this(context)).name(name);
         // Parse into "type" and constraints
         const qualifier = '(CONSTRAINT\\s+.+?\\s+)?';
         const regexes = [
@@ -104,7 +193,8 @@ export default class Column extends Node {
         instance.type(parseCallback(instance, columnType.trim(), [DataType]));
         // Constraints
         for (const constraint of tokens) {
-            instance.constraint(parseCallback(instance, constraint, [ColumnLevelConstraint]));
+            const cons = parseCallback(instance, constraint, this.CONSTRAINT_TYPES);
+            instance.build('CONSTRAINTS', [cons], this.CONSTRAINT_TYPES);
         }
         return instance;
     }

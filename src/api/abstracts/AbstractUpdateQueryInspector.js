@@ -38,7 +38,7 @@ export default class AbstractUpdateQueryInspector {
 			keyPaths = [primaryKeyColumns];
 			wheres.by = 'primaryKey';
 		} else {
-			var uniqueColumns = this.table.columnsForConstraint('UNIQUE');
+			var uniqueColumns = this.table.columnsForConstraint('UNIQUE_KEY');
 			keyPaths = uniqueColumns.filter(keyPath => _any(keyPath, columnName => this.columns.includes(columnName)));
 			wheres.by = 'uniqueKeys';
 		}

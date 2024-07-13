@@ -1,7 +1,6 @@
 
 import Node from '../abstracts/Node.js';
-import TableLevelConstraint from '../create/TableLevelConstraint.js';
-import ColumnLevelConstraint from '../create/ColumnLevelConstraint.js';
+import CreateTable from '../create/CreateTable.js';
 import DataType from '../create/DataType.js';
 import Column from '../create/Column.js';
 import Index from '../create/Index.js';
@@ -22,21 +21,21 @@ export default class Action extends Node {
 	 * 
 	 * @returns this
 	 */
-	renameTo(newName) {
+	rename(newName) {
         this.TYPE = 'RENAME';
         this.ARGUMENT = newName;
 		return this;
 	}
 
 	/**
-	 * Adds a "RELOCATE" action to the instance,
+	 * Adds a "MOVE" action to the instance,
 	 * 
 	 * @param String newName
 	 * 
 	 * @returns this
 	 */
-	relocateTo(newDb) {
-        this.TYPE = 'RELOCATE';
+	move(newDb) {
+        this.TYPE = 'MOVE';
         this.ARGUMENT = newDb;
 		return this;
 	}
@@ -61,8 +60,8 @@ export default class Action extends Node {
 	 * 
 	 * @returns this
 	 */
-	add(argument) {
-        this.TYPE = 'ADD';
+	new(argument) {
+        this.TYPE = 'NEW';
         this.ARGUMENT = argument;
 		return this;
 	}
@@ -84,6 +83,7 @@ export default class Action extends Node {
 	 * Adds a "ALTER" action to the instance,
 	 * 
 	 * @param Object reference
+	 * @param Any argument
 	 * 
 	 * @returns this
 	 */
@@ -91,6 +91,34 @@ export default class Action extends Node {
         this.TYPE = 'ALTER';
         this.REFERENCE = reference;
         this.build('ARGUMENT', [argument], Action);
+		return this;
+	}
+
+	/**
+	 * Adds a "CHANGE" action to the instance,
+	 * 
+	 * @param Object argument
+	 * @param Column argument
+	 * 
+	 * @returns this
+	 */
+	change(reference, argument) {
+        this.TYPE = 'CHANGE';
+        this.REFERENCE = reference;
+        this.ARGUMENT = argument;
+		return this;
+	}
+
+	/**
+	 * Adds a "OWNER" action to the instance,
+	 * 
+	 * @param Column argument
+	 * 
+	 * @returns this
+	 */
+	owner(argument) {
+        this.TYPE = 'OWNER';
+        this.ARGUMENT = argument;
 		return this;
 	}
 
@@ -102,7 +130,7 @@ export default class Action extends Node {
             type: this.TYPE,
             ...(this.REFERENCE ? { reference: this.REFERENCE } : {}),
             argument: typeof this.ARGUMENT?.toJson === 'function' ? this.ARGUMENT.toJson() : this.ARGUMENT,
-            flags: this.FLAGS,
+			...(this.FLAGS.length ? { flags: this.FLAGS } : {}),
         }
     }
 
@@ -112,30 +140,32 @@ export default class Action extends Node {
     static fromJson(context, json) {
         if (typeof json?.type !== 'string' || !json.argument) return;
         const instance = (new this(context)).withFlag(...(json.flags || []));
-        // RENAME/RELOCATE
-        if (['RENAME','RELOCATE'].includes(json.type)) {
-            instance[json.type === 'RENAME' ? 'renameTo' : 'relocateTo'](json.argument);
+        // RENAME/MOVE
+        if (['RENAME','MOVE'].includes(json.type)) {
+            instance[json.type === 'RENAME' ? 'rename' : 'move'](json.argument);
             return instance;
         }
         // DROP/ADD
-        if (['DROP','ADD','SET'].includes(json.type)) {
-            const argument = [TableLevelConstraint,Index,Column].reduce((prev, Class) => prev || Class.fromJson(context, json.argument), null);
-            instance[json.type === 'DROP' ? 'drop' : (json.type === 'SET' ? 'set' : 'add')](argument);
+        if (['DROP','NEW','SET'].includes(json.type)) {
+            let Classes = [];
+            if (['NEW','SET'].includes(json.type)) Classes = [...Column.CONSTRAINT_TYPES,DataType];
+            if (json.type === 'NEW') Classes = [...CreateTable.CONSTRAINT_TYPES.concat(Classes),Index,Column];
+            const argument = Classes.reduce((prev, Class) => prev || Class.fromJson(context, json.argument), null) || json.argument;
+            instance[json.type.toLowerCase()](argument);
             return instance;
         }
         // ALTER
         if (json.type === 'ALTER') {
             // Handle columns specially
             const { reference, argument: subAction } = json;
-            let arg = subAction.argument;
-            if (reference.kind === 'COLUMN') {
-                arg = [ColumnLevelConstraint,DataType].reduce((prev, Class) => prev || Class.fromJson(context, arg), null) || arg;
-            } else {
-                const Class = reference.kind === 'CONSTRAINT' ? TableLevelConstraint : Index;
-                arg = Class.fromJson(context, arg) || arg;
-            }
-            const methodName = subAction.type.toLowerCase() + (['RENAME', 'RELOCATE'].includes(subAction.type) ? 'To' : '');
-            instance.alter(reference, a => a[methodName](arg));
+            instance.alter(reference, this.fromJson(instance, subAction));
+            return instance;;
+        }
+		// ALTER
+        if (json.type === 'CHANGE') {
+            // Handle columns specially
+            const { reference, argument } = json;
+            instance.change(reference, Column.fromJson(instance, argument));
             return instance;;
         }
     }

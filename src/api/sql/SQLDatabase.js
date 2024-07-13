@@ -4,12 +4,6 @@ import { _intersect } from '@webqit/util/arr/index.js';
 import AbstractDatabase from '../abstracts/AbstractDatabase.js';
 import SQLTable from './SQLTable.js';
 
-/**
- * ---------------------------
- * SQLDatabase class
- * ---------------------------
- */				
-
 export default class SQLDatabase extends AbstractDatabase {
 	
     /**
@@ -22,20 +16,12 @@ export default class SQLDatabase extends AbstractDatabase {
     /**
      * Returns a list of tables.
      * 
-     * @param Object params
-     * 
      * @return Array
 	 */
-    async tables(params = {}) {
-        return this.tablesCallback(() => {
-            return new Promise((resolve, reject) => {
-                const sql = `SELECT table_name FROM information_schema.tables WHERE table_schema = '${ this.name }'`;
-                return this.client.driver.query(sql, (err, result) => {
-                    if (err) return reject(err);
-                    resolve((result.rows || result).map(row => row.table_name));
-                });
-            });
-        }, ...arguments);
+    async tables() {
+        const sql = `SELECT table_name FROM information_schema.tables WHERE table_schema = '${ this.name }'`;
+        const result = await this.client.driver.query(sql);
+        return (result.rows || result).map(row => row.table_name);
     }
 
      /**
@@ -44,82 +30,16 @@ export default class SQLDatabase extends AbstractDatabase {
      * @param String|Array      tblName_s
      * @param Object            params
      * 
-     * @return Object
+     * @return Object|Array
      */
-    describeTable(tblName_s, params = {}) {
-        return this.describeTableCallback((tblNames, params) => {
-            return new Promise((resolve, reject) => {
-                const driver = this.client.driver;
-                const [ sql0, sql1 ] = this.getDescribeTableSql(tblNames);
-                return driver.query(sql0, (err, columns) => {
-                    if (err) return reject(err);
-                    return driver.query(sql1, (err, constraints) => {
-                        if (err) return reject(err);
-                        const tblSchemas = this.formatDescribeTableResult(tblNames, (columns.rows || columns), (constraints.rows || constraints), []);
-                        resolve(tblSchemas);
-                    });
-                });
-            });
-        }, ...arguments);
-    }
-
-    /**
-     * Creates table.
-     * 
-     * @param Object            tblSchema
-     * @param Object            params
-     * 
-     * @return Object
-     */
-    async createTable(tblSchema, params = {}) {
-        return this.createTableCallback((tblCreateRequest, params) => {
-            return new Promise((resolve, reject) => {
-                return this.client.driver.query(tblCreateRequest.toString(), (err, result) => {
-                    if (err) return reject(err);
-                    resolve(this.formatSideEffectResult(result));
-                });
-            });
-        }, ...arguments);
-    }
-
-    /**
-     * Alters table.
-     * 
-     * @param String            tblName
-     * @param Function          schemaCallback
-     * @param Object            params
-     * 
-     * @return Bool
-     */
-    async alterTable(tblName, schemaCallback, params = {}) {
-        return this.alterTableCallback((tblAlterRequest, params) => {
-            if (!tblAlterRequest.ACTIONS.length) return;
-            return new Promise((resolve, reject) => {
-                return this.client.driver.query(tblAlterRequest.toString(), (err, result) => {
-                    if (err) return reject(err);
-                    resolve(this.formatSideEffectResult(result));
-                });
-            });
-        }, ...arguments);
-    }
-
-    /**
-     * Drops table.
-     * 
-     * @param String            tblName
-     * @param Object            params
-     * 
-     * @return Bool
-     */
-    async dropTable(tblName, params = {}) {
-        return this.dropTableCallback((tblDropRequest, params) => {
-            return new Promise((resolve, reject) => {
-                return this.client.driver.query(tblDropRequest.toString(), (err, result) => {
-                    if (err) return reject(err);
-                    resolve(this.formatSideEffectResult(result));
-                });
-            });
-        }, ...arguments);
+    async describeTable(tblName_s, params = {}) {
+        const isSingle = !Array.isArray(tblName_s) && tblName_s !== '*';
+        const tblNames = [].concat(tblName_s);
+        const [ sql0, sql1 ] = this.getDescribeTableSql(tblNames);
+        const columns = await this.client.driver.query(sql0);
+        const constraints = await this.client.driver.query(sql1);
+        const schemas = this.formatDescribeTableResult(tblNames, (columns.rows || columns), (constraints.rows || constraints), []);
+        return isSingle ? schemas[0] : schemas;
     }
 
     /**
@@ -230,10 +150,9 @@ export default class SQLDatabase extends AbstractDatabase {
         // PG likes using verbose data types
         const dataType = val => val === 'character varying' ? 'varchar' : (val === 'integer' ? 'int' : val);
         const formatRelation = (key, tableScope = false) => ({
-            ...(!tableScope ? { constraintName: key.constraint_name } : {}),
-            basename: key.referenced_table_schema,
-            table: key.referenced_table_name,
-            columns: key.referenced_column_name.split(',').map(s => s.trim()),
+            ...(!tableScope ? { name: key.constraint_name } : {}),
+            targetTable: [key.referenced_table_schema,key.referenced_table_name],
+            targetColumns: key.referenced_column_name.split(',').map(s => s.trim()),
             ...(key.match_rule !== 'NONE' ? { matchRule: key.match_rule } : {}),
             updateRule: key.update_rule,
             deleteRule: key.delete_rule,
@@ -260,23 +179,22 @@ export default class SQLDatabase extends AbstractDatabase {
             // -----
             const schema = {
                 name: tblName,
-                basename: this.name,
                 columns: $columns.reduce((cols, col) => {
                     const temp = {};
                     return cols.concat({
                         name: col.column_name,
                         type: col.character_maximum_length ? { name: dataType(col.data_type), maxLen: col.character_maximum_length } : dataType(col.data_type),
                         ...(primaryKey.length === 1 && primaryKey[0].column_name === col.column_name && (temp.pKeys = primaryKey.pop()) ? {
-                            primaryKey: { constraintName: temp.pKeys.constraint_name }
+                            primaryKey: { name: temp.pKeys.constraint_name }
                         } : {}),
                         ...((temp.uKeys = uniqueKeys.filter(key => key.column_name === col.column_name)).length === 1 && (uniqueKeys = uniqueKeys.filter(key => key !== temp.uKeys[0])) ? {
-                            uniqueKey: { constraintName: temp.uKeys[0].constraint_name }
+                            uniqueKey: { name: temp.uKeys[0].constraint_name }
                         } : {}),
                         ...((temp.fKeys = foreignKeys.filter(key => key.column_name === col.column_name)).length === 1 && (foreignKeys = foreignKeys.filter(key => key !== temp.fKeys[0])) ? {
                             references: formatRelation(temp.fKeys[0])
                         } : {}),
                         ...((temp.cKeys = checks.filter(key => key.check_constraint_level !== 'Table' && key.columns.length === 1 && key.columns[0] === col.column_name)).length === 1 && (checks = checks.filter(key => key !== temp.cKeys[0])) ? {
-                            check: { constraintName: temp.cKeys[0].constraint_name, expr: temp.cKeys[0].check_clause }
+                            check: { name: temp.cKeys[0].constraint_name, expr: temp.cKeys[0].check_clause }
                         } : {}),
                         ...(col.is_identity !== 'NO' ? {
                             identity: { always: col.identity_generation === 'ALWAYS' }
@@ -288,7 +206,7 @@ export default class SQLDatabase extends AbstractDatabase {
                             notNull: true
                         } : {}),
                         ...(col.default ? {
-                            default: col.default
+                            default: { expr: col.default }
                         } : {}),
                     });
                 }, []),
@@ -296,13 +214,13 @@ export default class SQLDatabase extends AbstractDatabase {
                 indexes: [],
             };
             schema.constraints.push(...[...primaryKey, ...uniqueKeys, ...foreignKeys].map(key => ({
-                constraintName: key.constraint_name,
-                type: key.constraint_type,
+                name: key.constraint_name,
+                type: key.constraint_type === 'UNIQUE' ? 'UNIQUE_KEY' : key.constraint_type,
                 columns: key.column_name.split(',').map(col => col.trim()),
                 ...(key.constraint_type === 'FOREIGN KEY' ? { references: formatRelation(key, true) } : {}),
             })));
             schema.constraints.push(...checks.map(key => ({
-                constraintName: key.constraint_name,
+                name: key.constraint_name,
                 type: key.constraint_type,
                 columns: key.columns,
                 expr: key.check_clause,
@@ -310,13 +228,4 @@ export default class SQLDatabase extends AbstractDatabase {
             return schema;
         });
     }
-
-    /**
-     * Standardizes the return value of a side-effect query.
-     * 
-     * @param Array|Object result
-     * 
-     * @returns Object
-     */
-    formatSideEffectResult(result) { return result; }
 }

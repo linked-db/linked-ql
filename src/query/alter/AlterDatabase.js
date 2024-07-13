@@ -1,102 +1,100 @@
 
 import Lexer from '../Lexer.js';
-import StatementNode from '../abstracts/StatementNode.js';
+import AbstractStatementNode from './abstracts/AbstractStatementNode.js';
 import Action from './Action.js';
 
-export default class AlterDatabase extends StatementNode {
-	 
-	/**
-	 * Instance properties
-	 */
-	NAME = '';
-	ACTIONS = [];
+export default class AlterDatabase extends AbstractStatementNode {
 
 	/**
-	 * @constructor
-	 */
-	constructor(context, name) {
-		super(context);
-		this.NAME = name;
-	}
-
-	/**
-	 * Sets the name
+	 * Adds a "OWNER TO" action to the instance.
 	 * 
-	 * @param String name
-	 * 
-	 * @returns Void
-	 */
-	name(name) { this.NAME = name; }
-
-	/**
-	 * Adds a "RENAME" action to the instance,
-	 * 
-	 * @param String newName
+	 * @param String newOwner
 	 * 
 	 * @returns Action
 	 */
-	renameTo(newName) { return this.build('ACTIONS', [newName], Action, 'renameTo'); }
-
-	/**
-	 * @inheritdoc
-	 */
-	toJson() {
-		return {
-			name: this.NAME,
-			actions: this.ACTIONS.map(action => action.toJson()),
-			flags: this.FLAGS,
-		};
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	static fromJson(context, json) {
-		if (typeof json?.name !== 'string') return;
-		const instance = (new this(context, json.name)).withFlag(...(json.flags || []));
-		for (const action of json.actions) {
-			instance.ACTIONS.push(Action.fromJson(context, action));
-		}
-		return instance;
-	}
+	addOwner(newOwner) { return this.build('ACTIONS', [newOwner], Action, 'owner'); }
 	
 	/**
 	 * @inheritdoc
 	 */
 	stringify() {
-		const newDbName = this.ACTIONS.find(action => action.TYPE === 'RENAME' && !action.REFERENCE)?.ARGUMENT;
-		if (!newDbName) return '';
-		return `ALTER SCHEMA${ this.hasFlag('IF_EXISTS') ? ' IF EXISTS' : '' } ${ this.autoEsc(this.NAME) } RENAME TO ${ this.autoEsc(newDbName) }`;
+		if (!this.ACTIONS.length) return '';
+		let stmts = [], rename0, move0;
+		for (const action of this.ACTIONS) {
+			// RENAME TO...
+			if (action.TYPE === 'RENAME') {
+				rename0 = `RENAME TO ${ this.autoEsc(action.ARGUMENT) }`;
+				continue;
+			}
+			// MOVE TO...
+			if (action.TYPE === 'MOVE') {
+				move0 = `SET TABLESPACE ${ this.autoEsc(action.ARGUMENT) }`;
+				continue;
+			}
+			// DROP
+			if (action.TYPE === 'DROP') {
+				// All flags are postgres'
+				const ifExists = action.hasFlag('IF_EXISTS');
+				const restrictOrCascadeFlag = action.getFlag('RESTRICT') || action.getFlag('CASCADE');
+				stmts.push(`DROP TABLE${ ifExists ? ' IF EXISTS' : '' } ${ this.autoEsc([].concat(action.ARGUMENT.name)).join('.') }${ restrictOrCascadeFlag ? ` ${ restrictOrCascadeFlag }` : '' }`);
+				continue;
+			}
+			// ADD
+			if (action.TYPE === 'NEW') {
+				stmts.push(action.ARGUMENT+'');
+				continue;
+			}
+			// ALTER
+			if (action.TYPE === 'ALTER') {
+				const { REFERENCE: reference, ARGUMENT: subAction } = action;
+				stmts.push(subAction.ARGUMENT+'');
+			}
+		}
+		const sql = [ ...stmts ];
+		if (rename0) sql.push(`ALTER SCHEMA ${ this.autoEsc(this.NAME) }\n\t${ rename0 }`);
+		if (move0) sql.push(`ALTER SCHEMA ${ this.autoEsc(rename0 ? this.ACTIONS.find(action => action.TYPE === 'RENAME').ARGUMENT : this.NAME) }\n\t${ move0 }`);
+		return sql.join(';\n');
 	}
 
 	/**
 	 * @inheritdoc
 	 */
 	static parse(context, expr) {
-		const [ match, ifExists, rest ] = /^ALTER\s+DATABASE\s+(IF\s+EXISTS\s+)?([\s\S]+)$/i.exec(expr) || [];
+		const [ match, rest ] = /^ALTER\s+DATABASE\s+([\s\S]+)$/i.exec(expr) || [];
 		if (!match) return;
-		const [ name1Part, name2Part ] = Lexer.split(rest, ['RENAME\\s+TO'], { useRegex: 'i' });
-		const [name1] = this.parseIdent(context, name1Part.trim(), true) || [];
-		const [name2] = this.parseIdent(context, name2Part.trim(), true) || [];
-		if (!name1 || !name2) return;
-		const instance = new this(context, name1);
-		if (ifExists) instance.withFlag('IF_EXISTS');
-		instance.renameTo(name2);
-		return instance;
-	}
-	
-	/**
-	 * @inheritdoc
-	 */
-	static fromDiffing(context, jsonA, jsonB, flags = []) {
-		if (!jsonA.name) throw new Error(`Could not assertain database1 name or database1 name invalid.`);
-		if (!jsonB.name) throw new Error(`Could not assertain database2 name or database2 name invalid.`);
-		const instance = (new this(context, jsonA.name)).withFlag(...flags);
-		// RENAME TO...
-		if (jsonB.name !== jsonA.name) {
-			instance.renameTo(jsonB.name);
+		const [ namePart, bodyPart ] = Lexer.split(rest, ['\\s+'], { useRegex: true, limit: 1 });
+		const [ dbName ] = this.parseIdent(context, namePart.trim(), true) || [];
+		if (!dbName) return;
+		const instance = (new this(context)).name(dbName);
+		// ----------
+		const regex = name => new RegExp(`${ this[ name ].source }`, 'i');
+		// RENAME ... TO ...
+		const [ renameMatch, newNodeNameUnescaped_a, /*esc*/, newNodeNameEscaped_a ] = regex('renameRe').exec(bodyPart) || [];
+		if (renameMatch) {
+			const newNodeName = newNodeNameUnescaped_a || this.autoUnesc(instance, newNodeNameEscaped_a);
+			instance.addRename(newNodeName);
+			return instance;
+		}
+		// MOVE ... TO ...
+		const [ moveMatch, newSchemaUnescaped, /*esc*/, newSchemaEscaped ] = regex('moveRe').exec(bodyPart) || [];
+		if (moveMatch) {
+			instance.addMove(newSchemaUnescaped || this.autoUnesc(instance, newSchemaEscaped));
+			return instance;
+		}
+		// OWNER ... TO ...
+		const [ ownerMatch, newOwnerUnescaped, /*esc*/, newOwnerEscaped ] = regex('ownerRe').exec(bodyPart) || [];
+		if (ownerMatch) {
+			instance.addOwner(newOwnerUnescaped || this.autoUnesc(instance, newOwnerEscaped));
+			return instance;
 		}
 		return instance;
 	}
+
+    /**
+	 * @property RegExp
+	 */
+	static renameRe = /^RENAME\s+TO\s+(?:(\w+)|([`"])((?:\2\2|[^\2])+)\2)$/;
+	static moveRe = /^SET\s+TABLESPACE\s+(?:(\w+)|([`"])((?:\2\2|[^\2])+)\2)$/;
+	static ownerRe = /^OWNER\s+TO\s+(?:(\w+)|([`"])((?:\2\2|[^\2])+)\2)$/;
 
 }

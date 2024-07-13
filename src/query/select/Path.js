@@ -1,6 +1,7 @@
 
 import Lexer from '../Lexer.js';
 import Identifier from './Identifier.js';
+import CreateTable from '../create/CreateTable.js';
 import JsonPath from './json/JsonPath.js';
 import Node from '../abstracts/Node.js';
 
@@ -62,14 +63,14 @@ export default class Path extends Node {
 	 * @returns Object
 	 */
 	async eval() {
-		const getPrimaryKey = schema => schema.columns.find(col => col.primaryKey)?.name || schema.constraints.find(cons => cons.type === 'PRIMARY_KEY')?.columns[0];
-		const getKeyDef = (schema, foreignKey) => schema.columns.find(col => col.name === foreignKey.NAME)?.references || schema.constraints.find(cons => cons.type === 'FOREIGN_KEY' && cons.columns.includes(foreignKey.NAME))?.references;
+		const getPrimaryKey = schema => schema.columns.find(col => col.primaryKey)?.name || schema.constraints.find(cons => cons.type === 'PRIMARY_KEY')?.targetColumns[0];
+		const getKeyDef = (schema, foreignKey) => schema.columns.find(col => col.name === foreignKey.NAME)?.references || schema.constraints.find(cons => cons.type === 'FOREIGN_KEY' && cons.targetColumns.includes(foreignKey.NAME));
 		const getSchema = async (tblName, dbName) => {
 			const clientApi = this.rootNode.CONTEXT;
-			const basename = dbName || await clientApi.getBasename(tblName);
+			const basename = dbName || await clientApi.basenameGet(tblName);
 			const dbApi = clientApi.database(basename);
-			if (!(await dbApi.tables({ name: tblName })).length) return;
-			return await dbApi.describeTable(tblName, { force: true });
+			if (!(await dbApi.hasTable(tblName))) return;
+			return await dbApi.describeTable(tblName);
 		};
 		if (!this.rootNode.CONTEXT) throw new Error(`No client API in context.`);
 		if (this.isIncoming) {
@@ -94,7 +95,7 @@ export default class Path extends Node {
 			if (!keyDef_rhs) throw new Error(`[${ this }]: Table ${ table_rhs } does not define the implied foreign key: ${ foreignKey_rhs }.`);
 			// -------------
 			// Get schema_lhs from keyDef
-			const table_lhs = Identifier.fromJson(this, keyDef_rhs.basename ? [keyDef_rhs.basename,keyDef_rhs.table] : keyDef_rhs.table);
+			const table_lhs = Identifier.fromJson(this, keyDef_rhs.basename ? [keyDef_rhs.basename,keyDef_rhs.targetTable] : keyDef_rhs.targetTable);
 			const schema_lhs = await getSchema(table_lhs.NAME, table_lhs.BASENAME);
 			if (!schema_lhs) throw new Error(`[${ this }]: The implied table ${ table_lhs } does not exist.`);
 			// Get shcema_lhs's acting key (primary key) and validate
@@ -122,7 +123,7 @@ export default class Path extends Node {
 		if (!keyDef_lhs) throw new Error(`[${ this }]: Table ${ table_lhs } does not define the implied foreign key: ${ foreignKey_lhs }.`);
 		// -------------
 		// Get schema_rhs from keyDef!
-		const table_rhs = Identifier.fromJson(this, keyDef_lhs.basename ? [keyDef_lhs.basename,keyDef_lhs.table] : keyDef_lhs.table);
+		const table_rhs = Identifier.fromJson(this, keyDef_lhs.basename ? [keyDef_lhs.basename,keyDef_lhs.targetTable] : keyDef_lhs.targetTable);
 		const schema_rhs = await getSchema(table_rhs.NAME, table_rhs.BASENAME || table_lhs.BASENAME);
 		if (!schema_rhs) throw new Error(`[${ this }]: The implied table ${ table_rhs } does not exist.`);
 		// Get shcema_lhs's acting key (primary key) and validate

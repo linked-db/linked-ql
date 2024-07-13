@@ -1,43 +1,27 @@
 
-import { _isObject } from '@webqit/util/js/index.js';
 import CreateDatabase from '../../query/create/CreateDatabase.js';
 import AlterDatabase from '../../query/alter/AlterDatabase.js';
 import DropDatabase from '../../query/drop/DropDatabase.js';
 import CreateTable from '../../query/create/CreateTable.js';
 import AlterTable from '../../query/alter/AlterTable.js';
 import DropTable from '../../query/drop/DropTable.js';
-import Select from '../../query/select/Select.js';
-import Insert from '../../query/insert/Insert.js';
-import Update from '../../query/update/Update.js';
-import Delete from '../../query/delete/Delete.js';
+import Node from '../../query/abstracts/Node.js';
 import Parser from '../../query/Parser.js';
 import Savepoint from './Savepoint.js';
 
-const objInternals = {
-    infoSchemaDB: 'obj_information_schema',
-    instances: new Set,
-    schemas: new Map,
-};
 export default class AbstractClient {
+
+    /**
+     * @property String
+     */
+    static get OBJ_INFOSCHEMA_DB() { return 'obj_information_schema'; }
     
     /**
      * @constructor
      */
     constructor(driver, params = {}) {
-        if (!this.constructor.kind) throw new Error(`Subclasses of Objective SQL Client must implement a static "kind" property.`);
-        if (!objInternals.schemas.has(this.constructor.kind)) { objInternals.schemas.set(this.constructor.kind, new Map); }
-        objInternals.instances.add(this);
-        Object.defineProperty(this, '$', { value: {
-            driver,
-            schemas: objInternals.schemas.get(this.constructor.kind),
-            params, 
-        }});
+        Object.defineProperty(this, '$', { value: { driver, params }});
     }
-
-    /**
-     * @property String
-     */
-    static get OBJ_INFOSCHEMA_DB() { return objInternals.infoSchemaDB; }
 
     /**
      * @property Driver
@@ -50,510 +34,249 @@ export default class AbstractClient {
     get params() { return this.$.params; }
 
     /**
-     * Sets or returns default database.
-     * 
-     * @param Array            args
-     * 
-     * @return String
-     */
-    async searchPath(...args) { return this.searchPathCallback(() => {}, ...arguments); }
-
-    /**
-     * Returns internal schemas object.
-     * 
-     * @return Map
-     */
-    async schemas() {
-        if (!this.$.schemas.size) await this.databases();
-        return this.$.schemas;
-    }
-
-    /**
-     * Returns list of databases.
-     * 
-     * @param Object            params
-     * 
-     * @return Array
-     */
-    async databases(params = {}) { return this.databasesCallback(() => ([]), ...arguments); }
-
-    /**
-     * Creates a database.
-     * 
-     * @param String            dbName
-     * @param Object            params
-     * 
-     * @return Bool
-     */
-    async createDatabase(dbName, params = {}) { return this.createDatabaseCallback(...arguments); }
-
-    /**
-     * Forwards to: createDatabase().
-     * @with: params.ifNotExixts = true
-     */
-    async createDatabaseIfNotExists(dbName, params = {}) { return this.createDatabase(dbName,  { ...params, ifNotExists: true }); }
-
-    /**
      * Returns a database instance.
      * 
-     * @param String            dbName
-     * @param Function          editCallback
-     * @param Object            params
-     * 
-     * @return Bool
-     */
-    async alterDatabase(dbName, editCallback, params = {}) { return this.alterDatabaseCallback(...arguments); }
-
-    /**
-     * Drops a database.
-     * 
-     * @param String            dbName
-     * @param Object            params
-     * 
-     * @return Bool
-     */
-    async dropDatabase(dbName, params = {}) { return this.dropDatabaseCallback(...arguments); }
-
-    /**
-     * @forwardsTo: dropDatabase().
-     * @with: params.ifExixts = true
-     */
-    async dropDatabaseIfExists(dbName, params = {}) { return this.dropDatabase(dbName, { ...params, ifNotExists: true }); }
-
-    /**
-     * Returns a database instance.
-     * 
-     * @param String            dbName
+     * @param String            name
      * @param Object            params
      * 
      * @return Database
      */
-    database(dbName, params = {}) {
-        const schemasMap = this.$.schemas;
-        if (!schemasMap.has(dbName)) {
-            schemasMap.set(dbName, {
-                name: dbName,
-                tables: new Map,
-                hiddenAs: 'inmemory',
-            });
-        }
+    database(name, params = {}) {
         return new this.constructor.Database(this, ...arguments);
     }
 
     /**
-     * BASE LOGICS
-     */
-
-    /**
-     * Base logic for the searchPath() method.
-     * 
-     * @param Function          callback
-     * @param Array             path
-     * 
-     * @return String
-     */
-    async searchPathCallback(callback, ...path) {
-        if (path.length) {
-            const returnValue = await callback(path);
-            this.$.searchPath = path;
-            return returnValue;
-        }
-        if (!this.$.searchPath) { this.$.searchPath = await callback(); }
-        return this.$.searchPath;
-    }
-
-    /**
-     * Base logic for the searchPath() method.
-     * 
-     * @param String          tblName
-     * 
-     * @return String
-     */
-    async getBasename(tblName) {
-        const searchPath = await this.searchPath();
-        return searchPath.reduce(async (prev, dbName) => (await prev) || (await this.database(dbName).tables({ name: tblName })).length ? dbName : null, null);
-    }
-
-    /**
-     * Base logic for the databases() method.
-     * 
-     * @param Function          callback
-     * @param Object            filter
-     * @param Array             standardExclusions
+     * Returns all available databases.
      * 
      * @return Array
      */
-    async databasesCallback(callback, filter = {}, standardExclusions = []) {
-        const schemasMap = this.$.schemas;
-        if (!schemasMap._touched || filter.force) {
-            schemasMap._touched = true;
-            for (let db of await callback()) {
-                if (typeof db === 'string') { db = { name: db }; }
-                if (schemasMap.has(db.name)) {
-                    delete schemasMap.get(db.name).hiddenAs;
-                } else { schemasMap.set(db.name, { ...db, tables: new Map }); }
-            }
-        }
-        let dbList = [...schemasMap.values()].filter(db => !db.hiddenAs).map(db => db.name);
-        if (filter.name) {
-            dbList = dbList.filter(dbName => dbName === filter.name);
-        } else if (!filter.includeStandardExclusions) {
-            const OBJ_INFOSCHEMA_DB = this.constructor.OBJ_INFOSCHEMA_DB;
-            const standardExclusionsRe = new RegExp(`^${ standardExclusions.concat(OBJ_INFOSCHEMA_DB).join('|') }$`, 'i');
-            dbList = dbList.filter(dbName => !standardExclusionsRe.test(dbName));
-        }
-        return dbList;
-    }
+    async databases() { return []; }
 
     /**
-     * Base logic for describeTable()
+     * Tells whether a database exists.
      * 
-     * @param Function          callback
-     * @param String|Object|CreateDatabase     dbSchema
-     * @param Object            params
+     * @param String            name
+     * 
+     * @return Bool
+     */
+    async hasDatabase(name) {
+        return (await this.databases()).includes(name);
+    }
+    
+    /**
+     * Returns a JSON representation of a database and its tables.
+     * 
+     * @param String name
+     * @param Array tables
+     * @param Object params
      * 
      * @return Object
      */
-    async createDatabaseCallback(callback, dbSchema, params = {}) {
-        let dbCreateInstance;
-        if (dbSchema instanceof CreateDatabase) {
-            dbCreateInstance = dbSchema;
-            dbSchema = dbCreateInstance.toJson();
-        } else {
-            if (typeof dbSchema === 'string') { dbSchema = { name: dbSchema }; }
-            if (typeof dbSchema !== 'object' || !dbSchema.name) throw new Error(`Invalid argument#1 to createDatabase().`);
-            // First we validate operation
-            const dbFound = (await this.databases(dbSchema))[0];
-            if (dbFound) {
-                if (params.ifNotExists) return;
-                throw new Error(`Database ${ dbSchema.name } already exists.`);
-            }
-            // Then forward the operation for execution
-            dbCreateInstance = CreateDatabase.fromJson(this/*IMPORTANT: not db API*/, dbSchema);
-            if (params.ifNotExists) dbCreateInstance.withFlag('IF_NOT_EXISTS');
-        }
-        // ------
-        // Must be before db changes below
-        const dbApi = this.database(dbSchema.name, params);
-        const schemasMap = await this.schemas(), tablesSavepoints = new Set;
-        // DB changes now
-        let onAfterCreateCalled;
-        const onAfterCreate = async () => {
-            onAfterCreateCalled = true;
-            delete schemasMap.get(dbSchema.name).hiddenAs; // This does really exist now
-            schemasMap.get(dbSchema.name).schemaEdit = { get tablesSavepoints() { return tablesSavepoints; } };
-            for (const tblSchema of dbSchema.tables || []) {
-                await dbApi.createTable(tblSchema, params);
-            }
-            delete schemasMap.get(dbSchema.name).schemaEdit;
-        };
-        await callback(dbCreateInstance, onAfterCreate, params);
-        // AFTER WE NOW EXISTS
-        if (!onAfterCreateCalled) await onAfterCreate();
-        // Create savepoint?
-        let savepointCreation = true;
-        if (params.noCreateSavepoint || (new RegExp(`^${ this.constructor.OBJ_INFOSCHEMA_DB }$`)).test(dbSchema.name)) {
-            savepointCreation = false;
-        }
-        if (savepointCreation) {
-            await this.createSavepoint({
-                savepoint_desc: params.savepointDesc || 'Database create',
-                // Current state
-                name_snapshot: null, // How we know created
-                // New state
-                current_name: dbSchema.name,
-            }, tablesSavepoints);
-        }
-        return dbApi;
+    async describeDatabase(name, tables = [], params = {}) {
+        return { name, tables: await this.database(name).describeTable(tables, params), };
     }
 
     /**
-     * Base logic for alterDatabase()
+     * Composes a CREATE DATABASE query from descrete inputs
      * 
-     * @param Function          callback
-     * @param String|Object|AlterDatabase     dbAlterRequest
-     * @param Function          editCallback
-     * @param Object            params
+     * @param Object|String  dbSchema
+     * @param Object         params
      * 
-     * @return Object
+     * @return Savepoint
      */
-    async alterDatabaseCallback(callback, dbAlterRequest, editCallback, params = {}) {
-        const schemasMap = await this.schemas(), tablesSavepoints = new Set;
-        let dbAlterInstance, dbName, dbSchema;
-        let onAfterAfterCalled, onAfterAlter = () => {};
-        if (dbAlterRequest instanceof AlterDatabase) {
-            // Remap arguments
-            dbAlterInstance = dbAlterRequest;
-            dbName = dbAlterInstance.NAME;
-            params = editCallback || {};
-            // Create savepount data
-            dbSchema = schemasMap.get(dbName);
-        } else if (typeof editCallback === 'function') {
-            let tablesAlterRequest = [];
-            if (typeof dbAlterRequest === 'object' && dbAlterRequest) {
-                if (Array.isArray(dbAlterRequest.tables)) { tablesAlterRequest = dbAlterRequest.tables; }
-                dbName = dbAlterRequest.name;
-            } else { dbName = dbAlterRequest; }
-            if (typeof dbName !== 'string') throw new Error(`Invalid argument#1 to alterDatabase().`);
-            // First we validate operation
-            const dbFound = (await this.databases({ name: dbName }))[0];
-            if (!dbFound) {
-                if (params.ifExists) return;
-                throw new Error(`Database ${ dbName } does not exist.`);
-            }
-            // Singleton DB schema
-            dbSchema = schemasMap.get(dbName);
-            // For recursive operations
-            if (dbSchema.schemaEdit) return await editCallback(dbSchema.schemaEdit);
-            // On to snapshots; before the database changes below
-            const dbApi = this.database(dbName, params);
-            // On to editing work; but first load all necessary table schemas into memory
-            const dbSchemaEdit = CreateDatabase.cloneJson(dbSchema);
-            const tableSchemas = await dbApi.describeTable(tablesAlterRequest, params);
-            Object.defineProperty(dbSchemaEdit, 'tables', { value: tableSchemas.map(tableSchema => CreateTable.cloneJson(tableSchema)) });
-            Object.defineProperties(dbSchemaEdit.tables, {
-				get: { value: name => dbSchemaEdit.tables.find(x => x.name === name), configurable: true },
-				has: { value: name => dbSchemaEdit.tables.get(name) ? true : false, configurable: true },
-				delete: { value: name => dbSchemaEdit.tables.splice(dbSchemaEdit.tables.findIndex(x => x.name === name), 1), configurable: true },
-			});
-            Object.defineProperty(dbSchemaEdit, 'tablesSavepoints', { get() { return tablesSavepoints; } });
-            // Call for editing
-            dbSchema.schemaEdit = dbSchemaEdit;
-            await editCallback(dbSchemaEdit);
-            // Diff into a AlterDatabase instance
-            dbAlterInstance = AlterDatabase.fromDiffing(this/*IMPORTANT: not db API*/, dbSchema, dbSchemaEdit);
-            // Handle tableSchema edits
-            onAfterAlter = async ($dbName = dbName) => {
-                onAfterAfterCalled = true;
-                const tableDiffs = AlterTable.fromDiffing2d(dbApi/*IMPORTANT: not client API*/, tableSchemas, dbSchemaEdit.tables);
-                for (const diff of tableDiffs) {
-                    if (diff.type === 'DROP') { await dbApi.dropTable(diff.argument, params); }
-                    if (diff.type === 'ADD') { await dbApi.createTable(diff.argument, params); }
-                    if (diff.type === 'ALTER') { await dbApi.alterTable(diff.argument, params); }
-                }
-                delete dbSchema.schemaEdit; // Cleanup
-            };
-        } else {
-            throw new Error(`Alter database "${ dbName }" called without a valid callback function.`);
-        }
-        // ------
-        // DB changes now
-        await callback(dbAlterInstance, onAfterAlter, params);
-        const newDbName = dbAlterInstance.ACTIONS.find(action => action.TYPE === 'RENAME' && !action.REFERENCE)?.ARGUMENT;
-        if (newDbName) {
-            // Modify original schema to immediately reflect the db changes
-            dbSchema.name = newDbName;
-            schemasMap.delete(dbName);
-            schemasMap.set(dbSchema.name, dbSchema);
-        }
-        // ------
-        // AFTER WE NOW Executed ALTER
-        if (!onAfterAfterCalled) await onAfterAlter(newDbName || dbName);
-        // ------
-        // Create savepoint
-        let savepoint, savepointCreation = dbAlterInstance.ACTIONS.length || tablesSavepoints.size;
-        if (params.noCreateSavepoint || (new RegExp(`^${ this.constructor.OBJ_INFOSCHEMA_DB }$`)).test(dbName)) {
-            savepointCreation = false;
-        }
-        if (savepointCreation) {
-            savepoint = await this.createSavepoint({
-                savepoint_desc: params.savepointDesc || 'Database alter',
-                // Current state
-                name_snapshot: dbName, // Old name
-                // New state
-                current_name: newDbName || dbName,
-            }, tablesSavepoints);
-        }
-        // ------
-        // Done
-        return savepoint;
+    async createDatabase(dbSchema, params = {}) {
+        if (typeof dbSchema === 'string') { dbSchema = { name: dbSchema }; }
+        else if (typeof dbSchema?.name !== 'string') throw new Error(`createDatabase() called with invalid arguments.`);
+        // -- Compose an schemaInstamce from request
+        const schemaInstamce = CreateDatabase.fromJson(this, dbSchema);
+        if (params.ifNotExists) schemaInstamce.withFlag('IF_NOT_EXISTS');
+        return await this.query(schemaInstamce, params);
     }
 
     /**
-     * Base logic for dropDatabase()
+     * Composes an ALTER DATABASE query from descrete inputs
      * 
-     * @param Function          callback
+     * @param Object|String   altRequest
+     * @param Function        callback
+     * @param Object          params
+     * 
+     * @return Savepoint
+     */
+    async alterDatabase(altRequest, callback, params = {}) {
+        if (typeof callback !== 'function') throw new Error(`alterDatabase() called with invalid arguments.`);
+        if (typeof altRequest === 'string') { altRequest = { name: altRequest }; }
+        else if (typeof altRequest?.name !== 'string') throw new Error(`alterDatabase() called with invalid arguments.`);
+        // -- Compose an altInstance from request
+        const schemaJson = await this.describeDatabase(altRequest.name, altRequest.tables);
+        const schemaInstance = CreateDatabase.fromJson(this, schemaJson).status('UP', 'UP');
+        await callback(schemaInstance);
+        const altInstance = schemaInstance.getAlt().with({ resultSchema: schemaInstance });
+        if (!altInstance.ACTIONS.length) return;
+        return await this.query(altInstance, params);
+    }
+
+    /**
+     * Composes a DROP DATABASE query from descrete inputs
+     * 
      * @param String            dbName
      * @param Object            params
      * 
-     * @return Object
+     * @return Savepoint
      */
-    async dropDatabaseCallback(callback, dbName, params = {}) {
-        let dbDropInstance;
-        if (dbName instanceof DropDatabase) {
-            dbDropInstance = dbName;
-            dbName = dbDropInstance.NAME;
-        } else {
-            // First we validate operation
-            const dbFound = (await this.databases({ name: dbName }))[0];
-            if (!dbFound) {
-                if (params.ifExists) return;
-                throw new Error(`Database ${ dbName } does not exist.`);
-            }
-            // Then forward the operation for execution
-            dbDropInstance = new DropDatabase(this/*IMPORTANT: not db API*/, dbName);
-            if (params.ifExists) dbDropInstance.withFlag('IF_EXISTS');
-            if (params.cascade) dbDropInstance.withFlag('CASCADE');
-        }
-        const schemasMap = await this.schemas();
-        const dbSchema = schemasMap.get(dbName);
-        if (dbSchema.schemaEdit) throw new Error(`Cannot delete database when already in edit mode.`);
-        // -----------------
-        // Must be before db changes below
-        let savepointCreation = true, tablesSavepoints;
-        if (params.noCreateSavepoint || (new RegExp(`^${ this.constructor.OBJ_INFOSCHEMA_DB }$`)).test(dbSchema.name)) {
-            savepointCreation = false;
-        }
-        if (savepointCreation) {
-            const dbApi = this.database(dbName, params);
-            tablesSavepoints = new Set((await dbApi.describeTable('*')).map(tblSchema => ({
-                // Snapshot
-                name_snapshot: tblSchema.name,
-                columns_snapshot: JSON.stringify(tblSchema.columns),
-                constraints_snapshot: JSON.stringify(tblSchema.constraints),
-                indexes_snapshot: JSON.stringify(tblSchema.indexes),
-                // New state
-                current_name: null, // How we know deleted
-            })));
-        }
-        // -----------------
-        // DB changes now
-        await callback(dbDropInstance, params);
-        // -----------------
-        // Then update records
-        dbSchema.hiddenAs = 'dropped';
-        //dbSchema.tables.clear();
-        for (const [ , tblSchema ] of dbSchema.tables) { tblSchema.hiddenAs = 'dropped'; }
-        // -----------------
-        // Main savepoints
-        if (savepointCreation) {
-            return this.createSavepoint({
-                savepoint_desc: params.savepointDesc || 'Database drop',
-                // Current state
-                name_snapshot: dbSchema.name,
-                // New state
-                current_name: null, // How we know deleted
-            }, tablesSavepoints);
-        }
+    async dropDatabase(dbName, params = {}) {
+        if (typeof dbName !== 'string') throw new Error(`dropDatabase() called with an invalid name: ${ dbName }.`);
+        // -- Compose an dropInstamce from request
+        const dropInstamce = DropDatabase.fromJson(this, { name: dbName });
+        if (params.ifExists) dropInstamce.withFlag('IF_EXISTS');
+        if (params.cascade) dropInstamce.withFlag('CASCADE');
+        return await this.query(dropInstamce, params);
     }
 
     /**
      * Base logic for dropDatabase()
      * 
-     * @param Function                  callback
-     * @param String|Object|Function    ...query
+     * @param Function                  handler
+     * @param String                    query
+     * @param Object                    params
      * 
      * @return Object
      */
-    async queryCallback(callback, ...args) {
-        const Types = [ Insert, Update, Delete, Select, DropDatabase, DropTable, CreateDatabase, CreateTable, AlterDatabase, AlterTable ];
-        const params = typeof args[args.length - 1] === 'object' ? args.pop() : {};
-        const exec = async instance => {
-            if (instance instanceof CreateDatabase) return await this.createDatabase(instance, params);
-            if (instance instanceof AlterDatabase) return await this.alterDatabase(instance, params);
-            if (instance instanceof DropDatabase) return await this.dropDatabase(instance, params);
-            let basename = instance.BASENAME;
-            if (!basename) {
-                const searchPath = await this.searchPath();
-                basename = searchPath.find(s => !s.startsWith('$')) || searchPath[0];
+    async queryCallback(handler, query, params = {}) {
+        if (typeof query === 'string') query = Parser.parse(this, query.trim()/* Important */, null, { log: false });
+        else if (!(query instanceof Node)) throw new Error(`query() called with invalid arguments.`);
+        const instanceOf = (o, classes) => classes.some(c => o instanceof c);
+        // -- Generate resultSchema for AlterDatabase and DropDatabase? We'll need it for savepoint creation or per driver's request for it (params.$resultSchema === 'always')
+        const scope = {};
+        const resultSchemaRequired = dbName => dbName && !(new RegExp(dbName, 'i')).test(this.constructor.OBJ_INFOSCHEMA_DB) && (!params.noCreateSavepoint || params.$resultSchema === 'always');
+        if (instanceOf(query, [CreateDatabase,AlterDatabase,DropDatabase]) && resultSchemaRequired(query.name())) {
+            if (query instanceof DropDatabase) {
+                const resultSchema = CreateDatabase.fromJson(this, await this.describeDatabase(query.name(), '*')).status('DOWN');
+                query.with({ resultSchema });
+            } else if (query instanceof AlterDatabase && !query.resultSchema) {
+                const tablesList = query.ACTIONS.filter(a => ['ALTER','DROP'].includes(a.TYPE)).map(x => x.NAME);
+                const resultSchema = CreateDatabase.fromJson(this, await this.describeDatabase(query.name(), tablesList)).status('UP', 'UP').alterWith(query); // Simulate edits;
+                query.with({ resultSchema });
+            } else if (query instanceof CreateDatabase) query.with({ resultSchema: query });
+            // -- And that's what we'll use as snapshot
+            scope.savepoint = query.resultSchema;
+        } else if (instanceOf(query, [CreateTable,AlterTable,DropTable])) {
+            const basename = query.basename() || await this.basenameGet(query.name(), true);
+            if (resultSchemaRequired(basename)) {
+                const dbApi = this.database(basename);
+                if (query instanceof DropTable && basename) {
+                    const resultSchema = CreateTable.fromJson(dbApi, await dbApi.describeTable(query.name())).status('DOWN');
+                    query.with({ resultSchema });
+                } else if (query instanceof AlterTable && !query.resultSchema && basename) {
+                    const resultSchema = CreateTable.fromJson(dbApi, await dbApi.describeTable(query.name())).status('UP', 'UP').alterWith(query); // Simulate edits;
+                    query.with({ resultSchema });
+                } else if (query instanceof CreateTable && basename) query.with({ resultSchema: query });
+                // -- But this is what we'll use as snapshot
+                if (!params.noCreateSavepoint && basename) {
+                    scope.savepoint = CreateDatabase.fromJson(this, {
+                        name: dbApi.name,
+                        tables: [query.resultSchema]
+                    }).status('UP');
+                }
             }
-            if (instance instanceof CreateTable) return await this.database(basename).createTable(instance, params);
-            if (instance instanceof AlterTable) return await this.database(basename).alterTable(instance, params);
-            if (instance instanceof DropTable) return await this.database(basename).dropTable(instance, params);
-            // For Insert, Update, Delete, Select queries...
-            return await callback(instance, params);
-        };
-        if (typeof args[0] === 'string' && typeof args[1] === 'function') {
-            const $queryType = args.shift(), queryType = $queryType.toLowerCase().replace(/^\w|_./g, m => m.toUpperCase().replace('_', ''));
-            const Type = Types.find(Type => Type.name === queryType);
-            if (!Type) throw new Error(`Unknown query type: ${ $queryType }.`);
-            const instance = new Type(this);
-            args.forEach((arg, i) => {
-                if (typeof arg !== 'function') throw new Error(`Invalid argument at #${ i }.`);
-                arg(instance);
-            });
-            return await exec(instance);
         }
-        if (args.length > 1) throw new Error(`Invalid argument count.`);
-        if (typeof args[0] === 'object' && args[0]) {
-            const instance = Types.reduce((prev, Type) => prev || Type.fromJson(this, args[0]), null);
-            if (instance) return await exec(instance);
+        // -- Execute...
+        const returnValue = await handler(query, params);
+        // -- Generate savepoint?
+        if (!params.noCreateSavepoint && scope.savepoint) {
+            scope.savepoint.status(scope.savepoint.status(), true);
+            return await this.createSavepoint(scope.savepoint, params.savepointDesc);
         }
-        if (typeof args[0] === 'string') {
-            const instance = Parser.parse(this, args[0]);
-            return await exec(instance);
-        } 
-        throw new Error(`Invalid arguments.`);
+        return returnValue;
+    }
+
+    /**
+     * Sets or returns the search path for resolving unqualified table references.
+     * 
+     * @param Array|String resolutionPath
+     * 
+     * @return Array
+     */
+    async basenameResolution(resolutionPath = []) {
+        if (arguments.length) { return (this.$.resolutionPath = [].concat(resolutionPath), this); }
+        return new BasenameResolutor(this.$.basenameResolution);
+    }
+
+    /**
+     * Resolving unqualified table reference.
+     * 
+     * @param String tblName
+     * @param Bool withDefaultBasename
+     * 
+     * @returns String
+     */
+    async basenameGet(tblName, withDefaultBasename = false) {
+        const basenames = await this.basenameResolution();
+        return (
+                await basenames.reduce(async (prev, dbName) => {
+                return (await prev) || (await this.database(dbName).hasTable(tblName)) ? dbName : null;
+            }, null)
+        ) || (withDefaultBasename ? basenames.find(s => !s.startsWith('$')) || basenames[0] : null);
     }
 
     /**
      * Method for saving snapshots to internal OBJ_INFOSCHEMA db.
      * 
-     * @param Object            entry
-     * @param Set               tblEntires
+     * @param CreateDatabase    schemaInstamce
+     * @param String            savepointDescription
      * 
      * @return Object
      */
-    async createSavepoint(entry, tblEntries = new Set) {
-        // Commit to DB
+    async createSavepoint(schemaInstamce, savepointDesc = null) {
+        // -- Create schema?
         const OBJ_INFOSCHEMA_DB = this.constructor.OBJ_INFOSCHEMA_DB;
-        const infoSchemaDB = this.database(OBJ_INFOSCHEMA_DB);
-        if (!(await this.databases({ name: OBJ_INFOSCHEMA_DB }))[0]) {
-            await this.createDatabase(OBJ_INFOSCHEMA_DB);
-            await infoSchemaDB.createTable({
-                name: 'database_savepoints',
-                columns: [
-                    { name: 'id', type: 'uuid', primaryKey: true, default: { expr: 'gen_random_uuid()' } },
-                    { name: 'name_snapshot', type: 'varchar' },
-                    { name: 'savepoint_desc', type: 'varchar' },
-                    { name: 'savepoint_date', type: 'timestamp' },
-                    { name: 'rollback_date', type: 'timestamp' },
-                    { name: 'current_name', type: 'varchar' },
-                ],
-            });
-            await infoSchemaDB.createTable({
-                name: 'table_savepoints',
-                columns: [
-                    { name: 'savepoint_id', type: 'uuid', references: { table: 'database_savepoints', columns: ['id'], deleteRule: 'cascade' } },
-                    { name: 'name_snapshot', type: 'varchar' },
-                    { name: 'columns_snapshot', type: 'json' },
-                    { name: 'constraints_snapshot', type: 'json' },
-                    { name: 'indexes_snapshot', type: 'json' },
-                    { name: 'current_name', type: 'varchar' },
-                ],
-            });
+        if (!(await this.hasDatabase(OBJ_INFOSCHEMA_DB))) {
+            await this.createDatabase({
+                name: OBJ_INFOSCHEMA_DB,
+                tables: [{
+                    name: 'database_savepoints',
+                    columns: [
+                        { name: 'id', type: 'uuid', primaryKey: true, default: { expr: 'gen_random_uuid()' } },
+                        // Actual snapshot
+                        { name: 'name', type: 'varchar', notNull: true },
+                        { name: '$name', type: 'varchar' },
+                        { name: 'tables', type: 'json' },
+                        { name: 'status', type: 'varchar' },
+                        // Meta data
+                        { name: 'savepoint_description', type: 'varchar' },
+                        { name: 'database_tag', type: 'varchar', notNull: true },
+                        { name: 'version_tag', type: 'int', notNull: true },
+                        { name: 'savepoint_date', type: 'timestamp', notNull: true },
+                        { name: 'rollback_date', type: 'timestamp' },
+                    ],
+                }],
+            }, { noCreateSavepoint: true });
         }
-        // ------------------
-        // Resolve forward histories before creating new one
-        const dbName = [OBJ_INFOSCHEMA_DB,'database_savepoints'];
-        let where = x => x.in( y => y.literal(entry.name_snapshot || entry.current_name), ['active','name_snapshot'], ['active','current_name']);
-        while(where) {
-            const rolledbackSavepoints = await this.query('select', q => {
-                q.select(['active','id'], x => x.name(['following','id']).as('id_following'));
-                q.from(dbName).as('active');
-                q.leftJoin(dbName).as('following').on( x => x.equals(['following','name_snapshot'], ['active','current_name']) );
-                q.where( where );
-                q.where( x => x.isNotNull(['active','rollback_date']) );
-                q.orderBy(['active','savepoint_date']).withFlag('ASC');
-                q.limit(1);
-            });
-            if (rolledbackSavepoints[0]?.id) {
-                await this.query('delete', q => {
-                    q.from(dbName);
-                    q.where( x => x.equals('id', y => y.literal(rolledbackSavepoints[0].id) ) );
-                });
+        // -- Savepoint JSON
+        const savepointJson = {
+            database_tag: null,
+            ...schemaInstamce.toJson(),
+            savepoint_description: savepointDesc,
+            version_tag: null,
+            savepoint_date: new String('now()'),
+        };
+        // -- Find a match first
+        const currentSavepoint = await this.database(schemaInstamce.name()).savepoint();
+        if (currentSavepoint) {
+            const tblName = [OBJ_INFOSCHEMA_DB,'database_savepoints'].join('.');
+            // -- Apply id and tag from lookup
+            savepointJson.database_tag = currentSavepoint.databaseTag;
+            savepointJson.version_tag = (await this.query(`SELECT max(version_tag) + 1 AS next_tag FROM ${ tblName } WHERE database_tag = '${ currentSavepoint.databaseTag }'`))[0].next_tag;
+            // -- Delete forward records
+            if (savepointJson.version_tag - 1 !== currentSavepoint.versionTag) {
+                await this.query(`DELETE FROM ${ tblName } WHERE database_tag = '${ currentSavepoint.databaseTag }' AND rollback_date IS NOT NULL`);
             }
-            if (rolledbackSavepoints[0]?.id_following) { where = x => x.equals(['active','id'], y => y.literal(rolledbackSavepoints[0].id_following) ); }
-            else { where = null; }
+        } else {
+            // -- Generate tag and version as fresh
+            savepointJson.database_tag = `db:${ ( 0 | Math.random() * 9e6 ).toString( 36 ) }`;
+            savepointJson.version_tag = 1;
         }
-        // ------------------
-        // Create savepoint
-        const insertResult = await infoSchemaDB.table('database_savepoints').add({ ...entry, savepoint_date: 'now()' });
-        const savepoint = new Savepoint(this, { ...insertResult.toJson(), id_active: null });
-        if (tblEntries.size) {
-            tblEntries = [ ...tblEntries ].map(tblEntry => ({ ...tblEntry, savepoint_id: savepoint.id }));
-            await infoSchemaDB.table('table_savepoints').addAll(tblEntries);
-        }
-        return savepoint;
+        // -- Create record
+        const insertResult = await this.database(OBJ_INFOSCHEMA_DB).table('database_savepoints').add(savepointJson);
+        return new Savepoint(this, { ...insertResult.toJson(), id_following: null });
     }
 }

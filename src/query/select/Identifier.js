@@ -21,12 +21,16 @@ export default class Identifier extends Node {
 		this.NAME = nameParts.pop();
 		this.BASENAME = nameParts.pop();
 		if (nameParts.length) throw new Error(`Idents can be maximum of two parts. Recieved: ${ nameParts.reverse().join('.') }.${ this.BASENAME }.${ this.NAME }`);
+		return this;
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	toJson() { return { name: this.BASENAME ? [this.BASENAME,this.NAME] : this.NAME, flags: this.FLAGS }; }
+	toJson() {
+		const name = this.BASENAME ? [this.BASENAME,this.NAME] : this.NAME;
+		return this.FLAGS.length ? { name, flags: this.FLAGS } : name;
+	}
 
 	/**
 	 * @inheritdoc
@@ -44,7 +48,7 @@ export default class Identifier extends Node {
 	 */
 	stringify() {
 		return this.autoEsc([this.BASENAME, this.NAME].filter(s => s)).join('.') + (
-			this.FLAGS.length ? ` ${ this.FLAGS.map(s => s.replace(/_/g, ' ')).join(' ') }` : ''
+			''//this.FLAGS.length ? ` ${ this.FLAGS.map(s => s.replace(/_/g, ' ')).join(' ') }` : ''
 		);
 	}
 	

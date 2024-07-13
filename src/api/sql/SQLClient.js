@@ -31,51 +31,6 @@ export default class SQLClient extends AbstractClient {
 	 */
     static Database = SQLDatabase;
 
-    /**
-	 * List: system database.
-     * 
-     * @var Array
-	 */
-    static systemDBs = [ 'information_schema', 'mysql', 'performance_schema', 'sys', 'pg_catalog', 'pg_toast' ];
-
-	/**
-	 * Sets default database.
-	 * 
-	 * @param String dbName
-	 * @param Object params
-     * 
-     * @return String|Null
-	 */
-	async searchPath(...args) {
-        return this.searchPathCallback(path => {
-            return new Promise((resolve, reject) => {
-                const driver = this.driver;
-                if (path) {
-                    path = path.map(name => Identifier.fromJson(this, name));
-                    const sql = this.params.dialect === 'mysql' ? `USE ${ path[0] }` : `SET SEARCH_PATH TO ${ path.join(',') }`;
-                    return driver.query(sql, (err, result) => {
-                        if (err) return reject(err);
-                        resolve(result);
-                    });
-                }
-                let sql, key;
-                if (this.params.dialect === 'mysql') {
-                    sql = 'SELECT database() AS default_db', key = 'default_db';
-                } else {
-                    // Here, what we need is SHOW SEARCH_PATH not SELECT current_database()
-                    sql = `SHOW SEARCH_PATH`, key = 'search_path';
-                    sql = `SELECT current_setting('SEARCH_PATH')`, key = 'current_setting';
-                }
-                return driver.query(sql, (err, result) => {
-                    if (err) return reject(err);
-                    const rows = result.rows || result;
-                    const value = (rows[0] || {})[key];
-                    resolve(Lexer.split(value, [',']).map(s => Identifier.parseIdent(this, s.trim())[0]));
-                });
-            });
-        }, ...args);
-	}
-
 	/**
      * Returns a list of databases.
      * 
@@ -83,96 +38,50 @@ export default class SQLClient extends AbstractClient {
      * 
      * @return Array
 	 */
-    async databases(params = {}) {
-        return this.databasesCallback(() => {
-            return new Promise((resolve, reject) => {
-                const sql = `SELECT schema_name FROM information_schema.schemata`;
-                return this.driver.query(sql, (err, result) => {
-                    if (err) return reject(err);
-                    resolve((result.rows || result).map(row => row.schema_name));
-                });
-            });
-        }, params, this.constructor.systemDBs);
+    async databases() {
+        const sql = `SELECT schema_name FROM information_schema.schemata`;
+        const result = await this.driver.query(sql);
+        return (result.rows || result).map(row => row.schema_name);
 	}
 
     /**
-     * Creates a database.
+     * Runs a query.
      * 
-     * @param String dbName
-     * @param Object params
+     * @param String            query
+     * @param Object            params
      * 
-     * @return Bool
+     * @return Any
      */
-    async createDatabase(dbName, params = {}) {
-        return this.createDatabaseCallback((dbCreateInstance, handleTables, params) => {
-            return new Promise((resolve, reject) => {
-                return this.driver.query(dbCreateInstance.toString(), (err, result) => {
-                    if (err) return reject(err);
-                    resolve(result);
-                });
-            });
+    async query(query, params = {}) {
+        return await this.queryCallback(async (queryInstance, params) => {
+            if (queryInstance.expandable) await queryInstance.expand(true);
+            const result = await this.driver.query(queryInstance.toString(), params.params || []);
+            return result.rows || result;
         }, ...arguments);
     }
 
     /**
-     * Alters a database.
+     * Sets or returns the search path for resolving unqualified table references.
      * 
-     * @param String    dbName
-     * @param Function  schemaCallback
-     * @param Object    params
+     * @param Array|String resolutionPath
      * 
-     * @return Bool
+     * @return Array
      */
-    async alterDatabase(dbName, schemaCallback, params = {}) {
-        return this.alterDatabaseCallback(async (dbAlterInstance, handleTables, params) => {
-            if (!dbAlterInstance.ACTIONS.length) return;
-            await handleTables(); // Handle tables before rename DB
-            return new Promise((resolve, reject) => {
-                return this.driver.query(dbAlterInstance.toString(), (err, result) => {
-                    if (err) return reject(err);
-                    resolve(result);
-                });
-            });
-        }, ...arguments);
-    }
-
-    /**
-     * Drops a database.
-     * 
-     * @param String dbName
-     * @param Object params
-     * 
-     * @return Bool
-     */
-    async dropDatabase(dbName, params = {}) {
-        return this.dropDatabaseCallback((dbDropInstance, params) => {
-            return new Promise((resolve, reject) => {
-                return this.driver.query(dbDropInstance.toString(), (err, result) => {
-                    if (err) return reject(err);
-                    resolve(result);
-                });
-            });
-        }, ...arguments);
-    }
-
-    /**
-     * ---------
-     * QUERY
-     * ---------
-     */
-	 
-	/**
-     * @inheritdoc
-	 */
-	async query(...query) {
-        return this.queryCallback(async (query, params) => {
-            if (query.expandable) await query.expand(true);
-            return new Promise((resolve, reject) => {
-                this.driver.query(`${ query }`, params.params || [], (err, result) => {
-                    if (err) return reject(err);
-                    resolve(result.rows || result);
-                });
-            });
-        }, ...query);
+    async basenameResolution(resolutionPath = []) {
+        if (arguments.length) {
+            resolutionPath = [].concat(resolutionPath).map(name => Identifier.fromJson(this, name));
+            const sql = this.params.dialect === 'mysql' ? `USE ${ resolutionPath[0] }` : `SET SEARCH_PATH TO ${ resolutionPath.join(',') }`;
+            return await this.driver.query(sql);
+        }
+        let sql, key;
+        if (this.params.dialect === 'mysql') {
+            sql = 'SELECT database() AS default_db', key = 'default_db';
+        } else {
+            sql = `SHOW SEARCH_PATH`, key = 'search_path'; // Can't remember what happens here
+            sql = `SELECT current_setting('SEARCH_PATH')`, key = 'current_setting';
+        }
+        const result = await this.driver.query(sql);
+        const value = ((result.rows || result)[0] || {})[key];
+        return Lexer.split(value, [',']).map(s => Identifier.parseIdent(this, s.trim())[0]);
     }
 }

@@ -7,8 +7,8 @@ export default class DataType extends Node {
 	/**
 	 * Instance properties
 	 */
-	NAME = '';
-	PRECISION = 0;
+	NAME;
+	PRECISION;
 
     /**
 	 * @constructor
@@ -26,11 +26,6 @@ export default class DataType extends Node {
 		if (!this.PRECISION) return this.NAME;
 		return { name: this.NAME, precision: this.PRECISION };
 	}
-	
-	/**
-	 * @inheritdoc
-	 */
-	stringify() { return `${ this.NAME }${ this.PRECISION ? `(${ this.PRECISION })` : `` }`; }
 
 	/**
 	 * @inheritdoc
@@ -43,6 +38,11 @@ export default class DataType extends Node {
 		if (!name) return;
 		return new this(context, name, precision);
 	}
+	
+	/**
+	 * @inheritdoc
+	 */
+	stringify() { return `${ this.NAME }${ this.PRECISION ? `(${ this.PRECISION })` : `` }`; }
     
     /**
 	 * @inheritdoc

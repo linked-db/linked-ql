@@ -54,6 +54,6 @@ export default class Prim extends Node {
 	 */
 	static parse(context, expr) {
 		if (!/^(TRUE|FALSE|NULL)$/i.test(expr)) return;
-		return new this(context, JSON.parse(expr));
+		return new this(context, JSON.parse(expr.toLowerCase()));
 	}
 }
