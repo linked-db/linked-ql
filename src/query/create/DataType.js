@@ -9,14 +9,16 @@ export default class DataType extends Node {
 	 */
 	NAME;
 	PRECISION;
+	TZ;
 
     /**
 	 * @constructor
 	 */
-    constructor(context, name, precision) {
+    constructor(context, name, precision, tz) {
         super(context);
         this.NAME = name;
         this.PRECISION = precision;
+        this.TZ = tz;
     }
 	
 	/**
@@ -24,7 +26,7 @@ export default class DataType extends Node {
 	 */
 	toJson() {
 		if (!this.PRECISION) return this.NAME;
-		return { name: this.NAME, precision: this.PRECISION };
+		return { name: this.NAME, precision: this.PRECISION, ...(this.TZ ? { tz: this.TZ } : {}) };
 	}
 
 	/**
@@ -42,28 +44,28 @@ export default class DataType extends Node {
 	/**
 	 * @inheritdoc
 	 */
-	stringify() { return `${ this.NAME }${ this.PRECISION ? `(${ this.PRECISION })` : `` }`; }
+	stringify() { return `${ this.NAME }${ this.PRECISION ? `(${ this.PRECISION })` : `` }${ this.TZ ? ` ${ this.TZ.trim().replace(/\s+/, ' ').toUpperCase() }` : '' }`; }
     
     /**
 	 * @inheritdoc
 	 */
 	static parse(context, expr) {
-		const [name, precision] = parse(expr);
+		const [name, precision, tz] = parse(expr);
 		if (!name) return;
-        return new this(context, name.toUpperCase(), precision);
+        return new this(context, name.toUpperCase(), precision, tz);
     }
 
-	static pgFixedTypesRe = /(bigint|int8|bigserial|serial8|boolean|bool|box|bytea|cidr|circle|date|double\s+precision|float8|inet|integer|int|int4|json|jsonb|line|lseg|macaddr|macaddr8|money|path|pg_lsn|pg_snapshot|point|polygon|real|float4|smallint|int2|smallserial|serial2|serial|serial4|text|timetz|timestamptz|tsquery|tsvector|txid_snapshot|uuid|xml)/;
-	static pgVariableTypesRe = /(bit|bit\s+varying|varbit|character|char|character\s+varying|varchar|interval|numeric|time|timestamp)(?:\s+)?(?:\(([\d, ]+)\))?/;
+	static pgFixedTypesRe = /(bigint|int8|bigserial|serial8|boolean|bool|box|bytea|cidr|circle|date|double\s+precision|float8|inet|integer|int|int4|jsonb|json|line|lseg|macaddr8|macaddr|money|path|pg_lsn|pg_snapshot|point|polygon|real|float4|smallint|int2|smallserial|serial2|serial4|serial|text|timetz|timestamptz|tsquery|tsvector|txid_snapshot|uuid|xml)/;
+	static pgVariableTypesRe = /(bit\s+varying|bit|varbit|character\s+varying|character|char|varchar|interval|numeric|timestamp|time)(?:\s+)?(?:\(([\d, ]+)\))?(\s+(?:with|without)\s+time\s+zone)?/;
 	static myFixedTypesRe = /(tinyint|smallint|mediumint|enum|set|tinyblob|mediumblob|longblob|geometry|longstring|geometrycollection|multilinestring|multipoint|multipolygon)/;
 	static myVariableTypesRe = /(float|decimal|double|tinytext|mediumtext|longtext|binary|varbinary|blob)(?:\s+)?(?:\(([\d, ]+)\))?/;
 }
 
 const parse = expr => {
-	let name, precision;
+	let name, precision, tz;
 	for (const key of ['pgFixedTypesRe', 'pgVariableTypesRe', 'myFixedTypesRe', 'myVariableTypesRe']) {
-		[ , name, precision ] = expr.match(new RegExp(DataType[key].source, 'i')) || [];
+		[ , name, precision, tz ] = expr.match(new RegExp(DataType[key].source, 'i')) || [];
 		if (name) break;
 	}
-	return [name, precision];
+	return [name, precision, tz];
 };

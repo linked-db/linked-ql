@@ -48,7 +48,7 @@ console.log('.....create books.....', await lqlClient.query(`CREATE TABLE books 
     title varchar,
     content varchar,
     author int references users (id),
-    created_time timestamp
+    created_timeeee timestamp (3) without time zone
 )`, { savepointDesc: 'Created books' }));
 const savepoint3 = await lqlClient.database('public').savepoint();
 console.log('\n\n\n\n\n\ntables---------', await lqlClient.database('public').tables());
@@ -89,7 +89,7 @@ if (spliceForwardHistories) {
 
     await lqlClient.query(`INSERT INTO roles (name, created_time) VALUES ('admin', now()), ('guest', now())`);
     await lqlClient.query(`INSERT INTO users (title, name, role, created_time) VALUES ('Mr.', 'Ox-Harris', 1, now()), ('Mrs.', 'Jane', 2, now())`);
-    await lqlClient.query(`INSERT INTO books (title, content, author, created_time) VALUES ('Rich Dad & Poor Dad', 'content...1', 1, now()), ('Beauty & the Beast', 'content...2', 2, now())`);
+    await lqlClient.query(`INSERT INTO books (title, content, author, created_timeeee) VALUES ('Rich Dad & Poor Dad', 'content...1', 1, now()), ('Beauty & the Beast', 'content...2', 2, now())`);
 
     //const ww = await lqlClient.query(`SELECT title, content, author ~> name, author ~> role ~> name role_name FROM books where author ~> role ~> name = 'admin'`);
     //const ww = await lqlClient.query(`SELECT name, role <~ author <~ books ~> title FROM roles`);
@@ -100,7 +100,7 @@ if (spliceForwardHistories) {
 
 
 // Should see: 6 or 7
-console.log('\n\n\n\n\n\current savepoint-----', (await lqlClient.database('public').savepoint()).toJson());
+console.log('\n\n\n\n\n\current savepoint-----', JSON.stringify((await lqlClient.database('public').savepoint()).toJson(), null, 3));
 
 
 console.log('the end.');
