@@ -2,8 +2,8 @@
 /**
  * @imports
  */
+console.log('----------------------------foo');
 import pg from 'pg';
-import CreateTable from '../src/query/create/CreateTable.js';
 import SQLClient from '../src/api/sql/SQLClient.js';
 
 const pgClient = new pg.Client({

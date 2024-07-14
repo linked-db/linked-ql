@@ -1,4 +1,5 @@
 
+console.log('----------------------------Action');
 import Node from '../abstracts/Node.js';
 import CreateTable from '../create/CreateTable.js';
 import DataType from '../create/DataType.js';

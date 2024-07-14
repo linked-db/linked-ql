@@ -54,7 +54,7 @@ export default class Identity extends AbstractConstraint {
      */
     stringify() {
 		if (this.params.dialect === 'mysql') return (new AutoIncrement(this.CONTEXT)).stringify();
-		return `${ this.stringifyName() }GENERATED ${ this.always() ? 'ALWAYS' : 'BY DEFAULT' } AS IDENTITY`;
+		return `GENERATED ${ this.always() ? 'ALWAYS' : 'BY DEFAULT' } AS IDENTITY`;
 	}
 
     /**

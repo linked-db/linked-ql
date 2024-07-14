@@ -105,7 +105,7 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
                     { name: 'author', type: { name: 'INT' }, references: { name: 'fkk', targetTable: 'table1', targetColumns: ['col3', 'col4']}, status: 'UP' },
                 ],
                 constraints: [
-                    { type: 'FOREIGN_KEY', name: 'constraint_name1', columns: ['id', 'author'], targetTable: 'testt', targetColumns: ['col5', 'author'] },
+                    { type: 'FOREIGN_KEY', columns: ['id', 'author'], targetTable: 'testt', targetColumns: ['col5', 'author'] },
                     { type: 'PRIMARY_KEY', columns: 'col5', $columns: ['uuu', 'lll'], name: 'pk', $name: 'pk2' },
                 ],
                 indexes: []

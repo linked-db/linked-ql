@@ -6,7 +6,7 @@ export default class Expression extends AbstractExpr {
     /**
      * @returns String
      */
-    stringify() { return `${ this.stringifyName() }GENERATED ALWAYS AS (${ this.expr() })${ this.params.dialect !== 'mysql' ? ` STORED` : '' }`; }
+    stringify() { return `GENERATED ALWAYS AS (${ this.expr() })${ this.params.dialect !== 'mysql' ? ` STORED` : '' }`; }
 
     /**
      * @returns Object

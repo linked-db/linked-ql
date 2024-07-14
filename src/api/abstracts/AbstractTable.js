@@ -2,7 +2,6 @@
 import { _isTypeObject, _isNull, _isString, _isNumeric, _isUndefined, _isObject } from '@webqit/util/js/index.js';
 import { _from as _arrFrom, _intersect } from '@webqit/util/arr/index.js';
 import { _wrapped } from '@webqit/util/str/index.js';
-import Savepoint from './Savepoint.js';
 
 export default class AbstractTable {
 	 

@@ -44,15 +44,15 @@ export default class DataType extends Node {
 	/**
 	 * @inheritdoc
 	 */
-	stringify() { return `${ this.NAME }${ this.PRECISION ? `(${ this.PRECISION })` : `` }${ this.TZ ? ` ${ this.TZ.trim().replace(/\s+/, ' ').toUpperCase() }` : '' }`; }
+	stringify() { return `${ this.NAME }${ this.PRECISION ? `(${ this.PRECISION })` : `` }${ this.TZ ? ` ${ this.TZ }` : '' }`; }
     
     /**
 	 * @inheritdoc
 	 */
 	static parse(context, expr) {
-		const [name, precision, tz] = parse(expr);
+		const [name, precision, tz = ''] = parse(expr);
 		if (!name) return;
-        return new this(context, name.toUpperCase(), precision, tz);
+        return new this(context, name.toUpperCase(), precision, tz.trim().replace(/\s+/, ' ').toUpperCase());
     }
 
 	static pgFixedTypesRe = /(bigint|int8|bigserial|serial8|boolean|bool|box|bytea|cidr|circle|date|double\s+precision|float8|inet|integer|int|int4|jsonb|json|line|lseg|macaddr8|macaddr|money|path|pg_lsn|pg_snapshot|point|polygon|real|float4|smallint|int2|smallserial|serial2|serial4|serial|text|timetz|timestamptz|tsquery|tsvector|txid_snapshot|uuid|xml)/;

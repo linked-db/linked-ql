@@ -1,10 +1,10 @@
 
 import Lexer from '../Lexer.js';
 import Action from './Action.js';
-import Column from '../create/Column.js';
-import CreateTable from '../create/CreateTable.js';
 import AbstractStatementNode from './abstracts/AbstractStatementNode.js';
+import CreateTable from '../create/CreateTable.js';
 import DataType from '../create/DataType.js';
+import Column from '../create/Column.js';
 import Index from '../create/Index.js';
 
 export default class AlterTable extends AbstractStatementNode {

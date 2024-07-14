@@ -1,12 +1,12 @@
 
-import CreateDatabase from '../../query/create/CreateDatabase.js';
-import AlterDatabase from '../../query/alter/AlterDatabase.js';
-import DropDatabase from '../../query/drop/DropDatabase.js';
-import CreateTable from '../../query/create/CreateTable.js';
-import AlterTable from '../../query/alter/AlterTable.js';
-import DropTable from '../../query/drop/DropTable.js';
-import Node from '../../query/abstracts/Node.js';
 import Parser from '../../query/Parser.js';
+import Node from '../../query/abstracts/Node.js';
+import CreateTable from '../../query/create/CreateTable.js';
+import CreateDatabase from '../../query/create/CreateDatabase.js';
+import AlterTable from '../../query/alter/AlterTable.js';
+import AlterDatabase from '../../query/alter/AlterDatabase.js';
+import DropTable from '../../query/drop/DropTable.js';
+import DropDatabase from '../../query/drop/DropDatabase.js';
 import Savepoint from './Savepoint.js';
 
 export default class AbstractClient {
@@ -211,11 +211,8 @@ export default class AbstractClient {
      */
     async basenameGet(tblName, withDefaultBasename = false) {
         const basenames = await this.basenameResolution();
-        return (
-                await basenames.reduce(async (prev, dbName) => {
-                return (await prev) || (await this.database(dbName).hasTable(tblName)) ? dbName : null;
-            }, null)
-        ) || (withDefaultBasename ? basenames.find(s => !s.startsWith('$')) || basenames[0] : null);
+        return (await basenames.reduce(async (prev, dbName) => (await prev) || (await this.database(dbName).hasTable(tblName)) ? dbName : null, null))
+        || (withDefaultBasename ? basenames.find(s => !s.startsWith('$')) || basenames[0] : null);
     }
 
     /**
