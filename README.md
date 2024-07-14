@@ -2,7 +2,7 @@
 
 **_Save more than 75% of the time and effort spent figuring out relational queries and managing schemas!_** Try a minimalistic take on SQL and databases in general!
 
-Linked QL is a DB query client that simplfies how you interact with your database and manage your schemas; takes ORMs out of the way and let's you just write smarter SQL [using magic paths](#introducing-magic-paths), and takes the labour and tooling out of schema management and adds [auto-versioning](#introducing-auto-versioning) capabilites to your database!
+Linked QL is a DB query client that simplfies how you interact with your database and manage your schemas; takes the ORM out of the way and let's you just write smarter SQL [using magic paths](#introducing-magic-paths), and takes the labour and tooling out of schema management and adds [auto-versioning](#introducing-auto-versioning) capabilites to your database!
 
 Linked QL is usable over your DB of choice - from the server-side Postgres and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), to the plain JSON object!
 
