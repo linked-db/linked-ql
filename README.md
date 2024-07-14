@@ -103,7 +103,7 @@ Linked QL lets you draw a path to express the relationship:
 SELECT title, author ~> fname AS author_name FROM posts
 ```
 
-Here's another instance showing an example schema and a typical query each:
+And here's another scenario showing an example schema and a typical query each:
 
 ```sql
 -- The users table
