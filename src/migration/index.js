@@ -13,7 +13,6 @@ import CreateDatabase from '../query/create/CreateDatabase.js';
 
 // Parse argv
 const { command, flags } = parseArgv(process.argv);
-console.log('\n');
 
 // Load schema file
 let schema, schemaFile = path.resolve(flags['schema'] || './database/schema.json');
@@ -30,9 +29,10 @@ if (!fs.existsSync(driverFile) || !(driver = await (await import(url.pathToFileU
 }
 
 if (command === 'show') {
-    console.log('--databases:', await driver.databases());
+    console.log('\nDatabases:', await driver.databases());
     process.exit();
 }
+
 if (command === 'fresh') {
     await driver.dropDatabase('test_db', { ifExists: true, cascade: true, noCreateSavepoint: true });
     await driver.dropDatabase('test_db2', { ifExists: true, cascade: true, noCreateSavepoint: true });
