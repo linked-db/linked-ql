@@ -1,0 +1,19 @@
+{
+   "name": "test_db-new-name2",
+   "status": "UP",
+   "tables": [
+      {
+         "columns": [
+            {
+               "type": "int",
+               "name": "test-column",
+               "status": "UP"
+            }
+         ],
+         "constraints": [],
+         "indexes": [],
+         "name": "test table 1",
+         "status": "UP"
+      }
+   ]
+}

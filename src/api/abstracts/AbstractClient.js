@@ -72,7 +72,7 @@ export default class AbstractClient {
      * 
      * @return Object
      */
-    async describeDatabase(name, tables = [], params = {}) {
+    async describeDatabase(name, tables = ['*'], params = {}) {
         return { name, tables: await this.database(name).describeTable(tables, params), };
     }
 

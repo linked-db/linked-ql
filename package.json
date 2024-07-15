@@ -27,7 +27,11 @@
     ".": "./src/index.js",
     "./sql": "./src/api/sql/SQLClient.js"
   },
+  "bin": {
+    "linkedql": "src/migration/index.js"
+  },
   "scripts": {
+    "dd":"node src/migration/index.js jjjjjjjj",
     "test": "mocha --extension .pg.test.js --exit",
     "test:coverage": "c8 --reporter=text-lcov npm run test | coveralls",
     "build": "esbuild main=src/browser-entry.js sql=src/api/sql/SQLClient.js --bundle --minify --sourcemap --outdir=dist",
