@@ -5,6 +5,14 @@ import Lexer from "../Lexer.js";
 export default class StatementNode extends Node {
 
     /**
+     * @constructor
+     */
+    constructor(context) {
+        super(context);
+        this._vars = [];
+    }
+
+    /**
      * @returns String
      */
     get type() { return this.constructor.name.toUpperCase(); }
@@ -12,7 +20,12 @@ export default class StatementNode extends Node {
     /**
 	 * @inheritdoc
 	 */
-	get statementNode() { return this }
+	get statementNode() { return this; }
+
+    /**
+	 * @inheritdoc
+	 */
+	get variables() { return this._vars; }
 
     /**
 	 * @inheritdoc

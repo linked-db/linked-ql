@@ -25,14 +25,14 @@ export default class Str extends Node {
 	 * 
 	 * @param String expr 
 	 */
-	literal(expr) { this.VALUE = expr; }
+	value(expr) { this.VALUE = expr; }
 	
 	/**
 	 * @inheritdoc
 	 */
 	stringify() {
 		const quote = this.QUOTE || this.quoteChars[0];
-		return `${ quote }${ this.VALUE.replace(new RegExp(quote, 'g'), quote.repeat(2)) }${ quote }`;
+		return `${ quote }${ (this.VALUE + '').replace(new RegExp(quote, 'g'), quote.repeat(2)) }${ quote }`;
 	}
 
 	/**

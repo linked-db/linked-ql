@@ -1,7 +1,9 @@
 
-import { _isTypeObject, _isNull, _isString, _isNumeric, _isUndefined, _isObject } from '@webqit/util/js/index.js';
-import { _from as _arrFrom, _intersect } from '@webqit/util/arr/index.js';
-import { _wrapped } from '@webqit/util/str/index.js';
+import { _isObject } from '@webqit/util/js/index.js';
+import Insert from '../../query/insert/Insert.js';
+import Update from '../../query/update/Update.js';
+import Delete from '../../query/delete/Delete.js';
+import Select from '../../query/select/Select.js';
 
 export default class AbstractTable {
 	 
@@ -9,17 +11,8 @@ export default class AbstractTable {
 	 * @constructor
 	 */
 	constructor(database, tblName, params = {}) {
-        this.$ = {
-            database,
-            name: tblName,
-            params
-        };
+        this.$ = { database, name: tblName, params };
 	}
-
-    /**
-     * @property String
-     */
-    get name() { return this.$.name; }
 
     /**
      * @property Database
@@ -27,116 +20,134 @@ export default class AbstractTable {
     get database() { return this.$.database; }
 
     /**
+     * @property String
+     */
+    get name() { return this.$.name; }
+
+    /**
      * @property Object
      */
     get params() { return this.$.params; }
 
-    /**
-     * @property Bool
-     */
-    get dropped() { return this.$.schema.hiddenAs === 'dropped'; }
-
 	/**
-     * @returns Object
-     */
-	async schema() { return await this.database.describeTable(this.name); }
-
-	/**
-	 * ----------
-	 * SCHEMA UTILS
-	 * ----------
-	 */
-
-	/**
-	 * Get Primary Key columns from schema.
+	 * Counts records.
 	 * 
-	 * @returns Array
+	 * @param String q
 	 */
-	async primaryKeyColumns() { return (await this.columnsForConstraint('PRIMARY_KEY'))[0]; }
-
+	async count(q = '*') {
+		const result = await this.select([ q => q.fn('COUNT', q).as('c') ]);
+		return (result.rows || result)[0].c;
+	}
+	 
 	/**
-	 * Get columns that have given constraintType.
+	 * Selects record(s).
 	 * 
-	 * @param String constraintType
+	 * @param Array 					fields
 	 * 
-	 * @returns Array
+	 * @param Number|Object|Function 	where
+	 * 
+	 * @param Array 					fields
+	 * @param Number|Object|Function 	where
 	 */
-	async columnsForConstraint(constraintType) {
-		const schema = await this.database.describeTable(this.name);
-		const inlineConstraintTypesMap = { 'PRIMARY_KEY': 'primaryKey', 'UNIQUE_KEY': 'uniqueKey', 'CHECK': 'check', 'FOREIGN_KEY': 'references' };
-		let columns = !(constraintType in inlineConstraintTypesMap) ? [] : schema.columns.filter(col => col[inlineConstraintTypesMap[constraintType]]).map(col => [col.name]);
-		if (schema.constraints.length) { columns = columns.concat(schema.constraints.filter(cnst => cnst.type === constraintType).reduce((cols, cnst) => cols.concat([cnst.columns]))); }
-		return columns;
+	async select(...args) {
+		const query = new Select(this.database.client);
+		// Where and fields
+		if (Array.isArray(args[0])) {
+			query.select(...args[0]);
+			await this.resolveWhere(query, args[1]);
+		} else await this.resolveWhere(query, args[0]);
+		// Handle
+		query.from([this.database.name, this.name]);
+		return await this.database.client.query(query);
 	}
 
 	/**
-	 * Get columns that have given indexType.
+	 * Inserts record(s).
 	 * 
-	 * @param String indexType
+	 * @param Object 					keyValsMap
+	 * @param Array|String			 	returnList
 	 * 
-	 * @returns Array
+	 * @param Array 					multilineKeyValsMap
+	 * @param Array|String			 	returnList
+	 * 
+	 * @param Array 					columns
+	 * @param Array 					multilineValues
+	 * @param Array|String			 	returnList
 	 */
-	async columnsForIndex(indexType) {
-		const schema = await this.database.describeTable(this.name);
-		if (schema.indexes.length) { return schema.indexes.filter(index => index.type === indexType).reduce((cols, index) => cols.concat([index.columns])); }
-		return [];
+	async insert(...args) {
+		const query = new Insert(this.database.client);
+		const [ columns = [], values = [], returnList = '*' ] = await this.resolvePayload(...args);
+		// Payload
+		if (columns.length) query.columns(...columns);
+		for (const row of values) query.values(...row);
+		// Handle
+		query.into([this.database.name, this.name]);
+		if (returnList) query.returning(returnList);
+		return await this.database.client.query(query);
 	}
-
+		
 	/**
-	 * ----------
-	 * QUERY UTILS
-	 * ----------
-	 */
-
-	/**
-	 * Syncs a cursor.
+	 * Upserts record(s); with optional custom onConflict clause.
 	 * 
-	 * @param Cursor cursor
+	 * @param Object 					keyValsMap
+	 * @param Array|String			 	returnList
 	 * 
-	 * @return Number
+	 * @param Array 					multilineKeyValsMap
+	 * @param Array|String			 	returnList
+	 * 
+	 * @param Array 					columns
+	 * @param Array 					multilineValues
+	 * @param Array|String			 	returnList
 	 */
-	async syncCursor(cursor) { return await this.putAll(cursor.cache); }
-
+	async upsert(...args) {
+		const query = new Insert(this.database.client);
+		const [ columns = [], values = [], returnList = '*' ] = await this.resolvePayload(...args);
+		// Payload
+		if (columns.length) query.columns(...columns);
+		for (const row of values) query.values(...row);
+		// On-conflict
+		query.onConflict({ entries: columns.map((col, i) => [col, values[i]])});
+		if (returnList) query.returning(returnList);
+		// Handle
+		query.into([this.database.name, this.name]);
+		return await this.database.client.query(query);
+	}
+	
 	/**
-	 * @inheritdoc
+	 * Updates record(s).
+	 * 
+	 * @param Object|Object|Function 	where
+	 * @param Object 					payload
+	 * @param Array|String			 	returnList
 	 */
-	async match(rowObj) {
-		// -----------
-		let primaryKey, existing;
-		if (this.def.schema.primaryKey 
-		&& (primaryKey = readKeyPath(rowObj, this.def.schema.primaryKey)) 
-		&& (existing = await this.get(primaryKey))) {
-			return {
-				matchingKey: 'PRIMARY_KEY',
-				primaryKey,
-				row: existing,
-			};
-		}
-		// -----------
-		const primaryKeyColumns = await this.primaryKeyColumns();
-		const uniqueKeyColumns = await this.columnsForConstraint('UNIQUE_KEY');
-		primaryKeyColumns.concat(uniqueKeyColumns).map(columns => {
-			return `(${ columns.map(col => `${ this.quote(obj[col]) } IN (${ columns.join(',') })`).join(' AND ') })`;
-		}).join(' OR ');
-
-		var match, uniqueKeys = Object.keys(this.def.schema.indexes).filter(alias => this.def.schema.indexes[alias].type === 'unique');
-		if (uniqueKeys.length) {
-			(await this.getAll()).forEach((existingRow, i) => {
-				if (match) return;
-				uniqueKeys.forEach(constraintName => {
-					var keyPath = this.def.schema.indexes[constraintName].keyPath;
-					if (existingRow && readKeyPath(rowObj, keyPath) === readKeyPath(existingRow, keyPath)) {
-						match = {
-							matchingKey: constraintName,
-							primaryKey: this.def.schema.primaryKey ? readKeyPath(existingRow, this.def.schema.primaryKey) : i,
-							row: {...existingRow},
-						};
-					}
-				});
-			});
-		}
-
-		return match;
+	async update(...args) {
+		if (args.length < 2) throw new Error(`A "where" match cannot be ommitted.`);
+		const query = new Update(this.database.client);
+		query.table([this.database.name, this.name]);
+		// Where and payload
+		const { where, payload, returnList = '*' } = args;
+		await this.resolveWhere(query, where);
+		for (const [key, value] of Object.entries(payload)) query.set(key, value);
+		if (returnList) query.returning(returnList);
+		// Handle
+		return await this.database.client.query(query);
+	}
+	 
+	/**
+	 * Deletes record(s).
+	 * 
+	 * @param Number|Object|Function 	where
+	 * @param Array|String			 	returnList
+	 */
+	async delete(where, returnList = '*') {
+		if (args.length < 1) throw new Error(`A "where" match cannot be ommitted.`);
+		const query = new Delete(this.database.client);
+		query.from([this.database.name, this.name]);
+		// Where
+		await this.resolveWhere(query, where);
+		if (returnList) query.returning(returnList);
+		// Handle
+		return await this.database.client.query(query);
 	}
 	
 	/**
@@ -144,181 +155,56 @@ export default class AbstractTable {
 	 */
 
 	/**
-	 * @inheritdoc
+	 * Helps resolve specified where condition for the query.
+	 * 
+	 * @param Query 						query
+	 * @param Number|Bool|Object|Function 	where
 	 */
-	async addAll(multiValues, columns = [], duplicateKeyCallback = null, forceAutoIncrement = false) {
-		const inserts = [], forUpdates = [];
-		for (const values of multiValues) {
-			let rowObj = values;
-			if (Array.isArray(values)) {
-				const columnNames = columns.length ? columns : (await this.schema()).columns.map(col => col.name);
-				if (columnNames.length && columnNames.length !== values.length) {
-					throw new Error(`Column/values count mismatch at line ${ multiValues.indexOf(values) }.`);
-				}
-				rowObj = columnNames.reduce((rowObj, name, i) => ({ ...rowObj, [name]: values[i], }), {});
-			}
-			// -------------
-			await this.handleInput(rowObj, true);					
-			// -------------
-			if (await this.shouldMatchInput(rowObj) || duplicateKeyCallback) {
-				const match = await this.match(rowObj);
-				if (match && duplicateKeyCallback) {
-					const duplicateRow = { ...match.row };
-					if (duplicateKeyCallback(duplicateRow, rowObj)) {
-						forUpdates.push(duplicateRow);
-					}
-					// The duplicate situation had been handled
-					// ...positive or negative
-					inserts.push('0');
-					continue;
-				}
-				// We're finally going to add!
-				// We must not do this earlier...
-				// as "onupdate" rows will erronously take on a new timestamp on this column
-				await this.beforeAdd(rowObj, match);
-				inserts.push(await this.add(rowObj));
-				continue;
-			}
-			await this.beforeAdd(rowObj);
-			inserts.push(await this.add(rowObj));
+	async resolveWhere(query, where) {
+		if (where === true) return;
+		if (/^\d+$/.test(where)) {
+			const schema = await this.database.describeTable(this.name);
+			const primaryKey = schema.columns?.find(col => col.primaryKey)?.name || schema.constraints.find(cons => cons.type === 'PRIMARY_KEY')?.targetColumns[0];
+			if (!primaryKey) throw new Error(`Cannot resolve primary key name for implied record.`);
+			where = { [primaryKey]: where };
 		}
-		// OnDuplicateKey updates
-		if (forUpdates.length) { inserts.push(...(await this.putAll(forUpdates))); }
-		return inserts.filter((n, i) => n !== 0 && inserts.indexOf(n) === i);
+		if (_isObject(where)) {
+			query.where(...Object.entries(where).map(([key, val]) => q => q.equals(key, val)));
+		} else if (where) query.where(where);
 	}
 		
 	/**
-	 * @inheritdoc
+	 * Resolves input arguments into columns and values array.
+	 * 
+	 * @param Object 					keyValsMap
+	 * @param Array|String			 	returnList
+	 * 
+	 * @param Array 					multilineKeyValsMap
+	 * @param Array|String			 	returnList
+	 * 
+	 * @param Array 					columns
+	 * @param Array 					multilineValues
+	 * @param Array|String			 	returnList
 	 */
-	async beforeAdd(rowObj, match) {
-		const timestamp = (new Date).toISOString();
-		for (const column of (await this.schema()).columns) {
-			const columnType = _isObject(column.type) ? column.type.name : column.type;
-			if ((columnType === 'datetime' || columnType === 'timestamp') && column.default.expr === 'CURRENT_TIMESTAMP') {
-				rowObj[column.name] = timestamp;
-			}
+	async resolvePayload(...args) {
+		let columns = [], values = [], returnList;
+		if (Array.isArray(args[0]) && /*important*/args[0].every(s => typeof s === 'string') && Array.isArray(args[1])) {
+			if (!args[1].every(s => Array.isArray(s))) throw new TypeError(`Invalid payload format.`);
+			[ columns, values, returnList ] = args.splice(0, 3);
+		} else {
+			const payload = [].concat(args.shift());
+			if (!_isObject(payload[0])) throw new TypeError(`Invalid payload format.`);
+			columns = Object.keys(payload[0]);
+			values = payload.map(row => Object.values(row));
+			returnList = args.shift();
 		}
-	}
-	 
-	/**
-	 * @inheritdoc
-	 */
-	async putAll(multiRows) {
-		const updates = [];
-		for (const rowObj of multiRows) {
-			// -------------
-			await this.handleInput(rowObj);					
-			// -------------
-			if (await this.shouldMatchInput(rowObj)) {
-				await this.beforePut(rowObj, await this.match(rowObj));
-				updates.push(await this.put(rowObj));
-				continue;
-			}
-			await this.beforePut(rowObj);
-			updates.push(await this.put(rowObj));
-		}
-		return updates;
-	}
-		
-	/**
-	 * @inheritdoc
-	 */
-	async beforePut(rowObj, match) {
-		if (match && !Object.keys(rowObj).every(key => rowObj[key] === match.row[key])) {
-			const timestamp = (new Date).toISOString();
-			for (const column of (await this.schema()).columns) {
-				const columnType = _isObject(column.type) ? column.type.name : column.type;
-				if ((columnType === 'datetime' || columnType === 'timestamp') && column.onupdate === 'CURRENT_TIMESTAMP') {
-					rowObj[column.name] = timestamp;
-				}
-			}
-		}
-	}
-	 
-	/**
-	 * @inheritdoc
-	 */
-	async deleteAll(multiIDs) {
-		const deletes = [];
-		for (const primaryKey of multiIDs) {
-			deletes.push(this.delete(await this.beforeDelete(primaryKey)));
-		}
-		return deletes;
-	}
-		
-	/**
-	 * @inheritdoc
-	 */
-	async beforeDelete(primaryKey) {	
-		return primaryKey;
-	}
-	
-	/**
-	 * -------------------------------
-	 */
-
-	/**
-	 * @inheritdoc
-	 */
-	async handleInput(rowObj, applyDefaults = false) {
-		const rowObjColumns = Object.keys(rowObj);
-		const schema = await this.schema();
-		const schemaColumns = schema.columns.map(col => col.name);
-		// ------------------
-		const unknownFields = rowObjColumns.filter(col => schemaColumns.indexOf(col) === -1);
-		if (unknownFields.length) { throw new Error(`Unknown column: ${ unknownFields[0] }`); }
-		// ------------------
-		for (const columnName of schemaColumns) {
-			const value = rowObj[columnName];
-			const column = schema.columns.find(col => col.name === columnName) || {};
-			if (rowObjColumns.includes(columnName)) {
-				const columnType = _isObject(column.type) ? column.type.name : column.type;
-				// TODO: Validate supplied value
-				if (columnType === 'json') {
-					if (!_isTypeObject(value) && (!_isString(value) || (!_wrapped(value, '[', ']') && !_wrapped(value, '{', '}')))) {
-					}
-				} else if (['char', 'tinytext', 'smalltext', 'text', 'bigtext', 'varchar'].includes(columnType)) {
-					if (!_isString(value)) {
-					}
-				} else if (['bit', 'tinyint', 'smallint', 'int', 'bigint', 'decimal', 'number', 'float', 'real'].includes(columnType)) {
-					if (!_isNumeric(value)) {
-					}
-				} else if (['enum', 'set'].includes(columnType)) {
-					if (!_isNumeric(value)) {
-					}
-				} else if (['date', 'datetime', 'timestamp'].includes(columnType)) {
-					if (!_isString(value)) {
-					}
-				}
-			} else if (applyDefaults && !_intersect([columnName], await this.primaryKeyColumns()).length) {
-				// DONE: Apply defaults...
-				rowObj[columnName] = ('default' in column) && !(['date', 'datetime', 'timestamp'].includes(columnType) && column.default.expr === 'CURRENT_TIMESTAMP') 
-					? column.default.value
-					: null;
-			}
-			// Non-nullable
-			if (column.notNull && (_isNull(rowObj[columnName]) || _isUndefined(rowObj[columnName]))) {
-				throw new Error(`Inserting NULL on non-nullable column: ${ columnName }.`);
-			}
-		}
-	}
-		
-	/**
-	 * @inheritdoc
-	 */
-	async shouldMatchInput(rowObj) {
-		return (await this.schema()).columns.some(column => {
-			const columnType = _isObject(column.type) ? column.type.name : column.type;
-			return ['datetime', 'timestamp'].includes(columnType) && (
-				column.default.expr === 'CURRENT_TIMESTAMP' || column.onupdate === 'CURRENT_TIMESTAMP'
-			);
-		});
+		values = values.map(row => row.map(v => {
+			if ([true,false,null].includes(v)) return q => q.literal(v);
+			if (v instanceof Date) return q => q.value(v.toISOString().split('.')[0]);
+			if (Array.isArray(v)) return q => q.array(v);
+			if (_isObject(v)) return q => q.object(v);
+			return q => q.value(v);
+		}));
+		return [columns, values, returnList];
 	}
 }
-
-/**
- * @AutoIncremen
- */
-const readKeyPath = (rowObj, keyPath) => {
-	return _arrFrom(keyPath).map(key => rowObj[key]).filter(v => v).join('-');
-};

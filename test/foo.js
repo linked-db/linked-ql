@@ -21,7 +21,7 @@ const lqlClient = new SQLClient({
 }, { dialect: 'postgres' });
 
 
-
+//await lqlClient.alterDatabase('private', db => db.name('public'), { noCreateSavepoint: true });
 console.log('DROP 4', await lqlClient.query('SELECT 2 + 3 as summm'));
 console.log('DROP 4', await lqlClient.query('DROP DATABASE if exists obj_information_schema CASCADE'));
 console.log('DROP 3', await lqlClient.query('DROP TABLE if exists public.books'));
@@ -86,7 +86,7 @@ if (spliceForwardHistories) {
         await (await lqlClient.database('public').savepoint({ direction: 'forward' })).rollback();
     }
     // Should see: 1,2,3
-    console.log('\n\n\n\n\n\nall savepoints-----', ...(await lqlClient.database('obj_information_schema').table('database_savepoints').getAll()));
+    console.log('\n\n\n\n\n\nall savepoints-----', ...(await lqlClient.database('obj_information_schema').table('database_savepoints').select()));
 
     await lqlClient.query(`INSERT INTO roles (name, created_time) VALUES ('admin', now()), ('guest', now())`);
     await lqlClient.query(`INSERT INTO users (title, name, role, created_time) VALUES ('Mr.', 'Ox-Harris', 1, now()), ('Mrs.', 'Jane', 2, now())`);

@@ -7,6 +7,7 @@ import OrderByClause from '../select/OrderByClause.js';
 import Condition from '../select/Condition.js';
 import Assertion from '../select/Assertion.js';
 import Table from '../select/Table.js';
+import Field from '../select/Field.js';
 
 /*
 Syntax: 1 (Both; Order By and Limit: MySQL)
@@ -36,6 +37,7 @@ export default class Delete extends StatementNode {
 	WHERE_CLAUSE = null;
 	ORDER_BY_CLAUSE = null;
 	LIMIT_CLAUSE = null;
+	RETURNING_LIST = [];
 
 	/**
 	 * @returns Array
@@ -167,6 +169,11 @@ export default class Delete extends StatementNode {
 		if (!limit.every(l => typeof l === 'number')) throw new Error(`Limits must be of type number.`);
 		this.LIMIT_CLAUSE = limit;
 	}
+	
+	/** 
+	* @return Void
+	*/
+	returning(...fields) { return this.build('RETURNING_LIST', fields, Field); }
 
 	/**
 	 * @inheritdoc
@@ -180,6 +187,7 @@ export default class Delete extends StatementNode {
 			where_clause: this.WHERE_CLAUSE?.toJson(),
 			order_by_clause: this.ORDER_BY_CLAUSE?.toJson(),
 			limit_clause: this.LIMIT_CLAUSE,
+			returning_list: this.RETURNING_LIST,
 			flags: this.FLAGS,
 		};
 	}
@@ -197,6 +205,7 @@ export default class Delete extends StatementNode {
 		if (json.where_clause) instance.where(json.where_clause);
 		if (json.order_by_clause) instance.orderBy(json.order_by_clause);
 		if (json.limit_clause) instance.limit(json.limit_clause);
+		if (json.returning_list) instance.returning(...json.returning_list);
 		return instance;
 	}
 	
@@ -213,6 +222,7 @@ export default class Delete extends StatementNode {
 		if (this.WHERE_CLAUSE) sql.push('WHERE', this.WHERE_CLAUSE);
 		if (this.ORDER_BY_CLAUSE) sql.push(this.ORDER_BY_CLAUSE);
 		if (this.LIMIT_CLAUSE) sql.push('LIMIT', this.LIMIT_CLAUSE);
+		if (this.RETURNING_LIST.length) sql.push('RETURNING', this.RETURNING_LIST.join(', '));
 		return sql.join(' ');
 	}
 	
@@ -226,7 +236,7 @@ export default class Delete extends StatementNode {
 		if (withUac) instance.withFlag('WITH_UAC');
 		if (mysqlIgnore) instance.withFlag(mysqlIgnore);
 		const $body = this.mySubstitutePlaceholders(instance, body.trim());
-		const clausesMap = { from: { backtest: '^(?!.*\\s+DISTINCT\\s+$)', test: 'FROM' }, using: { backtest: '^(?!.*\\s+JOIN\\s+)', test: 'USING' }, join:JoinClause, where:'WHERE', orderBy:OrderByClause, limit:'LIMIT' };
+		const clausesMap = { from: { backtest: '^(?!.*\\s+DISTINCT\\s+$)', test: 'FROM' }, using: { backtest: '^(?!.*\\s+JOIN\\s+)', test: 'USING' }, join:JoinClause, where:'WHERE', orderBy:OrderByClause, limit:'LIMIT', returning:'RETURNING' };
 		const { tokens: [ maybeTablesSpec, ...tokens ], matches: clauses } = Lexer.lex($body, Object.values(clausesMap).map(x => typeof x === 'string' || x.test ? x : x.regex), { useRegex: 'i' });
 		// MAYBE_TABLES_SPEC (BEFORE A FROM CLAUSE) - MYSQL
 		for (const tblExpr of Lexer.split(maybeTablesSpec, [','])) {
@@ -254,6 +264,10 @@ export default class Delete extends StatementNode {
 			// LIMIT
 			else if (clauseKey === 'limit') {
 				instance.limit(parseInt(tokens.shift().trim()));
+			}
+			// RETURNING
+			else if (clauseKey === 'returning') {
+				instance.returning(...Lexer.split(tokens.shift(), [',']).map(field => parseCallback(instance, field.trim(), [Field])));
 			}
 			// JOIN|ORDER_BY
 			else {

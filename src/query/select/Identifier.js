@@ -36,7 +36,7 @@ export default class Identifier extends Node {
 	 * @inheritdoc
 	 */
 	static fromJson(context, json) {
-		if (typeof json === 'string' || Array.isArray(json)) json = { name: json };
+		if ((typeof json === 'string') || (Array.isArray(json) && json.every(s => typeof s === 'string'))) json = { name: json };
 		else if (typeof json?.name !== 'string' && !Array.isArray(json?.name)) return;
 		const instance = (new this(context)).withFlag(...(json?.flags || []));
 		instance.name(json.name);

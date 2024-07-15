@@ -254,7 +254,7 @@ export default class AbstractClient {
             ...schemaInstamce.toJson(),
             savepoint_description: savepointDesc,
             version_tag: null,
-            savepoint_date: new String('now()'),
+            savepoint_date: new Date,
         };
         // -- Find a match first
         const currentSavepoint = await this.database(schemaInstamce.name()).savepoint();
@@ -273,7 +273,7 @@ export default class AbstractClient {
             savepointJson.version_tag = 1;
         }
         // -- Create record
-        const insertResult = await this.database(OBJ_INFOSCHEMA_DB).table('database_savepoints').add(savepointJson);
-        return new Savepoint(this, { ...insertResult.toJson(), id_following: null });
+        const insertResult = await this.database(OBJ_INFOSCHEMA_DB).table('database_savepoints').insert(savepointJson);
+        return new Savepoint(this, { ...insertResult[0], id_following: null });
     }
 }

@@ -14,7 +14,7 @@ export default class Func extends Node {
 	/**
 	 * @inheritdoc
 	 */
-	call(name, ...args) {
+	fn(name, ...args) {
 		this.NAME = name;
 		return this.build('ARGS', args, Expr.Types);
 	}
@@ -36,7 +36,7 @@ export default class Func extends Node {
 	static fromJson(context, json) {
 		if (typeof json?.name !== 'string' || !Array.isArray(json.args)) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
-		instance.call(json.name, ...json.args);
+		instance.fn(json.name, ...json.args);
 		return instance;
 	}
 	
@@ -52,7 +52,7 @@ export default class Func extends Node {
 		if (!expr.endsWith(')') || Lexer.match(expr, [' ']).length) return;
 		const [ , name, args = '' ] = /^(\w+)\(([\s\S]+)?\)$/i.exec(expr);
 		const instance = new this(context);
-		instance.call(name, ...Lexer.split(args, [',']).map(arg => parseCallback(instance, arg.trim())));
+		instance.fn(name, ...Lexer.split(args, [',']).map(arg => parseCallback(instance, arg.trim())));
 		return instance;
 	}
 }

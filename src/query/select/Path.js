@@ -160,7 +160,7 @@ export default class Path extends Node {
 			// Implement the join for the first time
 			const baseAlias = ['ALIAS','EXPR'].reduce((prev, key) => prev || baseTable[key]?.NAME, null);
 			const joinKeyAlias = `${ joinKey }:${ ( 0 | Math.random() * 9e6 ).toString( 36 ) }`;
-			stmt.leftJoin( j => j.query( q => q.select( field => field.name( joinKey ).as( joinKeyAlias ) ), q => q.from([rhs.schema.basename,rhs.schema.name]) ) )
+			stmt.leftJoin( j => j.query( q => q.select( field => field.name( joinKey ).as( joinKeyAlias ) ), q => q.from([rhs.schema.basename,rhs.schema.name].filter(s => s)) ) )
 				.with({ IS_SMART_JOIN: true }).as(joinAlias)
 				.on( on => on.equals([joinAlias,joinKeyAlias], [baseAlias,baseKey]) );
 			joint();

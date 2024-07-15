@@ -20,6 +20,17 @@ export default class Placeholder extends Node {
 	/**
 	 * @inheritdoc
 	 */
+	$value(offset, value = undefined) {
+		this.OFFSET = offset;
+		if (arguments.length === 2) {
+			this.statementNode.variables.push(value);
+			if (this.OFFSET === 0) this.OFFSET = this.statementNode.variables.length;
+		}
+	}
+
+	/**
+	 * @inheritdoc
+	 */
 	toJson() { return { offset: this.OFFSET }; }
 
 	/**

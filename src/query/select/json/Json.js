@@ -3,6 +3,7 @@
  * @imports
  */
 import { _wrapped } from '@webqit/util/str/index.js';
+import { _isObject } from '@webqit/util/js/index.js';
 import Lexer from '../../Lexer.js';
 import Str from '../str/Str.js';
 
@@ -11,7 +12,7 @@ export default class Json extends Str {
 	/**
 	 * Instance properties
 	 */
-	TYPE = '';
+	TYPE;
 
 	/**
 	 * @constructor
@@ -22,16 +23,6 @@ export default class Json extends Str {
 	}
 
 	/**
-	 * Sets the value to an object
-	 * 
-	 * @param Object value
-	 */
-	object(value) {
-		this.VALUE = typeof value === 'object' && value ? JSON.stringify(value) : value;
-		this.TYPE = 'OBJECT';
-	}
-
-	/**
 	 * Sets the value to an array
 	 * 
 	 * @param Object value
@@ -39,6 +30,16 @@ export default class Json extends Str {
 	array(value) {
 		this.VALUE = Array.isArray(value) ? JSON.stringify(value) : value;
 		this.TYPE = 'ARRAY';
+	}
+
+	/**
+	 * Sets the value to an object
+	 * 
+	 * @param Object value
+	 */
+	object(value) {
+		this.VALUE = _isObject(value) ? JSON.stringify(value) : value;
+		this.TYPE = 'OBJECT';
 	}
 
 	/**
@@ -76,4 +77,6 @@ export default class Json extends Str {
 		if (!($.braces = braces.find(b => _wrapped(expr, b[0], b[1]))) || Lexer.match(expr, [' ']).length) return;
 		return new this(context, text, $.braces[0] === '{' ? 'OBJECT' : 'ARRAY', quote);
 	}
+
+	static factoryMethods = { array: (context, value) => Array.isArray(value) && new this(context), object: (context, value) => _isObject(value) && new this(context) };
 }

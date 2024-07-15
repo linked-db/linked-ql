@@ -4,9 +4,11 @@ import Lexer from '../Lexer.js';
 import StatementNode from '../abstracts/StatementNode.js';
 import AssignmentList from './AssignmentList.js';
 import OnConflictClause from './OnConflictClause.js';
-import Identifier from '../select/Identifier.js';
 import Select from '../select/Select.js';
 import Table from '../select/Table.js';
+import ValuesList from './ValuesList.js';
+import ColumnsList from './ColumnsList.js';
+import Field from '../select/Field.js';
 
 export default class Insert extends StatementNode {
 	 
@@ -19,6 +21,7 @@ export default class Insert extends StatementNode {
 	SET_CLAUSE = null;
 	SELECT_CLAUSE = null;
 	ON_CONFLICT_CLAUSE = null;
+	RETURNING_LIST = [];
 
 	/**
 	 * @returns Array
@@ -43,7 +46,7 @@ export default class Insert extends StatementNode {
 	 * 
 	 * @return Void
 	 */
-	columns(...columns) { return this.build('COLUMNS_LIST', columns, Identifier); }
+	columns(...columns) { return this.build('COLUMNS_LIST', columns, ColumnsList, 'list'); }
 
 	/**
 	 * Builds the statement's VALUES_LIST
@@ -52,7 +55,7 @@ export default class Insert extends StatementNode {
 	 * 
 	 * @return Void
 	 */
-	values(...values) { return this.VALUES_LIST.push(values); }
+	values(...values) { return this.build('VALUES_LIST', values, ValuesList, 'list'); }
 
 	/**
 	 * Builds the statement's SET_CLAUSE
@@ -89,6 +92,11 @@ export default class Insert extends StatementNode {
 	 * @return Void
 	 */
 	onConflict(...onConflictSpecs) { return this.build('ON_CONFLICT_CLAUSE', onConflictSpecs, OnConflictClause); }
+	
+	/** 
+	* @return Void
+	*/
+   returning(...fields) { return this.build('RETURNING_LIST', fields, Field); }
 
 	/**
 	 * @inheritdoc
@@ -96,11 +104,12 @@ export default class Insert extends StatementNode {
 	toJson() {
 		return {
 			table: this.TABLE.toJson(),
-			columns_list: this.COLUMNS_LIST.map(c => c.toJson()),
-			values_list: this.VALUES_LIST.map(v => v),
+			columns_list: this.COLUMNS_LIST.toJson(),
+			values_list: this.VALUES_LIST.toJson(),
 			set_clause: this.SET_CLAUSE?.toJson(),
 			select_clause: this.SELECT_CLAUSE?.toJson(),
 			on_conflict_clause: this.ON_CONFLICT_CLAUSE?.toJson(),
+			returning_list: this.RETURNING_LIST,
 			flags: this.FLAGS,
 		};
 	}
@@ -113,10 +122,11 @@ export default class Insert extends StatementNode {
 		const instance = (new this(context)).withFlag(...(json.flags || []));
 		instance.into(json.table);
 		if (json.columns_list?.length) instance.columns(...json.columns_list);
-		for (const values of json.values_list || []) instance.values(...values);
+		if (json.values_list?.length) instance.values(...json.values_list);
 		if (json.set_clause) instance.set(json.set_clause);
 		if (json.select_clause) instance.select(json.select_clause);
 		if (json.on_conflict_clause) instance.onConflict(json.on_conflict_clause);
+		if (json.returning_list?.length) instance.returning(...json.returning_list);
 		return instance;
 	}
 	
@@ -129,11 +139,12 @@ export default class Insert extends StatementNode {
 		sql.push('INTO', this.TABLE);
 		if (this.SET_CLAUSE) sql.push('SET', this.SET_CLAUSE);
 		else {
-			if (this.COLUMNS_LIST.length) sql.push(`(${ this.COLUMNS_LIST.join(', ') })`);
+			if (this.COLUMNS_LIST) sql.push(this.COLUMNS_LIST);
 			if (this.SELECT_CLAUSE) sql.push(this.SELECT_CLAUSE);
-			else sql.push('VALUES', `\n\t(${ this.VALUES_LIST.map(row => row.join(', ')).join(`),\n\t(`) })`);
+			else sql.push('VALUES', this.VALUES_LIST);
 		}
 		if (this.ON_CONFLICT_CLAUSE) sql.push(this.ON_CONFLICT_CLAUSE);
+		if (this.RETURNING_LIST.length) sql.push('RETURNING', this.RETURNING_LIST.join(', '));
 		return sql.join(' ');
 	}
 	
@@ -144,7 +155,7 @@ export default class Insert extends StatementNode {
 		const [ match, withUac, mysqlIgnore, body ] = /^INSERT(\s+WITH\s+UAC)?(?:\s+(IGNORE))?(?:\s+INTO)?([\s\S]+)$/i.exec(expr) || [];
 		if (!match ) return;
 		const $body = this.mySubstitutePlaceholders(context, body.trim());
-		const { tokens: [ tableSpec, payloadSpec, onConflictSpec ], matches: [insertType, onConflictClause] } = Lexer.lex($body, ['(VALUES|VALUE|SET|SELECT)', 'ON\\s+(DUPLICATE\\s+KEY|CONFLICT)'], { useRegex:'i' });
+		const { tokens: [ tableSpec, payloadSpec, onConflictSpec, returnList ], matches: [insertType, onConflictClause] } = Lexer.lex($body, ['(VALUES|VALUE|SET|SELECT)', 'ON\\s+(DUPLICATE\\s+KEY|CONFLICT)', 'RETURNING'], { useRegex:'i' });
 		const instance = new this(context);
 		if (withUac) instance.withFlag('WITH_UAC');
 		if (mysqlIgnore) instance.withFlag(mysqlIgnore);
@@ -156,8 +167,7 @@ export default class Insert extends StatementNode {
 			const tableColumnSplit = Lexer.split(tableSpec, []);
 			instance.into(parseCallback(instance, tableColumnSplit.shift().trim(), [Table]));
 			if (tableColumnSplit.length) {
-				const columns = Lexer.split(_unwrap(tableColumnSplit.shift().trim(), '(', ')'), [',']).map(c => parseCallback(instance, c.trim(), [Identifier]));
-				instance.columns(...columns);
+				instance.columns(parseCallback(instance, tableColumnSplit.shift().trim(), [ColumnsList]));
 			}
 			if (/^SELECT$/i.test(insertType)) {
 				// INSERT ... SELECT
@@ -165,12 +175,12 @@ export default class Insert extends StatementNode {
 			} else {
 				// INSERT ... VALUES|VALUE
 				for (const rowPayload of Lexer.split(payloadSpec, [','])) {
-					const rowPayloadArray = Lexer.split(_unwrap(rowPayload.trim(), '(', ')'), [',']).map(valueExpr => parseCallback(instance, valueExpr.trim()));
-					instance.values(...rowPayloadArray);
+					instance.values(parseCallback(instance, rowPayload.trim(), [ValuesList]));
 				}
 			}
 		}
 		if (onConflictClause) { instance.onConflict(parseCallback(instance, `${ onConflictClause } ${ onConflictSpec }`, [OnConflictClause])); }
+		if (returnList) instance.returning(...Lexer.split(returnList, [',']).map(field => parseCallback(instance, field.trim(), [Field])));
 		return instance;
 	}
 }

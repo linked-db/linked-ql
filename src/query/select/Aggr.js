@@ -15,7 +15,7 @@ export default class Aggr extends Func {
 	/**
 	 * @inheritdoc
 	 */
-	call(...args) { return (super.call(...args), this); }
+	fn(...args) { return (super.fn(...args), this); }
 	
 	/**
 	 * Adds an OVER clause
@@ -81,7 +81,7 @@ export default class Aggr extends Func {
 		return instance;
 	}
 
-	static factoryMethods = { call: (context, name, ...args) => this.names.flat().includes(name?.toUpperCase()) && new this(context) };
+	static factoryMethods = { fn: (context, name, ...args) => this.names.flat().includes(name?.toUpperCase()) && new this(context) };
 
 	static names = [
 		[

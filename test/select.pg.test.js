@@ -96,9 +96,9 @@ describe(`SELECT QUERIES`, function() {
                         q => q.equals(['j2','col1'], ['j1','col1'])
                     ),
                 ).as('subValue', false),
-                field => field.call('max', q => q.cast('col2', 'text', true)).as('MX'),
+                field => field.fn('max', q => q.cast('col2', 'text', true)).as('MX'),
                 field => field.expr(
-                    q => q.call('max', 'col2').over(),
+                    q => q.fn('max', 'col2').over(),
                 ).as('MX'),
                 //field => field.path('author1', '~>', q => q.path('parent', '~>', 'fname')).as('path'),
                 field => field.path('parent', '<~', q => q.path('author1', '<~', q => q.path(['new_db_name','books'], '~>', 'isbn'))),//.as('path1'),

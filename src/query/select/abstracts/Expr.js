@@ -14,7 +14,7 @@ import JsonPath from '../json/JsonPath.js';
 import Str from '../str/Str.js';
 import StrJoin from '../str/StrJoin.js';
 import Num from '../Num.js';
-import Prim from '../Prim.js';
+import Literal from '../Literal.js';
 import Placeholder from '../Placeholder.js';
 
 export default class Expr {
@@ -31,8 +31,8 @@ export default class Expr {
 			}
 			let instance;
 			const router = methodName => (...args) => {
-				const $instance = Types.reduce((prev, Type) => prev || (Type.factoryMethods ? (methodName in Type.factoryMethods && Type.factoryMethods[methodName](context, ...args)) : (methodName in Type.prototype && new Type(context))), null);
-				if (!$instance) throw new Error(`Unknow method: ${ methodName }()`);
+				const $instance = Types.reduce((prev, Type) => prev || (Type.factoryMethods ? (typeof Type.factoryMethods[methodName] === 'function' && Type.factoryMethods[methodName](context, ...args)) : (typeof Type.prototype[methodName] === 'function' && new Type(context))), null);
+				if (!$instance) throw new Error(`Unknown method: ${ methodName }()`);
 				instance = $instance;
 				if ($instance[methodName]) return $instance[methodName](...args); // Foward the call
 				for (const f of args) f($instance); // It's just magic method mode
@@ -74,9 +74,9 @@ export default class Expr {
 			Aggr,
 			Func,
 			Json,
-			Str,
 			Num,
-			Prim,
+			Str,
+			Literal,
 			Placeholder,
 			Identifier,
 		];

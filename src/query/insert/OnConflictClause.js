@@ -28,12 +28,7 @@ export default class OnConflictClause extends AssignmentList {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
-		return {
-			...super.toJson(),
-			where_clause: this.WHERE_CLAUSE?.toJson(),
-		};
-	}
+	toJson() { return { ...super.toJson(), where_clause: this.WHERE_CLAUSE?.toJson(), }; }
 
 	/**
 	 * @inheritdoc

@@ -54,18 +54,6 @@ export default class Node {
 	 * @property Array
 	 */
 	get quoteChars() { return this.constructor.getQuoteChars(this); }
-
-	/**
-	 * A Quote helper
-	 * 
-	 * @param String string
-	 * 
-	 * @returns String
-	 */
-	quote(string) {
-		const quoteChar = this.quoteChars[0];
-		return `${ quoteChar }${ string.replace(new RegExp(quoteChar, 'g'), quoteChar.repeat(2)) }${ quoteChar }`;
-	}
 	
 	/**
 	 * Determines the proper quote characters for the active SQL dialect ascertained from context.
@@ -245,7 +233,7 @@ export default class Node {
 				}
 				// Any!!!
 				const router = methodName => (...args) => {
-					const instance = Types.reduce((prev, Type) => prev || (Type.factoryMethods ? (methodName in Type.factoryMethods && Type.factoryMethods[methodName](this, ...args)) : (methodName in Type.prototype && new Type(this))), null);
+					const instance = Types.reduce((prev, Type) => prev || (Type.factoryMethods ? (typeof Type.factoryMethods[methodName] === 'function' && Type.factoryMethods[methodName](this, ...args)) : (typeof Type.prototype[methodName] === 'function' && new Type(this))), null);
 					if (!instance) throw new Error(`Unknow method: ${ methodName }()`);
 					set(instance);
 					if (instance[methodName]) return instance[methodName](...args); // Foward the call

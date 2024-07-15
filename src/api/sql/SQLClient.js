@@ -55,6 +55,12 @@ export default class SQLClient extends AbstractClient {
     async query(query, params = {}) {
         return await this.queryCallback(async (queryInstance, params) => {
             if (queryInstance.expandable) await queryInstance.expand(true);
+            let myReturningList;
+            if (this.params.dialect === 'mysql' && queryInstance.RETURNING_LIST?.length) {
+                queryInstance = queryInstance.clone();
+                myReturningList = queryInstance.RETURNING_LIST.splice(0);
+                // TODO: myReturningList
+            }
             const result = await this.driver.query(queryInstance.toString(), params.params || []);
             return result.rows || result;
         }, ...arguments);

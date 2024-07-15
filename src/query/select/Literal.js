@@ -1,7 +1,7 @@
 
 import Node from '../abstracts/Node.js';
 
-export default class Prim extends Node {
+export default class Literal extends Node {
 
 	/**
 	 * Instance properties
@@ -15,6 +15,11 @@ export default class Prim extends Node {
 		super(context);
 		this.VALUE = value;
 	}
+
+	/**
+	 * Sets the value to a literal
+	 */
+	literal(value) { this.VALUE = value; }
 
 	/**
 	 * Sets the value to true

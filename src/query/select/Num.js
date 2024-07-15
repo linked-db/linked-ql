@@ -17,6 +17,13 @@ export default class Num extends Node {
 	}
 
 	/**
+	 * Sets the value
+	 * 
+	 * @param String expr 
+	 */
+	value(value) { this.VALUE = value; }
+
+	/**
 	 * @inheritdoc
 	 */
 	toJson() { return { value: this.VALUE, flags: this.FLAGS, }; }
@@ -42,4 +49,6 @@ export default class Num extends Node {
 	static parse(context, expr) {
 		if (/^\d+$/.test(expr)) return new this(context, parseFloat(expr));
 	}
+
+	static factoryMethods = { value: (context, value) => /^\d+$/.test(value) && new this(context) };
 }

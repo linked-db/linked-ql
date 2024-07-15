@@ -25,7 +25,7 @@ export default class Field extends AbstractAliasableExpr {
 	 * 
 	 * @returns this
 	 */
-	call(name, ...args) { return (this.build('$EXPR', [name, ...args], Aggr.names.flat().includes(name.toUpperCase()) ? Aggr : Func, 'call'), this); }
+	fn(name, ...args) { return (this.build('$EXPR', [name, ...args], Aggr.names.flat().includes(name.toUpperCase()) ? Aggr : Func, 'fn'), this); }
 
 	/**
 	 * Case construct
