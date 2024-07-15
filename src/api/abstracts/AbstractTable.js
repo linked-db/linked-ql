@@ -52,10 +52,12 @@ export default class AbstractTable {
 	async select(...args) {
 		const query = new Select(this.database.client);
 		// Where and fields
-		if (Array.isArray(args[0])) {
-			query.select(...args[0]);
+		if (/^\d+$/.test(args[0]) || _isObject(args[0])) {
+			await this.resolveWhere(query, args[0]);
+		} else {
+			query.select(...(args[0] || ['*']));
 			await this.resolveWhere(query, args[1]);
-		} else await this.resolveWhere(query, args[0]);
+		}
 		// Handle
 		query.from([this.database.name, this.name]);
 		return await this.database.client.query(query);
@@ -199,6 +201,7 @@ export default class AbstractTable {
 			returnList = args.shift();
 		}
 		values = values.map(row => row.map(v => {
+			if (this.params.bindings !== false) return q => q.$bind(0, v);
 			if ([true,false,null].includes(v)) return q => q.literal(v);
 			if (v instanceof Date) return q => q.value(v.toISOString().split('.')[0]);
 			if (Array.isArray(v)) return q => q.array(v);

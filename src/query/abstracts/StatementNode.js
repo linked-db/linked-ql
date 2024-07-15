@@ -9,7 +9,7 @@ export default class StatementNode extends Node {
      */
     constructor(context) {
         super(context);
-        this._vars = [];
+        this._BINDINGS = [];
     }
 
     /**
@@ -25,12 +25,21 @@ export default class StatementNode extends Node {
     /**
 	 * @inheritdoc
 	 */
-	get variables() { return this._vars; }
+	get BINDINGS() { return this._BINDINGS; }
 
     /**
 	 * @inheritdoc
 	 */
     connectedNodeCallback(node) {}
+
+    /**
+	 * @inheritdoc
+	 */
+    clone() {
+        const clone = super.clone();
+        if (this._BINDINGS.length) clone._BINDINGS = this._BINDINGS.slice(0);
+        return clone;
+    }
 
     /**
      * @returns String

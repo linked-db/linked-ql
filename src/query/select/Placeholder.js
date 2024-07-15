@@ -20,12 +20,15 @@ export default class Placeholder extends Node {
 	/**
 	 * @inheritdoc
 	 */
-	$value(offset, value = undefined) {
+	$var(offset) { this.OFFSET = offset; }
+
+	/**
+	 * @inheritdoc
+	 */
+	$bind(offset, value) {
 		this.OFFSET = offset;
-		if (arguments.length === 2) {
-			this.statementNode.variables.push(value);
-			if (this.OFFSET === 0) this.OFFSET = this.statementNode.variables.length;
-		}
+		this.statementNode.BINDINGS.push(value);
+		if (this.OFFSET === 0) this.OFFSET = this.statementNode.BINDINGS.length;
 	}
 
 	/**

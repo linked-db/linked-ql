@@ -22,8 +22,9 @@ const lqlClient = new SQLClient({
 
 
 //await lqlClient.alterDatabase('private', db => db.name('public'), { noCreateSavepoint: true });
-console.log('DROP 4', await lqlClient.query('SELECT 2 + 3 as summm'));
-console.log('DROP 4', await lqlClient.query('DROP DATABASE if exists obj_information_schema CASCADE'));
+console.log('SELECT 1', await lqlClient.query('SELECT 2 + 3 as summm'));
+console.log('DROP 5', await lqlClient.query('DROP DATABASE if exists obj_information_schema CASCADE'));
+console.log('DROP 4', await lqlClient.query('DROP DATABASE if exists test_db CASCADE'));
 console.log('DROP 3', await lqlClient.query('DROP TABLE if exists public.books'));
 console.log('DROP 2', await lqlClient.query('DROP TABLE if exists public.users'));
 console.log('DROP 1', await lqlClient.query('DROP TABLE if exists public.roles'));
@@ -43,6 +44,16 @@ console.log('.....create users.....', await lqlClient.query(`CREATE TABLE users 
     created_time timestamp
 )`, { savepointDesc: 'Created users' }));
 const savepoint2 = await lqlClient.database('public').savepoint();
+
+console.log('.....create test_db.....', await lqlClient.query(`CREATE DATABASE test_db`));
+const savepoint2b = await lqlClient.database('test_db').savepoint();
+console.log('.....create test_db.users.....', await lqlClient.query(`CREATE TABLE test_db.users (
+    id int primary key generated always as identity,
+    title varchar,
+    name varchar,
+    created_time timestamp
+)`, { savepointDesc: 'Created users' }));
+const savepoint2c = await lqlClient.database('test_db').savepoint();
 
 console.log('.....create books.....', await lqlClient.query(`CREATE TABLE books (
     id int primary key generated always as identity,

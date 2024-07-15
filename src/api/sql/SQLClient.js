@@ -61,7 +61,8 @@ export default class SQLClient extends AbstractClient {
                 myReturningList = queryInstance.RETURNING_LIST.splice(0);
                 // TODO: myReturningList
             }
-            const result = await this.driver.query(queryInstance.toString(), params.params || []);
+            const bindings = (queryInstance.BINDINGS || []).concat(params.params || []).map(value => Array.isArray(value) || typeof value === 'object' && value ? JSON.stringify(value) : value);
+            const result = await this.driver.query(queryInstance.toString(), bindings);
             return result.rows || result;
         }, ...arguments);
     }
