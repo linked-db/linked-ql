@@ -125,7 +125,7 @@ export default class WindowSpec extends Node {
 	static parse(context, expr, parseCallback) {
 		const instance = new this(context);
 		const parseEnclosure = async enclosure => {
-			const { tokens: [ definedRef, ...clauses ], matches: clauseTypes } = Lexer.split(_unwrap(enclosure.trim(), '(', ')'), ['PARTITION\\s+BY', 'ORDER\\s+BY'], { useRegex:'i', preserveDelims: true });
+			const { tokens: [ definedRef, ...clauses ], matches: clauseTypes } = Lexer.lex(_unwrap(enclosure.trim(), '(', ')'), ['PARTITION\\s+BY', 'ORDER\\s+BY'], { useRegex:'i', preserveDelims: true });
 			if (definedRef.trim()) instance.extends(definedRef.trim());
 			for (const clauseType of clauseTypes) {
 				// PARTITION BY

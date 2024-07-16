@@ -200,7 +200,7 @@ export default class Update extends StatementNode {
 	 * @inheritdoc
 	 */
 	static parse(context, expr, parseCallback) {
-		const [ match, withUac, mysqlIgnore, body ] = /^UPDATE(\s+WITH\s+UAC)?(?:\s+(IGNORE))?([\s\S]+)$/i.exec(expr) || [];
+		const [ match, withUac, mysqlIgnore, body ] = /^UPDATE(\s+WITH\s+UAC)?(?:\s+(IGNORE))?([\s\S]+)$/i.exec(expr.trim()) || [];
 		if (!match) return;
 		const instance = new this(context);
 		if (withUac) instance.withFlag('WITH_UAC');

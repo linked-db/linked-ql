@@ -152,7 +152,7 @@ export default class Insert extends StatementNode {
 	 * @inheritdoc
 	 */
 	static parse(context, expr, parseCallback) {
-		const [ match, withUac, mysqlIgnore, body ] = /^INSERT(\s+WITH\s+UAC)?(?:\s+(IGNORE))?(?:\s+INTO)?([\s\S]+)$/i.exec(expr) || [];
+		const [ match, withUac, mysqlIgnore, body ] = /^INSERT(\s+WITH\s+UAC)?(?:\s+(IGNORE))?(?:\s+INTO)?([\s\S]+)$/i.exec(expr.trim()) || [];
 		if (!match ) return;
 		const $body = this.mySubstitutePlaceholders(context, body.trim());
 		const { tokens: [ tableSpec, payloadSpec, onConflictSpec, returnList ], matches: [insertType, onConflictClause] } = Lexer.lex($body, ['(VALUES|VALUE|SET|SELECT)', 'ON\\s+(DUPLICATE\\s+KEY|CONFLICT)', 'RETURNING'], { useRegex:'i' });

@@ -142,7 +142,7 @@ export default class AbstractClient {
      * @return Object
      */
     async queryCallback(handler, query, params = {}) {
-        if (typeof query === 'string') query = Parser.parse(this, query.trim()/* Important */, null, { log: false });
+        if (typeof query === 'string') query = Parser.parse(this, query, null, { log: params.log });
         else if (!(query instanceof Node)) throw new Error(`query() called with invalid arguments.`);
         const instanceOf = (o, classes) => classes.some(c => o instanceof c);
         // -- Generate resultSchema for AlterDatabase and DropDatabase? We'll need it for savepoint creation or per driver's request for it (params.$resultSchema === 'always')
@@ -275,5 +275,27 @@ export default class AbstractClient {
         // -- Create record
         const insertResult = await this.database(OBJ_INFOSCHEMA_DB).table('database_savepoints').insert(savepointJson);
         return new Savepoint(this, { ...insertResult[0], id_following: null });
+    }
+
+    /**
+	 * Returns all databases' current savepoint.
+	 * 
+     * @param Object params
+	 * 
+	 * @returns Object
+     */
+    async getSavepoints(params = {}) {
+        const OBJ_INFOSCHEMA_DB = this.constructor.OBJ_INFOSCHEMA_DB;
+        if (!(await this.hasDatabase(OBJ_INFOSCHEMA_DB))) return [];
+        const tblName = [OBJ_INFOSCHEMA_DB,'database_savepoints'].join('.');
+        return await this.query(`
+            SELECT name, "$name", rn || '/' || total AS pos, version_tag, version_max, savepoint_description, savepoint_date, rollback_date FROM (
+                SELECT ROW_NUMBER() OVER (PARTITION BY database_tag ORDER BY version_tag ASC) AS rn,
+                ROW_NUMBER() OVER (PARTITION BY database_tag ORDER BY rollback_date IS NOT NULL ${ params.direction === 'forward' ? 'DESC' : 'ASC' }, version_tag ${ params.direction === 'forward' ? 'ASC' : 'DESC' }) AS k,
+                COUNT(version_tag) OVER (PARTITION BY database_tag) AS total,
+                MAX(version_tag) OVER (PARTITION BY database_tag) AS version_max,
+                * FROM ${ tblName }
+            ) AS savepoint WHERE k = 1
+        `);
     }
 }

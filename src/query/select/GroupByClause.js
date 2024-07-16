@@ -1,5 +1,6 @@
 
 import AbstractGroupBy from './abstracts/AbstractGroupBy.js';
+import Lexer from '../Lexer.js';
 
 export default class GroupByClause extends AbstractGroupBy {
 

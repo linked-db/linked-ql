@@ -60,7 +60,7 @@ export default class AlterDatabase extends AbstractStatementNode {
 	 * @inheritdoc
 	 */
 	static parse(context, expr) {
-		const [ match, rest ] = /^ALTER\s+DATABASE\s+([\s\S]+)$/i.exec(expr) || [];
+		const [ match, rest ] = /^ALTER\s+DATABASE\s+([\s\S]+)$/i.exec(expr.trim()) || [];
 		if (!match) return;
 		const [ namePart, bodyPart ] = Lexer.split(rest, ['\\s+'], { useRegex: true, limit: 1 });
 		const [ dbName ] = this.parseIdent(context, namePart.trim(), true) || [];

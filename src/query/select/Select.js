@@ -315,7 +315,7 @@ export default class Select extends StatementNode {
 	 * @inheritdoc
 	 */
 	static parse(context, expr, parseCallback) {
-		const [ match, withUac, allOrDistinct, body ] = /^SELECT\s+(?:(WITH\s+UAC)\s+)?(ALL|DISTINCT)?([\s\S]+)$/i.exec(expr) || [];
+		const [ match, withUac, allOrDistinct, body ] = /^SELECT\s+(?:(WITH\s+UAC)\s+)?(ALL|DISTINCT)?([\s\S]+)$/i.exec(expr.trim()) || [];
 		if (!match) return;
 		const instance = new this(context);
 		if (withUac) instance.withFlag('WITH_UAC');

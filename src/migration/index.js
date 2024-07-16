@@ -1,19 +1,18 @@
 #!/usr/bin/env node
 
-/**
- * THIS IS A WORK IN PROGRESS
- */
-
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
+import enquirer from 'enquirer';
 import { parseArgv } from "./util.js";
 import SQLClient from '../api/sql/SQLClient.js';
 import CreateDatabase from '../query/create/CreateDatabase.js';
 
 // Parse argv
 const { command, flags } = parseArgv(process.argv);
+// flags: --preview, --desc, --force --db, --schema, --driver, --force-new
 
+// -------------
 // Load schema file
 let schema, schemaFile = path.resolve(flags['schema'] || './database/schema.json');
 if (!fs.existsSync(schemaFile) || !(schema = JSON.parse(fs.readFileSync(schemaFile)))) {
@@ -21,6 +20,7 @@ if (!fs.existsSync(schemaFile) || !(schema = JSON.parse(fs.readFileSync(schemaFi
     process.exit();
 }
 
+// -------------
 // Load driver
 let driver, driverFile = path.resolve(flags['driver'] || './database/driver.js');
 if (!fs.existsSync(driverFile) || !(driver = await (await import(url.pathToFileURL(driverFile))).default?.())) {
@@ -28,56 +28,137 @@ if (!fs.existsSync(driverFile) || !(driver = await (await import(url.pathToFileU
     process.exit();
 }
 
-if (command === 'show') {
-    console.log('\nDatabases:', await driver.databases());
+// -------------
+// Show?
+if (command === 'status') {
+    console.table(await driver.getSavepoints(), ['name', '$name', 'pos', 'version_tag', 'version_max', 'savepoint_description', 'savepoint_date', 'rollback_date']);
     process.exit();
 }
 
-if (command === 'fresh') {
-    await driver.dropDatabase('test_db', { ifExists: true, cascade: true, noCreateSavepoint: true });
-    await driver.dropDatabase('test_db2', { ifExists: true, cascade: true, noCreateSavepoint: true });
+// -------------
+// Reset?
+if (command === 'reset') {
+    console.log(`\nThis will permanently delete all savepoint records$.`);
+    if (flags.db) console.log(`\nThis will also drop the database: ${ flags.db }.`); // For testing purposes only
+    const proceed = flags.force || (await enquirer.prompt({
+        type: 'confirm',
+        name: 'proceed',
+        message: 'Proceed?'
+    })).proceed;
+    if (proceed) {
+        if (flags.db) await driver.query(`DROP DATABASE IF EXISTS ${ flags.db } CASCADE`, { noCreateSavepoint: true });
+        await driver.query(`DROP DATABASE IF EXISTS obj_information_schema CASCADE`, { noCreateSavepoint: true });
+    }
     process.exit();
 }
 
+// -------------
+// Schemas before and after
+const dbSchemas = [].concat(schema), newDbSchemas = [];
+
+// -------------
 // Run migrations
-const database = CreateDatabase.fromJson(driver, schema);
-let dbName = database.name();
 if (command === 'migrate') {
-    if (database.status() === 'DOWN') {
-        console.log(`\nDropping database ${ dbName }`);
-        await driver.dropDatabase(dbName);
-    } else if (database.status() === 'UP') {
-        const alt = database.getAlt().with({ resultSchema: database });
-        if (!alt.ACTIONS.length) {
-            console.log(`\nNo alterations have been made to schema. Aborting.`);
-            process.exit();
+    for (const dbSchema of dbSchemas) {
+
+        if (flags.db && flags.db !== dbSchema.name) {
+            newDbSchemas.push(dbSchema);
+            continue;
         }
-        console.log(`\nAltering database ${ dbName }`);
-        if (flags.show !== false) console.log(`\nRunning the following SQL:\n${ alt }`);
-        await driver.query(alt);
-    } else {
-        console.log(`\nCreating database ${ dbName }`);
-        if (flags.show !== false) console.log(`\nRunning the following SQL:\n${ database }`);
-        await driver.query(database);
+        const scope = { dbName: dbSchema.name, returnValue: null };
+        const dbInstance = CreateDatabase.fromJson(driver, dbSchema);
+
+        if (dbInstance.status() === 'DOWN' && !flags['force-new']) {
+            console.log(`\nDropping database: ${ scope.dbName }`);
+            const proceed = flags.force || (await enquirer.prompt({
+                type: 'confirm',
+                name: 'proceed',
+                message: 'Proceed?'
+            })).proceed;
+            if (proceed) {
+                scope.returnValue = await driver.dropDatabase(scope.dbName, { savepointDesc: flags.desc });
+                scope.isDrop = true;
+            }
+        }
+
+        if (dbInstance.status() === 'UP' && !flags['force-new']) {
+            const alt = dbInstance.getAlt().with({ resultSchema: dbInstance });
+            if (alt.ACTIONS.length) {
+                console.log(`\nAltering database: ${ scope.dbName }`);
+                if (flags.preview !== false) console.log(`\nThe following SQL will now be run:\n${ alt }\n`);
+                const proceed = flags.force || (await enquirer.prompt({
+                    type: 'confirm',
+                    name: 'proceed',
+                    message: 'Proceed?'
+                })).proceed;
+                if (proceed) {
+                    scope.returnValue = await driver.query(alt, { savepointDesc: flags.desc });
+                    scope.postName = dbSchema.$name || dbSchema.name;
+                }
+            } else console.log(`\nNo alterations have been made to schema: ${ scope.dbName }. Skipping.`);
+        }
+
+        if (!dbInstance.status() || flags['force-new']){
+            if (dbInstance.status() && flags['force-new']) dbInstance.status(undefined, true); // Force status to new?
+            console.log(`\nCreating database: ${ scope.dbName }`);
+            if (flags.preview !== false) console.log(`\nThe following SQL will now be run:\n${ dbInstance }\n`);
+            const proceed = flags.force || (await enquirer.prompt({
+                type: 'confirm',
+                name: 'proceed',
+                message: 'Proceed?'
+            })).proceed;
+            if (proceed) {
+                scope.returnValue = await driver.query(dbInstance, { savepointDesc: flags.desc });
+                scope.postName = dbSchema.name;
+            }
+        }
+
+        if (scope.postName) {
+            const newSchema = await driver.describeDatabase(scope.postName, '*');
+            const $newSchema = CreateDatabase.fromJson(driver, newSchema).status('UP', 'UP').toJson();
+            newDbSchemas.push($newSchema);
+        } else if (!scope.isDrop) newDbSchemas.push(dbSchema);
     }
 }
 
+// -------------
+// Do rollbacks
 if (['rollback', 'rollforward'].includes(command)) {
-    console.log(`\nRolling ${ command === 'rollforward' ? 'forward' : 'back' } database ${ dbName }`);
-    const savepoint = await driver.database(dbName).savepoint({ direction: command === 'rollforward' ? 'forward' : null });
-    if (!savepoint) {
-        console.log(`\nNo${ command === 'rollforward' ? 'forward ' : '' } savepoints found for database ${ dbName }. Aborting.`);
-        process.exit();
+    newDbSchemas.push(...dbSchemas);
+
+    const savepointSummaries = await driver.getSavepoints({ direction: command === 'rollforward' ? 'forward' : null });
+    for (const targetSchema of savepointSummaries) {
+        const scope = { dbName: !targetSchema.rollback_date && targetSchema.$name || targetSchema.name };
+        
+        console.log(`\nRolling ${ command === 'rollforward' ? 'forward' : 'back' } database: ${ scope.dbName }`);
+        scope.isDrop = (!targetSchema.rollback_date && !targetSchema.status) || (targetSchema.rollback_date && targetSchema.status === 'DOWN');
+        if (flags.preview !== false) {
+            console.log(`\nThe following structure will now be ${ scope.isDrop ? 'dropped' : 'restored' }:\n`);
+            console.table(targetSchema);
+        }
+        const proceed = flags.force || (await enquirer.prompt({
+            type: 'confirm',
+            name: 'proceed',
+            message: 'Proceed?'
+        })).proceed;
+        if (proceed) {
+            const savepoint = await driver.database(scope.dbName).savepoint({ direction: command === 'rollforward' ? 'forward' : null });
+            scope.returnValue = await savepoint?.rollback();
+            if (!scope.isDrop) scope.postName = targetSchema.rollback_date && targetSchema.$name || scope.dbName;
+        }
+        if (scope.postName) {
+            const newSchema = await driver.describeDatabase(scope.postName, '*');
+            const $newSchema = CreateDatabase.fromJson(driver, newSchema).status('UP', 'UP').toJson();
+            const existing = newDbSchemas.findIndex(sch => sch.name === scope.dbName);
+            if (existing > -1) newDbSchemas[existing] = $newSchema;
+            else newDbSchemas.push($newSchema);
+        }
     }
-    await savepoint.rollback();
-    dbName = savepoint.toJson()[command === 'rollforward' ? '$name' : 'name'] || dbName;
 }
 
 // Updating schema
-console.log(`\nUpdating local schema at ${ driverFile }`);
-const newSchema = await driver.describeDatabase(dbName, '*');
-const $newSchema = CreateDatabase.fromJson(driver, newSchema).status('UP', 'UP').toJson();
-fs.writeFileSync(schemaFile, JSON.stringify($newSchema, null, 3));
-
+fs.writeFileSync(schemaFile, JSON.stringify(newDbSchemas, null, 3));
 console.log(`\nDone.`);
+console.log(`\nLocal schema updated: ${ driverFile }`);
+
 process.exit();

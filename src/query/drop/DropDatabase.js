@@ -42,7 +42,7 @@ export default class DropDatabase extends StatementNode {
 	 * @inheritdoc
 	 */
 	static parse(context, expr) {
-		const [ match, ifExists, namePart, cascade, namePartAlt ] = /^DROP\s+DATABASE\s+(IF\s+EXISTS\s+)?(?:(.+)\s+(CASCADE)$|(.+)$)/i.exec(expr) || [];
+		const [ match, ifExists, namePart, cascade, namePartAlt ] = /^DROP\s+DATABASE\s+(IF\s+EXISTS\s+)?(?:(.+)\s+(CASCADE)$|(.+)$)/i.exec(expr.trim()) || [];
 		if (!match) return;
 		const [dbName] = this.parseIdent(context, (namePart || namePartAlt).trim(), true) || [];
 		if (!dbName) return;

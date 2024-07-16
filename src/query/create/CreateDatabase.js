@@ -75,7 +75,8 @@ export default class CreateDatabase extends AbstractStatementNode {
 		}
 		for (const tbl of this.TABLES) {
 			if (tbl.status() === 'UP') {
-				instance.addAlt({ name: tbl.NAME, kind: 'TABLE' }, a => a.set(tbl.getAlt()));
+				const alt = tbl.getAlt();
+				if (alt.ACTIONS.length) instance.addAlt({ name: tbl.NAME, kind: 'TABLE' }, a => a.set(alt));
 			} else if (tbl.status() === 'DOWN') {
 				instance.addDrop({ name: [tbl.BASENAME || this.NAME, tbl.NAME], kind: 'TABLE' });
 			} else {
@@ -140,7 +141,7 @@ export default class CreateDatabase extends AbstractStatementNode {
 	 * @inheritdoc
 	 */
 	static parse(context, expr, parseCallback) {
-		const [ match, ifNotExists, namePart ] = /^CREATE\s+DATABASE\s+(IF\s+NOT\s+EXISTS\s+)?(.+)$/i.exec(expr) || [];
+		const [ match, ifNotExists, namePart ] = /^CREATE\s+DATABASE\s+(IF\s+NOT\s+EXISTS\s+)?(.+)$/i.exec(expr.trim()) || [];
 		if (!match) return;
 		const [name] = this.parseIdent(context, namePart.trim(), true) || [];
 		if (!name) return;
