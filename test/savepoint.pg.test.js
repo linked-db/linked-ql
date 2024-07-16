@@ -126,7 +126,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
             const databases = await sqlClient.databases();
             expect(databases).to.be.an('array').that.includes('some_db');
             const tables = await someDb.tables();
-            expect(tables).to.be.an('array').that.eql(['users','books']);
+            expect(tables).to.be.an('array').that.eql(['books','users']);
         });
 
         it(`ROLLBACK: ${ desc1 } (BY DROPPING DB)`, async function() {
