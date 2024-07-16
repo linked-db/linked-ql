@@ -134,6 +134,10 @@ export default class AbstractDatabase {
 	 * @returns Object
      */
     async savepoint(params = {}) {
+        const savepoints = await this.client.getSavepoints({ ...params, name: this.name });
+        return savepoints[0];
+    }
+    async _savepoint(params = {}) {
         const OBJ_INFOSCHEMA_DB = this.client.constructor.OBJ_INFOSCHEMA_DB;
         if (!(await this.client.hasDatabase(OBJ_INFOSCHEMA_DB))) return;
         const tblName = [OBJ_INFOSCHEMA_DB,'database_savepoints'].join('.');

@@ -216,6 +216,30 @@ export default class AbstractClient {
     }
 
     /**
+	 * Returns all databases' current savepoint.
+	 * 
+     * @param Object params
+	 * 
+	 * @returns Object
+     */
+    async getSavepoints(params = {}) {
+        const OBJ_INFOSCHEMA_DB = this.constructor.OBJ_INFOSCHEMA_DB;
+        if (!(await this.hasDatabase(OBJ_INFOSCHEMA_DB))) return [];
+        const tblName = [OBJ_INFOSCHEMA_DB,'database_savepoints'].join('.');
+        const result = await this.query(`
+            SELECT id, database_tag, name, "$name", status, version_tag, version_max, rank_for_cursor || '/' || total AS cursor, savepoint_description, tables, savepoint_date, rollback_date FROM (
+                SELECT
+                ROW_NUMBER() OVER (PARTITION BY database_tag ORDER BY rollback_date IS NOT NULL ${ params.direction === 'forward' ? 'DESC' : 'ASC' }, version_tag ${ params.direction === 'forward' ? 'ASC' : 'DESC' }) AS rank_for_target,
+                ROW_NUMBER() OVER (PARTITION BY database_tag ORDER BY version_tag ASC) AS rank_for_cursor,
+                MAX(version_tag) OVER (PARTITION BY database_tag) AS version_max,
+                COUNT(version_tag) OVER (PARTITION BY database_tag) AS total,
+                * FROM ${ tblName }${ params.name ? (params.direction === 'forward' ? `WHERE name = '${ params.name }'` : `WHERE COALESCE("$name", name) = '${ params.name }'`) : '' }
+            ) AS savepoint WHERE rollback_date IS ${ params.direction === 'forward' ? 'NOT NULL' : 'NULL' } AND rank_for_target = 1
+        `);
+        return result.map(savepoint => new Savepoint(this, savepoint, params.direction))
+    }
+
+    /**
      * Method for saving snapshots to internal OBJ_INFOSCHEMA db.
      * 
      * @param CreateDatabase    schemaInstamce
@@ -262,7 +286,7 @@ export default class AbstractClient {
             const tblName = [OBJ_INFOSCHEMA_DB,'database_savepoints'].join('.');
             // -- Apply id and tag from lookup
             savepointJson.database_tag = currentSavepoint.databaseTag;
-            savepointJson.version_tag = (await this.query(`SELECT max(version_tag) + 1 AS next_tag FROM ${ tblName } WHERE database_tag = '${ currentSavepoint.databaseTag }'`))[0].next_tag;
+            savepointJson.version_tag = (await this.query(`SELECT max(version_tag) + 1 AS version_next FROM ${ tblName } WHERE database_tag = '${ currentSavepoint.databaseTag }'`))[0].version_next;
             // -- Delete forward records
             if (savepointJson.version_tag - 1 !== currentSavepoint.versionTag) {
                 await this.query(`DELETE FROM ${ tblName } WHERE database_tag = '${ currentSavepoint.databaseTag }' AND rollback_date IS NOT NULL`);
@@ -274,28 +298,6 @@ export default class AbstractClient {
         }
         // -- Create record
         const insertResult = await this.database(OBJ_INFOSCHEMA_DB).table('database_savepoints').insert(savepointJson);
-        return new Savepoint(this, { ...insertResult[0], id_following: null });
-    }
-
-    /**
-	 * Returns all databases' current savepoint.
-	 * 
-     * @param Object params
-	 * 
-	 * @returns Object
-     */
-    async getSavepoints(params = {}) {
-        const OBJ_INFOSCHEMA_DB = this.constructor.OBJ_INFOSCHEMA_DB;
-        if (!(await this.hasDatabase(OBJ_INFOSCHEMA_DB))) return [];
-        const tblName = [OBJ_INFOSCHEMA_DB,'database_savepoints'].join('.');
-        return await this.query(`
-            SELECT name, "$name", rn || '/' || total AS pos, version_tag, version_max, savepoint_description, savepoint_date, rollback_date FROM (
-                SELECT ROW_NUMBER() OVER (PARTITION BY database_tag ORDER BY version_tag ASC) AS rn,
-                ROW_NUMBER() OVER (PARTITION BY database_tag ORDER BY rollback_date IS NOT NULL ${ params.direction === 'forward' ? 'DESC' : 'ASC' }, version_tag ${ params.direction === 'forward' ? 'ASC' : 'DESC' }) AS k,
-                COUNT(version_tag) OVER (PARTITION BY database_tag) AS total,
-                MAX(version_tag) OVER (PARTITION BY database_tag) AS version_max,
-                * FROM ${ tblName }
-            ) AS savepoint WHERE k = 1
-        `);
+        return new Savepoint(this, { ...insertResult[0], version_max: insertResult[0].version_tag, cursor: null });
     }
 }
