@@ -102,7 +102,7 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
                 basename: 'public',
                 columns: [
                     { name: 'id', $name: 'iddd', type: { name: 'VARCHAR', precision: 30 }, $type: 'int', default: 20, $default: 9, notNull: true },
-                    { name: 'author', type: { name: 'INT' }, references: { name: 'fkk', targetTable: 'table1', targetColumns: ['col3', 'col4']}, status: 'UP' },
+                    { name: 'author', type: { name: 'INT' }, references: { name: 'fkk', targetTable: 'table1', targetColumns: ['col3', 'col4']}, keep: true },
                 ],
                 constraints: [
                     { type: 'FOREIGN_KEY', columns: ['id', 'author'], targetTable: 'testt', targetColumns: ['col5', 'author'] },
@@ -111,8 +111,8 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
                 indexes: []
             };
             const schemaInstance = CreateTable.fromJson({}, schema);
-            //schemaInstance.status('UP', true);
-            schemaInstance.column('author').status('DOWN');//.name('author2');
+            //schemaInstance.keep(true, 'auto');
+            schemaInstance.column('author').drop();//.name('author2');
             //schemaInstance.reverseAlt(true);
             schemaInstance.cascadeAlt();
             const tblAlterInstance1 = schemaInstance.getAlt();

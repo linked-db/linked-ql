@@ -101,7 +101,7 @@ export default class AbstractDatabase {
         if (typeof callback !== 'function' || typeof tblName !== 'string') throw new Error(`alterTable() called with invalid arguments.`);
         // -- Compose an altInstance from request
         const schemaJson = await this.describeTable(tblName);
-        const schemaInstance = CreateTable.fromJson(this, schemaJson).status('UP', 'UP');
+        const schemaInstance = CreateTable.fromJson(this, schemaJson).keep(true, true);
         await callback(schemaInstance);
         const altInstance = schemaInstance.getAlt().with({ resultSchema: schemaInstance });
         if (!altInstance.ACTIONS.length) return;

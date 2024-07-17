@@ -9,7 +9,7 @@ export default class AbstractNode extends Node {
 	 */
 	NAME;
 	$NAME;
-	STATUS;
+	KEEP;
 
     /**
 	 * @var String
@@ -46,7 +46,7 @@ export default class AbstractNode extends Node {
 	}
 
 	/**
-	 * Returns the right prop name depending on status.
+	 * Returns the right prop name depending on "keep".
 	 * 
 	 * @param String key
 	 * @param Bool isWrite
@@ -54,8 +54,8 @@ export default class AbstractNode extends Node {
 	 * @returns String
 	 */
 	smartKey(key, isWrite = false) {
-		if (this.status() === 'UP') return isWrite || isDirty(this[`$${ key }`]) ? `$${ key }` : key;
-		if (this.status() === 'DOWN') {
+		if (this.keep() === true) return isWrite || isDirty(this[`$${ key }`]) ? `$${ key }` : key;
+		if (this.keep() === false) {
 			const type = this.TYPE instanceof Node ? this.constructor.TYPE : this.TYPE;
 			if (isWrite) throw new Error(`Cannot alter ${ type } after having been dropped.`);
 			return key;
@@ -64,7 +64,7 @@ export default class AbstractNode extends Node {
 	}
 
 	/**
-	 * Invokes a callback that sets a prop while properly managing status.
+	 * Invokes a callback that sets a prop while properly managing "keep".
 	 * 
 	 * @param Function callback
 	 * 
@@ -80,10 +80,10 @@ export default class AbstractNode extends Node {
 		if (args.length) {
 			const value = args[0];
 			const pass = () => {
-				if (this.status() === 'DOWN') {
+				if (this.keep() === false) {
 					const type = this.TYPE instanceof Node ? this.constructor.TYPE : this.TYPE;
 					throw new Error(`Diffing cannot be done on a node ${ type } after having been dropped.`)
-				} else if (!this.status()) this.status('UP');
+				} else if (typeof this.keep() !== 'boolean') this.keep(true);
 				return callback(value);
 			};
 			// Start from up the context?
@@ -93,28 +93,28 @@ export default class AbstractNode extends Node {
 			if (isDirty(value)) return pass();
 			return;
 		}
-		const statusBefore = this.STATUS;
-		this.STATUS = null;
+		const keepBefore = this.KEEP;
+		this.KEEP = null;
 		const returnValue = callback();
-		this.STATUS = statusBefore;
+		this.KEEP = keepBefore;
 		return returnValue;
 	}
     
 	/**
-	 * Gets/sets the status.
+	 * Gets/sets the "keep".
      * 
 	 * @param String value
 	 * 
 	 * @return this
 	 */
-	status(value, recursively = false) {
-        if (!arguments.length) return this.STATUS;
-        if (value && !['UP','DOWN'].includes(value)) throw new Error(`Status can only be "UP" or "DOWN". Received: ${ value }`);
-        this.STATUS = value;
+	keep(value, recursively = false) {
+        if (!arguments.length) return this.KEEP;
+        if (![undefined,true,false].includes(value)) throw new Error(`Status can only be true, false, or undefined. Received: ${ value }`);
+        this.KEEP = value;
 		if (recursively) {
             for (const node of this.SUBTREE_PROPS.reduce((entries, key) => [...entries, ...this[key]], [])) {
-                if (value !== 'UP') node.status(undefined, true); // A DOWN or (NEW) status means nested nodes should be undefined
-                else node.status(node.status() || (typeof recursively === 'string' ?/* means: force to state; typical UP and for describes */ recursively : undefined), recursively);
+                if (value !== true) node.keep(undefined, true); // A false or (undefined) "keep" means nested nodes should be undefined
+                else node.keep(recursively === 'auto' ? node.keep() : true, recursively);
             }
         }
         return this;
@@ -123,18 +123,18 @@ export default class AbstractNode extends Node {
 	/**
 	 * @returns this
 	 */
-	drop() { return this.status('DOWN'); }
+	drop() { return this.keep(false); }
 
 	/**
 	 * @returns Boolean
 	 */
-	dropped() { return this.status() === 'DOWN' || this.CONTEXT?.dropped?.(); }
+	dropped() { return this.keep() === false || this.CONTEXT?.dropped?.(); }
 
 	/**
-	 * Rollback status
+	 * Reverses alterations and the "keep" flag
 	 */
 	reverseAlt(recursively = false) {
-		if (this.status() === 'UP') {
+		if (this.keep() === true) {
 			for (const prop of this.WRITABLE_PROPS) {
 				if (isDirty(this[`$${ prop }`])) {
 					const normalValue = this[prop];
@@ -142,8 +142,8 @@ export default class AbstractNode extends Node {
 					this[`$${ prop }`] = normalValue;
 				}
 			}
-		} else if (this.status() === 'DOWN') this.status(undefined);
-		else if (!this.status()) this.status('DOWN');
+		} else if (this.keep() === false) this.keep(undefined);
+		else if (typeof this.keep() !== 'boolean') this.keep(false);
 		if (recursively) {
 			for (const node of this.SUBTREE_PROPS.reduce((entries, key) => [...entries, ...this[key]], [])) {
 				node.reverseAlt(recursively);
@@ -158,7 +158,7 @@ export default class AbstractNode extends Node {
 		return {
 			...(this.NAME ? { name: this.NAME } : {}),
 			...(this.$NAME ? { $name: this.$NAME } : {}),
-			...(this.STATUS ? { status: this.STATUS } : {}),
+			...(typeof this.KEEP === 'boolean' ? { keep: this.KEEP } : {}),
 			...(this.FLAGS.length ? { flags: [ ...this.FLAGS ] } : {}),
 		};
 	}
@@ -171,7 +171,7 @@ export default class AbstractNode extends Node {
         const instance = callback ? callback() : new this(context);
         instance.hardSet(() => instance.name(json.name));
 		instance.hardSet(json.$name, val => instance.name(val));
-        if (json.status) instance.status(json.status);
+        if (typeof json.keep === 'boolean') instance.keep(json.keep);
         if (json.flags) instance.withFlag(...json.flags);
         return instance;
     }

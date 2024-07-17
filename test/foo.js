@@ -23,12 +23,12 @@ const lqlClient = new SQLClient({
 console.log('---DATABSES BEFORE:', await lqlClient.databases());
 console.log('---PUBLIC TABLES BEFORE:', await lqlClient.database('public').tables());
 /*
+*/
 console.log('DROP 3', await lqlClient.query('DROP TABLE if exists public.books CASCADE', { noCreateSavepoint: true }));
 console.log('DROP 2', await lqlClient.query('DROP TABLE if exists public.users CASCADE', { noCreateSavepoint: true }));
 console.log('DROP 1', await lqlClient.query('DROP TABLE if exists public.roles CASCADE', { noCreateSavepoint: true }));
 console.log('DROP 5', await lqlClient.query('DROP DATABASE if exists obj_information_schema CASCADE', { noCreateSavepoint: true }));
 console.log('DROP 5', await lqlClient.query('DROP DATABASE if exists test_db CASCADE', { noCreateSavepoint: true }));
-*/
 
 console.log('....create roles......', await lqlClient.query(`CREATE TABLE roles (
     id int primary key generated always as identity,
@@ -39,7 +39,7 @@ const savepoint1 = await lqlClient.database('public').savepoint();
 
 console.log('.....create users.....', await lqlClient.query(`CREATE TABLE users (
     id int primary key generated always as identity,
-    title varchar,
+    title varchar default '...',
     name varchar,
     role int references roles (id),
     created_time timestamp
@@ -70,7 +70,7 @@ console.log('rollback 3', await savepoint3.rollback());
 console.log('rollback 2', await savepoint2.rollback());
 console.log('rollback 1', await savepoint1.rollback());
 
-console.log('\n\n\n\n\n\nAll savepoints-----', ...(await lqlClient.database('obj_information_schema').table('database_savepoints').select()));
+console.log('\n\n\n\n\n\nAll savepoints now-----', ...(await lqlClient.database('obj_information_schema').table('database_savepoints').select()));
 
 let spliceForwardHistories = false;
 if (spliceForwardHistories) {
@@ -112,3 +112,4 @@ console.log('---DATABSES AFTER:', await lqlClient.databases());
 
 
 console.log('the end.');
+process.exit();

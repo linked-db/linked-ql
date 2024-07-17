@@ -68,7 +68,7 @@ export default class Savepoint {
      * @returns String
      */
     get rollbackOutcome() {
-        const $outcome = !this.$.json.status ? ['DROPPED','CREATED'] : (this.$.json.status === 'DOWN' ? ['CREATED','DROPPED'] : ['ALTERED']);
+        const $outcome = typeof this.$.json.keep !== 'boolean' ? ['DROPPED','CREATED'] : (this.$.json.keep === false ? ['CREATED','DROPPED'] : ['ALTERED']);
         return this.direction === 'forward' ? $outcome.reverse()[0] : $outcome[0];
     }
 
@@ -84,8 +84,8 @@ export default class Savepoint {
      * @returns Object
      */
     schema() {
-        const { name, $name, tables = [], status } = this.$.json;
-        return { name, ...($name ? { $name } : {}), tables, status };
+        const { name, $name, tables = [], keep } = this.$.json;
+        return { name, ...($name ? { $name } : {}), tables, keep };
     }
 
     /**
@@ -100,8 +100,7 @@ export default class Savepoint {
      * @returns Bool
      */
     async canRollback() {
-        const dbName = this.direction === 'forward' ? this.$.json.name : this.$.json.$name || this.$.json.name;
-        const currentSavepoint = (await this.client.database(dbName).savepoint({ direction: this.direction })) || {};
+        const currentSavepoint = (await this.client.database(this.name()).savepoint({ direction: this.direction })) || {};
         return currentSavepoint.id === this.$.json.id;
     }
 
@@ -115,15 +114,20 @@ export default class Savepoint {
         const schemaInstance = CreateDatabase.fromJson(this.client, this.schema());
         if (this.direction !== 'forward') {
             schemaInstance.reverseAlt(true);
-            schemaInstance.status(schemaInstance.status(), true);
+            schemaInstance.keep(schemaInstance.keep(), 'auto');
         }
         // Execute rollback
-        if (schemaInstance.status() === 'DOWN') {
+        if (schemaInstance.keep() === false) {
             this.client.dropDatabase(schemaInstance.name(), { cascade: true, noCreateSavepoint: true });
-        } else if (schemaInstance.status() === 'UP') {
+            console.log('......................................DROP.....' + schemaInstance.name());
+        } else if (schemaInstance.keep() === true) {
             const altInstance = schemaInstance.getAlt().with({ resultSchema: schemaInstance });
+            console.log('......................................ALT.....' + altInstance);
             this.client.query(altInstance, { noCreateSavepoint: true });
-        } else this.client.query(schemaInstance, { noCreateSavepoint: true });
+        } else {
+            console.log(schemaInstance.keep(),'......................................CRT.....' + schemaInstance);
+            this.client.query(schemaInstance, { noCreateSavepoint: true });
+        }
         // Update record
         const tblName = [this.client.constructor.OBJ_INFOSCHEMA_DB,'database_savepoints'].join('.');
         await this.client.query(`UPDATE ${ tblName } SET rollback_date = ${ this.direction === 'forward' ? 'NULL' : 'now()' } WHERE id = '${ this.$.json.id }'`);

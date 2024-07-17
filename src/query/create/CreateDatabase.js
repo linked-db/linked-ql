@@ -49,7 +49,7 @@ export default class CreateDatabase extends AbstractStatementNode {
 				this.basename(action.ARGUMENT);
 			} else if (action.TYPE === 'DROP') {
 				const node = getTable(action.ARGUMENT, action.hasFlag('IF_EXISTS'));
-				node?.status('DOWN');
+				node?.drop();
 			} else if (action.TYPE === 'NEW') {
 				if (!action.hasFlag('IF_NOT_EXISTS') || !getTable(action.ARGUMENT.name(), true)) {
 					this.table(action.ARGUMENT.toJson());
@@ -74,10 +74,10 @@ export default class CreateDatabase extends AbstractStatementNode {
 			instance.addMove(this.$BASENAME);
 		}
 		for (const tbl of this.TABLES) {
-			if (tbl.status() === 'UP') {
+			if (tbl.keep() === true) {
 				const alt = tbl.getAlt();
 				if (alt.ACTIONS.length) instance.addAlt({ name: tbl.NAME, kind: 'TABLE' }, a => a.set(alt));
-			} else if (tbl.status() === 'DOWN') {
+			} else if (tbl.keep() === false) {
 				instance.addDrop({ name: [tbl.BASENAME || this.NAME, tbl.NAME], kind: 'TABLE' });
 			} else {
 				instance.addNew(tbl.clone());
@@ -94,8 +94,8 @@ export default class CreateDatabase extends AbstractStatementNode {
 	 * @inheritdoc
 	 */
 	cascadeAlt() {
-		// Normalize subtree statuses
-		this.status(this.status(), true);
+		// Normalize subtree "keep" flags
+		this.keep(this.keep(), 'auto');
 		// We've been dropped or renamed?
 		const altType = this.dropped() ? 'DOWN' : (this.$NAME && this.$NAME !== this.NAME ? 'RENAME' : null);
 		if (altType) {

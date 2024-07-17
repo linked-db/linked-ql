@@ -106,10 +106,10 @@ export default class Column extends AbstractNode {
                 if (setting === true || !Object.keys(setting).length) return;
                 throw new Error(`${ type } already exists in column. Granular modification of a constraint must be done on an instance of the contraint itself.`);
             }
-            this.build('CONSTRAINTS', [{ type, ...(typeof setting === 'object' ? setting : {})  }], this.constructor.CONSTRAINT_TYPES);
+            this.build('CONSTRAINTS', [{ type, ...(typeof setting === 'object' ? setting : (typeof setting === 'string' ? { expr: setting } : {}))  }], this.constructor.CONSTRAINT_TYPES);
             return this.constraint(type);
         }
-        if (existing) existing.status('DOWN');
+        if (existing) existing.drop();
         return this;
     }
 	
@@ -126,7 +126,7 @@ export default class Column extends AbstractNode {
             const propName = type === 'FOREIGN_KEY' ? 'references' : _toCamel(type.toLowerCase().replace('_', ' '));
             const props = Object.keys(constraintDef);
             const lonePropValue = props.length === 1 ? constraintDef[props[0]] : null;
-            const propValue = !props.length ? true : (lonePropValue === 'DOWN' ? false : (props.length === 1 && props[0] === 'expr' ? lonePropValue : constraintDef));
+            const propValue = !props.length ? true : (lonePropValue === false && props[0] === 'keep' ? false : (props.length === 1 && props[0] === 'expr' ? lonePropValue : constraintDef));
             json = { ...json, [ propName ]: propValue };
         }
         return { ...json, ...super.toJson()/** Status */ };
@@ -136,17 +136,18 @@ export default class Column extends AbstractNode {
 	 * @inheritdoc
 	 */
 	static fromJson(context, json) {
-        const { type, $type, name: _, $name: __, status: ___, ...constraints } = json;
+        const { type, $type, name: _, $name: __, keep: ___, ...constraints } = json;
         if (!DataType.fromJson({}, type)) return;
         return super.fromJson(context, json, () => {
 			const instance = new this(context);
             instance.type(DataType.fromJson(instance, type));
             instance.hardSet($type, val => instance.type(DataType.fromJson(instance, val)));
             const constraintsNormalized = Object.entries(constraints).reduce((normalized, [name, value]) => {
+                if ([undefined,null].includes(value)) return normalized;
                 if (!['boolean','number','string'].includes(typeof value) && !(typeof value === 'object' && value)) {
-                    throw new Error(`Invalid value for constraint "${ name }"`);
+                    throw new Error(`Invalid value for constraint "${ name }": ${ value }`);
                 }
-                let cons = { ...(value === false ? { status: 'DOWN' } : (value === true ? {} : (['number','string'].includes(typeof value) ? { expr: value } : value))) };
+                let cons = { ...(value === false ? { keep: false } : (value === true ? {} : (['number','string'].includes(typeof value) ? { expr: value } : value))) };
                 if (name.startsWith('$')) {
                     cons = Object.fromEntries(Object.entries(cons).map(([name, val]) => [`$${ name }`, val]));
                     name = name.slice(1);

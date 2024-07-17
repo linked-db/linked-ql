@@ -205,8 +205,8 @@ export default class SQLDatabase extends AbstractDatabase {
                         ...(col.is_nullable === 'NO' ? {
                             notNull: true
                         } : {}),
-                        ...(col.default ? {
-                            default: { expr: col.default }
+                        ...(col.column_default ? {
+                            default: { expr: col.column_default }
                         } : {}),
                     });
                 }, []),

@@ -113,7 +113,7 @@ export default class CreateTable extends AbstractStatementNode {
 				this.basename(action.ARGUMENT);
 			} else if (action.TYPE === 'DROP') {
 				const node = getNode(action.ARGUMENT, action.hasFlag('IF_EXISTS'));
-				node?.status('DOWN');
+				node?.drop();
 			} else if (action.TYPE === 'NEW') {
 				if (action.ARGUMENT instanceof AbstractConstraint) {
 					if (action.ARGUMENT.COLUMNS.length === 1) {
@@ -126,10 +126,8 @@ export default class CreateTable extends AbstractStatementNode {
 				}
 			} else if (action.TYPE === 'CHANGE') {
 				const node = getNode(action.REFERENCE);
-				node.status('UP', () => {
-					if (action.ARGUMENT.name() !== node.name()) node.name(action.ARGUMENT.name());
-					node.type(action.ARGUMENT.type().toJson());
-				});
+				if (action.ARGUMENT.name() !== node.name()) node.hardSet(action.ARGUMENT.name(), val => node.name(val));
+				node.hardSet(action.ARGUMENT.type().toJson(), val => node.type(val));
 				for (const cons of action.ARGUMENT.CONSTRAINTS.filter(cons => !['PRIMARY_KEY', 'FOREIGN_KEY', 'UNIQUE_KEY', 'CHECK'].includes(cons.TYPE))) {
 					const existing = node.constraint(cons.TYPE);
 					if (existing) {
@@ -157,7 +155,7 @@ export default class CreateTable extends AbstractStatementNode {
 					} else node.constraint(subAction.ARGUMENT.toJson());
 				} else if (subAction.TYPE === 'DROP' && ['IDENTITY', 'EXPRESSION', 'DEFAULT', 'NOT_NULL'].includes(subAction.ARGUMENT)) {
 					const existing = node.constraint(subAction.ARGUMENT);
-					if (existing) existing.status('DOWN');
+					if (existing) existing.drop();
 					else if(!action.hasFlag('IF_EXISTS')/* Postgres IDENTITY|EXPRESSION */) throw new Error(`Cannot drop ${ subAction.ARGUMENT }; does not exist.`);
 				} else if (['CONSTRAINT','INDEX'].includes(reference.kind)) ;
 			}
@@ -175,10 +173,10 @@ export default class CreateTable extends AbstractStatementNode {
 		if (this.$BASENAME && this.BASENAME && this.$BASENAME !== this.BASENAME) {
 			instance.addMove(this.$BASENAME);
 		}
-		const constraintDirty = (cons, includingName = false) => (cons.status() !== 'UP' || ['$EXPR','$ALWAYS','$TARGET_TABLE','$TARGET_COLUMNS','$MATCH_RULE','$UPDATE_RULE','$DELETE_RULE'].concat(includingName ? '$NAME' : []).some(k => /*exists*/k in cons && /*not empty*/(Array.isArray(cons[k]) ? cons[k].length : ![undefined, null].includes(cons[k])) && /*different*/!isSame(cons[k.slice(1)], cons[k])));
+		const constraintDirty = (cons, includingName = false) => (cons.keep() !== true || ['$EXPR','$ALWAYS','$TARGET_TABLE','$TARGET_COLUMNS','$MATCH_RULE','$UPDATE_RULE','$DELETE_RULE'].concat(includingName ? '$NAME' : []).some(k => /*exists*/k in cons && /*not empty*/(Array.isArray(cons[k]) ? cons[k].length : ![undefined, null].includes(cons[k])) && /*different*/!isSame(cons[k.slice(1)], cons[k])));
 		for (const col of this.COLUMNS) {
 			const columnRef = { kind: 'COLUMN', name: col.NAME };
-			if (col.status() === 'UP') {
+			if (col.keep() === true) {
 				if (this.params.dialect === 'mysql') {
 					// // Column name or type changed, or these attrs changed? Use MySQL CHANGE clause?
 					if ((col.$TYPE && !isSame(col.$TYPE.toJson(), col.TYPE.toJson()))
@@ -188,7 +186,7 @@ export default class CreateTable extends AbstractStatementNode {
 						instance.addChange(columnRef, columnClone);
 					} else {
 						const consDefault = col.CONSTRAINTS.find(cons => cons.TYPE === 'DEFAULT' && constraintDirty(cons, true));
-						if (consDefault) instance.addAlt(columnRef, a => consDefault.status() === 'DOWN' ? a.drop(consDefault.TYPE) : a.set(consDefault));
+						if (consDefault) instance.addAlt(columnRef, a => consDefault.keep() === false ? a.drop(consDefault.TYPE) : a.set(consDefault));
 						// Column rename? Must come last!!!
 						if (col.$NAME && col.$NAME !== col.NAME) {
 							instance.addAlt({ kind: 'COLUMN', name: col.NAME }, a => a.rename(col.$NAME) );
@@ -202,9 +200,9 @@ export default class CreateTable extends AbstractStatementNode {
 					// Constraints level1 changed?
 					const constraints1 = col.CONSTRAINTS.filter(cons => ['IDENTITY', 'EXPRESSION', 'NOT_NULL', 'DEFAULT'].includes(cons.TYPE) && constraintDirty(cons, true));
 					for (const cons of constraints1) {
-						if (cons.status() === 'UP' && cons.TYPE === 'IDENTITY') instance.addAlt(columnRef, a => a.drop('IDENTITY'));
-						if (cons.status() !== 'DOWN' && cons.TYPE === 'EXPRESSION') throw new Error('EXPRESSION constraints cannot be added or modified after column creation.');
-						instance.addAlt(columnRef, a => cons.status() === 'DOWN' ? a.drop(cons.TYPE) : a[cons.TYPE === 'IDENTITY' ? 'new' : 'set'](cons));
+						if (cons.keep() === true && cons.TYPE === 'IDENTITY') instance.addAlt(columnRef, a => a.drop('IDENTITY'));
+						if (cons.keep() !== false && cons.TYPE === 'EXPRESSION') throw new Error('EXPRESSION constraints cannot be added or modified after column creation.');
+						instance.addAlt(columnRef, a => cons.keep() === false ? a.drop(cons.TYPE) : a[cons.TYPE === 'IDENTITY' ? 'new' : 'set'](cons));
 					}
 					// Column rename? Must come last!!!
 					if (col.$NAME && col.$NAME !== col.NAME) {
@@ -215,16 +213,16 @@ export default class CreateTable extends AbstractStatementNode {
 				const constraints2 = col.CONSTRAINTS.filter(cons => ['PRIMARY_KEY', 'FOREIGN_KEY', 'UNIQUE_KEY', 'CHECK'].includes(cons.TYPE));
 				for (const cons of constraints2) {
 					if (constraintDirty(cons)) {
-						if (['UP', 'DOWN'].includes(cons.status())) instance.addDrop({ kind: cons.TYPE, name: cons.NAME });
-						if (cons.status() !== 'DOWN') instance.addNew(CreateTable.CONSTRAINT_TYPES.find(Type => Type.TYPE === cons.TYPE).fromJson(instance, { ...cons.toJson(), columns: [col.statementNode.altsCascaded ? col.name() : col.NAME] }));
-					} else if (cons.status() === 'UP' && cons.$NAME && cons.$NAME !== cons.NAME) {
+						if ([true, false].includes(cons.keep())) instance.addDrop({ kind: cons.TYPE, name: cons.NAME });
+						if (cons.keep() !== false) instance.addNew(CreateTable.CONSTRAINT_TYPES.find(Type => Type.TYPE === cons.TYPE).fromJson(instance, { ...cons.toJson(), columns: [col.statementNode.altsCascaded ? col.name() : col.NAME] }));
+					} else if (cons.keep() === true && cons.$NAME && cons.$NAME !== cons.NAME) {
 						instance.addAlt({ kind: 'CONSTRAINT', name: cons.NAME }, a => a.rename(cons.$NAME) );
 					}
 				}
 				continue;
 			}
 			// DROP COLUMN?
-			if (col.status() === 'DOWN') {
+			if (col.keep() === false) {
 				instance.addDrop(columnRef);
 				continue;
 			}
@@ -234,9 +232,9 @@ export default class CreateTable extends AbstractStatementNode {
 		const tableLevlConstraintDirty = cons => constraintDirty(cons) || (cons.$COLUMNS?.length && !isSame(cons.$COLUMNS, cons.COLUMNS));
 		for (const cons of this.CONSTRAINTS) {
 			if (tableLevlConstraintDirty(cons)) {
-				if (['UP', 'DOWN'].includes(cons.status())) instance.addDrop({ kind: cons.TYPE, name: cons.NAME });
-				if (cons.status() !== 'DOWN') instance.addNew(CreateTable.CONSTRAINT_TYPES.find(Type => Type.TYPE === cons.TYPE).fromJson(instance, cons.toJson()));
-			} else if (cons.status() === 'UP' && cons.$NAME && cons.$NAME !== cons.NAME) {
+				if ([true, false].includes(cons.keep())) instance.addDrop({ kind: cons.TYPE, name: cons.NAME });
+				if (cons.keep() !== false) instance.addNew(CreateTable.CONSTRAINT_TYPES.find(Type => Type.TYPE === cons.TYPE).fromJson(instance, cons.toJson()));
+			} else if (cons.keep() === true && cons.$NAME && cons.$NAME !== cons.NAME) {
 				instance.addAlt({ kind: 'CONSTRAINT', name: cons.NAME }, a => a.rename(cons.$NAME) );
 			}
 		}
@@ -247,8 +245,8 @@ export default class CreateTable extends AbstractStatementNode {
 	 * @inheritdoc
 	 */
 	cascadeAlt() {
-		// Normalize subtree statuses
-		this.status(this.status(), true);
+		// Normalize subtree "keep" flags
+		this.keep(this.keep(), 'auto');
 		const getAltType = node => node.dropped() ? 'DOWN' : (node.$NAME && node.$NAME !== node.NAME ? 'RENAME' : null);
 		// We've been dropped or renamed?
 		const altType = getAltType(this);
@@ -283,7 +281,7 @@ export default class CreateTable extends AbstractStatementNode {
 		for (const node of this.NODES) {
 			if (!(node instanceof ForeignKey1)) continue;
 			if (node.targetTable().basename() !== db.NAME) continue;
-			if (altType === 'DOWN') node.status('DOWN');
+			if (altType === 'DOWN') node.drop();
 			else if (altType === 'RENAME') node.targetTable().basename(db.$NAME);
 		}
 	}
@@ -297,7 +295,7 @@ export default class CreateTable extends AbstractStatementNode {
 			if (!(node instanceof ForeignKey1)) continue;
 			if (node.targetTable().basename() && tbl.basename() && node.targetTable().basename() !== tbl.basename()) continue;
 			if (node.targetTable().name() === tbl.NAME) {
-				if (altType === 'DOWN') node.status('DOWN');
+				if (altType === 'DOWN') node.drop();
 				else if (altType === 'RENAME') node.targetTable().name(tbl.$NAME);
 			};
 		}

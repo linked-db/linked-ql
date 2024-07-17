@@ -108,7 +108,7 @@ export default class AbstractClient {
         else if (typeof altRequest?.name !== 'string') throw new Error(`alterDatabase() called with invalid arguments.`);
         // -- Compose an altInstance from request
         const schemaJson = await this.describeDatabase(altRequest.name, altRequest.tables);
-        const schemaInstance = CreateDatabase.fromJson(this, schemaJson).status('UP', 'UP');
+        const schemaInstance = CreateDatabase.fromJson(this, schemaJson).keep(true, true);
         await callback(schemaInstance);
         const altInstance = schemaInstance.getAlt().with({ resultSchema: schemaInstance });
         if (!altInstance.ACTIONS.length) return;
@@ -150,11 +150,11 @@ export default class AbstractClient {
         const resultSchemaRequired = dbName => dbName && !(new RegExp(dbName, 'i')).test(this.constructor.OBJ_INFOSCHEMA_DB) && (!params.noCreateSavepoint || params.$resultSchema === 'always');
         if (instanceOf(query, [CreateDatabase,AlterDatabase,DropDatabase]) && resultSchemaRequired(query.name())) {
             if (query instanceof DropDatabase) {
-                const resultSchema = CreateDatabase.fromJson(this, await this.describeDatabase(query.name(), '*')).status('DOWN');
+                const resultSchema = CreateDatabase.fromJson(this, await this.describeDatabase(query.name(), '*')).drop();
                 query.with({ resultSchema });
             } else if (query instanceof AlterDatabase && !query.resultSchema) {
                 const tablesList = query.ACTIONS.filter(a => ['ALTER','DROP'].includes(a.TYPE)).map(x => x.NAME);
-                const resultSchema = CreateDatabase.fromJson(this, await this.describeDatabase(query.name(), tablesList)).status('UP', 'UP').alterWith(query); // Simulate edits;
+                const resultSchema = CreateDatabase.fromJson(this, await this.describeDatabase(query.name(), tablesList)).keep(true, true).alterWith(query); // Simulate edits;
                 query.with({ resultSchema });
             } else if (query instanceof CreateDatabase) query.with({ resultSchema: query });
             // -- And that's what we'll use as snapshot
@@ -164,10 +164,10 @@ export default class AbstractClient {
             if (resultSchemaRequired(basename)) {
                 const dbApi = this.database(basename);
                 if (query instanceof DropTable && basename) {
-                    const resultSchema = CreateTable.fromJson(dbApi, await dbApi.describeTable(query.name())).status('DOWN');
+                    const resultSchema = CreateTable.fromJson(dbApi, await dbApi.describeTable(query.name())).drop();
                     query.with({ resultSchema });
                 } else if (query instanceof AlterTable && !query.resultSchema && basename) {
-                    const resultSchema = CreateTable.fromJson(dbApi, await dbApi.describeTable(query.name())).status('UP', 'UP').alterWith(query); // Simulate edits;
+                    const resultSchema = CreateTable.fromJson(dbApi, await dbApi.describeTable(query.name())).keep(true, true).alterWith(query); // Simulate edits;
                     query.with({ resultSchema });
                 } else if (query instanceof CreateTable && basename) query.with({ resultSchema: query });
                 // -- But this is what we'll use as snapshot
@@ -175,7 +175,7 @@ export default class AbstractClient {
                     scope.savepoint = CreateDatabase.fromJson(this, {
                         name: dbApi.name,
                         tables: [query.resultSchema]
-                    }).status('UP');
+                    }).keep(true);
                 }
             }
         }
@@ -183,7 +183,7 @@ export default class AbstractClient {
         const returnValue = await handler(query, params);
         // -- Generate savepoint?
         if (!params.noCreateSavepoint && scope.savepoint) {
-            scope.savepoint.status(scope.savepoint.status(), true);
+            scope.savepoint.keep(scope.savepoint.keep(), 'auto');
             return await this.createSavepoint(scope.savepoint, params.savepointDesc);
         }
         return returnValue;
@@ -227,7 +227,7 @@ export default class AbstractClient {
         if (!(await this.hasDatabase(OBJ_INFOSCHEMA_DB))) return [];
         const tblName = [OBJ_INFOSCHEMA_DB,'database_savepoints'].join('.');
         const result = await this.query(`
-            SELECT id, database_tag, name, "$name", status, version_tag, version_max, rank_for_cursor || '/' || total AS cursor, savepoint_description, tables, savepoint_date, rollback_date FROM (
+            SELECT id, database_tag, name, "$name", keep, version_tag, version_max, rank_for_cursor || '/' || total AS cursor, savepoint_description, tables, savepoint_date, rollback_date FROM (
                 SELECT
                 ROW_NUMBER() OVER (PARTITION BY database_tag ORDER BY rollback_date IS NOT NULL ${ params.direction === 'forward' ? 'DESC' : 'ASC' }, version_tag ${ params.direction === 'forward' ? 'ASC' : 'DESC' }) AS rank_for_target,
                 ROW_NUMBER() OVER (PARTITION BY database_tag ORDER BY version_tag ASC) AS rank_for_cursor,
@@ -261,7 +261,7 @@ export default class AbstractClient {
                         { name: 'name', type: 'varchar', notNull: true },
                         { name: '$name', type: 'varchar' },
                         { name: 'tables', type: 'json' },
-                        { name: 'status', type: 'varchar' },
+                        { name: 'keep', type: 'boolean' },
                         // Meta data
                         { name: 'savepoint_description', type: 'varchar' },
                         { name: 'database_tag', type: 'varchar', notNull: true },
@@ -280,17 +280,17 @@ export default class AbstractClient {
             version_tag: null,
             savepoint_date: new Date,
         };
-        // -- Find a match first
-        const currentSavepoint = await this.database(schemaInstamce.name()).savepoint();
+        // -- Find a match first. We're doing forward first to be able to restart an entire history that has been rolled all the way back
+        const currentSavepoint = (await this.database(schemaInstamce.name()).savepoint({ direction: 'forward' })) || await this.database(schemaInstamce.name()).savepoint();
         if (currentSavepoint) {
             const tblName = [OBJ_INFOSCHEMA_DB,'database_savepoints'].join('.');
             // -- Apply id and tag from lookup
             savepointJson.database_tag = currentSavepoint.databaseTag;
-            savepointJson.version_tag = (await this.query(`SELECT max(version_tag) + 1 AS version_next FROM ${ tblName } WHERE database_tag = '${ currentSavepoint.databaseTag }'`))[0].version_next;
-            // -- Delete forward records
-            if (savepointJson.version_tag - 1 !== currentSavepoint.versionTag) {
+            // -- Get version_max and delete all forward records
+            if (currentSavepoint.direction === 'forward') {
+                savepointJson.version_tag = (await this.query(`SELECT max(version_tag) AS version_max FROM ${ tblName } WHERE database_tag = '${ currentSavepoint.databaseTag }'`))[0].version_max + 1;
                 await this.query(`DELETE FROM ${ tblName } WHERE database_tag = '${ currentSavepoint.databaseTag }' AND rollback_date IS NOT NULL`);
-            }
+            } else { savepointJson.version_tag = currentSavepoint.versionTag + 1; }
         } else {
             // -- Generate tag and version as fresh
             savepointJson.database_tag = `db:${ ( 0 | Math.random() * 9e6 ).toString( 36 ) }`;

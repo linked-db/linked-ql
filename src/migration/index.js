@@ -47,7 +47,6 @@ const dbSchemas = [].concat(schema), resultDbSchemas = [];
 // Run migrations or rollbacks
 if (command === 'migrate') {
     for (const dbSchema of dbSchemas) {
-
         if (flags.db && flags.db !== dbSchema.name) {
             resultDbSchemas.push(dbSchema);
             continue;
@@ -55,7 +54,7 @@ if (command === 'migrate') {
         const postMigration = { name: dbSchema.name, outcome: null, returnValue: undefined };
         const dbInstance = CreateDatabase.fromJson(driver, dbSchema);
 
-        if (dbInstance.status() === 'DOWN' && !flags['force-new']) {
+        if (dbInstance.keep() === false && !flags['force-new']) {
             console.log(`\nDropping database: ${ dbSchema.name }`);
             if (flags.preview !== false) console.log(`\nSQL preview:\nDROP SCHEMA ${ dbSchema.name } CASCADE\n`);
             const proceed = flags.force || (await enquirer.prompt({
@@ -69,7 +68,7 @@ if (command === 'migrate') {
             }
         }
 
-        if (dbInstance.status() === 'UP' && !flags['force-new']) {
+        if (dbInstance.keep() === true && !flags['force-new']) {
             const alt = dbInstance.getAlt().with({ resultSchema: dbInstance });
             if (alt.ACTIONS.length) {
                 console.log(`\nAltering database: ${ dbSchema.name }`);
@@ -87,8 +86,8 @@ if (command === 'migrate') {
             } else console.log(`\nNo alterations have been made to schema: ${ dbSchema.name }. Skipping.`);
         }
 
-        if (!dbInstance.status() || flags['force-new']){
-            if (dbInstance.status() && flags['force-new']) dbInstance.status(undefined, true); // Force status to new?
+        if (typeof dbInstance.keep() !== 'boolean' || flags['force-new']){
+            if (typeof dbInstance.keep() === 'boolean' && flags['force-new']) dbInstance.keep(undefined, true); // Force "keep" to undefined for new?
             console.log(`\nCreating database: ${ dbSchema.name }`);
             if (flags.preview !== false) console.log(`\nSQL preview:\n${ dbInstance }\n`);
             const proceed = flags.force || (await enquirer.prompt({
@@ -104,7 +103,7 @@ if (command === 'migrate') {
 
         if (['CREATED', 'ALTERED'].includes(postMigration.outcome)) {
             const newSchema = await driver.describeDatabase(postMigration.name, '*');
-            const $newSchema = CreateDatabase.fromJson(driver, newSchema).status('UP', 'UP').toJson();
+            const $newSchema = CreateDatabase.fromJson(driver, newSchema).keep(true, true).toJson();
             resultDbSchemas.push($newSchema);
         } else if (postMigration.outcome !== 'DROPPED') resultDbSchemas.push(dbSchema);
     }
@@ -116,6 +115,9 @@ if (command === 'rollback') {
 
     const savepointSummaries = await driver.getSavepoints({ direction: flags.direction });
     for (const savepoint of savepointSummaries) {
+        if (flags.db && flags.db !== savepoint.name()) {
+            continue;
+        }
         const postRollback = { returnValue: undefined };
         console.log(`\nRolling ${ flags.direction === 'forward' ? 'forward' : 'back' } database: ${ savepoint.name() }. (This database will now be ${ savepoint.rollbackOutcome.toLowerCase() })`);
         if (flags.preview !== false) {
@@ -129,12 +131,12 @@ if (command === 'rollback') {
         })).proceed;
         if (proceed) { postRollback.returnValue = await savepoint.rollback(); }
 
-        if (savepoint.rollbackOutcome === 'DROPPED') {
+        if (proceed && savepoint.rollbackOutcome === 'DROPPED') {
             const existing = resultDbSchemas.findIndex(sch => sch.name === savepoint.name());
             if (existing > -1) resultDbSchemas.splice(existing, 1);
-         } else {
+         } else if (proceed) {
            const newSchema = await driver.describeDatabase(savepoint.name(true), '*');
-           const $newSchema = CreateDatabase.fromJson(driver, newSchema).status('UP', 'UP').toJson();
+           const $newSchema = CreateDatabase.fromJson(driver, newSchema).keep(true, true).toJson();
             const existing = resultDbSchemas.findIndex(sch => sch.name === savepoint.name());
             if (existing > -1) resultDbSchemas[existing] = $newSchema;
             else resultDbSchemas.push($newSchema);

@@ -115,7 +115,7 @@ export default class ForeignKey1 extends AbstractConstraint {
 			...(this.$UPDATE_RULE ? { $updateRule: this.$UPDATE_RULE } : {}),
             ...(this.DELETE_RULE ? { deleteRule: this.DELETE_RULE } : {}),
 			...(this.$DELETE_RULE ? { $deleteRule: this.$DELETE_RULE } : {}),
-            // Name & status
+            // Name & keep
             ...super.toJson(),
 		};
 	}
