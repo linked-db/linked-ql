@@ -1,8 +1,14 @@
 # Linked QL
 
-**_Save more than 75% of the time and effort spent figuring out relational queries and managing schemas!_** Try a minimalistic take on SQL and databases in general!
+**_Save the overhead working with SQL and structured data - from the time and effort spent figuring out relational queries to the labour managing schemas!_** Try a minimalistic take on SQL and databases in general!
 
-Linked QL is a DB query client that simplfies how you interact with your database and manage your schemas; takes the ORM out of the way and let's you just write smarter SQL [using magic paths](#introducing-magic-paths), and takes the labour and tooling out of schema management and adds [auto-versioning](#introducing-auto-versioning) capabilites to your database!
+Linked QL is a DB query client that simplfies how you interact with your database and manage your schemas.
+
++ takes the ORM and friends out of the way and let's you just write SQL, but SQL that you will actually enjoy. (Linked QL extends standard SQL with [new syntax sugars](#introducing-magic-paths) that let you query relationships without writing a JOIN.)
+
++ takes the process out of schema management and lets you just *alter* away like it's nothing. (Linked QL extends your DB behind the scene to [automatically version](#introducing-auto-versioning) each edit you make and have them kept as "savepoints" that you can always rollback to.)
+
++ takes schema-as-code to a whole new level where you can have your entire database structure live in a `schema.json` file - similar to having `package.json`. (Linked QL gives you schema-as-code without the overhead of 100s of migration files that must be managed manually.)
 
 Linked QL is usable over your DB of choice - from the server-side Postgres and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), to the plain JSON object!
 
