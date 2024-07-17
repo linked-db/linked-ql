@@ -119,13 +119,10 @@ export default class Savepoint {
         // Execute rollback
         if (schemaInstance.keep() === false) {
             this.client.dropDatabase(schemaInstance.name(), { cascade: true, noCreateSavepoint: true });
-            console.log('......................................DROP.....' + schemaInstance.name());
         } else if (schemaInstance.keep() === true) {
             const altInstance = schemaInstance.getAlt().with({ resultSchema: schemaInstance });
-            console.log('......................................ALT.....' + altInstance);
             this.client.query(altInstance, { noCreateSavepoint: true });
         } else {
-            console.log(schemaInstance.keep(),'......................................CRT.....' + schemaInstance);
             this.client.query(schemaInstance, { noCreateSavepoint: true });
         }
         // Update record
