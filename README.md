@@ -485,7 +485,7 @@ Now, `options` lets us pass additional parameters for the operation:
 
 </details>
 
-<br>
+------------
 
 #### `client.createDatabase()` - *Dynamically run a `CREATE DATABASE` statement.*
 
@@ -520,7 +520,7 @@ const savepoint = await client.createDatabase({ name: 'database_1' }, { ifNotExi
 
 </details>
 
-<br>
+------------
 
 #### `client.alterDatabase()` - *Dynamically run an `ALTER DATABASE` statement.*
 
@@ -550,7 +550,7 @@ const savepoint = await client.alterDatabase({ name: 'database_1', tables: ['tab
 
 </details>
 
-<br>
+------------
 
 #### `client.dropDatabase()` - *Dynamically run a `DROP DATABASE` statement.*
 
@@ -573,7 +573,7 @@ const savepoint = await client.createDatabase('database_1', { ifExists: true, ca
 
 </details>
 
-<br>
+------------
 
 #### `client.hasDatabase()` - *Check if a database exists.*
 
@@ -589,7 +589,7 @@ const exists = await client.hasDatabase('database_1');
 
 </details>
 
-<br>
+------------
 
 #### `client.describeDatabase()` - *Get the schema structure for a database.*
 
@@ -607,7 +607,7 @@ console.log(schema.tables);
 
 </details>
 
-<br>
+------------
 
 #### `client.databases()` - *See a list of available databases.*
 
@@ -623,7 +623,7 @@ console.log(databases); // ['public', 'database_1', ...]
 
 </details>
 
-<br>
+------------
 
 #### `client.database()` - *Obtain a `Database` instance*
 
