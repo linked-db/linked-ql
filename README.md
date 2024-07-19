@@ -412,7 +412,7 @@ An index object:
 
 **Each `migrate` operation is automatically versioned and you can see that reflected in a `version` property for each database in your schema!** (The `version` property automatically appears for a database after the first `migrate` operation.) Now, you can roll back over a version, or over consecutive versions, at any time. And after rolling back, you can also roll forward; and that can be fun!
 
-*You may use the [`linkedql savepoints`](#cmd-linkedql-savepoints) to preview your target savepoint before each [`linkedql rollback`](#cmd-linkedql-rollback).*
+*You may use the [`linkedql savepoints`](#cmd-linkedql-savepoints) to preview your next savepoint at each database before each [`linkedql rollback`](#cmd-linkedql-rollback).*
 
 Interesting yet? You may want to learn more about [Linked QL's unique take on Schema as Code](#) as a paradigm and a practice.
 
@@ -426,12 +426,12 @@ This is the top-level object for the individual database kinds in Linked QL. Eac
 
 <details>
 <summary>
-<code>client.query(query: string[, options: object]): Promise&lt;Savepoint | Array&lt;&gt;&gt;</code><br>
+<code>client.query(sql: string[, options: object]): Promise&lt;Savepoint | Array&lt;&gt;&gt;</code><br>
 └─────</summary>
 
 Description: *Run any SQL query.*
 
-+ `query` is any SQL query; and return value is a `Savepoint` instance for all `CREATE`, `ALTER`, `DROP` operations, then an `Array` of data objects for `SELECT` queries, and for `INSERT`, `UPDATE`, and `DELETE` operations which specify a `RETURNING` clause.
++ `sql` is any SQL statement, and return value is a `Savepoint` instance for all `CREATE`, `ALTER`, `DROP` statements, then an `Array` of data objects for the `SELECT` statement, and for `INSERT`, `UPDATE`, and `DELETE` statements which specify a `RETURNING` clause.
 
     ```js
     const savepoint = await client.query('ALTER TABLE users RENAME TO accounts');
@@ -481,7 +481,7 @@ Description: *Run any SQL query.*
 <code>client.createDatabase(dbSchema: object[, options: object]): Promise&lt;Savepoint&gt;</code><br>
 └─────</summary>
 
-Description: *Dynamically compose a <code>CREATE DATABASE</code> query.*
+Description: *Dynamically compose a <code>CREATE DATABASE</code> statement.*
 
 + `dbSchema` is a [database schema](#schemajson); and `options` is as described in `query()`. Return value is a `Savepoint` instance.
 
@@ -514,7 +514,7 @@ Description: *Dynamically compose a <code>CREATE DATABASE</code> query.*
 <code>client.alterDatabase(altRequest: object, callback: (db: DatabaseSchema) => void, [, options: object]): Promise&lt;Savepoint&gt;</code><br>
 └─────</summary>
 
-Description: *Dynamically compose an <code>ALTER DATABASE</code> query.*
+Description: *Dynamically compose an <code>ALTER DATABASE</code> statement.*
 
 + `altRequest` is an object of the following form: `{ name: string, tables?: array }`, where name is the name of the DB object to alter and tables is an optional list of table objects to include in the returned object for the ALTER operation.
 
@@ -543,7 +543,7 @@ Description: *Dynamically compose an <code>ALTER DATABASE</code> query.*
 <code>client.dropDatabase(dbName: string, [, options: object]): Promise&lt;Savepoint&gt;</code><br>
 └─────</summary>
 
-Description: *Dynamically compose a <code>DROP DATABASE</code> query.*
+Description: *Dynamically compose a <code>DROP DATABASE</code> statement.*
 
 + `dbName` is the name of the DB to drop. `options` is, again, as described for `query()`, and return value is a `Savepoint` instance.
 
