@@ -180,14 +180,14 @@ app
   ├── migrations
     ├── 20240523_1759_create_users_table_and_drop_accounts_table.extension
     │
-    │   │                                       UP │ DOWN
+    │   │ UP                                       │ DOWN
     │   ├──────────────────────────────────────────┼────────────────────────────────────
     │   │ CREATE TABLE users (id INT, first_n...); │ DROP TABLE users;
     │   │ DROP TABLE accounts;                     │ CREATE TABLE accounts (id INT, first_name VAR...);
     │
     ├── 20240523_1760_add_last_login_to_users_table_and_rename_order_status_table.extension
     │
-    │   │                                       UP │ DOWN
+    │   │ UP                                       │ DOWN
     │   ├──────────────────────────────────────────┼────────────────────────────────────
     │   │ ALTER TABLE users ADD COLUMN last_lo...; │ ALTER TABLE users DROP COLUMN last_login;
     │   │ ALTER TABLE order_status RENAME TO o...; │ ALTER TABLE order_tracking RENAME TO order_status;
@@ -197,7 +197,7 @@ app
 
 then you've faced the problem that this defeciency in databases creates! But what if databases magically got to do the heavy lifting?
 
-Meet Linked QL's special extension of your database that does exaclty that and lets you just alter your DB however you may but in a safety net! Meet Automatic Schema Savepoints and Rollbacks!
+Meet Linked QL's special extension to your database that does exaclty that and lets you just alter your DB however you may but in a safety net! Meet Automatic Schema Savepoints and Rollbacks!
 
 Linked QL:
 
