@@ -444,9 +444,9 @@ Run any SQL query.
 *└ Spec:*
 + `sql`: an SQL string.
 + `options`: optional extra parameters for the query.
-+ Return value: a [`Savepoint`](#the-savepoint-api) instance for all `CREATE`, `ALTER`, `DROP` queries, then an `Array` of data objects for `SELECT` queries and for any `INSERT`, `UPDATE`, and `DELETE` queries with a `RETURNING` clause.
++ Return value: a [`Savepoint`](#the-savepoint-api) instance when it's a `CREATE`, `ALTER`, or `DROP` query, but an array (the result set) when it's a `SELECT` query or an `INSERT`, `UPDATE`, or `DELETE` query that have a `RETURNING` clause.
 
-Run a `CREATE`, `ALTER`, `DROP` query and get a savepoint back:
+Run a `CREATE`, `ALTER`, or `DROP` query and get back a savepoint:
 
 ```js
 const savepoint = await client.query('ALTER TABLE users RENAME TO accounts');
@@ -455,14 +455,14 @@ console.log(savepoint.versionTag); // number
 await savepoint.rollback(); // true
 ```
 
-a SELECT query and get a result set back:
+or a SELECT query, and get back a result set:
 
 ```js
 const rows = await client.query('SELECT * FROM users WHERE id = 4');
 console.log(rows.length); // 1
 ```
 
-an `INSERT`, `UPDATE`, and `DELETE` query with a `RETURNING` clause and get a result set back:
+or an `INSERT`, `UPDATE`, or `DELETE` query with a `RETURNING` clause, and ge backt a result set:
 
 ```js
 const rows = await client.query('INSERT INTO users SET name = \'John Doe\' RETURNING id');
@@ -502,7 +502,7 @@ Dynamically run a <code>CREATE DATABASE</code> query.
 <pre><code>client.createDatabase(createSpec: string | { name: string, tables?: Array }[, options: Options]): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 *└ Spec:*
-+ `createSpec`: a name string, or an object that corresponds to the [database JSON schema](#schemajson).
++ `createSpec`: a name string, or an object corresponding to the [database JSON schema](#schemajson).
 + `options`: as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
@@ -541,7 +541,7 @@ Dynamically run an <code>ALTER DATABASE</code> query.
 <pre><code>client.alterDatabase(alterSpec: string | { name: string, tables?: array }, callback: (db: DatabaseSchema) => void[, options: Options]): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 *└ Spec:*
-+ `alterSpec`: a name string, or an object specifying the database whose schema to be modified, where `tables` is an optional list of tables to include in the returned schema.
++ `alterSpec`: a name string, or an object with an optional list of tables to be altered along with it.
 + `callback`: a function that is called with the requested schema. This can be async. Received object is a [`DatabaseSchema`](#the-database-apischema) instance.
 + `options`: as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
@@ -578,7 +578,7 @@ Dynamically run a <code>DROP DATABASE</code> query.
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
 ```js
-const savepoint = await client.dropDatabase('database_1', { description: 'Droping for testing purposes' });
+const savepoint = await client.dropDatabase('database_1', { description: 'Dropping for testing purposes' });
 ```
 
 Use `options` for some additional parameters:
@@ -586,13 +586,13 @@ Use `options` for some additional parameters:
 + `ifExists`: to conditionally drop the database.
 
     ```js
-    const savepoint = await client.dropDatabase('database_1', { ifExists: true, description: 'Droping for testing purposes' });
+    const savepoint = await client.dropDatabase('database_1', { ifExists: true, description: 'Dropping for testing purposes' });
     ```
 
 + `cascade`: to force-drop the database along with its dependents.
 
     ```js
-    const savepoint = await client.dropDatabase('database_1', { cascade: true, description: 'Droping for testing purposes' });
+    const savepoint = await client.dropDatabase('database_1', { cascade: true, description: 'Dropping for testing purposes' });
     ```
 
 </details>
@@ -605,7 +605,7 @@ Check if a database exists.
 
 *└ Spec:*
 + `dbName`: a name string.
-+ Return value: a Boolean.
++ Return value: Boolean.
 
 ```js
 const exists = await client.hasDatabase('database_1');
@@ -621,7 +621,7 @@ Get the schema structure for a database.
 
 *└ Spec:*
 + `dbName`: a name string.
-+ Return value: an object that corresponds to the [database JSON schema](#schemajson).
++ Return value: an object corresponding to the [database JSON schema](#schemajson).
 
 ```js
 const schema = await client.describeDatabase('database_1');
@@ -685,7 +685,7 @@ Dynamically run a <code>CREATE TABLE</code> query.
 <pre><code>database.createTable(createSpec: { name: string, columns: Array, constraints?: Array, indexes?: Array }[, options: Options]): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 *└ Spec:*
-+ `createSpec`: an object that corresponds to the [table JSON schema](#schemajson).
++ `createSpec`: an object corresponding to the [table JSON schema](#schemajson).
 + `options`: as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
@@ -744,7 +744,7 @@ Dynamically run a <code>DROP TABLE</code> query.
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
 ```js
-const savepoint = await database.dropTable('table_1', { description: 'Droping for testing purposes' });
+const savepoint = await database.dropTable('table_1', { description: 'Dropping for testing purposes' });
 ```
 
 Use `options` for some additional parameters:
@@ -752,13 +752,13 @@ Use `options` for some additional parameters:
 + `ifExists`: to conditionally drop the table.
 
     ```js
-    const savepoint = await database.dropTable('table_1', { ifExists: true, description: 'Droping for testing purposes' });
+    const savepoint = await database.dropTable('table_1', { ifExists: true, description: 'Dropping for testing purposes' });
     ```
 
 + `cascade`: to force-drop the table along with its dependents.
 
     ```js
-    const savepoint = await database.dropTable('table_1', { cascade: true, description: 'Droping for testing purposes' });
+    const savepoint = await database.dropTable('table_1', { cascade: true, description: 'Dropping for testing purposes' });
     ```
 
 </details>
@@ -771,7 +771,7 @@ Check if a table exists.
 
 *└ Spec:*
 + `tblName`: a name string.
-+ Return value: a Boolean.
++ Return value: Boolean.
 
 ```js
 const exists = await database.hasTable('database_1');
@@ -787,7 +787,7 @@ Get the schema structure for a table.
 
 *└ Spec:*
 + `tblName`: a name string.
-+ Return value: an object that corresponds to the [Table JSON schema](#schemajson).
++ Return value: an object corresponding to the [Table JSON schema](#schemajson).
 
 ```js
 const schema = await database.describeTable('table_1');
@@ -832,7 +832,7 @@ const table = database.table('table_1');
 #### `database.savepoint()`:
 
 <details><summary>
-Obtain the next available *savepoint* for the database.
+Obtain the next available *savepoint* for given database.
 <pre><code>database.savepoint([options: Options]): Savepoint</code></pre></summary>
 
 *└ Spec:*
@@ -852,7 +852,7 @@ Use `options` for some additional parameters:
 
     ```js
     const savepoint = await database.savepoint({ direction: 'forward' });
-    console.log(savepoint.versionTag); // Number
+    console.log(savepoint.versionTag); // number
 
     await savepoint.rollback(); // true
     ```
