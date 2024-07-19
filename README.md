@@ -399,7 +399,7 @@ An index object:
 
 *Changes are commited to your database at your next [`linkedql migrate`](#cmd-linkedql-migrate).*
 
-**Names may be changed, but not in-place!** A "rename" operation - whether on a database object, a table object, a column object, a constraint object, or an index object - would need to be done by means of an extra property that serves as a complement to the `name` property:
+**Names may be changed, but not in-place!** A "rename" operation - whether on a database object, a table object, a column object, a constraint object, or an index object - would need to be done via a new `$name` property:
 
 ```js
 {
