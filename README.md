@@ -431,7 +431,7 @@ This is the top-level object for the individual database kinds in Linked QL. Eac
 
 Description: *Run any SQL query.*
 
-+ `sql` is any SQL statement, and return value is a `Savepoint` instance for all `CREATE`, `ALTER`, `DROP` statements, then an `Array` of data objects for the `SELECT` statement, and for `INSERT`, `UPDATE`, and `DELETE` statements which specify a `RETURNING` clause.
++ `sql` is any SQL statement, and return value is a `Savepoint` instance for all `CREATE`, `ALTER`, `DROP` statements, then an `Array` of data objects for the `SELECT` statement, and for `INSERT`, `UPDATE`, and `DELETE` statements that specify a `RETURNING` clause.
 
     ```js
     const savepoint = await client.query('ALTER TABLE users RENAME TO accounts');
@@ -483,7 +483,7 @@ Description: *Run any SQL query.*
 
 Description: *Dynamically compose a <code>CREATE DATABASE</code> statement.*
 
-+ `dbSchema` is a [database schema](#schemajson); and `options` is as described in `query()`. Return value is a `Savepoint` instance.
++ `dbSchema` is a [database schema](#schemajson), and `options` is as described in `query()`. Return value is a `Savepoint` instance.
 
     ```js
     const savepoint = await client.createDatabase({ name: 'database_1' }, { description: 'Just testing database creation' });
@@ -516,9 +516,9 @@ Description: *Dynamically compose a <code>CREATE DATABASE</code> statement.*
 
 Description: *Dynamically compose an <code>ALTER DATABASE</code> statement.*
 
-+ `altRequest` is an object of the following form: `{ name: string, tables?: array }`, where name is the name of the DB object to alter and tables is an optional list of table objects to include in the returned object for the ALTER operation.
++ `altRequest` is an object of the following form: `{ name: string, tables?: array }`, where name is the name of the DB object to return for *alter* and tables is an optional list of table objects to include in the returned object.
 
-+ `callback` is a function that is called with the requested *DatabaseSchema* instance. `options` is, again, as described in `query()`, and return value is a `Savepoint` instance.
++ `callback` is a function that is called with the requested db object. This object is a *DatabaseSchema* instance. `options` is, again, as described in `query()`, and return value is a `Savepoint` instance.
 
     ```js
     const savepoint = await client.alterDatabase({ name: 'database_1' }, db => {
