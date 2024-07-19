@@ -477,7 +477,7 @@ This is the top-level object for the individual database kinds in Linked QL. Eac
 <summary>Dynamically compose a <code>CREATE DATABASE</code> query.<br>
 <b><code>client.createDatabase(dbSchema: object[, options: object]): Promise&lt;Savepoint&gt;</code></b></summary>
 
-+ `dbSchema` is a [database schema](#schemas); and `options` is as described in `query()`. Return value is a `Savepoint` instance.
++ `dbSchema` is a [database schema](#schemajson); and `options` is as described in `query()`. Return value is a `Savepoint` instance.
 
     ```js
     const savepoint = await client.createDatabase({ name: 'database_1' }, { description: 'Just testing database creation' });
