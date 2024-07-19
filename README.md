@@ -433,14 +433,16 @@ This is the top-level object for the individual database kinds in Linked QL. Eac
 + [`client.databases()`](#clientdatabases---see-a-list-of-available-databases)
 + [`client.database()`](#clientdatabase---obtain-a-database-instance)
 
+------------
+
 #### `client.query()` - *Run any SQL query.*
 
 <details><summary><code>client.query(sql: string[, options: object]): Promise&lt;Savepoint | Array&lt;object&gt;&gt;</code></summary>
 
 *└ Spec:*
-+ `sql` is any SQL statement.
-+ `options` is an optional object for passing additional parameters for the operation.
-+ Return value is a [`Savepoint`](#object-savepoint) instance for all `CREATE`, `ALTER`, `DROP` statements, then an `Array` of data objects for the `SELECT` statement and for any `INSERT`, `UPDATE`, and `DELETE` statements that specify a `RETURNING` clause.
++ `sql`: any SQL statement.
++ `options`: an optional object for passing additional parameters for the operation.
++ Return value: a [`Savepoint`](#object-savepoint) instance for all `CREATE`, `ALTER`, `DROP` statements, then an `Array` of data objects for the `SELECT` statement and for any `INSERT`, `UPDATE`, and `DELETE` statements that specify a `RETURNING` clause.
 
 ```js
 const savepoint = await client.query('ALTER TABLE users RENAME TO accounts');
@@ -492,9 +494,9 @@ Now, `options` lets us pass additional parameters for the operation:
 <details><summary><code>client.createDatabase(dbSchema: { name: string, tables?: Array }[, options: object]): Promise&lt;Savepoint&gt;</code></summary>
 
 *└ Spec:*
-+ `dbSchema` is the equivalent of the [database JSON schema](#schemajson).
-+ `options` is as described in [`query()`](#clientquery---run-any-sql-query).
-+ Return value is a [`Savepoint`](#object-savepoint) instance.
++ `dbSchema`: the equivalent of the [database JSON schema](#schemajson).
++ `options`: as described in [`query()`](#clientquery---run-any-sql-query).
++ Return value: a [`Savepoint`](#object-savepoint) instance.
 
 ```js
 const savepoint = await client.createDatabase({ name: 'database_1' }, { description: 'Just testing database creation' });
@@ -527,10 +529,10 @@ const savepoint = await client.createDatabase({ name: 'database_1' }, { ifNotExi
 <details><summary><code>client.alterDatabase(altRequest: { name: string, tables?: array }, callback: (db: DatabaseSchema) => void, [, options: object]): Promise&lt;Savepoint&gt;</code></summary>
 
 *└ Spec:*
-+ `altRequest` is an object specifying the database whose schema is to be modified, and `tables` is an optional list of table names of which to include in the returned schema.
-+ `callback` is a function that is called with the requested database schema. This can be async. Received object is a [`DatabaseSchema`](#object-databaseschema) instance.
-+`options` is as described in [`query()`](#clientquery---run-any-sql-query).
-+ Return value is a [`Savepoint`](#object-savepoint) instance.
++ `altRequest`: an object specifying the database whose schema is to be modified, and `tables` is an optional list of table names of which to include in the returned schema.
++ `callback`: a function that is called with the requested database schema. This can be async. Received object is a [`DatabaseSchema`](#object-databaseschema) instance.
++`options`: as described in [`query()`](#clientquery---run-any-sql-query).
++ Return value: a [`Savepoint`](#object-savepoint) instance.
 
 ```js
 const savepoint = await client.alterDatabase({ name: 'database_1' }, db => {
@@ -557,9 +559,9 @@ const savepoint = await client.alterDatabase({ name: 'database_1', tables: ['tab
 <details><summary><code>client.dropDatabase(dbName: string, [, options: object]): Promise&lt;Savepoint&gt;</code></summary>
 
 *└ Spec:*
-+ `dbName` is the name of the database to drop.
-+ `options` is as described in [`query()`](#clientquery---run-any-sql-query).
-+ Return value is a [`Savepoint`](#object-savepoint) instance.
++ `dbName`: the name of the database to drop.
++ `options`: as described in [`query()`](#clientquery---run-any-sql-query).
++ Return value: a [`Savepoint`](#object-savepoint) instance.
 
 ```js
 const savepoint = await client.dropDatabase('database_1', { description: 'Droping for testing purposes' });
@@ -580,8 +582,8 @@ const savepoint = await client.createDatabase('database_1', { ifExists: true, ca
 <details><summary><code>client.hasDatabase(dbName: string): Promise&lt;Boolean&gt;</code></summary>
 
 *└ Spec:*
-+ `dbName` is the name of the database to check.
-+ Return value is a Boolean.
++ `dbName`: the name of the database to check.
++ Return value: a Boolean.
 
 ```js
 const exists = await client.hasDatabase('database_1');
@@ -596,8 +598,8 @@ const exists = await client.hasDatabase('database_1');
 <details><summary><code>client.describeDatabase(dbName: string): Promise&lt;{ name: string, tables: Array }&gt;</code></summary>
 
 *└ Spec:*
-+ `dbName` is the name of the database.
-+ Return value is the equivalent of the [database JSON schema](#schemajson).
++ `dbName`: the name of the database.
++ Return value: the equivalent of the [database JSON schema](#schemajson).
 
 ```js
 const schema = await client.describeDatabase('database_1');
@@ -614,7 +616,7 @@ console.log(schema.tables);
 <details><summary><code>client.databases(): Promise&lt;Array&lt;string&gt;&gt;</code></summary>
 
 *└ Spec:*
-+ Return value is an array of database names.
++ Return value: an array of database names.
 
 ```js
 const databases = await client.databases();
@@ -630,18 +632,18 @@ console.log(databases); // ['public', 'database_1', ...]
 <details><summary><code>client.database(dbName: string, [, options: object]): Database</code></summary>
 
 *└ Spec:*
-+ `dbName` is the name of the DB to instantiate.
-+ Return value is a [`Database`](#object-database) instance.
++ `dbName`: the name of the DB to instantiate.
++ Return value: a [`Database`](#object-database) instance.
 
 ```js
 const database = client.database('database_1');
 ```
 
+</details>
+
 <br>
 
 ### Object: `Database`
-
-</details>
 
 ## TODO
 
