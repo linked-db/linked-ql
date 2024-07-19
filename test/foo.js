@@ -34,7 +34,7 @@ console.log('....create roles......', await lqlClient.query(`CREATE TABLE roles 
     id int primary key generated always as identity,
     name varchar,
     created_time timestamp
-)`, { savepointDesc: 'Created roles' }));
+)`, { description: 'Created roles' }));
 const savepoint1 = await lqlClient.database('public').savepoint();
 
 console.log('.....create users.....', await lqlClient.query(`CREATE TABLE users (
@@ -43,7 +43,7 @@ console.log('.....create users.....', await lqlClient.query(`CREATE TABLE users 
     name varchar,
     role int references roles (id),
     created_time timestamp
-)`, { savepointDesc: 'Created users' }));
+)`, { description: 'Created users' }));
 const savepoint2 = await lqlClient.database('public').savepoint();
 
 console.log('.....create test_db.....', await lqlClient.query(`CREATE DATABASE test_db`));
@@ -53,7 +53,7 @@ console.log('.....create test_db.users.....', await lqlClient.query(`CREATE TABL
     title varchar,
     name varchar,
     created_time timestamp
-)`, { savepointDesc: 'Created users' }));
+)`, { description: 'Created users' }));
 const savepoint2c = await lqlClient.database('test_db').savepoint();
 
 console.log('.....create books.....', await lqlClient.query(`CREATE TABLE books (
@@ -62,7 +62,7 @@ console.log('.....create books.....', await lqlClient.query(`CREATE TABLE books 
     content varchar,
     author int references users (id),
     created_timeeee timestamp (3) without time zone
-)`, { savepointDesc: 'Created books' }));
+)`, { description: 'Created books' }));
 const savepoint3 = await lqlClient.database('public').savepoint();
 console.log('\n\n\n\n\n\ntables---------', await lqlClient.database('public').tables());
 
@@ -79,7 +79,7 @@ if (spliceForwardHistories) {
         title varchar,
         content varchar,
         created_time timestamp
-    )`, { savepointDesc: 'Created publications' }));
+    )`, { description: 'Created publications' }));
     const savepoint4 = await lqlClient.database('public').savepoint();
     // Should see: 1,2,3,7
     console.log('\n\n\n\n\n\nall savepoints-----', ...(await lqlClient.database('obj_information_schema').table('database_savepoints').select()));

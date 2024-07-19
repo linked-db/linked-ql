@@ -2,16 +2,18 @@
 import CreateDatabase from "../../query/create/CreateDatabase.js";
 
 export default class Savepoint {
-    
+
     /**
      * @constructor
      */
     constructor(client, json, direction = 'backward') {
-        Object.defineProperty(this, '$', { value: {
-            client,
-            json,
-            direction,
-        }});
+        Object.defineProperty(this, '$', {
+            value: {
+                client,
+                json,
+                direction,
+            }
+        });
     }
 
     /**
@@ -68,7 +70,7 @@ export default class Savepoint {
      * @returns String
      */
     get rollbackOutcome() {
-        const $outcome = typeof this.$.json.keep !== 'boolean' ? ['DROPPED','CREATED'] : (this.$.json.keep === false ? ['CREATED','DROPPED'] : ['ALTERED']);
+        const $outcome = typeof this.$.json.keep !== 'boolean' ? ['DROPPED', 'CREATED'] : (this.$.json.keep === false ? ['CREATED', 'DROPPED'] : ['ALTERED']);
         return this.direction === 'forward' ? $outcome.reverse()[0] : $outcome[0];
     }
 
@@ -126,8 +128,8 @@ export default class Savepoint {
             this.client.query(schemaInstance, { noCreateSavepoint: true });
         }
         // Update record
-        const tblName = [this.client.constructor.OBJ_INFOSCHEMA_DB,'database_savepoints'].join('.');
-        await this.client.query(`UPDATE ${ tblName } SET rollback_date = ${ this.direction === 'forward' ? 'NULL' : 'now()' } WHERE id = '${ this.$.json.id }'`);
+        const tblName = [this.client.constructor.OBJ_INFOSCHEMA_DB, 'database_savepoints'].join('.');
+        await this.client.query(`UPDATE ${tblName} SET rollback_date = ${this.direction === 'forward' ? 'NULL' : 'now()'} WHERE id = '${this.$.json.id}'`);
         this.$.json.rollback_date = this.direction === 'forward' ? null : Date.now();
         return true;
     }

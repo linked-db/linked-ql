@@ -1,0 +1,50 @@
+[
+   {
+      "name": "migrations_test2",
+      "version": 1,
+      "tables": [],
+      "keep": true
+   },
+   {
+      "name": "migrations_test",
+      "version": 3,
+      "tables": [
+         {
+            "columns": [
+               {
+                  "type": "int",
+                  "name": "id",
+                  "keep": true
+               },
+               {
+                  "type": "varchar",
+                  "name": "column2",
+                  "keep": true
+               }
+            ],
+            "constraints": [],
+            "indexes": [],
+            "name": "table1",
+            "keep": true
+         },
+         {
+            "columns": [
+               {
+                  "type": "varchar",
+                  "default": {
+                     "expr": "'../////..'::character varying",
+                     "keep": true
+                  },
+                  "name": "column1",
+                  "keep": true
+               }
+            ],
+            "constraints": [],
+            "indexes": [],
+            "name": "table2",
+            "keep": true
+         }
+      ],
+      "keep": true
+   }
+]

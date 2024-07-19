@@ -63,7 +63,7 @@ if (command === 'migrate') {
                 message: 'Proceed?'
             })).proceed;
             if (proceed) {
-                postMigration.returnValue = await driver.dropDatabase(dbSchema.name, { cascade: true, savepointDesc: flags.desc });
+                postMigration.returnValue = await driver.dropDatabase(dbSchema.name, { cascade: true, description: flags.desc });
                 postMigration.outcome = 'DROPPED';
             }
         }
@@ -79,7 +79,7 @@ if (command === 'migrate') {
                     message: 'Proceed?'
                 })).proceed;
                 if (proceed) {
-                    postMigration.returnValue = await driver.query(alt, { savepointDesc: flags.desc });
+                    postMigration.returnValue = await driver.query(alt, { description: flags.desc });
                     postMigration.name = dbSchema.$name || dbSchema.name;
                     postMigration.outcome = 'ALTERED';
                 }
@@ -96,15 +96,15 @@ if (command === 'migrate') {
                 message: 'Proceed?'
             })).proceed;
             if (proceed) {
-                postMigration.returnValue = await driver.query(dbInstance, { savepointDesc: flags.desc });
+                postMigration.returnValue = await driver.query(dbInstance, { description: flags.desc });
                 postMigration.outcome = 'CREATED';
             }
         }
 
         if (['CREATED', 'ALTERED'].includes(postMigration.outcome)) {
             const newSchema = await driver.describeDatabase(postMigration.name, '*');
-            const $newSchema = CreateDatabase.fromJson(driver, newSchema).keep(true, true).toJson();
-            resultDbSchemas.push($newSchema);
+            const { name, tables, keep } = CreateDatabase.fromJson(driver, newSchema).keep(true, true).toJson();
+            resultDbSchemas.push({ name, version: postMigration.returnValue.versionTag, tables, keep });
         } else if (postMigration.outcome !== 'DROPPED') resultDbSchemas.push(dbSchema);
     }
 }
@@ -136,7 +136,8 @@ if (command === 'rollback') {
             if (existing > -1) resultDbSchemas.splice(existing, 1);
          } else if (proceed) {
            const newSchema = await driver.describeDatabase(savepoint.name(true), '*');
-           const $newSchema = CreateDatabase.fromJson(driver, newSchema).keep(true, true).toJson();
+           const { name, tables, keep } = CreateDatabase.fromJson(driver, newSchema).keep(true, true).toJson();
+           const $newSchema = { name, version: savepoint.versionTag - (savepoint.direction === 'forward' ? 0 : 1), tables, keep };
             const existing = resultDbSchemas.findIndex(sch => sch.name === savepoint.name());
             if (existing > -1) resultDbSchemas[existing] = $newSchema;
             else resultDbSchemas.push($newSchema);

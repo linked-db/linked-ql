@@ -184,7 +184,7 @@ export default class AbstractClient {
         // -- Generate savepoint?
         if (!params.noCreateSavepoint && scope.savepoint) {
             scope.savepoint.keep(scope.savepoint.keep(), 'auto');
-            return await this.createSavepoint(scope.savepoint, params.savepointDesc);
+            return await this.createSavepoint(scope.savepoint, params.description);
         }
         return returnValue;
     }
@@ -243,11 +243,11 @@ export default class AbstractClient {
      * Method for saving snapshots to internal OBJ_INFOSCHEMA db.
      * 
      * @param CreateDatabase    schemaInstamce
-     * @param String            savepointDescription
+     * @param String            description
      * 
      * @return Object
      */
-    async createSavepoint(schemaInstamce, savepointDesc = null) {
+    async createSavepoint(schemaInstamce, description = null) {
         // -- Create schema?
         const OBJ_INFOSCHEMA_DB = this.constructor.OBJ_INFOSCHEMA_DB;
         if (!(await this.hasDatabase(OBJ_INFOSCHEMA_DB))) {
@@ -276,7 +276,7 @@ export default class AbstractClient {
         const savepointJson = {
             database_tag: null,
             ...schemaInstamce.toJson(),
-            savepoint_description: savepointDesc,
+            savepoint_description: description,
             version_tag: null,
             savepoint_date: new Date,
         };
@@ -298,6 +298,6 @@ export default class AbstractClient {
         }
         // -- Create record
         const insertResult = await this.database(OBJ_INFOSCHEMA_DB).table('database_savepoints').insert(savepointJson);
-        return new Savepoint(this, { ...insertResult[0], version_max: insertResult[0].version_tag, cursor: null });
+        return new Savepoint(this, { ...insertResult[0], version_max: savepointJson.version_tag, cursor: null });
     }
 }
