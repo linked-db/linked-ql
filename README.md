@@ -272,7 +272,7 @@ Database objects:
 ```
 
 <details>
-<summary>See details</summary>
+<summary>Other objects</summary>
 
 A table object:
 
