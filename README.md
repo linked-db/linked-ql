@@ -420,6 +420,8 @@ Interesting yet? You may want to learn more about [Linked QL's unique take on Sc
 
 This is a quick overview of the Linked QL API.
 
+<br>
+
 ### Object: `Client`
 
 This is the top-level object for the individual database kinds in Linked QL. Each instance implements the following interface:
@@ -494,7 +496,7 @@ Now, `options` lets us pass additional parameters for the operation:
 <details><summary><code>client.createDatabase(dbSchema: { name: string, tables?: Array }[, options: Options]): Promise&lt;Savepoint&gt;</code></summary>
 
 *└ Spec:*
-+ `dbSchema`: the equivalent of the [database JSON schema](#schemajson).
++ `dbSchema`: an object that corresponds to the [database JSON schema](#schemajson).
 + `options`: as described in [`query()`](#clientquery---run-any-sql-query).
 + Return value: a [`Savepoint`](#object-savepoint) instance.
 
@@ -502,7 +504,7 @@ Now, `options` lets us pass additional parameters for the operation:
 const savepoint = await client.createDatabase({ name: 'database_1' }, { description: 'Just testing database creation' });
 ```
 
-Any tables specified, as with a [database schema](#schemajson), are created together.
+Any tables specified, each corresponding to the [table JSON schema](#schemajson), are created together.
 
 ```js
 const savepoint = await client.createDatabase({
@@ -599,7 +601,7 @@ const exists = await client.hasDatabase('database_1');
 
 *└ Spec:*
 + `dbName`: the name of the database.
-+ Return value: the equivalent of the [database JSON schema](#schemajson).
++ Return value: an object that corresponds to the [database JSON schema](#schemajson).
 
 ```js
 const schema = await client.describeDatabase('database_1');
@@ -646,6 +648,42 @@ const database = client.database('database_1');
 <br>
 
 ### Object: `Database`
+
+This is the object returned by [`client.database()`](#clientdatabase---obtain-a-database-instance)
+
+------------
+
+#### `database.createTable()` - *Dynamically run a `CREATE TABLE` statement.*
+
+<details><summary><code>database.createTable(tblSchema: { name: string, columns: Array, constraints?: Array, indexes?: Array }[, options: Options]): Promise&lt;Savepoint&gt;</code></summary>
+
+*└ Spec:*
++ `tblSchema`: an object that corresponds to the [table JSON schema](#schemajson).
++ `options`: as described in [`query()`](#clientquery---run-any-sql-query).
++ Return value: a [`Savepoint`](#object-savepoint) instance.
+
+```js
+const savepoint = await database.createTable({
+    name: 'table_1'
+    columns: [
+        { name: 'column_1', type: 'INT' }, 
+        { name: 'column_2', type: 'time' }
+    ]
+}, { description: 'Just testing table creation' });
+```
+
+Now, `options` may also be used to pass the flag: `ifNotExists`.
+
+```js
+const savepoint = await database.createTable({
+    name: 'table_1'
+    columns: [ ... ]
+}, { ifNotExists: true, description: 'Just testing table creation' });
+```
+
+</details>
+
+------------
 
 ## TODO
 
