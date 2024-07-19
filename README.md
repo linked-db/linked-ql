@@ -400,7 +400,7 @@ An index object:
 
 </details>
 
-**Now, you may change anything at any time by simply editing your schema in-place!** For example, you'd add a new table by simply extending the tables list; a new column by simply extending the columns list; a new constraint by simply extending the constraints list. You can go on to change the respective objects at their respective property level! For example, may remove a column-level constraint, `uniqueKey` for example, by simply deleting it; or change the column type, or update the `check` constraint, by simply overwriting it.
+**Now, you may simply edit any part of your schema in-place!** For example, you'd add a new table by simply extending the tables list; a new column by simply extending the columns list; a new constraint by simply extending the constraints list. You can go on to change the respective objects at their respective property level! For example, may remove a column-level constraint, `uniqueKey` for example, by simply deleting it; or change the column type, or update the `check` constraint, by simply overwriting it.
 
 *Changes are commited to your database at your next [`linkedql migrate`](#cmd-linkedql-migrate).*
 
