@@ -175,7 +175,7 @@ WHERE author <~ books ~> title = 'Beauty and the Beast'
 
 Databases have historically lacked the concept of schema versioning, and that has seen all the engineering work pushed down to the client application. If you've ever had to adopt a special process for defining and managing your schemas, wherein changes are handled through *serially-named* files within your application, written as an `UP`/`DOWN` pair of actions each, supported by tooling...
 
-```js
+```sql
 app
   ├── migrations
     ├── 20240523_1759_create_users_table_and_drop_accounts_table.extension
