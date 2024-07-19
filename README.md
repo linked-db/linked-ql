@@ -254,11 +254,11 @@ await savepoint.rollback();
 
 With schema versioning now having become a database-level concern, the rest of the database story at the application level should rightly experience a disruption. Linked QL goes further to streamline your application's database footprint from spanning hundreds of migration files to fitting into a single `schema.json` file!
 
-### Schemas
+### `schema.json`
 
 Database objects:
 
-```json
+```js
 [
     {
         "name": "database_1", // Required
@@ -276,7 +276,7 @@ Database objects:
 
 A table object:
 
-```json
+```js
 {
     "name": "users", // Required
     "columns": [], // Column objects (min: 1)
@@ -287,7 +287,7 @@ A table object:
 
 A column object:
 
-```json
+```js
 {
     "name": "id", // Required
     "type": "int", // Required
@@ -299,7 +299,7 @@ A column object:
 <details>
 <summary>More column objects</summary>
 
-```json
+```js
 {
     "name": "full_name",
     "type": ["varchar","101"],
@@ -307,7 +307,7 @@ A column object:
 }
 ```
 
-```json
+```js
 {
     "name": "email",
     "type": ["varchar","50"],
@@ -317,7 +317,7 @@ A column object:
 }
 ```
 
-```json
+```js
 {
     "name": "parent",
     "type": "int",
@@ -335,7 +335,7 @@ A column object:
 
 A constraint object:
 
-```json
+```js
 {
     "type": "PRIMARY_KEY", // Required
     "columns": ["id"], // Required
@@ -346,14 +346,14 @@ A constraint object:
 <details>
 <summary>More constraint objects</summary>
 
-```json
+```js
 {
     "type": "UNIQUE_KEY",
     "columns": ["email"]
 }
 ```
 
-```json
+```js
 {
     "type": "FOREIGN_KEY",
     "columns": ["parent"],
@@ -365,7 +365,7 @@ A constraint object:
 }
 ```
 
-```json
+```js
 {
     "type": "CHECK",
     "expr": "(email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')"
@@ -375,7 +375,7 @@ A constraint object:
 
 An index object:
 
-```json
+```js
 {
     "type": "FULLTEXT",
     "columns": ["full_name"]
@@ -385,7 +385,7 @@ An index object:
 <details>
 <summary>More index objects</summary>
 
-```json
+```js
 {
     "type": "SPATIAL",
     "columns": ["full_name"]
@@ -395,24 +395,24 @@ An index object:
 
 </details>
 
-**Now, need to change anything at any time? Simply edit your schema in-place!** Add a new table by simply extending the tables list; a new column by simply extending the columns list; a new constraint by simply extending the constraints list. Change the respective objects at their respective property level! Remove a column-level constraint, `uniqueKey` for example, by simply deleting it. Change the column type, or update the `check` constraint, by simply overwriting it.
+**Now, you may change anything at any time by simply editing your schema in-place!** For example, you'd add a new table by simply extending the tables list; a new column by simply extending the columns list; a new constraint by simply extending the constraints list. You can go on to change the respective objects at their respective property level! For example, may remove a column-level constraint, `uniqueKey` for example, by simply deleting it; or change the column type, or update the `check` constraint, by simply overwriting it.
 
-> Changes are commited to your database at your next [`linkedql migrate`](#cmd-linkedql-migrate).
+*Changes are commited to your database at your next [`linkedql migrate`](#cmd-linkedql-migrate).*
 
-**Names may be changed, but not in-place!** A "rename" operation - whether on a database, a table, a column, or a constraint - needs both the old name and new name in place. You specificy a new name as a complementary property to the `name` property:
+**Names may be changed, but not in-place!** A "rename" operation - whether on a database object, a table object, a column object, a constraint object, or an index object - would need to be done by means of an extra property that serves as a complement to the `name` property:
 
-```json
+```js
 {
     "name": "old_name",
     "$name": "new_name"
 }
 ```
 
-> Your new name is picked up at your next [`linkedql migrate`](#cmd-linkedql-migrate), and the `$name` property automatically disappears.
+*Your new name is picked up at your next [`linkedql migrate`](#cmd-linkedql-migrate), and the `$name` property automatically disappears.*
 
 **Each `migrate` operation is automatically versioned and you can see that reflected in a `version` property for each database in your schema!** (The `version` property automatically appears for a database after the first `migrate` operation.) Now, you can roll back over a version, or over consecutive versions, at any time. And after rolling back, you can also roll forward; and that can be fun!
 
-> You may want to preview your destination savepoint using [`linkedql savepoints`](#cmd-linkedql-savepoints) before each [`linkedql rollback`](#cmd-linkedql-rollback).
+*You may want to preview your destination savepoint using [`linkedql savepoints`](#cmd-linkedql-savepoints) before each [`linkedql rollback`](#cmd-linkedql-rollback).*
 
 Interesting yet? You may want to learn more about [Linked QL's unique take on Schema as Code](#) as a paradigm and a practice.
 
@@ -473,8 +473,6 @@ This is the top-level object for the individual database kinds in Linked QL. Eac
 
 </details>
 
-<br>
-
 <details>
 <summary>Dynamically compose a <code>CREATE DATABASE</code> query.<br>
 <b><code>client.createDatabase(dbSchema: object[, options: object]): Promise&lt;Savepoint&gt;</code></b></summary>
@@ -505,8 +503,6 @@ This is the top-level object for the individual database kinds in Linked QL. Eac
 
 </details>
 
-<br>
-
 <details>
 <summary>Dynamically compose an <code>ALTER DATABASE</code> query.<br>
 <b><code>client.alterDatabase(altRequest: object, callback: (db: DatabaseSchema) => void, [, options: object]): Promise&lt;Savepoint&gt;</code></b></summary>
@@ -533,12 +529,9 @@ This is the top-level object for the individual database kinds in Linked QL. Eac
 
 </details>
 
-<br>
-
 <details>
 <summary>Dynamically compose a <code>DROP DATABASE</code> query.<br>
 <b><code>client.dropDatabase(dbName: string, [, options: object]): Promise&lt;Savepoint&gt;</code></b></summary>
-+ **`client.dropDatabase(dbName: string, [, options: object]): Promise<Savepoint>`**
 
 + `dbName` is the name of the DB to drop. `options` is, again, as described for `query()`, and return value is a `Savepoint` instance.
 
