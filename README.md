@@ -412,7 +412,7 @@ An index object:
 
 **Each `migrate` operation is automatically versioned and you can see that reflected in a `version` property for each database in your schema!** (The `version` property automatically appears for a database after the first `migrate` operation.) Now, you can roll back over a version, or over consecutive versions, at any time. And after rolling back, you can also roll forward!
 
-*You may use [`linkedql savepoints`](#cmd-linkedql-savepoints) to preview your next savepoint at each database before each [`linkedql rollback`](#cmd-linkedql-rollback).*
+*You may use [`linkedql savepoints`](#cmd-linkedql-savepoints) to preview the next savepoint at each database before each [`linkedql rollback`](#cmd-linkedql-rollback).*
 
 Interesting yet? You may want to learn more about [Linked QL's unique take on Schema as Code](#) as a paradigm and a practice.
 
