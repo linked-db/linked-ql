@@ -483,7 +483,7 @@ This is the top-level object for the individual database kinds in Linked QL. Eac
     const savepoint = await client.createDatabase({ name: 'database_1' }, { description: 'Just testing database creation' });
     ```
 
-    Any tables specified, as with a [database schema](#schemas), are created together.
+    Any tables specified, as with a [database schema](#schemajson), are created together.
 
     ```js
     const savepoint = await client.createDatabase({
