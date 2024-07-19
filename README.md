@@ -426,14 +426,16 @@ This is a quick overview of the Linked QL API.
 
 This is the top-level object for the individual database kinds in Linked QL. Each instance implements the following interface:
 
-+ [`client.query()`](#clientquery---run-any-sql-query)
-+ [`client.createDatabase()`](#clientcreatedatabase---dynamically-run-a-create-database-statement)
-+ [`client.alterDatabase()`](#clientalterdatabase---dynamically-run-an-alter-database-statement)
-+ [`client.dropDatabase()`](#clientdropdatabase---dynamically-run-a-drop-database-statement)
-+ [`client.hasDatabase()`](#clienthasdatabase---check-if-a-database-exists)
-+ [`client.describeDatabase()`](#clientdescribedatabase---get-the-schema-structure-for-a-database)
-+ [`client.databases()`](#clientdatabases---see-a-list-of-available-databases)
-+ [`client.database()`](#clientdatabase---obtain-a-database-instance)
++ [`client.query()`](#clientquery)
++ [`client.createDatabase()`](#clientcreatedatabase)
++ [`client.alterDatabase()`](#clientalterdatabase)
++ [`client.dropDatabase()`](#clientdropdatabase)
++ [`client.hasDatabase()`](#clienthasdatabase)
++ [`client.describeDatabase()`](#clientdescribedatabase)
++ [`client.databases()`](#clientdatabases)
++ [`client.database()`](#clientdatabase)
+
+<br>
 
 #### `client.query()`:
 
@@ -497,7 +499,7 @@ Dynamically run a <code>CREATE DATABASE</code> statement.
 
 *└ Spec:*
 + `dbSchema`: an object that corresponds to the [database JSON schema](#schemajson).
-+ `options`: as described in [`query()`](#clientquery---run-any-sql-query).
++ `options`: as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#object-savepoint) instance.
 
 ```js
@@ -533,7 +535,7 @@ Dynamically run an <code>ALTER DATABASE</code> statement.
 *└ Spec:*
 + `altRequest`: an object specifying the database whose schema is to be modified, and `tables` is an optional list of table names of which to include in the returned schema.
 + `callback`: a function that is called with the requested database schema. This can be async. Received object is a [`DatabaseSchema`](#object-databaseschema) instance.
-+`options`: as described in [`query()`](#clientquery---run-any-sql-query).
++`options`: as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#object-savepoint) instance.
 
 ```js
@@ -562,7 +564,7 @@ Dynamically run a <code>DROP DATABASE</code> statement.
 
 *└ Spec:*
 + `dbName`: the name of the database to drop.
-+ `options`: as described in [`query()`](#clientquery---run-any-sql-query).
++ `options`: as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#object-savepoint) instance.
 
 ```js
@@ -647,7 +649,17 @@ const database = client.database('database_1');
 
 ### Object: `Database`
 
-This is the object returned by [`client.database()`](#clientdatabase---obtain-a-database-instance)
+*Database* is the API for database-level operations. This object is obtained via [`client.database()`](#clientdatabase)
+
++ [`database.createTable()`](#databasecreatetable)
++ [`database.alterTable()`](#databasealtertable)
++ [`database.dropTable()`](#databasedroptable)
++ [`database.hasTable()`](#databasehastable)
++ [`database.describeTable()`](#databasedescribetable)
++ [`database.tables()`](#databasetables)
++ [`database.table()`](#databasetable)
+
+<br>
 
 #### `database.createTable()`:
 
@@ -657,7 +669,7 @@ Dynamically run a <code>CREATE TABLE</code> statement.
 
 *└ Spec:*
 + `tblSchema`: an object that corresponds to the [table JSON schema](#schemajson).
-+ `options`: as described in [`query()`](#clientquery---run-any-sql-query).
++ `options`: as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#object-savepoint) instance.
 
 ```js
