@@ -435,8 +435,6 @@ This is the top-level object for the individual database kinds in Linked QL. Eac
 + [`client.databases()`](#clientdatabases)
 + [`client.database()`](#clientdatabase)
 
-<br>
-
 #### `client.query()`:
 
 <details><summary>
@@ -465,7 +463,7 @@ const rows = await client.query('INSERT INTO users SET name = \'John Doe\' RETUR
 console.log(rows.length); // 1
 ```
 
-Now, `options` lets us pass additional parameters for the operation:
+Additional parameters that may be passed via `options`:
 
 + `dialect` for specifying the SQL dialect in use: `mysql` or `postgres` (the default). (Details soon as to how this is treated by Linked QL.)
 
@@ -518,11 +516,13 @@ const savepoint = await client.createDatabase({
 }, { description: 'Just testing database creation' });
 ```
 
-Now, `options` may also be used to pass the flag: `ifNotExists`.
+Additional parameters that may be passed via `options`:
 
-```js
-const savepoint = await client.createDatabase({ name: 'database_1' }, { ifNotExists: true, description: 'Just testing database creation' });
-```
++ `ifNotExists` to not bother if database already exists.
+
+    ```js
+    const savepoint = await client.createDatabase({ name: 'database_1' }, { ifNotExists: true, description: 'Just testing database creation' });
+    ```
 
 </details>
 
@@ -571,11 +571,19 @@ Dynamically run a <code>DROP DATABASE</code> statement.
 const savepoint = await client.dropDatabase('database_1', { description: 'Droping for testing purposes' });
 ```
 
-Now, `options` may also be used to pass the flags: `ifExists`, `cascade`.
+Additional parameters that may be passed via `options`:
 
-```js
-const savepoint = await client.createDatabase('database_1', { ifExists: true, cascade: true, description: 'Droping for testing purposes' });
-```
++ `ifExists` to not bother if database does not exist.
+
+    ```js
+    const savepoint = await client.createDatabase('database_1', { ifExists: true, description: 'Droping for testing purposes' });
+    ```
+
++ `cascade` to *cascade* to operation to dropping any dependent object.
+
+    ```js
+    const savepoint = await client.createDatabase('database_1', { cascade: true, description: 'Droping for testing purposes' });
+    ```
 
 </details>
 
@@ -659,8 +667,6 @@ const database = client.database('database_1');
 + [`database.tables()`](#databasetables)
 + [`database.table()`](#databasetable)
 
-<br>
-
 #### `database.createTable()`:
 
 <details><summary>
@@ -682,14 +688,16 @@ const savepoint = await database.createTable({
 }, { description: 'Just testing table creation' });
 ```
 
-Now, `options` may also be used to pass the flag: `ifNotExists`.
+Additional parameters that may be passed via `options`:
 
-```js
-const savepoint = await database.createTable({
-    name: 'table_1'
-    columns: [ ... ]
-}, { ifNotExists: true, description: 'Just testing table creation' });
-```
++ `ifNotExists` to not bother if table already exists.
+
+    ```js
+    const savepoint = await database.createTable({
+        name: 'table_1'
+        columns: [ ... ]
+    }, { ifNotExists: true, description: 'Just testing table creation' });
+    ```
 
 </details>
 
