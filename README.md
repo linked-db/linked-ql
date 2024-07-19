@@ -474,7 +474,7 @@ Now, `options` lets us pass additional parameters for the operation:
     ```js
     const rows = await client.query('SELECT * FROM users WHERE id = $1', { params: [4] });
     ```
-+ `description` for adding meaning to a `CREATE`, `ALTER`, `DROP` operation as will be seen in the savepoint associated with the operation.
++ `description` for describing the savepoint associated with a `CREATE`, `ALTER`, `DROP` operation.
 
     ```js
     const savepoint = await client.query('DROP DATABASE test', { description: 'No longer needed' });
@@ -482,7 +482,7 @@ Now, `options` lets us pass additional parameters for the operation:
 + `noCreateSavepoint` for preventing the default savepoint creation on `CREATE`, `ALTER`, `DROP` operations.
 
     ```js
-    const savepoint = await client.query('DROP DATABASE test', { noCreateSavepoint: true });
+    await client.query('DROP DATABASE test', { noCreateSavepoint: true });
     ```
 
 </details>
