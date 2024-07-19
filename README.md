@@ -431,7 +431,8 @@ This is the top-level object for the individual database kinds in Linked QL. Eac
 
 Description: *Run any SQL query.*
 
-+ `sql` is any SQL statement, and return value is a `Savepoint` instance for all `CREATE`, `ALTER`, `DROP` statements, then an `Array` of data objects for the `SELECT` statement, and for `INSERT`, `UPDATE`, and `DELETE` statements that specify a `RETURNING` clause.
++ `sql` is any SQL statement.
++ Return value is a `Savepoint` instance for all `CREATE`, `ALTER`, `DROP` statements, then an `Array` of data objects for the `SELECT` statement, and for `INSERT`, `UPDATE`, and `DELETE` statements that specify a `RETURNING` clause.
 
     ```js
     const savepoint = await client.query('ALTER TABLE users RENAME TO accounts');
@@ -478,12 +479,14 @@ Description: *Run any SQL query.*
 
 <details>
 <summary>
-<code>client.createDatabase(dbSchema: object[, options: object]): Promise&lt;Savepoint&gt;</code><br>
+<code>client.createDatabase(dbSchema: { name: string, tables?: Array }[, options: object]): Promise&lt;Savepoint&gt;</code><br>
 └─────</summary>
 
 Description: *Dynamically compose a <code>CREATE DATABASE</code> statement.*
 
-+ `dbSchema` is a [database schema](#schemajson), and `options` is as described in `query()`. Return value is a `Savepoint` instance.
++ `dbSchema` is the equivalent of the [database JSON schema](#schemajson).
++ `options` is as described in `query()`.
++ Return value is a `Savepoint` instance.
 
     ```js
     const savepoint = await client.createDatabase({ name: 'database_1' }, { description: 'Just testing database creation' });
@@ -511,14 +514,16 @@ Description: *Dynamically compose a <code>CREATE DATABASE</code> statement.*
 
 <details>
 <summary>
-<code>client.alterDatabase(altRequest: object, callback: (db: DatabaseSchema) => void, [, options: object]): Promise&lt;Savepoint&gt;</code><br>
+<code>client.alterDatabase(altRequest: { name: string, tables?: array }, callback: (db: DatabaseSchema) => void, [, options: object]): Promise&lt;Savepoint&gt;</code><br>
 └─────</summary>
 
 Description: *Dynamically compose an <code>ALTER DATABASE</code> statement.*
 
-+ `altRequest` is an object of the following form: `{ name: string, tables?: array }`, where `name` is the name of the DB object to return for modification and `tables` is an optional list of table objects to include in the returned object.
++ `altRequest` is an object specifying the database whose schema is to be modified, and `tables` is an optional list of tables to include in the returned schema.
 
-+ `callback` is a function that is called with the requested db object. This object is a *DatabaseSchema* instance. `options` is, again, as described in `query()`, and return value is a `Savepoint` instance.
++ `callback` is a function that is called with the requested database schema. This object is a [`DatabaseSchema`](#) instance.
++`options` is, again, as described in `query()`.
++ Return value is a `Savepoint` instance.
 
     ```js
     const savepoint = await client.alterDatabase({ name: 'database_1' }, db => {
@@ -545,18 +550,84 @@ Description: *Dynamically compose an <code>ALTER DATABASE</code> statement.*
 
 Description: *Dynamically compose a <code>DROP DATABASE</code> statement.*
 
-+ `dbName` is the name of the DB to drop. `options` is, again, as described for `query()`, and return value is a `Savepoint` instance.
++ `dbName` is the name of the database to drop.
++ `options` is, again, as described for `query()`.
++ Return value is a `Savepoint` instance.
 
     ```js
     const savepoint = await client.dropDatabase('database_1', { description: 'Droping for testing purposes' });
     ```
 
-    
 + `options` may also be used to pass the flags: `ifExists`, `cascade`.
 
     ```js
     const savepoint = await client.createDatabase('database_1', { ifExists: true, cascade: true, description: 'Droping for testing purposes' });
     ```
+
+</details>
+
+<details>
+<summary>
+<code>client.hasDatabase(dbName: string): Promise&lt;Boolean&gt;</code><br>
+└─────</summary>
+
+Description: *Check if a database exists*
+
++ `dbName` is the name of the database to check.
+
+    ```js
+    const exists = await client.hasDatabase('database_1');
+    ```
+
+</details>
+
+<details>
+<summary>
+<code>client.describeDatabase(dbName: string): Promise&lt;{ name: string, tables: Array }&gt;</code><br>
+└─────</summary>
+
+Description: *Get the schema structure for a database.*
+
++ `dbName` is the name of the database.
++ Return value is the equivalent of the [database JSON schema](#schemajson).
+
+    ```js
+    const schema = await client.describeDatabase('database_1');
+    console.log(schema.name);
+    console.log(schema.tables);
+    ```
+
+</details>
+
+<details>
+<summary>
+<code>client.databases(): Promise&lt;Array&lt;string&gt;&gt;</code><br>
+└─────</summary>
+
+Description: *See a list of available databases*
+
+    ```js
+    const databases = await client.databases();
+    console.log(databases); // ['public', 'database_1', ...]
+    ```
+
+</details>
+
+<details>
+<summary>
+<code>client.database(dbName: string, [, options: object]): Database</code><br>
+└─────</summary>
+
+Description: *Obtain a `Database` instance*
+
++ `dbName` is the name of the DB to instantiate.
++ Return value is a [`Database`](#object-database) instance.
+
+    ```js
+    const database = client.database('database_1');
+    ```
+
+### Object: `Database`
 
 </details>
 
