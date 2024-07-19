@@ -257,7 +257,7 @@ await savepoint.rollback();
 
 💥 *Have your entire DB structure live in a single `schema.json` file that you edit in-place!*
 
-With schema versioning now having become a database-level concern, the rest of the database story at the application level should rightly experience a disruption. Linked QL goes further to streamline your application's database footprint from spanning hundreds of migration files to fitting into a single `schema.json` file!
+With schema versioning now having been moved to the a database, the rest of the database story at the application level should now be revisited. Linked QL takes it further here to streamline your application's database footprint from spanning hundreds of migration files to fitting into a single `schema.json` file!
 
 ### `schema.json`
 
@@ -400,7 +400,7 @@ An index object:
 
 </details>
 
-**Now, you may simply edit any part of your schema in-place!** For example, you can add a new table by simply extending the tables list; a new column by simply extending the columns list; a new constraint by simply extending the constraints list. You can go on to change the respective objects at their respective property level! For example, you may remove a column-level constraint, `uniqueKey` for example, by simply deleting it; or change the column type, or update the `check` constraint, by simply overwriting it.
+**Now, you may simply edit any part of your schema in-place!** For example, you can add a new table by simply extending the tables list; a new column by simply extending the columns list; a new constraint by simply extending the constraints list. You can go on to change the respective objects at their respective property level! For example, you may remove a column-level constraint, say `uniqueKey`, by simply deleting it; or change the column type, or update the `check` constraint, by simply overwriting it.
 
 *Changes are commited to your database at your next [`linkedql migrate`](#cmd-linkedql-migrate).*
 
