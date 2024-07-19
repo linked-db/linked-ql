@@ -485,6 +485,8 @@ Now, `options` lets us pass additional parameters for the operation:
 
 </details>
 
+<br>
+
 #### `client.createDatabase()` - *Dynamically run a `CREATE DATABASE` statement.*
 
 <details><summary><code>client.createDatabase(dbSchema: { name: string, tables?: Array }[, options: object]): Promise&lt;Savepoint&gt;</code></summary>
@@ -518,6 +520,8 @@ const savepoint = await client.createDatabase({ name: 'database_1' }, { ifNotExi
 
 </details>
 
+<br>
+
 #### `client.alterDatabase()` - *Dynamically run an `ALTER DATABASE` statement.*
 
 <details><summary><code>client.alterDatabase(altRequest: { name: string, tables?: array }, callback: (db: DatabaseSchema) => void, [, options: object]): Promise&lt;Savepoint&gt;</code></summary>
@@ -546,6 +550,8 @@ const savepoint = await client.alterDatabase({ name: 'database_1', tables: ['tab
 
 </details>
 
+<br>
+
 #### `client.dropDatabase()` - *Dynamically run a `DROP DATABASE` statement.*
 
 <details><summary><code>client.dropDatabase(dbName: string, [, options: object]): Promise&lt;Savepoint&gt;</code></summary>
@@ -567,6 +573,8 @@ const savepoint = await client.createDatabase('database_1', { ifExists: true, ca
 
 </details>
 
+<br>
+
 #### `client.hasDatabase()` - *Check if a database exists.*
 
 <details><summary><code>client.hasDatabase(dbName: string): Promise&lt;Boolean&gt;</code></summary>
@@ -580,6 +588,8 @@ const exists = await client.hasDatabase('database_1');
 ```
 
 </details>
+
+<br>
 
 #### `client.describeDatabase()` - *Get the schema structure for a database.*
 
@@ -597,6 +607,8 @@ console.log(schema.tables);
 
 </details>
 
+<br>
+
 #### `client.databases()` - *See a list of available databases.*
 
 <details><summary><code>client.databases(): Promise&lt;Array&lt;string&gt;&gt;</code></summary>
@@ -611,6 +623,8 @@ console.log(databases); // ['public', 'database_1', ...]
 
 </details>
 
+<br>
+
 #### `client.database()` - *Obtain a `Database` instance*
 
 <details><summary><code>client.database(dbName: string, [, options: object]): Database</code></summary>
@@ -622,6 +636,8 @@ console.log(databases); // ['public', 'database_1', ...]
 ```js
 const database = client.database('database_1');
 ```
+
+<br>
 
 ### Object: `Database`
 
