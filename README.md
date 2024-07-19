@@ -424,192 +424,172 @@ This is a quick overview of the Linked QL API.
 
 This is the top-level object for the individual database kinds in Linked QL. Each instance implements the following interface:
 
-<details>
-<summary>
-<code>client.query(sql: string[, options: object]): Promise&lt;Savepoint | Array&lt;&gt;&gt;</code><br>
-└─────</summary>
+#### `client.query()` - *Run any SQL query.*
 
-Description: *Run any SQL query.*
+<details><summary><code>client.query(sql: string[, options: object]): Promise&lt;Savepoint | Array&lt;object&gt;&gt;</code></summary>
 
 + `sql` is any SQL statement.
-+ Return value is a `Savepoint` instance for all `CREATE`, `ALTER`, `DROP` statements, then an `Array` of data objects for the `SELECT` statement, and for `INSERT`, `UPDATE`, and `DELETE` statements that specify a `RETURNING` clause.
++ `options` is an optional object for passing additional parameters for the operation.
++ Return value is a [`Savepoint`](#object-savepoint) instance for all `CREATE`, `ALTER`, `DROP` statements, then an `Array` of data objects for the `SELECT` statement and for any `INSERT`, `UPDATE`, and `DELETE` statements that specify a `RETURNING` clause.
+
+```js
+const savepoint = await client.query('ALTER TABLE users RENAME TO accounts');
+console.log(savepoint.versionTag); // Number
+
+await savepoint.rollback(); // true
+```
+
+```js
+const rows = await client.query('SELECT * FROM users WHERE id = 4');
+console.log(rows.length); // 1
+```
+
+```js
+const rows = await client.query('INSERT INTO users SET name = \'John Doe\' RETURNING id');
+console.log(rows.length); // 1
+```
+
+`options` lets us pass additional parameters for the operation:
+
++ `dialect` for specifying the SQL dialect in use: `mysql` or `postgres` (the default). (Details soon as to how this is treated by Linked QL.)
 
     ```js
-    const savepoint = await client.query('ALTER TABLE users RENAME TO accounts');
-    console.log(savepoint.versionTag); // Number
-    
-    await savepoint.rollback(); // true
+    // Unlock certain dialect-specific clauses or conventions
+    const rows = await client.query('ALTER TABLE users MODIFY COLUMN id int', { dialect: 'mysql' });
     ```
++ `params` for passing in values for any parameters used in the query.
 
     ```js
-    const rows = await client.query('SELECT * FROM users WHERE id = 4');
-    console.log(rows.length); // 1
+    const rows = await client.query('SELECT * FROM users WHERE id = $1', { params: [4] });
     ```
++ `description` for adding meaning to a `CREATE`, `ALTER`, `DROP` operation as will be seen in the savepoint associated with the operation.
 
     ```js
-    const rows = await client.query('INSERT INTO users SET name = \'John Doe\' RETURNING id');
-    console.log(rows.length); // 1
+    const savepoint = await client.query('DROP DATABASE test', { description: 'No longer needed' });
     ```
++ `noCreateSavepoint` for preventing the default savepoint creation on `CREATE`, `ALTER`, `DROP` operations.
 
-+ `options` is optional and can be used to specify:
-
-    + `dialect` for specifying the SQL dialect in use: `mysql` or `postgres` (the default). (Details soon as to this is treated by Linked QL.)
-
-        ```js
-        // Unlock certain dialect-specific clauses or conventions
-        const rows = await client.query('ALTER TABLE users MODIFY COLUMN id int', { dialect: 'mysql' });
-        ```
-    + `params` for passing in values for any parameters used in the query.
-
-        ```js
-        const rows = await client.query('SELECT * FROM users WHERE id = $1', { params: [4] });
-        ```
-    + `description` for adding meaning to a `CREATE`, `ALTER`, `DROP` operation, as will be seen in the savepoint created.
-
-        ```js
-        const savepoint = await client.query('DROP DATABASE test', { description: 'No longer needed' });
-        ```
-    + `noCreateSavepoint` for preventing the default savepoint creation on `CREATE`, `ALTER`, `DROP` operations.
-
-        ```js
-        const savepoint = await client.query('DROP DATABASE test', { noCreateSavepoint: true });
-        ```
+    ```js
+    const savepoint = await client.query('DROP DATABASE test', { noCreateSavepoint: true });
+    ```
 
 </details>
 
-<details>
-<summary>
-<code>client.createDatabase(dbSchema: { name: string, tables?: Array }[, options: object]): Promise&lt;Savepoint&gt;</code><br>
-└─────</summary>
+#### `client.createDatabase()` - *Run a dynamically-composed `CREATE DATABASE` statement.*
 
-Description: *Dynamically compose a <code>CREATE DATABASE</code> statement.*
+<details><summary><code>client.createDatabase(dbSchema: { name: string, tables?: Array }[, options: object]): Promise&lt;Savepoint&gt;</code></summary>
 
 + `dbSchema` is the equivalent of the [database JSON schema](#schemajson).
-+ `options` is as described in `query()`.
-+ Return value is a `Savepoint` instance.
++ `options` is as described in [`query()`](#clientquery---run-any-sql-query).
++ Return value is a [`Savepoint`](#object-savepoint) instance.
 
-    ```js
-    const savepoint = await client.createDatabase({ name: 'database_1' }, { description: 'Just testing database creation' });
-    ```
+```js
+const savepoint = await client.createDatabase({ name: 'database_1' }, { description: 'Just testing database creation' });
+```
 
-    Any tables specified, as with a [database schema](#schemajson), are created together.
+Any tables specified, as with a [database schema](#schemajson), are created together.
 
-    ```js
-    const savepoint = await client.createDatabase({
-        name: 'database_1',
-        tables: [{
-            name: 'table_1'
-            columns: [{ name: 'column_1', type: 'INT' }, { name: 'column_2', type: 'time' }]
-        }]
-    }, { description: 'Just testing database creation' });
-    ```
+```js
+const savepoint = await client.createDatabase({
+    name: 'database_1',
+    tables: [{
+        name: 'table_1'
+        columns: [{ name: 'column_1', type: 'INT' }, { name: 'column_2', type: 'time' }]
+    }]
+}, { description: 'Just testing database creation' });
+```
 
-+ `options` may also be used to pass the flag: `ifNotExists`.
+`options` may also be used to pass the flag: `ifNotExists`.
 
-    ```js
-    const savepoint = await client.createDatabase({ name: 'database_1' }, { ifNotExists: true, description: 'Just testing database creation' });
-    ```
-
-</details>
-
-<details>
-<summary>
-<code>client.alterDatabase(altRequest: { name: string, tables?: array }, callback: (db: DatabaseSchema) => void, [, options: object]): Promise&lt;Savepoint&gt;</code><br>
-└─────</summary>
-
-Description: *Dynamically compose an <code>ALTER DATABASE</code> statement.*
-
-+ `altRequest` is an object specifying the database whose schema is to be modified, and `tables` is an optional list of tables to include in the returned schema.
-
-+ `callback` is a function that is called with the requested database schema. This object is a [`DatabaseSchema`](#) instance.
-+`options` is, again, as described in `query()`.
-+ Return value is a `Savepoint` instance.
-
-    ```js
-    const savepoint = await client.alterDatabase({ name: 'database_1' }, db => {
-        db.name('database_1_new');
-    }, { description: 'Renaming for testing purposes' });
-    ```
-
-    Any tables specified in the input request can be accessed and altered.
-
-    ```js
-    const savepoint = await client.alterDatabase({ name: 'database_1', tables: ['table_1'] }, db => {
-        db.name('database_1_new');
-        db.table('table_1').column('column_1').name('column_1_new');
-        db.table('table_1').column('column_2').type('varchar');
-    }, { description: 'Renaming for testing purposes' });
-    ```
+```js
+const savepoint = await client.createDatabase({ name: 'database_1' }, { ifNotExists: true, description: 'Just testing database creation' });
+```
 
 </details>
 
-<details>
-<summary>
-<code>client.dropDatabase(dbName: string, [, options: object]): Promise&lt;Savepoint&gt;</code><br>
-└─────</summary>
+#### `client.alterDatabase()` - *Run a dynamically-composed `ALTER DATABASE` statement.*
 
-Description: *Dynamically compose a <code>DROP DATABASE</code> statement.*
+<details><summary><code>client.alterDatabase(altRequest: { name: string, tables?: array }, callback: (db: DatabaseSchema) => void, [, options: object]): Promise&lt;Savepoint&gt;</code></summary>
+
++ `altRequest` is an object specifying the database whose schema is to be modified, and `tables` is an optional list of table names of which to include in the returned schema.
+
++ `callback` is a function that is called with the requested database schema. This can be async. Received object is a [`DatabaseSchema`](#object-databaseschema) instance.
++`options` is as described in [`query()`](#clientquery---run-any-sql-query).
++ Return value is a [`Savepoint`](#object-savepoint) instance.
+
+```js
+const savepoint = await client.alterDatabase({ name: 'database_1' }, db => {
+    db.name('database_1_new');
+}, { description: 'Renaming for testing purposes' });
+```
+
+Any tables specified in the input request can be accessed and altered.
+
+```js
+const savepoint = await client.alterDatabase({ name: 'database_1', tables: ['table_1'] }, db => {
+    db.name('database_1_new');
+    db.table('table_1').column('column_1').name('column_1_new');
+    db.table('table_1').column('column_2').type('varchar');
+}, { description: 'Renaming for testing purposes' });
+```
+
+</details>
+
+#### `client.dropDatabase()` - *Run a dynamically-composed `DROP DATABASE` statement.*
+
+<details><summary><code>client.dropDatabase(dbName: string, [, options: object]): Promise&lt;Savepoint&gt;</code></summary>
 
 + `dbName` is the name of the database to drop.
-+ `options` is, again, as described for `query()`.
-+ Return value is a `Savepoint` instance.
++ `options` is as described in [`query()`](#clientquery---run-any-sql-query).
++ Return value is a [`Savepoint`](#object-savepoint) instance.
 
-    ```js
-    const savepoint = await client.dropDatabase('database_1', { description: 'Droping for testing purposes' });
-    ```
+```js
+const savepoint = await client.dropDatabase('database_1', { description: 'Droping for testing purposes' });
+```
 
-+ `options` may also be used to pass the flags: `ifExists`, `cascade`.
+`options` may also be used to pass the flags: `ifExists`, `cascade`.
 
-    ```js
-    const savepoint = await client.createDatabase('database_1', { ifExists: true, cascade: true, description: 'Droping for testing purposes' });
-    ```
+```js
+const savepoint = await client.createDatabase('database_1', { ifExists: true, cascade: true, description: 'Droping for testing purposes' });
+```
 
 </details>
 
-<details>
-<summary>
-<code>client.hasDatabase(dbName: string): Promise&lt;Boolean&gt;</code><br>
-└─────</summary>
+#### `client.hasDatabase()` - *Check if a database exists.*
 
-Description: *Check if a database exists*
+<details><summary><code>client.hasDatabase(dbName: string): Promise&lt;Boolean&gt;</code></summary>
 
 + `dbName` is the name of the database to check.
 
-    ```js
-    const exists = await client.hasDatabase('database_1');
-    ```
+```js
+const exists = await client.hasDatabase('database_1');
+```
 
 </details>
 
-<details>
-<summary>
-<code>client.describeDatabase(dbName: string): Promise&lt;{ name: string, tables: Array }&gt;</code><br>
-└─────</summary>
+#### `client.hasDatabase()` - *Get the schema structure for a database.*
 
-Description: *Get the schema structure for a database.*
+<details><summary><code>client.describeDatabase(dbName: string): Promise&lt;{ name: string, tables: Array }&gt;</code></summary>
 
 + `dbName` is the name of the database.
 + Return value is the equivalent of the [database JSON schema](#schemajson).
 
-    ```js
-    const schema = await client.describeDatabase('database_1');
-    console.log(schema.name);
-    console.log(schema.tables);
-    ```
+```js
+const schema = await client.describeDatabase('database_1');
+console.log(schema.name);
+console.log(schema.tables);
+```
 
 </details>
 
-<details>
-<summary>
-<code>client.databases(): Promise&lt;Array&lt;string&gt;&gt;</code><br>
-└─────</summary>
+#### `client.databases()` - *See a list of available databases.*
 
-Description: *See a list of available databases*
+<details><summary><code>client.databases(): Promise&lt;Array&lt;string&gt;&gt;</code></summary>
 
-    ```js
-    const databases = await client.databases();
-    console.log(databases); // ['public', 'database_1', ...]
-    ```
+```js
+const databases = await client.databases();
+console.log(databases); // ['public', 'database_1', ...]
+```
 
 </details>
 
