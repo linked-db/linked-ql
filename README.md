@@ -180,13 +180,15 @@ app
   ├── migrations
     ├── 20240523_1759_create_users_table_and_drop_accounts_table.extension
     │
-    │   │ UP                                       │ DOWN
+    │   │                                       UP │ DOWN
+    │   ├──────────────────────────────────────────┼────────────────────────────────────
     │   │ CREATE TABLE users (id INT, first_n...); │ DROP TABLE users;
     │   │ DROP TABLE accounts;                     │ CREATE TABLE accounts (id INT, first_name VAR...);
     │
     ├── 20240523_1760_add_last_login_to_users_table_and_rename_order_status_table.extension
     │
-    │   │ UP                                       │ DOWN
+    │   │                                       UP │ DOWN
+    │   ├──────────────────────────────────────────┼────────────────────────────────────
     │   │ ALTER TABLE users ADD COLUMN last_lo...; │ ALTER TABLE users DROP COLUMN last_login;
     │   │ ALTER TABLE order_status RENAME TO o...; │ ALTER TABLE order_tracking RENAME TO order_status;
     │
