@@ -433,7 +433,7 @@ This is the top-level object for the individual database kinds in Linked QL. Eac
 + [`client.databases()`](#clientdatabases---see-a-list-of-available-databases)
 + [`client.database()`](#clientdatabase---obtain-a-database-instance)
 
-------------
+<br>
 
 #### `client.query()` - *Run any SQL query.*
 
@@ -640,6 +640,8 @@ const database = client.database('database_1');
 ```
 
 </details>
+
+------------
 
 <br>
 
