@@ -437,7 +437,7 @@ This is the top-level object for the individual database kinds in Linked QL. Eac
 
 #### `client.query()` - *Run any SQL query.*
 
-<details><summary><code>client.query(sql: string[, options: object]): Promise&lt;Savepoint | Array&lt;object&gt;&gt;</code></summary>
+<details><summary><code>client.query(sql: string[, options: Options]): Promise&lt;Savepoint | Array&lt;object&gt;&gt;</code></summary>
 
 *└ Spec:*
 + `sql`: any SQL statement.
@@ -491,7 +491,7 @@ Now, `options` lets us pass additional parameters for the operation:
 
 #### `client.createDatabase()` - *Dynamically run a `CREATE DATABASE` statement.*
 
-<details><summary><code>client.createDatabase(dbSchema: { name: string, tables?: Array }[, options: object]): Promise&lt;Savepoint&gt;</code></summary>
+<details><summary><code>client.createDatabase(dbSchema: { name: string, tables?: Array }[, options: Options]): Promise&lt;Savepoint&gt;</code></summary>
 
 *└ Spec:*
 + `dbSchema`: the equivalent of the [database JSON schema](#schemajson).
@@ -526,7 +526,7 @@ const savepoint = await client.createDatabase({ name: 'database_1' }, { ifNotExi
 
 #### `client.alterDatabase()` - *Dynamically run an `ALTER DATABASE` statement.*
 
-<details><summary><code>client.alterDatabase(altRequest: { name: string, tables?: array }, callback: (db: DatabaseSchema) => void[, options: object]): Promise&lt;Savepoint&gt;</code></summary>
+<details><summary><code>client.alterDatabase(altRequest: { name: string, tables?: array }, callback: (db: DatabaseSchema) => void[, options: Options]): Promise&lt;Savepoint&gt;</code></summary>
 
 *└ Spec:*
 + `altRequest`: an object specifying the database whose schema is to be modified, and `tables` is an optional list of table names of which to include in the returned schema.
@@ -556,7 +556,7 @@ const savepoint = await client.alterDatabase({ name: 'database_1', tables: ['tab
 
 #### `client.dropDatabase()` - *Dynamically run a `DROP DATABASE` statement.*
 
-<details><summary><code>client.dropDatabase(dbName: string[, options: object]): Promise&lt;Savepoint&gt;</code></summary>
+<details><summary><code>client.dropDatabase(dbName: string[, options: Options]): Promise&lt;Savepoint&gt;</code></summary>
 
 *└ Spec:*
 + `dbName`: the name of the database to drop.
@@ -629,7 +629,7 @@ console.log(databases); // ['public', 'database_1', ...]
 
 #### `client.database()` - *Obtain a `Database` instance*
 
-<details><summary><code>client.database(dbName: string, [, options: object]): Database</code></summary>
+<details><summary><code>client.database(dbName: string[, options: Options]): Database</code></summary>
 
 *└ Spec:*
 + `dbName`: the name of the DB to instantiate.
