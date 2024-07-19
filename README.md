@@ -418,7 +418,7 @@ Interesting yet? You may want to learn more about [Linked QL's unique take on Sc
 
 ## API
 
-This is a quick overview of the Linked QL API.
+This is a quick overview of the Linked QL API. Click on each method definition for details.
 
 ------------
 
@@ -624,7 +624,7 @@ console.log(schema.tables);
 #### `client.databases()`:
 
 <details><summary>
-See a list of available databases.
+Get a list of available databases.
 <pre><code>client.databases(): Promise&lt;Array&lt;string&gt;&gt;</code></pre></summary>
 
 *└ Spec:*
@@ -640,7 +640,7 @@ console.log(databases); // ['public', 'database_1', ...]
 #### `client.database()`:
 
 <details><summary>
-Obtain a <code>Database</code> instance
+Obtain a <code>Database</code> instance.
 <pre><code>client.database(dbName: string[, options: Options]): Database</code></pre></summary>
 
 *└ Spec:*
@@ -666,6 +666,7 @@ const database = client.database('database_1');
 + [`database.describeTable()`](#databasedescribetable)
 + [`database.tables()`](#databasetables)
 + [`database.table()`](#databasetable)
++ [`database.savepoint()`](#databasesavepoint)
 
 #### `database.createTable()`:
 
@@ -789,7 +790,7 @@ console.log(schema.columns);
 #### `database.tables()`:
 
 <details><summary>
-See a list of available tables.
+Get a list of available tables.
 <pre><code>database.tables(): Promise&lt;Array&lt;string&gt;&gt;</code></pre></summary>
 
 *└ Spec:*
@@ -805,7 +806,7 @@ console.log(tables); // ['table_1', 'table_2', ...]
 #### `database.table()`:
 
 <details><summary>
-Obtain a <code>Table</code> instance
+Obtain a <code>Table</code> instance.
 <pre><code>database.table(tblName: string[, options: Options]): Table</code></pre></summary>
 
 *└ Spec:*
@@ -815,6 +816,36 @@ Obtain a <code>Table</code> instance
 ```js
 const table = database.table('table_1');
 ```
+
+</details>
+
+#### `database.savepoint()`:
+
+<details><summary>
+Obtain the next *savepoint* for the database.
+<pre><code>database.savepoint([options: Options]): Savepoint</code></pre></summary>
+
+*└ Spec:*
++ `options`: optional extra paramters for the method.
++ Return value: a [`Savepoint`](#object-savepoint) instance.
+
+```js
+const savepoint = await database.savepoint();
+console.log(savepoint.versionTag); // Number
+
+await savepoint.rollback(); // true
+```
+
+Additional parameters that may be passed via `options`:
+
++ `direction` which may be either of `backward` (the default) or `forward`.
+
+    ```js
+    const savepoint = await database.savepoint({ direction: 'forward' });
+    console.log(savepoint.versionTag); // Number
+
+    await savepoint.rollback(); // true
+    ```
 
 </details>
 
