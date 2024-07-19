@@ -420,7 +420,7 @@ Interesting yet? You may want to learn more about [Linked QL's unique take on Sc
 
 This is a quick overview of the Linked QL API.
 
-<br>
+------------
 
 ### Object: `Client`
 
@@ -434,8 +434,6 @@ This is the top-level object for the individual database kinds in Linked QL. Eac
 + [`client.describeDatabase()`](#clientdescribedatabase---get-the-schema-structure-for-a-database)
 + [`client.databases()`](#clientdatabases---see-a-list-of-available-databases)
 + [`client.database()`](#clientdatabase---obtain-a-database-instance)
-
-------------
 
 #### `client.query()`:
 
@@ -491,8 +489,6 @@ Now, `options` lets us pass additional parameters for the operation:
 
 </details>
 
-------------
-
 #### `client.createDatabase()`:
 
 <details><summary>
@@ -528,8 +524,6 @@ const savepoint = await client.createDatabase({ name: 'database_1' }, { ifNotExi
 
 </details>
 
-------------
-
 #### `client.alterDatabase()`:
 
 <details><summary>
@@ -560,8 +554,6 @@ const savepoint = await client.alterDatabase({ name: 'database_1', tables: ['tab
 
 </details>
 
-------------
-
 #### `client.dropDatabase()`:
 
 <details><summary>
@@ -585,8 +577,6 @@ const savepoint = await client.createDatabase('database_1', { ifExists: true, ca
 
 </details>
 
-------------
-
 #### `client.hasDatabase()`:
 
 <details><summary>
@@ -602,8 +592,6 @@ const exists = await client.hasDatabase('database_1');
 ```
 
 </details>
-
-------------
 
 #### `client.describeDatabase()`:
 
@@ -623,8 +611,6 @@ console.log(schema.tables);
 
 </details>
 
-------------
-
 #### `client.databases()`:
 
 <details><summary>
@@ -640,8 +626,6 @@ console.log(databases); // ['public', 'database_1', ...]
 ```
 
 </details>
-
-------------
 
 #### `client.database()`:
 
@@ -661,13 +645,9 @@ const database = client.database('database_1');
 
 ------------
 
-<br>
-
 ### Object: `Database`
 
 This is the object returned by [`client.database()`](#clientdatabase---obtain-a-database-instance)
-
-------------
 
 #### `database.createTable()`:
 
