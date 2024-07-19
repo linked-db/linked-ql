@@ -276,8 +276,6 @@ Database objects:
 ]
 ```
 
-<details>
-
 A table object:
 
 ```js
