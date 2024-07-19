@@ -442,7 +442,7 @@ Run any SQL query.
 <pre><code>client.query(sql: string[, options: Options]): Promise&lt;Savepoint | Array&lt;object&gt;&gt;</code></pre></summary>
 
 *└ Spec:*
-+ `sql`: a string of an SQL query.
++ `sql`: an SQL string.
 + `options`: optional extra parameters for the query.
 + Return value: a [`Savepoint`](#the-savepoint-api) instance for all `CREATE`, `ALTER`, `DROP` queries, then an `Array` of data objects for `SELECT` queries and for any `INSERT`, `UPDATE`, and `DELETE` queries with a `RETURNING` clause.
 
