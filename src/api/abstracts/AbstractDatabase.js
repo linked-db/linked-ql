@@ -75,15 +75,15 @@ export default class AbstractDatabase {
     /**
      * Composes a CREATE TABLE query from descrete inputs
      * 
-     * @param Object            tblSchema
+     * @param Object            createSpec
      * @param Object            params
      * 
      * @return Savepoint
      */
-    async createTable(tblSchema, params = {}) {
-        if (typeof tblSchema?.name !== 'string') throw new Error(`createTable() called with invalid arguments.`);
+    async createTable(createSpec, params = {}) {
+        if (typeof createSpec?.name !== 'string') throw new Error(`createTable() called with invalid arguments.`);
         // -- Compose an schemaInstamce from request
-        const schemaInstamce = CreateTable.fromJson(this, tblSchema);
+        const schemaInstamce = CreateTable.fromJson(this, createSpec);
         if (params.ifNotExists) schemaInstamce.withFlag('IF_NOT_EXISTS');
         return this.client.query(schemaInstamce, params);
     }

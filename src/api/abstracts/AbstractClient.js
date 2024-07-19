@@ -79,16 +79,16 @@ export default class AbstractClient {
     /**
      * Composes a CREATE DATABASE query from descrete inputs
      * 
-     * @param Object|String  dbSchema
+     * @param String|Object  createSpec
      * @param Object         params
      * 
      * @return Savepoint
      */
-    async createDatabase(dbSchema, params = {}) {
-        if (typeof dbSchema === 'string') { dbSchema = { name: dbSchema }; }
-        else if (typeof dbSchema?.name !== 'string') throw new Error(`createDatabase() called with invalid arguments.`);
+    async createDatabase(createSpec, params = {}) {
+        if (typeof createSpec === 'string') { createSpec = { name: createSpec }; }
+        else if (typeof createSpec?.name !== 'string') throw new Error(`createDatabase() called with invalid arguments.`);
         // -- Compose an schemaInstamce from request
-        const schemaInstamce = CreateDatabase.fromJson(this, dbSchema);
+        const schemaInstamce = CreateDatabase.fromJson(this, createSpec);
         if (params.ifNotExists) schemaInstamce.withFlag('IF_NOT_EXISTS');
         return await this.query(schemaInstamce, params);
     }
@@ -96,18 +96,18 @@ export default class AbstractClient {
     /**
      * Composes an ALTER DATABASE query from descrete inputs
      * 
-     * @param Object|String   altRequest
+     * @param String|Object   alterSpec
      * @param Function        callback
      * @param Object          params
      * 
      * @return Savepoint
      */
-    async alterDatabase(altRequest, callback, params = {}) {
+    async alterDatabase(alterSpec, callback, params = {}) {
         if (typeof callback !== 'function') throw new Error(`alterDatabase() called with invalid arguments.`);
-        if (typeof altRequest === 'string') { altRequest = { name: altRequest }; }
-        else if (typeof altRequest?.name !== 'string') throw new Error(`alterDatabase() called with invalid arguments.`);
+        if (typeof alterSpec === 'string') { alterSpec = { name: alterSpec }; }
+        else if (typeof alterSpec?.name !== 'string') throw new Error(`alterDatabase() called with invalid arguments.`);
         // -- Compose an altInstance from request
-        const schemaJson = await this.describeDatabase(altRequest.name, altRequest.tables);
+        const schemaJson = await this.describeDatabase(alterSpec.name, alterSpec.tables);
         const schemaInstance = CreateDatabase.fromJson(this, schemaJson).keep(true, true);
         await callback(schemaInstance);
         const altInstance = schemaInstance.getAlt().with({ resultSchema: schemaInstance });
