@@ -212,6 +212,9 @@ const savepoint = await client.query('CREATE TABLE public.users (id int, name va
 // Inspect the automatic savepoint created for you
 console.table(savepoint.toJson());
 ```
+
+<details><summary>Show console</summary>
+
 >
 > | Key               | Value                    |
 > | :---------------- | :------                  |
@@ -219,6 +222,8 @@ console.table(savepoint.toJson());
 > | version_tag       | 1                        |
 > | savepoint_date    | 2024-07-17T22:40:56.786Z |
 > | *+6 more rows...* |                          |
+
+</details>
 
 ✨ PRO: *DB versioning concerns are now essentially taken out of the client application - to the DB itself; and with zero upfront setup!*
 
