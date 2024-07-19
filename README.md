@@ -516,7 +516,7 @@ Description: *Dynamically compose a <code>CREATE DATABASE</code> statement.*
 
 Description: *Dynamically compose an <code>ALTER DATABASE</code> statement.*
 
-+ `altRequest` is an object of the following form: `{ name: string, tables?: array }`, where name is the name of the DB object to return for *alter* and tables is an optional list of table objects to include in the returned object.
++ `altRequest` is an object of the following form: `{ name: string, tables?: array }`, where `name` is the name of the DB object to return for modification and `tables` is an optional list of table objects to include in the returned object.
 
 + `callback` is a function that is called with the requested db object. This object is a *DatabaseSchema* instance. `options` is, again, as described in `query()`, and return value is a `Savepoint` instance.
 
