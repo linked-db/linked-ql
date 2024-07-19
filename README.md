@@ -533,9 +533,9 @@ Dynamically run an <code>ALTER DATABASE</code> statement.
 <pre><code>client.alterDatabase(altRequest: { name: string, tables?: array }, callback: (db: DatabaseSchema) => void[, options: Options]): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 *└ Spec:*
-+ `altRequest`: an object specifying the database whose schema is to be modified, and `tables` is an optional list of table names of which to include in the returned schema.
++ `altRequest`: an object specifying the database whose schema is to be modified, where `tables` is an optional list of table names of which to include in the returned schema.
 + `callback`: a function that is called with the requested database schema. This can be async. Received object is a [`DatabaseSchema`](#object-databaseschema) instance.
-+`options`: as described in [`query()`](#clientquery).
++ `options`: as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#object-savepoint) instance.
 
 ```js
@@ -576,13 +576,13 @@ Additional parameters that may be passed via `options`:
 + `ifExists` to not bother if database does not exist.
 
     ```js
-    const savepoint = await client.createDatabase('database_1', { ifExists: true, description: 'Droping for testing purposes' });
+    const savepoint = await client.dropDatabase('database_1', { ifExists: true, description: 'Droping for testing purposes' });
     ```
 
-+ `cascade` to *cascade* to operation to dropping any dependent object.
++ `cascade` to *cascade* the operation to include the database's dependent objects.
 
     ```js
-    const savepoint = await client.createDatabase('database_1', { cascade: true, description: 'Droping for testing purposes' });
+    const savepoint = await client.dropDatabase('database_1', { cascade: true, description: 'Droping for testing purposes' });
     ```
 
 </details>
@@ -700,6 +700,127 @@ Additional parameters that may be passed via `options`:
     ```
 
 </details>
+
+#### `database.alterTable()`:
+
+<details><summary>
+Dynamically run an <code>ALTER TABLE</code> statement.
+<pre><code>database.alterTable(tblName: string, callback: (db: TableSchema) => void[, options: Options]): Promise&lt;Savepoint&gt;</code></pre></summary>
+
+*└ Spec:*
++ `tblName`: the table whose schema is to be modified.
++ `callback`: a function that is called with the requested table schema. This can be async. Received object is a [`TableSchema`](#object-tableschema) instance.
++ `options`: as described in [`query()`](#clientquery).
++ Return value: a [`Savepoint`](#object-savepoint) instance.
+
+```js
+const savepoint = await database.alterTable('table_1', tbl => {
+    tbl.name('table_1_new');
+}, { description: 'Renaming for testing purposes' });
+```
+
+</details>
+
+#### `database.dropTable()`:
+
+<details><summary>
+Dynamically run a <code>DROP TABLE</code> statement.
+<pre><code>database.dropTable(tblName: string[, options: Options]): Promise&lt;Savepoint&gt;</code></pre></summary>
+
+*└ Spec:*
++ `tblName`: the name of the table to drop.
++ `options`: as described in [`query()`](#clientquery).
++ Return value: a [`Savepoint`](#object-savepoint) instance.
+
+```js
+const savepoint = await database.dropTable('table_1', { description: 'Droping for testing purposes' });
+```
+
+Additional parameters that may be passed via `options`:
+
++ `ifExists` to not bother if table does not exist.
+
+    ```js
+    const savepoint = await database.dropTable('table_1', { ifExists: true, description: 'Droping for testing purposes' });
+    ```
+
++ `cascade` to *cascade* the operation to invlove the table's dependents.
+
+    ```js
+    const savepoint = await database.dropTable('table_1', { cascade: true, description: 'Droping for testing purposes' });
+    ```
+
+</details>
+
+#### `database.hasTable()`:
+
+<details><summary>
+Check if a table exists.
+<pre><code>database.hasTable(tblName: string): Promise&lt;Boolean&gt;</code></pre></summary>
+
+*└ Spec:*
++ `tblName`: the name of the table to check.
++ Return value: a Boolean.
+
+```js
+const exists = await database.hasTable('database_1');
+```
+
+</details>
+
+#### `database.describeTable()`:
+
+<details><summary>
+Get the schema structure for a table.
+<pre><code>database.describeTable(tblName: string): Promise&lt;{ name: string, columns: Array, constraints: Array, indexes: Array }&gt;</code></pre></summary>
+
+*└ Spec:*
++ `tblName`: the name of the table.
++ Return value: an object that corresponds to the [Table JSON schema](#schemajson).
+
+```js
+const schema = await database.describeTable('table_1');
+console.log(schema.name);
+console.log(schema.columns);
+```
+
+</details>
+
+#### `database.tables()`:
+
+<details><summary>
+See a list of available tables.
+<pre><code>database.tables(): Promise&lt;Array&lt;string&gt;&gt;</code></pre></summary>
+
+*└ Spec:*
++ Return value: an array of table names.
+
+```js
+const tables = await database.tables();
+console.log(tables); // ['table_1', 'table_2', ...]
+```
+
+</details>
+
+#### `database.table()`:
+
+<details><summary>
+Obtain a <code>Table</code> instance
+<pre><code>database.table(tblName: string[, options: Options]): Table</code></pre></summary>
+
+*└ Spec:*
++ `tblName`: the name of the table to instantiate.
++ Return value: a [`Table`](#object-table) instance.
+
+```js
+const table = database.table('table_1');
+```
+
+</details>
+
+------------
+
+### Object: `Table`
 
 ------------
 
