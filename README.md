@@ -437,9 +437,11 @@ This is the top-level object for the individual database kinds in Linked QL. Eac
 
 ------------
 
-#### `client.query()` - *Run any SQL query.*
+#### `client.query()`:
 
-<details><summary><code>client.query(sql: string[, options: Options]): Promise&lt;Savepoint | Array&lt;object&gt;&gt;</code></summary>
+<details><summary>
+Run any SQL query.
+<pre><code>client.query(sql: string[, options: Options]): Promise&lt;Savepoint | Array&lt;object&gt;&gt;</code></pre></summary>
 
 *└ Spec:*
 + `sql`: any SQL statement.
@@ -491,9 +493,11 @@ Now, `options` lets us pass additional parameters for the operation:
 
 ------------
 
-#### `client.createDatabase()` - *Dynamically run a `CREATE DATABASE` statement.*
+#### `client.createDatabase()`:
 
-<details><summary><code>client.createDatabase(dbSchema: { name: string, tables?: Array }[, options: Options]): Promise&lt;Savepoint&gt;</code></summary>
+<details><summary>
+Dynamically run a <code>CREATE DATABASE</code> statement.
+<pre><code>client.createDatabase(dbSchema: { name: string, tables?: Array }[, options: Options]): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 *└ Spec:*
 + `dbSchema`: an object that corresponds to the [database JSON schema](#schemajson).
@@ -526,9 +530,11 @@ const savepoint = await client.createDatabase({ name: 'database_1' }, { ifNotExi
 
 ------------
 
-#### `client.alterDatabase()` - *Dynamically run an `ALTER DATABASE` statement.*
+#### `client.alterDatabase()`:
 
-<details><summary><code>client.alterDatabase(altRequest: { name: string, tables?: array }, callback: (db: DatabaseSchema) => void[, options: Options]): Promise&lt;Savepoint&gt;</code></summary>
+<details><summary>
+Dynamically run an <code>ALTER DATABASE</code> statement.
+<pre><code>client.alterDatabase(altRequest: { name: string, tables?: array }, callback: (db: DatabaseSchema) => void[, options: Options]): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 *└ Spec:*
 + `altRequest`: an object specifying the database whose schema is to be modified, and `tables` is an optional list of table names of which to include in the returned schema.
@@ -556,9 +562,11 @@ const savepoint = await client.alterDatabase({ name: 'database_1', tables: ['tab
 
 ------------
 
-#### `client.dropDatabase()` - *Dynamically run a `DROP DATABASE` statement.*
+#### `client.dropDatabase()`:
 
-<details><summary><code>client.dropDatabase(dbName: string[, options: Options]): Promise&lt;Savepoint&gt;</code></summary>
+<details><summary>
+Dynamically run a <code>DROP DATABASE</code> statement.
+<pre><code>client.dropDatabase(dbName: string[, options: Options]): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 *└ Spec:*
 + `dbName`: the name of the database to drop.
@@ -579,9 +587,11 @@ const savepoint = await client.createDatabase('database_1', { ifExists: true, ca
 
 ------------
 
-#### `client.hasDatabase()` - *Check if a database exists.*
+#### `client.hasDatabase()`:
 
-<details><summary><code>client.hasDatabase(dbName: string): Promise&lt;Boolean&gt;</code></summary>
+<details><summary>
+Check if a database exists.
+<pre><code>client.hasDatabase(dbName: string): Promise&lt;Boolean&gt;</code></pre></summary>
 
 *└ Spec:*
 + `dbName`: the name of the database to check.
@@ -595,9 +605,11 @@ const exists = await client.hasDatabase('database_1');
 
 ------------
 
-#### `client.describeDatabase()` - *Get the schema structure for a database.*
+#### `client.describeDatabase()`:
 
-<details><summary><code>client.describeDatabase(dbName: string): Promise&lt;{ name: string, tables: Array }&gt;</code></summary>
+<details><summary>
+Get the schema structure for a database.
+<pre><code>client.describeDatabase(dbName: string): Promise&lt;{ name: string, tables: Array }&gt;</code></pre></summary>
 
 *└ Spec:*
 + `dbName`: the name of the database.
@@ -613,9 +625,11 @@ console.log(schema.tables);
 
 ------------
 
-#### `client.databases()` - *See a list of available databases.*
+#### `client.databases()`:
 
-<details><summary><code>client.databases(): Promise&lt;Array&lt;string&gt;&gt;</code></summary>
+<details><summary>
+See a list of available databases.
+<pre><code>client.databases(): Promise&lt;Array&lt;string&gt;&gt;</code></pre></summary>
 
 *└ Spec:*
 + Return value: an array of database names.
@@ -629,9 +643,11 @@ console.log(databases); // ['public', 'database_1', ...]
 
 ------------
 
-#### `client.database()` - *Obtain a `Database` instance*
+#### `client.database()`:
 
-<details><summary><code>client.database(dbName: string[, options: Options]): Database</code></summary>
+<details><summary>
+Obtain a <code>Database</code> instance
+<pre><code>client.database(dbName: string[, options: Options]): Database</code></pre></summary>
 
 *└ Spec:*
 + `dbName`: the name of the DB to instantiate.
@@ -653,9 +669,11 @@ This is the object returned by [`client.database()`](#clientdatabase---obtain-a-
 
 ------------
 
-#### `database.createTable()` - *Dynamically run a `CREATE TABLE` statement.*
+#### `database.createTable()`:
 
-<details><summary><code>database.createTable(tblSchema: { name: string, columns: Array, constraints?: Array, indexes?: Array }[, options: Options]): Promise&lt;Savepoint&gt;</code></summary>
+<details><summary>
+Dynamically run a <code>CREATE TABLE</code> statement.
+<pre><code>database.createTable(tblSchema: { name: string, columns: Array, constraints?: Array, indexes?: Array }[, options: Options]): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 *└ Spec:*
 + `tblSchema`: an object that corresponds to the [table JSON schema](#schemajson).
