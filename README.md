@@ -433,7 +433,7 @@ This is the top-level object for the individual database kinds in Linked QL. Eac
 + [`client.databases()`](#clientdatabases---see-a-list-of-available-databases)
 + [`client.database()`](#clientdatabase---obtain-a-database-instance)
 
-<br>
+------------
 
 #### `client.query()` - *Run any SQL query.*
 
@@ -441,7 +441,7 @@ This is the top-level object for the individual database kinds in Linked QL. Eac
 
 *└ Spec:*
 + `sql`: any SQL statement.
-+ `options`: an optional object for passing additional parameters for the operation.
++ `options`: optional extra parameters for the operation.
 + Return value: a [`Savepoint`](#object-savepoint) instance for all `CREATE`, `ALTER`, `DROP` statements, then an `Array` of data objects for the `SELECT` statement and for any `INSERT`, `UPDATE`, and `DELETE` statements that specify a `RETURNING` clause.
 
 ```js
