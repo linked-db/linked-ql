@@ -427,7 +427,7 @@ This is the top-level object for the individual database kinds in Linked QL. Eac
 <details>
 <summary>
 <code>client.query(query: string[, options: object]): Promise&lt;Savepoint | Array&lt;&gt;&gt;</code><br>
-Run any SQL query.</summary>
+└─ Run any SQL query.</summary>
 
 + `query` is any SQL query; and return value is a `Savepoint` instance for all `CREATE`, `ALTER`, `DROP` operations, then an `Array` of data objects for `SELECT` queries, and for `INSERT`, `UPDATE`, and `DELETE` operations which specify a `RETURNING` clause.
 
@@ -477,7 +477,7 @@ Run any SQL query.</summary>
 <details>
 <summary>
 <code>client.createDatabase(dbSchema: object[, options: object]): Promise&lt;Savepoint&gt;</code><br>
-Dynamically compose a <code>CREATE DATABASE</code> query.</summary>
+└─ Dynamically compose a <code>CREATE DATABASE</code> query.</summary>
 
 + `dbSchema` is a [database schema](#schemajson); and `options` is as described in `query()`. Return value is a `Savepoint` instance.
 
@@ -508,7 +508,7 @@ Dynamically compose a <code>CREATE DATABASE</code> query.</summary>
 <details>
 <summary>
 <code>client.alterDatabase(altRequest: object, callback: (db: DatabaseSchema) => void, [, options: object]): Promise&lt;Savepoint&gt;</code><br>
-Dynamically compose an <code>ALTER DATABASE</code> query.</summary>
+└─ Dynamically compose an <code>ALTER DATABASE</code> query.</summary>
 
 + `altRequest` is an object of the following form: `{ name: string, tables?: array }`, where name is the name of the DB object to alter and tables is an optional list of table objects to include in the returned object for the ALTER operation.
 
@@ -535,7 +535,7 @@ Dynamically compose an <code>ALTER DATABASE</code> query.</summary>
 <details>
 <summary>
 <code>client.dropDatabase(dbName: string, [, options: object]): Promise&lt;Savepoint&gt;</code><br>
-Dynamically compose a <code>DROP DATABASE</code> query.</summary>
+└─ Dynamically compose a <code>DROP DATABASE</code> query.</summary>
 
 + `dbName` is the name of the DB to drop. `options` is, again, as described for `query()`, and return value is a `Savepoint` instance.
 
