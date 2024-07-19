@@ -277,7 +277,6 @@ Database objects:
 ```
 
 <details>
-<summary>Other objects</summary>
 
 A table object:
 
@@ -396,8 +395,6 @@ An index object:
     "columns": ["full_name"]
 }
 ```
-</details>
-
 </details>
 
 **Now, you may simply edit any part of your schema in-place!** For example, you can add a new table by simply extending the tables list; a new column by simply extending the columns list; a new constraint by simply extending the constraints list. You can go on to change the respective objects at their respective property level! For example, you may remove a column-level constraint, say `uniqueKey`, by simply deleting it; or change the column type, or update the `check` constraint, by simply overwriting it.
