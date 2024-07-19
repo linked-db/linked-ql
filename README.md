@@ -93,7 +93,7 @@ const result = await client.query('SELECT fname, lname FROM users WHERE role = $
 console.log(result);
 ```
 
-Other APIs are covered just ahead in the [API](#object-client) section.
+Other APIs are covered just ahead in the [API](#the-client-api) section.
 
 ## Introducing Magic Paths
 
@@ -422,7 +422,7 @@ This is a quick overview of the Linked QL API. Click on each method definition f
 
 ------------
 
-### Object: `Client`
+### The `Client` API
 
 This is the top-level object for the individual database kinds in Linked QL. Each instance implements the following interface:
 
@@ -444,7 +444,7 @@ Run any SQL query.
 *└ Spec:*
 + `sql`: any SQL statement.
 + `options`: optional extra parameters for the operation.
-+ Return value: a [`Savepoint`](#object-savepoint) instance for all `CREATE`, `ALTER`, `DROP` statements, then an `Array` of data objects for the `SELECT` statement and for any `INSERT`, `UPDATE`, and `DELETE` statements that specify a `RETURNING` clause.
++ Return value: a [`Savepoint`](#the-savepoint-api) instance for all `CREATE`, `ALTER`, `DROP` statements, then an `Array` of data objects for the `SELECT` statement and for any `INSERT`, `UPDATE`, and `DELETE` statements that specify a `RETURNING` clause.
 
 ```js
 const savepoint = await client.query('ALTER TABLE users RENAME TO accounts');
@@ -498,7 +498,7 @@ Dynamically run a <code>CREATE DATABASE</code> statement.
 *└ Spec:*
 + `dbSchema`: an object that corresponds to the [database JSON schema](#schemajson).
 + `options`: as described in [`query()`](#clientquery).
-+ Return value: a [`Savepoint`](#object-savepoint) instance.
++ Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
 ```js
 const savepoint = await client.createDatabase({ name: 'database_1' }, { description: 'Just testing database creation' });
@@ -534,9 +534,9 @@ Dynamically run an <code>ALTER DATABASE</code> statement.
 
 *└ Spec:*
 + `altRequest`: an object specifying the database whose schema is to be modified, where `tables` is an optional list of table names of which to include in the returned schema.
-+ `callback`: a function that is called with the requested database schema. This can be async. Received object is a [`DatabaseSchema`](#object-databaseschema) instance.
++ `callback`: a function that is called with the requested database schema. This can be async. Received object is a [`DatabaseSchema`](#the-database-apischema) instance.
 + `options`: as described in [`query()`](#clientquery).
-+ Return value: a [`Savepoint`](#object-savepoint) instance.
++ Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
 ```js
 const savepoint = await client.alterDatabase({ name: 'database_1' }, db => {
@@ -565,7 +565,7 @@ Dynamically run a <code>DROP DATABASE</code> statement.
 *└ Spec:*
 + `dbName`: the name of the database to drop.
 + `options`: as described in [`query()`](#clientquery).
-+ Return value: a [`Savepoint`](#object-savepoint) instance.
++ Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
 ```js
 const savepoint = await client.dropDatabase('database_1', { description: 'Droping for testing purposes' });
@@ -645,7 +645,7 @@ Obtain a <code>Database</code> instance.
 
 *└ Spec:*
 + `dbName`: the name of the DB to instantiate.
-+ Return value: a [`Database`](#object-database) instance.
++ Return value: a [`Database`](#the-database-api) instance.
 
 ```js
 const database = client.database('database_1');
@@ -655,7 +655,7 @@ const database = client.database('database_1');
 
 ------------
 
-### Object: `Database`
+### The `Database` API
 
 *Database* is the API for database-level operations. This object is obtained via [`client.database()`](#clientdatabase)
 
@@ -677,7 +677,7 @@ Dynamically run a <code>CREATE TABLE</code> statement.
 *└ Spec:*
 + `tblSchema`: an object that corresponds to the [table JSON schema](#schemajson).
 + `options`: as described in [`query()`](#clientquery).
-+ Return value: a [`Savepoint`](#object-savepoint) instance.
++ Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
 ```js
 const savepoint = await database.createTable({
@@ -710,9 +710,9 @@ Dynamically run an <code>ALTER TABLE</code> statement.
 
 *└ Spec:*
 + `tblName`: the table whose schema is to be modified.
-+ `callback`: a function that is called with the requested table schema. This can be async. Received object is a [`TableSchema`](#object-tableschema) instance.
++ `callback`: a function that is called with the requested table schema. This can be async. Received object is a [`TableSchema`](#the-table-apischema) instance.
 + `options`: as described in [`query()`](#clientquery).
-+ Return value: a [`Savepoint`](#object-savepoint) instance.
++ Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
 ```js
 const savepoint = await database.alterTable('table_1', tbl => {
@@ -731,7 +731,7 @@ Dynamically run a <code>DROP TABLE</code> statement.
 *└ Spec:*
 + `tblName`: the name of the table to drop.
 + `options`: as described in [`query()`](#clientquery).
-+ Return value: a [`Savepoint`](#object-savepoint) instance.
++ Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
 ```js
 const savepoint = await database.dropTable('table_1', { description: 'Droping for testing purposes' });
@@ -811,7 +811,7 @@ Obtain a <code>Table</code> instance.
 
 *└ Spec:*
 + `tblName`: the name of the table to instantiate.
-+ Return value: a [`Table`](#object-table) instance.
++ Return value: a [`Table`](#the-table-api) instance.
 
 ```js
 const table = database.table('table_1');
@@ -827,7 +827,7 @@ Obtain the next *savepoint* for the database.
 
 *└ Spec:*
 + `options`: optional extra paramters for the method.
-+ Return value: a [`Savepoint`](#object-savepoint) instance.
++ Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
 ```js
 const savepoint = await database.savepoint();
@@ -851,7 +851,7 @@ Additional parameters that may be passed via `options`:
 
 ------------
 
-### Object: `Table`
+### The `Table` API
 
 ------------
 
