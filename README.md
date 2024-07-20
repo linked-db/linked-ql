@@ -976,15 +976,20 @@ const rowCount = await table.count('column_1');
 
 <details><summary>
 Dynamically run a <code>SELECT</code> query.
-<pre><code>table.select(fields: (string | Function)[] = *, where?: number | object | Function): Promise&lt;Array&lt;object&gt;&gt;</code></pre>
-<pre><code>table.select(where: number | object | Function): Promise&lt;Array&lt;object&gt;&gt;</code></pre></summary>
+<pre><code>table.select(fields?: (string | Function)[] = *, where?: number | object | Function): Promise&lt;Array&lt;object&gt;&gt;</code></pre>
+<pre><code>table.select(where?: number | object | Function): Promise&lt;Array&lt;object&gt;&gt;</code></pre></summary>
 
 *└ Spec:*
 + `fields` ((string | Function)[] = *, *optional*): a array of fields to select. (A field being either a string denoting column name, or a function that recieves a *Field* object with which to build an expression.)
 + `where` (number | object | Function, *optional*): a number denoting primary key value of the target row, or an object denoting column name/column value conditions, or a function that recieves an *Assertion* object with which to build the conditions.
 
 ```js
-// Select record by primary key value, specifying fields
+// Select all fields (*) from all records
+const result = await table.select();
+```
+
+```js
+// Select specified fields from the record with primary key value of 4
 const result = await table.select(['first_name', 'last_name', 'email'], 4);
 ```
 
