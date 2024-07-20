@@ -420,7 +420,7 @@ Interesting yet? You may want to learn more about [Linked QL's unique take on Sc
 
 This is a quick overview of the Linked QL API.
 
-Here we talk about the `client.query()` method in detail along with other Linked QL APIs that essentially let us do the same things as with `client.query()`, but this time, programmatically.
+Here we talk about the `client.query()` method in detail along with other Linked QL APIs that essentially let us do the same things possible with `client.query()`, but this time, programmatically.
 
 For example, a `CREATE DATABASE` query...
 
@@ -428,7 +428,7 @@ For example, a `CREATE DATABASE` query...
 const savepoint = await client.query('CREATE DATABASE IF NOT EXISTS database_1');
 ```
 
-could also be programmatically done as:
+could also be programmatically achieved as:
 
 ```js
 const savepoint = await client.createDatabase('database_1', { ifNotExists: true });
@@ -455,18 +455,18 @@ That said, while the `createDatabase()` method is associated with the base `Clie
 + the table-level scope (represented by a certain [`Table`](#the-table-api) interface), featuring methods such as:
 
     + [`select()`](#tableselect)
-    + `insert()`
-    + `upsert()`
-    + `update()`
-    + `delete()`
+    + [`insert()`](#tableinsert)
+    + [`upsert()`](#tableupsert)
+    + [`update()`](#tableupdate)
+    + [`delete()`](#tabledelete)
 
-And it's easy to narrow down from the top-level scope to a database...
+And it's easy to narrow down from the top-level scope to a database scope...
 
 ```js
 const database_1 = client.database('database_1');
 ```
 
-and from there to a table:
+and from there to a table scope:
 
 ```js
 const table_1 = database.table('table_1');
@@ -527,11 +527,11 @@ Run any SQL query.
 
 + `sql` (string): an SQL query.
 + `options` (Options, *optional*): extra parameters for the query.
-+ Return value: a [`Savepoint`](#the-savepoint-api) instance when it's a `CREATE`, `ALTER`, or `DROP` query, but an array (the result set) when it's a `SELECT` query or when it's an `INSERT`, `UPDATE`, or `DELETE` query that have a `RETURNING` clause.
++ Return value: a [`Savepoint`](#the-savepoint-api) instance when it's a `CREATE`, `ALTER`, or `DROP` query, but an array (the result set) when it's a `SELECT` query or when it's an `INSERT`, `UPDATE`, or `DELETE` query that has a `RETURNING` clause.
 
 ##### ✨ Usage:
 
-Run a `CREATE`, `ALTER`, or `DROP` query and get back a savepoint:
+Run a `CREATE`, `ALTER`, or `DROP` query and get back a reference to the savepoint associated with it:
 
 ```js
 const savepoint = await client.query('ALTER TABLE users RENAME TO accounts');
@@ -562,7 +562,7 @@ Some additional parameters via `options`:
     // Unlock certain dialect-specific clauses or conventions
     const rows = await client.query('ALTER TABLE users MODIFY COLUMN id int', { dialect: 'mysql' });
     ```
-+ `params` ((string | number)[], *optional*): the values for parameter-binding in the query.
++ `params` ((string | number | boolean | null | Date | object | any[])[], *optional*): the values for parameter-binding in the query.
 
     ```js
     const rows = await client.query('SELECT * FROM users WHERE id = $1', { params: [4] });
@@ -775,6 +775,7 @@ const database = client.database('database_1');
 
 *Database* is the API for database-level operations. This object is obtained via [`client.database()`](#clientdatabase)
 
++ [`database.name`](#databasename)
 + [`database.createTable()`](#databasecreatetable)
 + [`database.alterTable()`](#databasealtertable)
 + [`database.dropTable()`](#databasedroptable)
@@ -783,6 +784,19 @@ const database = client.database('database_1');
 + [`database.tables()`](#databasetables)
 + [`database.table()`](#databasetable)
 + [`database.savepoint()`](#databasesavepoint)
+
+#### `database.name`:
+
+<details><summary>
+The subject database's name.
+<pre><code>database.name: (string, <i>readonly</i>)</code></pre></summary>
+
+##### ✨ Usage:
+
+```js
+const database = client.database('test_db');
+console.log(database.name); // test_db
+```
 
 #### `database.createTable()`:
 
@@ -997,7 +1011,26 @@ Some additional parameters via `options`:
 
 *Table* is the API for table-level operations. This object is obtained via [`database.table()`](#databasetable)
 
-+ [`table.count()`]()
++ [`table.name`](#tablename)
++ [`table.count()`](#tablecount)
++ [`table.select()`](#tableselect)
++ [`table.insert()`](#tableinsert)
++ [`table.upsert()`](#tableupsert)
++ [`table.update()`](#tableupdate)
++ [`table.delete()`](#tabledelete)
+
+#### `table.name`:
+
+<details><summary>
+The subject table's name.
+<pre><code>table.name: (string, <i>readonly</i>)</code></pre></summary>
+
+##### ✨ Usage:
+
+```js
+const table = client.database('test_db').table('table_1');
+console.log(table.name); // table_1
+```
 
 #### `table.count()`:
 
@@ -1027,13 +1060,13 @@ const rowCount = await table.count('column_1');
 
 <details><summary>
 Dynamically run a <code>SELECT</code> query.
-<pre><code>table.select(fields?: (string | Function)[] = *, where?: number | object | Function | bool): Promise&lt;Array&lt;object&gt;&gt;</code></pre>
+<pre><code>table.select(fields?: (string | Function)[] = *, where?: number | object | Function | true): Promise&lt;Array&lt;object&gt;&gt;</code></pre>
 <pre><code>table.select(where?: number | object | Function): Promise&lt;Array&lt;object&gt;&gt;</code></pre></summary>
 
 *└ Spec:*
 
 + `fields` ((string | Function)[] = *, *optional*): a array of fields to select. (A field being either a string denoting column name, or a function that recieves a *Field* object with which to build an expression.)
-+ `where` (number | object | Function | bool, *optional*): a number denoting primary key value of the target row, or an object denoting column name/column value conditions, or a function that recieves an *Assertion* object with which to build the conditions, or the value `true` denoting all records. Defaults to `true`.
++ `where` (number | object | Function | true, *optional*): a number denoting primary key value of the target row, or an object specifying some column name/column value conditions, or a function that recieves an *Assertion* object with which to build the conditions, or the value `true` denoting all records. Defaults to `true`.
 + Return value: an array (the result set).
 
 ##### ✨ Usage:
@@ -1049,12 +1082,12 @@ const result = await table.select(['first_name', 'last_name', 'email'], 4);
 ```
 
 ```js
-// Select record by primary key value, ommiting fields
+// Select record by primary key value, ommiting fields (implying all fields)
 const result = await table.select(4);
 ```
 
 ```js
-// Select record by some column name/column value conditions, ommiting fields
+// Select record by some column name/column value conditions, ommiting fields (implying all fields)
 const result = await table.select({ first_name: 'John', last_name: 'Doe' });
 ```
 
@@ -1065,14 +1098,14 @@ const result = await table.select({ first_name: 'John', last_name: 'Doe' });
 <details><summary>
 Dynamically run an <code>INSERT</code> query.
 <pre><code>table.insert(payload: object | object[], returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre>
-<pre><code>table.insert(columns: string[], values: any[][], returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre></summary>
+<pre><code>table.insert(columns: string[], values: any[][], returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | boolean&gt;</code></pre></summary>
 
 *└ Spec:*
 
-+ `payload` (object | object[]): an object denoting a single entry, or an array of said objects denoting multiple entries. (An entry having the general form: `{ [key: string]: string | number | any[] | object | Date | null | boolean; }` where arrays and objects as values are acceptable only for JSON columns.)
++ `payload` (object | object[]): an object denoting a single entry, or an array of said objects denoting multiple entries. (An entry having the general form: `{ [key: string]: string | number | boolean | null | Date | object | any[] }` where arrays and objects as values are acceptable only for JSON columns.)
 + `columns` (string[]): just column names (as against the key/value-based `payload` in the first call pattern).
 + `values` (any[][]): a two-dimensional array of just values (as against the key/value-based `payload` in the first call pattern), denoting multiple entries. 
-+ `returnList` (((string | Function)[] | bool), *optional*): a list of fields, corresponding to a [select list](#tableselect), specifying data to be returned from the just inserted row. (Equivalent to Postgres' [RETURNING clause](https://www.postgresql.org/docs/current/dml-returning.html), but supported for other DB kinds in Linked QL.)
++ `returnList` (((string | Function)[] | false), *optional*): a list of fields, corresponding to a [select list](#tableselect), specifying data to be returned from the just inserted row. (Equivalent to Postgres' [RETURNING clause](https://www.postgresql.org/docs/current/dml-returning.html), but supported for other DB kinds in Linked QL.)
 + Return value: an array (the new row being automatically returned), or the value `true`, where that behaviour has been explicitly disbaled with `returnList` set to `false`.
 
 ##### ✨ Usage:
@@ -1099,8 +1132,8 @@ await table.insert(['first_name', 'last_name', 'email'], [
 ```
 
 ```js
-// Insert single entry, obtaining return list streamlined to just "id"
-const returnList = await table.insert({ first_name: 'John', last_name: 'Doe', email: 'johndoe@example.com'}, ['id']);
+// Insert single entry, obtaining inserted row - which is itself streamlined to just the "id" column
+const insertedRow = await table.insert({ first_name: 'John', last_name: 'Doe', email: 'johndoe@example.com'}, ['id']);
 ```
 
 </details>
@@ -1110,7 +1143,7 @@ const returnList = await table.insert({ first_name: 'John', last_name: 'Doe', em
 <details><summary>
 Dynamically run an <code>UPSERT</code> query.
 <pre><code>table.upsert(payload: object | object[], returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre>
-<pre><code>table.upsert(columns: string[], values: any[][], returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre></summary>
+<pre><code>table.upsert(columns: string[], values: any[][], returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | boolean&gt;</code></pre></summary>
 
 *└ Spec:*
 
@@ -1130,12 +1163,12 @@ An `UPSERT` operation is an `INSERT` that automatically converts to an `UPDATE` 
 
 <details><summary>
 Dynamically run an <code>UPDATE</code> query.
-<pre><code>table.update(where: number | object | Function | bool, payload: object, returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre></summary>
+<pre><code>table.update(where: number | object | Function | true, payload: object, returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | boolean&gt;</code></pre></summary>
 
 *└ Spec:*
 
-+ `where` (number | object | Function | bool): as described in [`select()`](#tableselect).
-+ `payload` (object): an object having the general form: `{ [key: string]: string | number | any[] | object | Date | null | boolean; }` where arrays and objects as values are acceptable only for JSON columns.
++ `where` (number | object | Function | true): as described in [`select()`](#tableselect).
++ `payload` (object): an object having the general form: `{ [key: string]: string | number | boolean | null | Date | object | any[] }` where arrays and objects as values are acceptable only for JSON columns.
 + `returnList` ((string | Function)[], *optional*): as described in [`insert()`](#tableinsert).
 + Return value: as described in [`insert()`](#tableinsert).
 
@@ -1147,7 +1180,7 @@ await table.update(4, { first_name: 'John', last_name: 'Doe' });
 ```
 
 ```js
-// Update the record having specified email, obtaining the updated row
+// Update the record having specified email value, obtaining the updated row
 const updatedRow = await table.update({ email: 'johndoe@example.com' }, { first_name: 'John', last_name: 'Doe' });
 ```
 
@@ -1161,11 +1194,11 @@ await table.update(true, { updated_at: new Date });
 
 <details><summary>
 Dynamically run a <code>DELETE</code> query.
-<pre><code>table.delete(where: number | object | Function | bool, returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre></summary>
+<pre><code>table.delete(where: number | object | Function | true, returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | boolean&gt;</code></pre></summary>
 
 *└ Spec:*
 
-+ `where` (number | object | Function | bool): as described in [`select()`](#tableselect).
++ `where` (number | object | Function | true): as described in [`select()`](#tableselect).
 + `returnList` ((string | Function)[], *optional*): as described in [`insert()`](#tableinsert).
 + Return value: as described in [`insert()`](#tableinsert).
 
@@ -1185,6 +1218,405 @@ const deletedRow = await table.delete({ email: 'johndoe@example.com' });
 // Delete all records
 await table.delete(true);
 ```
+</details>
+
+------------
+
+### The `Savepoint` API
+
+*Savepoint* is an object representation of a database's savepoint. This object is obtained via [`database.savepoint()`](#databasesavepoint)
+
++ [`savepoint.id`](#savepointid)
++ [`savepoint.databaseTag`](#savepointdatabasetag)
++ [`savepoint.versionTag`](#savepointversiontag)
++ [`savepoint.versionMax`](#savepointversionmax)
++ [`savepoint.cursor`](#savepointcursor)
++ [`savepoint.description`](#savepointdescription)
++ [`savepoint.savepointDate`](#savepointsavepointdate)
++ [`savepoint.rollbackDate`](#savepointrollbackdate)
++ [`savepoint.rollbackOutcome`](#savepointrollbackoutcome)
++ [`savepoint.isNextPointInTime()`](#savepointisnextpointintime)
++ [`savepoint.rollback()`](#savepointrollback)
++ [`savepoint.toJson()`](#savepointtojson)
++ [`savepoint.schema()`](#savepointschema)
++ [`savepoint.name()`](#savepointname)
+
+#### `savepoint.id`:
+
+<details><summary>
+The savepoint's globally unique identifier.
+<pre><code>savepoint.id: (UUID, <i>readonly</i>)</code></pre></summary>
+
+##### ✨ Usage:
+
+```js
+const savepoint = await client.database('test_db').savepoint();
+console.log(savepoint.id); // f740d66a-df5f-4a34-a281-8ef3ba6fe754
+```
+
+#### `savepoint.databaseTag`:
+
+<details><summary>
+The subject database's special identifier even across name changes.
+<pre><code>savepoint.databaseTag: (string, <i>readonly</i>)</code></pre></summary>
+
+##### ✨ Usage:
+
+See a database's special tag before and after a name change:
+
+```js
+// Before name change
+const savepoint = await client.database('test_db').savepoint();
+console.log(savepoint.databaseTag); // db:18m6z
+```
+
+```js
+// Name change
+await client.alterDatabase('test_db', schema => schema.name('test_db_new'));
+```
+
+```js
+// After name change
+const savepoint = await client.database('test_db_new').savepoint();
+console.log(savepoint.databaseTag); // db:18m6z
+```
+
+</details>
+
+#### `savepoint.versionTag`:
+
+<details><summary>
+The savepoint's version tag.
+<pre><code>savepoint.versionTag: (number, <i>readonly</i>)</code></pre></summary>
+
+##### ✨ Usage:
+
+```js
+const savepoint = await client.createDatabase({
+    name: 'test_db',
+    tables: [{
+        name: 'test_tbl1',
+        columns: [],
+    }]
+});
+console.log(savepoint.versionTag); // 1
+```
+
+```js
+const savepoint = await client.database('test_db').createTable({
+    name: 'test_tbl2',
+    columns: [],
+});
+console.log(savepoint.versionTag); // 2
+```
+
+```js
+const savepoint = await client.database('test_db').savepoint();
+console.log(savepoint.versionTag); // 2
+```
+
+#### `savepoint.versionMax`:
+
+<details><summary>
+The subject database's highest version reached regardless of rollback state.
+<pre><code>savepoint.versionMax: (number, <i>readonly</i>)</code></pre></summary>
+
+##### ✨ Usage:
+
+```js
+const savepoint = await client.database('test_db').savepoint();
+console.log(savepoint.versionTag); // 2
+console.log(savepoint.versionMax); // 2
+```
+
+```js
+await savepoint.rollback();
+```
+
+```js
+const savepoint = await client.database('test_db').savepoint();
+console.log(savepoint.versionTag); // 1
+console.log(savepoint.versionMax); // 2
+```
+
+#### `savepoint.cursor`:
+
+<details><summary>
+The savepoint's position in the database's list of available savepoints.
+<pre><code>savepoint.cursor: (string, <i>readonly</i>)</code></pre></summary>
+
+##### ✨ Usage:
+
+```js
+const savepoint = await client.database('test_db').savepoint();
+console.log(savepoint.cursor); // 2/3
+```
+
+#### `savepoint.description`:
+
+<details><summary>
+The description for the changes associated with the savepoint.
+<pre><code>savepoint.description: (string, <i>readonly</i>)</code></pre></summary>
+
+##### ✨ Usage:
+
+```js
+const savepoint = await client.database('test_db').createTable({
+    name: 'test_tbl2',
+    columns: [],
+}, { description: 'Create test_tbl2' });
+console.log(savepoint.description); // Create test_tbl2
+```
+
+```js
+const savepoint = await client.database('test_db').savepoint();
+console.log(savepoint.description); // Create test_tbl2
+```
+
+#### `savepoint.savepointDate`:
+
+<details><summary>
+The savepoint's creation date.
+<pre><code>savepoint.savepointDate: (Date, <i>readonly</i>)</code></pre></summary>
+
+##### ✨ Usage:
+
+```js
+const savepoint = await client.database('test_db').savepoint();
+console.log(savepoint.savepointDate); // 2024-07-20T15:31:06.096Z
+```
+
+#### `savepoint.rollbackDate`:
+
+<details><summary>
+The savepoint's rollback date.
+<pre><code>savepoint.rollbackDate: (Date, <i>readonly</i>)</code></pre></summary>
+
+##### ✨ Usage:
+
+```js
+const savepoint = await client.database('test_db').createTable({
+    name: 'test_tbl2',
+    columns: [],
+}, { description: 'Create test_tbl2' });
+console.log(savepoint.rollbackDate); // null
+```
+
+```js
+await savepoint.rollback();
+console.log(savepoint.rollbackDate); // 2024-07-20T15:31:06.096Z
+```
+
+```js
+const savepoint = await client.database('test_db').savepoint({ direction: 'forward' });
+console.log(savepoint.rollbackDate); // 2024-07-20T15:31:06.096Z
+```
+
+#### `savepoint.rollbackOutcome`:
+
+<details><summary>
+The high-level outcome of rolling back to this savepoint.
+<pre><code>savepoint.rollbackOutcome: (string, <i>readonly</i>)</code></pre></summary>
+
+##### ✨ Usage:
+
+See *rollback outcome* for database's create/drop operations:
+
+```js
+// Create DB
+const savepoint = await client.createDatabase('test_db', { descripton: 'Create db' });
+// Rolling back will mean dropping the DB
+console.log(savepoint.rollbackOutcome); // DROP
+console.log(savepoint.descripton); // Create db
+```
+
+```js
+// Drop DB
+await savepoint.rollback();
+console.log(savepoint.rollbackOutcome); // DROP
+```
+
+```js
+// Find the same savepoint with a forward lookup
+const savepoint = await client.database('test_db').savepoint({ direction: 'forward' });
+// Now rolling back will mean re-creating the DB
+console.log(savepoint.rollbackOutcome); // CREATE
+console.log(savepoint.descripton); // Create db
+```
+
+Compare with a table's create/drop operations which always shows as `ALTER`:
+
+```js
+// Create table - which translates to a DB "alter" operation
+const savepoint = await client.database('test_db').createTable({
+    name: 'test_tbl2',
+    columns: [],
+}, { description: 'Create test_tbl2' });
+// Rolling back will mean dropping the table - which will still translate to a DB "alter" operation
+console.log(savepoint.rollbackOutcome); // ALTER
+console.log(savepoint.descripton); // Create test_tbl2
+```
+
+```js
+// Drop DB
+await savepoint.rollback();
+console.log(savepoint.rollbackOutcome); // ALTER
+```
+
+```js
+// Find the same savepoint with a forward lookup
+const savepoint = await client.database('test_db').savepoint({ direction: 'forward' });
+// Now rolling back will mean re-creating the table - which will still translate to a DB "alter" operation
+console.log(savepoint.rollbackOutcome); // ALTER
+console.log(savepoint.descripton); // Create test_tbl2
+```
+
+#### `savepoint.isNextPointInTime()`:
+
+<details><summary>
+Check if the savepoint is the next actual *point in time* for the database.
+<pre><code>savepoint.isNextPointInTime(): Promise&lt;boolean&gt;</code></pre></summary>
+
+*└ Spec:*
+
++ Return value: boolean.
+
+##### ✨ Usage:
+
+Perform an operation and obtain the savepoint associated with it:
+
+```js
+const dbCreationSavepoint = await client.createDatabase('test_db');
+console.log(await dbCreationSavepoint.isNextPointInTime()); // true
+```
+
+See if `dbCreationSavepoint` is still the DB's immediate *point in time* to rollback to after having possibly performed more operations:
+
+```js
+const tblCreationSavepoint = await client.database('test_db').createTable({
+    name: 'test_tbl',
+    columns: [{
+        name: 'id',
+        type: 'int'
+    }]
+});
+console.log(await tblCreationSavepoint.isNextPointInTime()); // true
+console.log(await dbCreationSavepoint.isNextPointInTime()); // false
+```
+
+Rollback table creation and test `dbCreationSavepoint`'s position again:
+
+```js
+await tblCreationSavepoint.rollback();
+console.log(await tblCreationSavepoint.isNextPointInTime()); // false
+console.log(await dbCreationSavepoint.isNextPointInTime()); // true
+```
+
+</details>
+
+#### `savepoint.rollback()`:
+
+<details><summary>
+Rollback all changes predated by given savepoint.
+<pre><code>savepoint.rollback(): Promise&lt;boolean&gt;</code></pre></summary>
+
+*└ Spec:*
+
++ Return value: boolean.
+
+##### ✨ Usage:
+
+Create database and rollback:
+
+```js
+// Create DB
+const savepoint = await client.createDatabase('test_db', { descripton: 'Create db' });
+// Roll back - which means drop the DB
+await savepoint.rollback();
+```
+
+Undo the rollback; i.e. roll forward:
+
+```js
+// Find the same savepoint with a forward lookup
+const savepoint = await client.database('test_db').savepoint({ direction: 'forward' });
+// Roll back - which means re-create the DB
+await savepoint.rollback();
+```
+
+</details>
+
+#### `savepoint.toJson()`:
+
+<details><summary>
+Get a plain object representation of the savepoint.
+<pre><code>savepoint.toJson(): object</code></pre></summary>
+
+*└ Spec:*
+
++ Return value: an object of the form `{ id: string, name: string, database_tag: string, version_tag: number, version_max: number, cursor: string, description: string, savepoint_date: Date, rollback_date: Date | null }`. (Notice the snake casing of the camel-cased equivalents on the savepoint instance.)
+
+##### ✨ Usage:
+
+```js
+const savepoint = await client.createDatabase('test_db', { descripton: 'Create db' });
+console.log(savepoint.toJson());
+```
+
+</details>
+
+#### `savepoint.schema()`:
+
+<details><summary>
+Get the subject database's snapshot at this point in time.
+<pre><code>savepoint.schema(): object</code></pre></summary>
+
+*└ Spec:*
+
++ Return value: an object corresponding to the [database JSON schema](#schemajson).
+
+##### ✨ Usage:
+
+```js
+const savepoint = await client.database('test_db').createTable({
+    name: 'test_tbl',
+    columns: [{
+        name: 'id',
+        type: 'int'
+    }]
+});
+console.log(savepoint.schema());
+```
+
+```js
+const savepoint = await client.database('test_db').savepoint();
+await savepoint.schema();
+```
+
+</details>
+
+#### `savepoint.name()`:
+
+<details><summary>
+Get the subject database's name.
+<pre><code>savepoint.name(postRollback?: boolean): string</code></pre></summary>
+
+*└ Spec:*
+
++ `postRollback` (boolean, *optional*): in case a name change was captured in the savepoint, whether to return the database's post-rollback name. Otherwise the database's active, pre-rollback name is returned.
++ Return value: the database name.
+
+##### ✨ Usage:
+
+```js
+// Name change
+const savepoint = await client.alterDatabase('test_db', schema => schema.name('test_db_new'));
+// The database's active, pre-rollback name
+console.log(savepoint.name()); // test_db_new
+// The database's post-rollback name
+console.log(savepoint.name(true)); // test_db
+```
+
 </details>
 
 ------------

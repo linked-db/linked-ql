@@ -70,7 +70,7 @@ export default class Savepoint {
      * @returns String
      */
     get rollbackOutcome() {
-        const $outcome = typeof this.$.json.keep !== 'boolean' ? ['DROPPED', 'CREATED'] : (this.$.json.keep === false ? ['CREATED', 'DROPPED'] : ['ALTERED']);
+        const $outcome = typeof this.$.json.keep !== 'boolean' ? ['DROP', 'CREATE'] : (this.$.json.keep === false ? ['CREATE', 'DROP'] : ['ALTER']);
         return this.direction === 'forward' ? $outcome.reverse()[0] : $outcome[0];
     }
 
@@ -101,7 +101,7 @@ export default class Savepoint {
     /**
      * @returns Bool
      */
-    async canRollback() {
+    async isNextPointInTime() {
         const currentSavepoint = (await this.client.database(this.name()).savepoint({ direction: this.direction })) || {};
         return currentSavepoint.id === this.$.json.id;
     }
@@ -112,7 +112,7 @@ export default class Savepoint {
      * @return Void
      */
     async rollback() {
-        if (!(await this.canRollback())) throw new Error(`Invalid rollback order.`);
+        if (!(await this.isNextPointInTime())) throw new Error(`Invalid rollback order.`);
         const schemaInstance = CreateDatabase.fromJson(this.client, this.schema());
         if (this.direction !== 'forward') {
             schemaInstance.reverseAlt(true);
@@ -129,8 +129,8 @@ export default class Savepoint {
         }
         // Update record
         const tblName = [this.client.constructor.OBJ_INFOSCHEMA_DB, 'database_savepoints'].join('.');
-        await this.client.query(`UPDATE ${tblName} SET rollback_date = ${this.direction === 'forward' ? 'NULL' : 'now()'} WHERE id = '${this.$.json.id}'`);
-        this.$.json.rollback_date = this.direction === 'forward' ? null : Date.now();
+        const updatedRecord = await this.client.query(`UPDATE ${tblName} SET rollback_date = ${this.direction === 'forward' ? 'NULL' : 'now()'} WHERE id = '${this.$.json.id}' RETURNING rollback_date`);
+        this.$.json.rollback_date = updatedRecord[0].rollback_date;
         return true;
     }
 }

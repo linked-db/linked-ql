@@ -137,23 +137,4 @@ export default class AbstractDatabase {
         const savepoints = await this.client.getSavepoints({ ...params, name: this.name });
         return savepoints[0];
     }
-    async _savepoint(params = {}) {
-        const OBJ_INFOSCHEMA_DB = this.client.constructor.OBJ_INFOSCHEMA_DB;
-        if (!(await this.client.hasDatabase(OBJ_INFOSCHEMA_DB))) return;
-        const tblName = [OBJ_INFOSCHEMA_DB,'database_savepoints'].join('.');
-        const result = params.direction === 'forward'
-            ? await this.client.query(`
-                SELECT savepoint.*, preceding.id AS id_preceding FROM ${ tblName } AS savepoint
-                LEFT JOIN ${ tblName } AS preceding ON preceding.database_tag = savepoint.database_tag AND COALESCE(preceding."$name", preceding.name) = savepoint.name AND preceding.version_tag < savepoint.version_tag
-                WHERE COALESCE(savepoint.name, savepoint."$name") = '${ this.name }' AND savepoint.rollback_date IS NOT NULL AND (preceding.id IS NULL OR preceding.rollback_date IS NULL)
-                ORDER BY savepoint.version_tag ASC LIMIT 1
-            `)
-            : await this.client.query(`
-                SELECT savepoint.*, following.id AS id_following FROM ${ tblName } AS savepoint
-                LEFT JOIN ${ tblName } AS following ON following.database_tag = savepoint.database_tag AND following.name = COALESCE(savepoint."$name", savepoint.name) AND following.version_tag > savepoint.version_tag
-                WHERE COALESCE(savepoint."$name", savepoint.name) = '${ this.name }' AND savepoint.rollback_date IS NULL AND (following.id IS NULL OR following.rollback_date IS NOT NULL)
-                ORDER BY savepoint.version_tag DESC LIMIT 1
-            `);
-        return result[0] && new Savepoint(this.client, result[0], params.direction);
-    }
 }

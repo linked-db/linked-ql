@@ -138,7 +138,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
 
         it(`ROLLFORWARD: ${ desc1 } (BY RECREATING DB & TABLES)`, async function() {
             // Remeber savepoint0? Let's assert that we can't rollback (since it's been rolled back)
-            expect(await savepoint0.canRollback()).to.be.false;
+            expect(await savepoint0.isNextPointInTime()).to.be.false;
             const savepoint = await someDb.savepoint({ direction: 'forward' });
             const success = await savepoint.rollback({ allowMutateDB: true });
             expect(success).to.be.true;
@@ -147,7 +147,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
             const tables = await someDb.tables();
             expect(tables).to.be.an('array').that.have.members(['users','books']);
             // Call out savepoint0! Let's assert that now we can rollback (since it's been rolled forward)
-            expect(await savepoint0.canRollback()).to.be.true;
+            expect(await savepoint0.isNextPointInTime()).to.be.true;
         });
 
         it(`ROLLBACK: ${ desc1 } (BY DROPPING DB)`, async function() {
@@ -179,7 +179,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
             const tables = await someDb.tables();
             expect(tables).to.be.an('array').that.have.members(['books','test1','users',]);
             //TODO:const tblSavepointDetails = await someDb.table('test1').savepoint();
-            //TODO:expect(await tblSavepointDetails.context.status()).to.be.an('object').with.property('canRollback', true);
+            //TODO:expect(await tblSavepointDetails.context.status()).to.be.an('object').with.property('isNextPointInTime', true);
         });
 
         it(`ALTER whole DB`, async function() {
