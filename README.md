@@ -1044,7 +1044,7 @@ const result = await table.select();
 ```
 
 ```js
-// Select specified fields from the record with primary key value of 4
+// Select specified fields from the record having primary key value of 4
 const result = await table.select(['first_name', 'last_name', 'email'], 4);
 ```
 
@@ -1073,7 +1073,7 @@ Dynamically run an <code>INSERT</code> query.
 + `columns` (string[]): just column names (as against the key/value-based `payload` in the first call pattern).
 + `values` (any[][]): a two-dimensional array of just values (as against the key/value-based `payload` in the first call pattern), denoting multiple entries. 
 + `returnList` (((string | Function)[] | bool), *optional*): a list of fields, corresponding to a [select list](#tableselect), specifying data to be returned from the just inserted row. (Equivalent to Postgres' [RETURNING clause](https://www.postgresql.org/docs/current/dml-returning.html), but supported for other DB kinds in Linked QL.)
-+ Return value: an array (the just inserted data being automatically returned), or boolean, where `returnList` has been explicitly set to `false`.
++ Return value: an array (the new row being automatically returned), or the value `true`, where that behaviour has been explicitly disbaled with `returnList` set to `false`.
 
 ##### ✨ Usage:
 
@@ -1134,13 +1134,22 @@ Dynamically run an <code>UPDATE</code> query.
 
 *└ Spec:*
 
-+ `where` (number | object | Function | bool): a number denoting primary key value of the target row, or an object denoting column name/column value conditions, or a function that recieves an *Assertion* object with which to build the conditions, or the value `true` for matching all records.
++ `where` (number | object | Function | bool): a number denoting primary key value of the target row, or an object denoting column name/column value conditions, or a function that recieves an *Assertion* object with which to build the conditions, or the value `true` denoting all records.
 + `payload` (object): an object having the general form: `{ [key: string]: string | number | any[] | object | Date | null | boolean; }` where arrays and objects as values are acceptable only for JSON columns.
 + `returnList` ((string | Function)[], *optional*): as described in [`insert()`](#tableinsert).
 + Return value: as described in [`insert()`](#tableinsert).
 
 ##### ✨ Usage:
 
+```js
+// Update the record having primary key value of 4
+await table.update(4, { first_name: 'John', last_name: 'Doe' });
+```
+
+```js
+// Update the record having specified email, obtaining the updated row
+const updatedRow = await table.update({ email: 'johndoe@example.com' }, { first_name: 'John', last_name: 'Doe' });
+```
 
 </details>
 
