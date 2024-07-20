@@ -118,7 +118,7 @@ export default class AbstractTable {
 	/**
 	 * Updates record(s).
 	 * 
-	 * @param Object|Object|Function 	where
+	 * @param Number|Object|Function 	where
 	 * @param Object 					payload
 	 * @param Array|String			 	returnList
 	 */

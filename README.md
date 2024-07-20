@@ -600,7 +600,7 @@ Specify database by name:
 const savepoint = await client.createDatabase('database_1', { description: 'Just testing database creation' });
 ```
 
-or by a schema object, with an optional list of tables to be created along with it. (Each listed table corresponding to the [table JSON schema](#schemajson)):
+or by a schema object, with an optional list of tables to be created along with it. (Each listed table corresponding to the [table JSON schema](#schemajson).):
 
 ```js
 const savepoint = await client.createDatabase({
@@ -1027,13 +1027,14 @@ const rowCount = await table.count('column_1');
 
 <details><summary>
 Dynamically run a <code>SELECT</code> query.
-<pre><code>table.select(fields?: (string | Function)[] = *, where?: number | object | Function): Promise&lt;Array&lt;object&gt;&gt;</code></pre>
+<pre><code>table.select(fields?: (string | Function)[] = *, where?: number | object | Function | bool): Promise&lt;Array&lt;object&gt;&gt;</code></pre>
 <pre><code>table.select(where?: number | object | Function): Promise&lt;Array&lt;object&gt;&gt;</code></pre></summary>
 
 *└ Spec:*
 
 + `fields` ((string | Function)[] = *, *optional*): a array of fields to select. (A field being either a string denoting column name, or a function that recieves a *Field* object with which to build an expression.)
-+ `where` (number | object | Function, *optional*): a number denoting primary key value of the target row, or an object denoting column name/column value conditions, or a function that recieves an *Assertion* object with which to build the conditions.
++ `where` (number | object | Function | bool, *optional*): a number denoting primary key value of the target row, or an object denoting column name/column value conditions, or a function that recieves an *Assertion* object with which to build the conditions. Defaults to `true`, matching all records.
++ Return value: an array (the result set).
 
 ##### ✨ Usage:
 
@@ -1071,7 +1072,8 @@ Dynamically run an <code>INSERT</code> query.
 + `payload` (object | object[]): an object denoting a single entry, or an array of said objects denoting multiple entries. (An entry having the general form: `{ [key: string]: string | number | any[] | object | Date | null | boolean; }` where arrays and objects as values are acceptable only for JSON columns.)
 + `columns` (string[]): just column names (as against the key/value-based `payload` in the first call pattern).
 + `values` (any[][]): a two-dimensional array of just values (as against the key/value-based `payload` in the first call pattern), denoting multiple entries. 
-+ `returnList` ((string | Function)[], *optional*): a list of fields, corresponding to a [select list](#tableselect), specifying data to be returned from the just inserted row. (Equivalent to Postgres' [RETURNING clause](https://www.postgresql.org/docs/current/dml-returning.html), but supported for other DB kinds in Linked QL.)
++ `returnList` (((string | Function)[] | bool), *optional*): a list of fields, corresponding to a [select list](#tableselect), specifying data to be returned from the just inserted row. (Equivalent to Postgres' [RETURNING clause](https://www.postgresql.org/docs/current/dml-returning.html), but supported for other DB kinds in Linked QL.)
++ Return value: an array (the just inserted data being automatically returned), or boolean, where `returnList` has been explicitly set to `false`.
 
 ##### ✨ Usage:
 
@@ -1114,12 +1116,31 @@ Dynamically run an <code>UPSERT</code> query.
 
 + `payload` (object | object[]): as described in [`insert()`](#tableinsert).
 + `columns` (string[]): as described in [`insert()`](#tableinsert).
-+ `values` (any[][]): as described in [`insert()`](#tableinsert). 
++ `values` (any[][]): as described in [`insert()`](#tableinsert).
 + `returnList` ((string | Function)[], *optional*): as described in [`insert()`](#tableinsert).
++ Return value: as described in [`insert()`](#tableinsert).
 
 ##### ✨ Usage:
 
-An `UPSERT` operation is an `INSERT` that automatically converts to an `UPDATE` where given record already exists. Usage is same as [`insert()`](#tableinsert).
+An `UPSERT` operation is an `INSERT` that automatically converts to an `UPDATE` where given record already exists. Usage is same as [`insert()`](#tableinsert) but as `upsert()`.
+
+</details>
+
+#### `table.update()`:
+
+<details><summary>
+Dynamically run an <code>UPDATE</code> query.
+<pre><code>table.update(where: number | object | Function | bool, payload: object, returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre></summary>
+
+*└ Spec:*
+
++ `where` (number | object | Function | bool): a number denoting primary key value of the target row, or an object denoting column name/column value conditions, or a function that recieves an *Assertion* object with which to build the conditions, or the value `true` for matching all records.
++ `payload` (object): an object having the general form: `{ [key: string]: string | number | any[] | object | Date | null | boolean; }` where arrays and objects as values are acceptable only for JSON columns.
++ `returnList` ((string | Function)[], *optional*): as described in [`insert()`](#tableinsert).
++ Return value: as described in [`insert()`](#tableinsert).
+
+##### ✨ Usage:
+
 
 </details>
 
