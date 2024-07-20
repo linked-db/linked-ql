@@ -898,9 +898,21 @@ Dynamically run a <code>SELECT</code> query.
 
 *└ Spec:*
 + `fields` ((string | Function)[] = *, *optional*): a array of fields to select. A field being either a string denoting column name, or a function that recieves a *Field* object with which to build an expression.
++ `where` (number | object | Function, *optional*): a number denoting primary key value of the target row, or an object denoting column name/column value conditions, or a function that recieves an *Assertion* object with which to build the conditions.
 
 ```js
-const rowCount = table.count();
+// Select record by primary key value, specifying fields
+const result = table.select(['first_name', 'last_name', 'email'], 4);
+```
+
+```js
+// Select record by primary key value, ommiting fields
+const result = table.select(4);
+```
+
+```js
+// Select record by some column name/column value conditions, ommiting fields
+const result = table.select({ first_name: 'John', last_name: 'Doe' });
 ```
 
 </details>
