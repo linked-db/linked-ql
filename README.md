@@ -529,7 +529,7 @@ Run any SQL query.
 + `options` (Options, *optional*): extra parameters for the query.
 + Return value: a [`Savepoint`](#the-savepoint-api) instance when it's a `CREATE`, `ALTER`, or `DROP` query, but an array (the result set) when it's a `SELECT` query or when it's an `INSERT`, `UPDATE`, or `DELETE` query that have a `RETURNING` clause.
 
-─ ✨ Usage:
+✨ Usage:
 
 Run a `CREATE`, `ALTER`, or `DROP` query and get back a savepoint:
 
@@ -592,7 +592,7 @@ Dynamically run a <code>CREATE DATABASE</code> query.
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
-─ ✨ Usage:
+✨ Usage:
 
 Specify database by name:
 
@@ -635,7 +635,7 @@ Dynamically run an <code>ALTER DATABASE</code> query.
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
-─ ✨ Usage:
+✨ Usage:
 
 Specify database by name:
 
@@ -669,7 +669,7 @@ Dynamically run a <code>DROP DATABASE</code> query.
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
-─ ✨ Usage:
+✨ Usage:
 
 ```js
 const savepoint = await client.dropDatabase('database_1', { description: 'Dropping for testing purposes' });
@@ -702,7 +702,7 @@ Check if a database exists.
 + `dbName` (string): the database name.
 + Return value: Boolean.
 
-─ ✨ Usage:
+✨ Usage:
 
 ```js
 const exists = await client.hasDatabase('database_1');
@@ -721,7 +721,7 @@ Get the schema structure for a database.
 + `dbName` (string): the database name.
 + Return value: an object corresponding to the [database JSON schema](#schemajson).
 
-─ ✨ Usage:
+✨ Usage:
 
 ```js
 const schema = await client.describeDatabase('database_1');
@@ -741,7 +741,7 @@ Get a list of available databases.
 
 + Return value: an array of database names.
 
-─ ✨ Usage:
+✨ Usage:
 
 ```js
 const databases = await client.databases();
@@ -761,7 +761,7 @@ Obtain a <code>Database</code> instance.
 + `dbName` (string): the database name.
 + Return value: a [`Database`](#the-database-api) instance.
 
-─ ✨ Usage:
+✨ Usage:
 
 ```js
 const database = client.database('database_1');
@@ -796,7 +796,7 @@ Dynamically run a <code>CREATE TABLE</code> query.
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
-─ ✨ Usage:
+✨ Usage:
 
 ```js
 const savepoint = await database.createTable({
@@ -834,7 +834,7 @@ Dynamically run an <code>ALTER TABLE</code> query.
 + `options`  (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
-─ ✨ Usage:
+✨ Usage:
 
 ```js
 const savepoint = await database.alterTable('table_1', schema => {
@@ -858,7 +858,7 @@ Dynamically run a <code>DROP TABLE</code> query.
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
-─ ✨ Usage:
+✨ Usage:
 
 ```js
 const savepoint = await database.dropTable('table_1', { description: 'Dropping for testing purposes' });
@@ -891,7 +891,7 @@ Check if a table exists.
 + `tblName` (string): the table name.
 + Return value: Boolean.
 
-─ ✨ Usage:
+✨ Usage:
 
 ```js
 const exists = await database.hasTable('database_1');
@@ -910,7 +910,7 @@ Get the schema structure for a table.
 + `tblName` (string): the table name.
 + Return value: an object corresponding to the [Table JSON schema](#schemajson).
 
-─ ✨ Usage:
+✨ Usage:
 
 ```js
 const schema = await database.describeTable('table_1');
@@ -930,7 +930,7 @@ Get a list of available tables.
 
 + Return value: an array of table names.
 
-─ ✨ Usage:
+✨ Usage:
 
 ```js
 const tables = await database.tables();
@@ -950,7 +950,7 @@ Obtain a <code>Table</code> instance.
 + `tblName` (string): the table name.
 + Return value: a [`Table`](#the-table-api) instance.
 
-─ ✨ Usage:
+✨ Usage:
 
 ```js
 const table = database.table('table_1');
@@ -969,7 +969,7 @@ Obtain the next available <i>savepoint</i> for given database.
 + `options` ({ direction: string }, *optional*): extra paramters for the method.
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
-─ ✨ Usage:
+✨ Usage:
 
 ```js
 const savepoint = await database.savepoint();
@@ -1010,7 +1010,7 @@ Count total entries in table.
 + `expr` (string | Function = *, *optional*): a string denoting column name, or a function that recieves a *Field* object with which to build an expression. Defaults to `*`.
 + Return value: number.
 
-─ ✨ Usage:
+✨ Usage:
 
 ```js
 const rowCount = await table.count();
@@ -1035,7 +1035,7 @@ Dynamically run a <code>SELECT</code> query.
 + `fields` ((string | Function)[] = *, *optional*): a array of fields to select. (A field being either a string denoting column name, or a function that recieves a *Field* object with which to build an expression.)
 + `where` (number | object | Function, *optional*): a number denoting primary key value of the target row, or an object denoting column name/column value conditions, or a function that recieves an *Assertion* object with which to build the conditions.
 
-─ ✨ Usage:
+✨ Usage:
 
 ```js
 // Select all fields (*) from all records
@@ -1073,7 +1073,7 @@ Dynamically run an <code>INSERT</code> query.
 + `values` (any[][]): a two-dimensional array of just values (as against the key/value-based `payload` in the first call pattern), denoting multiple entries. 
 + `returnList` ((string | Function)[], *optional*): a list of fields, corresponding to a [select list](#tableselect), specifying data to be returned from the just inserted row. (Equivalent to Postgres' [RETURNING clause](https://www.postgresql.org/docs/current/dml-returning.html), but supported for other DB kinds in Linked QL.)
 
-─ ✨ Usage:
+✨ Usage:
 
 ```js
 // Insert single entry
@@ -1117,7 +1117,7 @@ Dynamically run an <code>UPSERT</code> query.
 + `values` (any[][]): as described in [`insert()`](#tableinsert). 
 + `returnList` ((string | Function)[], *optional*): as described in [`insert()`](#tableinsert).
 
-─ ✨ Usage:
+✨ Usage:
 
 An `UPSERT` operation is an `INSERT` that automatically converts to an `UPDATE` where given record already exists. Usage is same as [`insert()`](#tableinsert).
 
