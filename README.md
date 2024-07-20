@@ -424,7 +424,7 @@ This is a quick overview of the Linked QL API. Click on each method definition f
 
 ### The `Client` API
 
-This is the top-level object for the individual database kinds in Linked QL. Each instance implements the following interface:
+*Client* is the top-level object for the individual database kinds in Linked QL. Each instance implements the following interface:
 
 + [`client.query()`](#clientquery)
 + [`client.createDatabase()`](#clientcreatedatabase)
@@ -439,11 +439,11 @@ This is the top-level object for the individual database kinds in Linked QL. Eac
 
 <details><summary>
 Run any SQL query.
-<pre><code>client.query(sql: string[, options: Options]): Promise&lt;Savepoint | Array&lt;object&gt;&gt;</code></pre></summary>
+<pre><code>client.query(sql: string, options?: Options): Promise&lt;Savepoint | Array&lt;object&gt;&gt;</code></pre></summary>
 
 *└ Spec:*
-+ `sql`: an SQL string.
-+ `options`: optional extra parameters for the query.
++ `sql` (string): an SQL string.
++ `options` (Options, *optional*): extra parameters for the query.
 + Return value: a [`Savepoint`](#the-savepoint-api) instance when it's a `CREATE`, `ALTER`, or `DROP` query, but an array (the result set) when it's a `SELECT` query or an `INSERT`, `UPDATE`, or `DELETE` query that have a `RETURNING` clause.
 
 Run a `CREATE`, `ALTER`, or `DROP` query and get back a savepoint:
@@ -471,23 +471,23 @@ console.log(rows.length); // 1
 
 Use `options` for some additional parameters:
 
-+ `dialect`: to specify the SQL dialect in use: `postgres` (the default) or `mysql`. (Details soon as to how this is treated by Linked QL.)
++ `dialect` (string, *optional*): the SQL dialect in use: `postgres` (the default) or `mysql`. (Details soon as to how this is treated by Linked QL.)
 
     ```js
     // Unlock certain dialect-specific clauses or conventions
     const rows = await client.query('ALTER TABLE users MODIFY COLUMN id int', { dialect: 'mysql' });
     ```
-+ `params`: to pass the values for any parameters used in the query.
++ `params` ((string | number)[], *optional*): the values for any parameters used in the query.
 
     ```js
     const rows = await client.query('SELECT * FROM users WHERE id = $1', { params: [4] });
     ```
-+ `description`: to provide a description for a `CREATE`, `ALTER`, `DROP` query and the underlying savepoint they create.
++ `description` (string, *optional*): the description for a `CREATE`, `ALTER`, `DROP` query and for the underlying savepoint they create.
 
     ```js
     const savepoint = await client.query('DROP DATABASE test', { description: 'No longer needed' });
     ```
-+ `noCreateSavepoint`: to prevent creating a savepoint on a `CREATE`, `ALTER`, `DROP` query.
++ `noCreateSavepoint` (boolean, *optional*): to prevent creating a savepoint on a `CREATE`, `ALTER`, `DROP` query.
 
     ```js
     await client.query('DROP DATABASE test', { noCreateSavepoint: true });
@@ -499,11 +499,11 @@ Use `options` for some additional parameters:
 
 <details><summary>
 Dynamically run a <code>CREATE DATABASE</code> query.
-<pre><code>client.createDatabase(createSpec: string | { name: string, tables?: Array }[, options: Options]): Promise&lt;Savepoint&gt;</code></pre></summary>
+<pre><code>client.createDatabase(createSpec: string | { name: string, tables?: Array }, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 *└ Spec:*
-+ `createSpec`: a name string, or an object corresponding to the [database JSON schema](#schemajson).
-+ `options`: as described in [`query()`](#clientquery).
++ `createSpec` (string | { name: string, tables?: Array }): the database name, or an object corresponding to the [database JSON schema](#schemajson).
++ `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
 Specify database by name:
@@ -526,7 +526,7 @@ const savepoint = await client.createDatabase({
 
 Use `options` for some additional parameters:
 
-+ `ifNotExists`: to conditionally create the database.
++ `ifNotExists` (boolean, *optional*): a flag to conditionally create the database.
 
     ```js
     const savepoint = await client.createDatabase('database_1', { ifNotExists: true, description: 'Just testing database creation' });
@@ -538,12 +538,12 @@ Use `options` for some additional parameters:
 
 <details><summary>
 Dynamically run an <code>ALTER DATABASE</code> query.
-<pre><code>client.alterDatabase(alterSpec: string | { name: string, tables?: array }, callback: (db: DatabaseSchema) => void[, options: Options]): Promise&lt;Savepoint&gt;</code></pre></summary>
+<pre><code>client.alterDatabase(alterSpec: string | { name: string, tables?: array }, callback: (db: DatabaseSchema) => void, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 *└ Spec:*
-+ `alterSpec`: a name string, or an object with an optional list of tables to be altered along with it.
-+ `callback`: a function that is called with the requested schema. This can be async. Received object is a [`DatabaseSchema`](#the-database-apischema) instance.
-+ `options`: as described in [`query()`](#clientquery).
++ `alterSpec` (string | { name: string, tables?: array }): the database name, or an object with an optional list of tables to be altered along with it.
++ `callback` ((db: DatabaseSchema) => void): a function that is called with the requested schema. This can be async. Received object is a [`DatabaseSchema`](#the-database-apischema) instance.
++ `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
 Specify database by name:
@@ -570,11 +570,11 @@ const savepoint = await client.alterDatabase({ name: 'database_1', tables: ['tab
 
 <details><summary>
 Dynamically run a <code>DROP DATABASE</code> query.
-<pre><code>client.dropDatabase(dbName: string[, options: Options]): Promise&lt;Savepoint&gt;</code></pre></summary>
+<pre><code>client.dropDatabase(dbName: string, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 *└ Spec:*
-+ `dbName`: a name string.
-+ `options`: as described in [`query()`](#clientquery).
++ `dbName` (string): the database name.
++ `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
 ```js
@@ -583,13 +583,13 @@ const savepoint = await client.dropDatabase('database_1', { description: 'Droppi
 
 Use `options` for some additional parameters:
 
-+ `ifExists`: to conditionally drop the database.
++ `ifExists` (boolean, *optional*): a flag to conditionally drop the database.
 
     ```js
     const savepoint = await client.dropDatabase('database_1', { ifExists: true, description: 'Dropping for testing purposes' });
     ```
 
-+ `cascade`: to force-drop the database along with its dependents.
++ `cascade` (boolean, *optional*): a flag to force-drop the database along with its dependents.
 
     ```js
     const savepoint = await client.dropDatabase('database_1', { cascade: true, description: 'Dropping for testing purposes' });
@@ -604,7 +604,7 @@ Check if a database exists.
 <pre><code>client.hasDatabase(dbName: string): Promise&lt;Boolean&gt;</code></pre></summary>
 
 *└ Spec:*
-+ `dbName`: a name string.
++ `dbName` (string): the database name.
 + Return value: Boolean.
 
 ```js
@@ -620,7 +620,7 @@ Get the schema structure for a database.
 <pre><code>client.describeDatabase(dbName: string): Promise&lt;{ name: string, tables: Array }&gt;</code></pre></summary>
 
 *└ Spec:*
-+ `dbName`: a name string.
++ `dbName` (string): the database name.
 + Return value: an object corresponding to the [database JSON schema](#schemajson).
 
 ```js
@@ -651,10 +651,10 @@ console.log(databases); // ['public', 'database_1', ...]
 
 <details><summary>
 Obtain a <code>Database</code> instance.
-<pre><code>client.database(dbName: string[, options: Options]): Database</code></pre></summary>
+<pre><code>client.database(dbName: string): Database</code></pre></summary>
 
 *└ Spec:*
-+ `dbName`: a name string.
++ `dbName` (string): the database name.
 + Return value: a [`Database`](#the-database-api) instance.
 
 ```js
@@ -682,11 +682,11 @@ const database = client.database('database_1');
 
 <details><summary>
 Dynamically run a <code>CREATE TABLE</code> query.
-<pre><code>database.createTable(createSpec: { name: string, columns: Array, constraints?: Array, indexes?: Array }[, options: Options]): Promise&lt;Savepoint&gt;</code></pre></summary>
+<pre><code>database.createTable(createSpec: { name: string, columns: Array, constraints?: Array, indexes?: Array }, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 *└ Spec:*
-+ `createSpec`: an object corresponding to the [table JSON schema](#schemajson).
-+ `options`: as described in [`query()`](#clientquery).
++ `createSpec` ({ name: string, columns: Array, constraints?: Array, indexes?: Array }): an object corresponding to the [table JSON schema](#schemajson).
++ `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
 ```js
@@ -701,7 +701,7 @@ const savepoint = await database.createTable({
 
 Use `options` for some additional parameters:
 
-+ `ifNotExists`: to conditionally create the table.
++ `ifNotExists` (boolean, *optional*): a flag to conditionally create the table.
 
     ```js
     const savepoint = await database.createTable({
@@ -716,12 +716,12 @@ Use `options` for some additional parameters:
 
 <details><summary>
 Dynamically run an <code>ALTER TABLE</code> query.
-<pre><code>database.alterTable(tblName: string, callback: (db: TableSchema) => void[, options: Options]): Promise&lt;Savepoint&gt;</code></pre></summary>
+<pre><code>database.alterTable(tblName: string, callback: (db: TableSchema) => void, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 *└ Spec:*
-+ `tblName`: a name string.
-+ `callback`: a function that is called with the requested table schema. This can be async. Received object is a [`TableSchema`](#the-table-apischema) instance.
-+ `options`: as described in [`query()`](#clientquery).
++ `tblName` (string): the table name.
++ `callback` ((db: TableSchema) => void): a function that is called with the requested table schema. This can be async. Received object is a [`TableSchema`](#the-table-apischema) instance.
++ `options`  (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
 ```js
@@ -736,11 +736,11 @@ const savepoint = await database.alterTable('table_1', tbl => {
 
 <details><summary>
 Dynamically run a <code>DROP TABLE</code> query.
-<pre><code>database.dropTable(tblName: string[, options: Options]): Promise&lt;Savepoint&gt;</code></pre></summary>
+<pre><code>database.dropTable(tblName: string, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 *└ Spec:*
-+ `tblName`: a name string.
-+ `options`: as described in [`query()`](#clientquery).
++ `tblName` (string): the table name.
++ `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
 ```js
@@ -749,13 +749,13 @@ const savepoint = await database.dropTable('table_1', { description: 'Dropping f
 
 Use `options` for some additional parameters:
 
-+ `ifExists`: to conditionally drop the table.
++ `ifExists` (boolean, *optional*): a flag to conditionally drop the table.
 
     ```js
     const savepoint = await database.dropTable('table_1', { ifExists: true, description: 'Dropping for testing purposes' });
     ```
 
-+ `cascade`: to force-drop the table along with its dependents.
++ `cascade` (boolean, *optional*): a flag to force-drop the table along with its dependents.
 
     ```js
     const savepoint = await database.dropTable('table_1', { cascade: true, description: 'Dropping for testing purposes' });
@@ -770,7 +770,7 @@ Check if a table exists.
 <pre><code>database.hasTable(tblName: string): Promise&lt;Boolean&gt;</code></pre></summary>
 
 *└ Spec:*
-+ `tblName`: a name string.
++ `tblName` (string): the table name.
 + Return value: Boolean.
 
 ```js
@@ -786,7 +786,7 @@ Get the schema structure for a table.
 <pre><code>database.describeTable(tblName: string): Promise&lt;{ name: string, columns: Array, constraints: Array, indexes: Array }&gt;</code></pre></summary>
 
 *└ Spec:*
-+ `tblName`: a name string.
++ `tblName` (string): the table name.
 + Return value: an object corresponding to the [Table JSON schema](#schemajson).
 
 ```js
@@ -817,10 +817,10 @@ console.log(tables); // ['table_1', 'table_2', ...]
 
 <details><summary>
 Obtain a <code>Table</code> instance.
-<pre><code>database.table(tblName: string[, options: Options]): Table</code></pre></summary>
+<pre><code>database.table(tblName: string): Table</code></pre></summary>
 
 *└ Spec:*
-+ `tblName`: a name string.
++ `tblName` (string): the table name.
 + Return value: a [`Table`](#the-table-api) instance.
 
 ```js
@@ -832,11 +832,11 @@ const table = database.table('table_1');
 #### `database.savepoint()`:
 
 <details><summary>
-Obtain the next available *savepoint* for given database.
-<pre><code>database.savepoint([options: Options]): Savepoint</code></pre></summary>
+Obtain the next available <i>savepoint</i> for given database.
+<pre><code>database.savepoint(options?: { direction: string }): Savepoint</code></pre></summary>
 
 *└ Spec:*
-+ `options`: optional extra paramters for the method.
++ `options` ({ direction: string }, *optional*): extra paramters for the method.
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
 ```js
@@ -848,7 +848,7 @@ await savepoint.rollback(); // true
 
 Use `options` for some additional parameters:
 
-+ `direction`: to go either back in time: `backward` (the default), or forward in time: `forward`.
++ `direction` (string, *optional*): the direction in which to go - either back in time: `backward` (the default), or forward in time: `forward`.
 
     ```js
     const savepoint = await database.savepoint({ direction: 'forward' });
@@ -862,6 +862,41 @@ Use `options` for some additional parameters:
 ------------
 
 ### The `Table` API
+
+*Table* is the API for table-level operations. This object is obtained via [`database.table()`](#databasetable)
+
++ [`table.count()`]()
+
+#### `table.count()`:
+
+<details><summary>
+Count total entries in table.
+<pre><code>table.count(expr?: string | Function = *): number</code></pre></summary>
+
+*└ Spec:*
++ `expr` (string | Function = *, *optional*): a string denoting column name, or a function that recieves a *Field* object with which to build an expression. Defaults to `*`.
++ Return value: number.
+
+```js
+const rowCount = table.count();
+```
+
+</details>
+
+#### `table.select()`:
+
+<details><summary>
+Dynamically run a <code>SELECT</code> query.
+<pre><code>table.select(fields?: (string | Function)[] = *, where?: number | object | Function): Promise&lt;Array&lt;object&gt;&gt;</code></pre></summary>
+
+*└ Spec:*
++ `fields` ((string | Function)[] = *, *optional*): a array of fields to select. A field being either a string denoting column name, or a function that recieves a *Field* object with which to build an expression.
+
+```js
+const rowCount = table.count();
+```
+
+</details>
 
 ------------
 

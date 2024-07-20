@@ -1,5 +1,5 @@
 
-import { _isObject } from '@webqit/util/js/index.js';
+import { _isFunction, _isObject } from '@webqit/util/js/index.js';
 import Insert from '../../query/insert/Insert.js';
 import Update from '../../query/update/Update.js';
 import Delete from '../../query/delete/Delete.js';
@@ -32,10 +32,10 @@ export default class AbstractTable {
 	/**
 	 * Counts records.
 	 * 
-	 * @param String q
+	 * @param String expr
 	 */
-	async count(q = '*') {
-		const result = await this.select([ q => q.fn('COUNT', q).as('c') ]);
+	async count(expr = '*') {
+		const result = await this.select([ q => q.fn('COUNT', expr).as('c') ]);
 		return (result.rows || result)[0].c;
 	}
 	 
@@ -52,7 +52,7 @@ export default class AbstractTable {
 	async select(...args) {
 		const query = new Select(this.database.client);
 		// Where and fields
-		if (/^\d+$/.test(args[0]) || _isObject(args[0])) {
+		if (/^\d+$/.test(args[0]) || _isObject(args[0]) || _isFunction(args[0])) {
 			await this.resolveWhere(query, args[0]);
 		} else {
 			query.select(...(args[0] || ['*']));
