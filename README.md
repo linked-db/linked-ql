@@ -798,6 +798,8 @@ const database = client.database('test_db');
 console.log(database.name); // test_db
 ```
 
+</details>
+
 #### `database.createTable()`:
 
 <details><summary>
