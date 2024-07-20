@@ -8,7 +8,7 @@
 
 Linked QL is a DB query client that simplfies how you interact with your database and manage your schemas.
 
-💥 Takes the ORM and friends out of the way and let's you just write SQL, but SQL that you will actually enjoy. (Linked QL extends standard SQL with [new syntax sugars](#introducing-magic-paths) that let you write relational queries in 70% less code and without a single JOIN clause.)
+💥 Takes the ORM and friends out of the way and let's you just write SQL, but SQL that you will actually enjoy. (Linked QL extends standard SQL with [new syntax sugars](#introducing-magic-paths) that let you write relational queries in 50% less code and without a single JOIN clause.)
 
 ⚡️ Takes the process out of schema management and lets you just *ALTER* away your DB, but in a safety net. (Linked QL extends your DB behind the scenes to [automatically version](#introducing-auto-versioning) each edit you make and have them kept as "savepoints" that you can always rollback to.)
 
@@ -22,7 +22,7 @@ Jump to sections and features:
 + [Magic Paths](#introducing-magic-paths)
 + [Auto-Versioning](#introducing-auto-versioning)
 + [Schema-as-Code](#re-introducing-schema-as-code-with-schemajson)
-+ [API](#api)
++ [API](#linked-ql-api)
 
 ## Setup
 
@@ -99,7 +99,7 @@ Other APIs are covered just ahead in the [API](#the-client-api) section.
 
 💥 *Express relationships graphically.*
 
-JOINS can be good, but can be a curse too, as they almost always obfuscate your entire query! But what if you didn't have to write JOINS to express same relationships?
+JOINS can be good, but can be a curse too, as they almost always obfuscate your whole query! But what if you didn't have to write JOINS to express certain relationships?
 
 Meet Linked QL's magic path operators, a syntax extension to SQL, that lets you connect to columns on other tables without writing a single JOIN. Linked QL uses heuristics on your DB structure to figure out the details and the relevant JOINs behind the scenes.
 
@@ -151,7 +151,7 @@ SELECT id, title, content, created_time, author ~> id, author ~> title, author ~
 FROM books
 ```
 
-✨ PRO: *About 70% code and whole namespacing exercise are now eliminated; all with zero upfront setup!*
+✨ PRO: *About 50% code and whole namespacing exercise are now eliminated; all with zero upfront setup!*
 
 Additionally, paths can be multi-level:
 
@@ -173,31 +173,34 @@ WHERE author <~ books ~> title = 'Beauty and the Beast'
 
 ⚡️ *Create, Alter, and Drop schemas without needing to worry about schema versioning.*
 
-Databases have historically lacked the concept of schema versioning, and that has seen all the engineering work pushed down to the client application. If you've ever had to adopt a special process for defining and managing your schemas, wherein changes are handled through *serially-named* files within your application, written as an `UP`/`DOWN` pair of actions each, supported by tooling...
+Databases have historically lacked the concept of schema versioning, and that has seen all the engineering work pushed down to the client applications. If you've ever had to adopt a special process for defining and managing your schemas, wherein changes are handled through *serially-named* files within your application, each written as an `UP`/`DOWN` pair of actions, and overall supported by tooling...
 
 ```sql
 app
   ├── migrations
-    ├── 20240523_1759_create_users_table_and_drop_accounts_table.extension
-    │
-    │   │ UP                                       │ DOWN
-    │   ├──────────────────────────────────────────┼────────────────────────────────────
-    │   │ CREATE TABLE users (id INT, first_n...); │ DROP TABLE users;
-    │   │ DROP TABLE accounts;                     │ CREATE TABLE accounts (id INT, first_name VAR...);
-    │
-    ├── 20240523_1760_add_last_login_to_users_table_and_rename_order_status_table.extension
-    │
-    │   │ UP                                       │ DOWN
-    │   ├──────────────────────────────────────────┼────────────────────────────────────
-    │   │ ALTER TABLE users ADD COLUMN last_lo...; │ ALTER TABLE users DROP COLUMN last_login;
-    │   │ ALTER TABLE order_status RENAME TO o...; │ ALTER TABLE order_tracking RENAME TO order_status;
-    │
-    ├── +256 more files...
+  │ │
+  │ ├── 20240523_1759_create_users_table_and_drop_accounts_table
+  │ │ ├── up.sql
+  │ │ │   CREATE TABLE users (id INT, first_n...);
+  │ │ │   DROP TABLE accounts;
+  │ │ └── down.sql
+  │ │     DROP TABLE users;
+  │ │     CREATE TABLE accounts (id INT, first_name VAR...);
+  │ │
+  │ ├── 20240523_1760_add_last_login_to_users_table_and_rename_order_status_table
+  │ │ ├── up.sql
+  │ │ │   ALTER TABLE users ADD COLUMN last_lo...;
+  │ │ │   ALTER TABLE order_status RENAME TO o...;
+  │ │ └── down.sql
+  │ │     ALTER TABLE users DROP COLUMN last_login;
+  │ │     ALTER TABLE order_tracking RENAME TO order_status;
+  │ │
+  │ ├── +256 more...
 ```
 
 then you've faced the problem that this defeciency in databases creates! But what if databases magically got to do the heavy lifting?
 
-Meet Linked QL's special extension to your database that does exaclty that and lets you just alter your DB however you may but in a safety net! Meet Automatic Schema Savepoints and Rollbacks!
+Meet Linked QL's special extension to your database that does exactly that and lets you just alter your DB however you may but in the safety net of some behind-the-scenes snapshots of your schema before each alteration! Meet Automatic Schema Savepoints and Rollbacks!
 
 Linked QL:
 
@@ -210,20 +213,10 @@ const savepoint = await client.query('CREATE TABLE public.users (id int, name va
 
 ```js
 // Inspect the automatic savepoint created for you
-console.table(savepoint.toJson());
+console.table(savepoint.description);   // Create users table
+console.table(savepoint.versionTag);    // 1
+console.table(savepoint.savepointDate); // 2024-07-17T22:40:56.786Z
 ```
-
-<details><summary>Show console</summary>
-
->
-> | Key               | Value                    |
-> | :---------------- | :------                  |
-> | description       | Create users table       |
-> | version_tag       | 1                        |
-> | savepoint_date    | 2024-07-17T22:40:56.786Z |
-> | *+6 more rows...* |                          |
-
-</details>
 
 ✨ PRO: *DB versioning concerns are now essentially taken out of the client application - to the DB itself; and with zero upfront setup!*
 
@@ -245,7 +238,7 @@ while(savepoint = await client.database('public').savepoint()) {
 }
 ```
 
-and you can "undo" a rollback, or in other words, roll forward to a point in time:
+and it turns out you can "undo" a rollback, or in other words, roll forward to a point in time:
 
 ```js
 // "Undo" the last rollback (Gets the users table re-created)
@@ -253,15 +246,15 @@ let savepoint = await client.database('public').savepoint({ direction: 'forward'
 await savepoint.rollback();
 ```
 
+*More details in the [Savepoint API](#the-savepoint-api).*
+
 ## Re-Introducing Schema-as-Code with `schema.json`
 
 💥 *Have your entire DB structure live in a single `schema.json` file that you edit in-place!*
 
-With schema versioning now having been moved to the a database, the rest of the database story at the application level should now be revisited. Linked QL takes it further here to streamline your application's database footprint from spanning hundreds of migration files to fitting into a single `schema.json` file!
+With schema versioning now over to the database, all related database concerns at the application level should now be irrelevant. It turns out that we could essentially streamline our application-level database footprint from spanning hundreds of migration files to fitting into a single `schema.json` (or `schema.yml`) file!
 
-### `schema.json`
-
-Database objects:
+└ `schema.json`
 
 ```js
 [
@@ -275,6 +268,23 @@ Database objects:
     }
 ]
 ```
+
+<details><summary>Full details</summary>
+
+### test heading
+
+</details>
+
+Now, if you had that somewhere in your application, say at `./database/schema.js`, Linked QL could help keep it in sync both ways with your database:
+
++ you add or remove a database or table or column... and it is automatically reflected in your DB structure with one command: `linkedql migrate`
++ your colleague does the same from their codebase... and it is automatically reflected in your local copy with one command: `linkedql reflect`
+
+Thanks to a DB-native schema version control system, no need to maintain past states, or risk losing them, as the DB now becomes the absolute source of truth for both itself and its client applications, as against the other way around. (You may want to see how that brings us to [true "Schema as Code" in practice](#test-heading).)
+
+
+<!--
+
 
 A table object:
 
@@ -395,6 +405,9 @@ An index object:
 ```
 </details>
 
+
+
+
 **Now, you may simply edit any part of your schema in-place!** For example, you can add a new table by simply extending the tables list; a new column by simply extending the columns list; a new constraint by simply extending the constraints list. You can go on to change the respective objects at their respective property level! For example, you may remove a column-level constraint, say `uniqueKey`, by simply deleting it; or change the column type, or update the `check` constraint, by simply overwriting it.
 
 *Changes are commited to your database at your next [`linkedql migrate`](#cmd-linkedql-migrate).*
@@ -416,7 +429,9 @@ An index object:
 
 Interesting yet? You may want to learn more about [Linked QL's unique take on Schema as Code](#) as a paradigm and a practice.
 
-## API
+-->
+
+## Linked QL API
 
 This is a quick overview of the Linked QL API.
 
@@ -1359,7 +1374,7 @@ The savepoint's position in the database's list of available savepoints.
 
 ```js
 const savepoint = await client.database('test_db').savepoint();
-console.log(savepoint.cursor); // 2/3
+console.log(savepoint.cursor); // 1/2
 ```
 
 </details>
@@ -1424,6 +1439,7 @@ console.log(savepoint.rollbackDate); // 2024-07-20T15:31:06.096Z
 ```
 
 ```js
+// Find the same savepoint with a forward lookup
 const savepoint = await client.database('test_db').savepoint({ direction: 'forward' });
 console.log(savepoint.rollbackDate); // 2024-07-20T15:31:06.096Z
 ```
@@ -1433,12 +1449,12 @@ console.log(savepoint.rollbackDate); // 2024-07-20T15:31:06.096Z
 #### `savepoint.rollbackOutcome`:
 
 <details><summary>
-The high-level outcome of rolling back to this savepoint.
+The outcome of rolling back to this savepoint as to whether the subject DB will be *created*, *altered*, or *dropped*.
 <pre><code>savepoint.rollbackOutcome: (string, <i>readonly</i>)</code></pre></summary>
 
 ##### ✨ Usage:
 
-See *rollback outcome* for database's create/drop operations:
+Will rolling back to given savepoint create or drop the subject database?:
 
 ```js
 // Create DB
@@ -1462,7 +1478,7 @@ console.log(savepoint.rollbackOutcome); // CREATE
 console.log(savepoint.descripton); // Create db
 ```
 
-Compare with a table's create/drop operations which always shows as `ALTER`:
+Compare with that of rolling back table-level operations - which always shows as `ALTER`:
 
 ```js
 // Create table - which translates to a DB "alter" operation
@@ -1494,7 +1510,7 @@ console.log(savepoint.descripton); // Create test_tbl2
 #### `savepoint.isNextPointInTime()`:
 
 <details><summary>
-Check if the savepoint is the next actual *point in time* for the database.
+Check if the savepoint is the next actual <i>point in time</i> for the database.
 <pre><code>savepoint.isNextPointInTime(): Promise&lt;boolean&gt;</code></pre></summary>
 
 *└ Spec:*
