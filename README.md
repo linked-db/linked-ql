@@ -93,7 +93,7 @@ const result = await client.query('SELECT fname, lname FROM users WHERE role = $
 console.log(result);
 ```
 
-Other APIs are covered just ahead in the [API](#the-client-api) section.
+Other APIs are covered just ahead in the [API](#linked-ql-api) section.
 
 ## Introducing Magic Paths
 
@@ -278,7 +278,7 @@ With schema versioning now over to the database, all related database concerns a
 Now, if you had that somewhere in your application, say at `./database/schema.js`, Linked QL could help keep it in sync both ways with your database:
 
 + you add or remove a database or table or column... and it is automatically reflected in your DB structure with one command: `linkedql migrate`
-+ your colleague does the same from their codebase... and it is automatically reflected in your local copy with one command: `linkedql reflect`
++ your colleague makes new changes from their codebase... and it is automatically reflected in your local copy with one command: `linkedql reflect`
 
 Thanks to a DB-native schema version control system, no need to maintain past states, or risk losing them, as the DB now becomes the absolute source of truth for both itself and its client applications, as against the other way around. (You may want to see how that brings us to [true "Schema as Code" in practice](#test-heading).)
 
@@ -433,7 +433,7 @@ Interesting yet? You may want to learn more about [Linked QL's unique take on Sc
 
 ## Linked QL API
 
-This is a quick overview of the Linked QL API.
+Here's for a quick overview of the Linked QL API.
 
 Here we talk about the `client.query()` method in detail along with other Linked QL APIs that essentially let us do the same things possible with `client.query()`, but this time, programmatically.
 
@@ -451,29 +451,11 @@ const savepoint = await client.createDatabase('database_1', { ifNotExists: true 
 
 That said, while the `createDatabase()` method is associated with the base `Client` object, the different programmatic query APIs in Linked QL are actually organized into three hierarchical scopes:
 
-+ the top-level scope (represented by the [`Client`](#the-client-api) interface), featuring methods such as:
++ the top-level scope (represented by the [`Client`](#the-client-api) interface), featuring methods such as: [`createDatabase()`](#clientcreatedatabase), [`alterDatabase()`](#clientalterdatabase), [`dropDatabase()`](#clientdropdatabase), [`hasDatabase()`](#clienthasdatabase), [`describeDatabase()`](#clientdescribedatabase)
 
-    + [`createDatabase()`](#clientcreatedatabase)
-    + [`alterDatabase()`](#clientalterdatabase)
-    + [`dropDatabase()`](#clientdropdatabase)
-    + [`hasDatabase()`](#clienthasdatabase)
-    + [`describeDatabase()`](#clientdescribedatabase)
++ the database-level scope (represented by a certain [`Database`](#the-database-api) interface), featuring methods such as: [`createTable()`](#databasecreatetable), [`alterTable()`](#databasealtertable), [`dropTable()`](#databasedroptable), [`hasTable()`](#databasehastable), [`describeTable()`](#databasedescribetable)
 
-+ the database-level scope (represented by a certain [`Database`](#the-database-api) interface), featuring methods such as:
-
-    + [`createTable()`](#databasecreatetable)
-    + [`alterTable()`](#databasealtertable)
-    + [`dropTable()`](#databasedroptable)
-    + [`hasTable()`](#databasehastable)
-    + [`describeTable()`](#databasedescribetable)
-
-+ the table-level scope (represented by a certain [`Table`](#the-table-api) interface), featuring methods such as:
-
-    + [`select()`](#tableselect)
-    + [`insert()`](#tableinsert)
-    + [`upsert()`](#tableupsert)
-    + [`update()`](#tableupdate)
-    + [`delete()`](#tabledelete)
++ the table-level scope (represented by a certain [`Table`](#the-table-api) interface), featuring methods such as: [`select()`](#tableselect), [`insert()`](#tableinsert), [`upsert()`](#tableupsert), [`update()`](#tableupdate), [`delete()`](#tabledelete)
 
 And it's easy to narrow down from the top-level scope to a database scope...
 
