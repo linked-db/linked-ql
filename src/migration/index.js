@@ -119,7 +119,7 @@ if (command === 'rollback') {
             continue;
         }
         const postRollback = { returnValue: undefined };
-        console.log(`\nRolling ${ flags.direction === 'forward' ? 'forward' : 'back' } database: ${ savepoint.name() }. (This database will now be ${ savepoint.rollbackOutcome.toLowerCase() })`);
+        console.log(`\nRolling ${ flags.direction === 'forward' ? 'forward' : 'back' } database: ${ savepoint.name() }. (This database will now be ${ savepoint.rollbackEffect.toLowerCase() })`);
         if (flags.preview !== false) {
             console.log(`\nSavepoint details:\n`);
             console.table(savepoint.toJson());
@@ -131,7 +131,7 @@ if (command === 'rollback') {
         })).proceed;
         if (proceed) { postRollback.returnValue = await savepoint.rollback(); }
 
-        if (proceed && savepoint.rollbackOutcome === 'DROPPED') {
+        if (proceed && savepoint.rollbackEffect === 'DROPPED') {
             const existing = resultDbSchemas.findIndex(sch => sch.name === savepoint.name());
             if (existing > -1) resultDbSchemas.splice(existing, 1);
          } else if (proceed) {

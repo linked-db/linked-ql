@@ -252,7 +252,7 @@ await savepoint.rollback();
 
 💥 *Have your entire DB structure live in a single `schema.json` file that you edit in-place!*
 
-With schema versioning now over to the database, all related database concerns at the application level should now be irrelevant. It turns out that we could essentially streamline our application-level database footprint from spanning hundreds of migration files to fitting into a single `schema.json` (or `schema.yml`) file!
+With schema versioning now over to the database, much of the related database concerns at the application level should now be irrelevant. It turns out that we could essentially streamline our application-level database footprint from spanning hundreds of migration files to fitting into a single `schema.json` (or `schema.yml`) file!
 
 └ `schema.json`
 
@@ -269,7 +269,7 @@ With schema versioning now over to the database, all related database concerns a
 ]
 ```
 
-*(Full spec in the [Schemas](#schemas) section.)*
+*(Full spec in the [Schema Specs](#schema-specs) section.)*
 
 Now, if you had that somewhere in your application, say at `./database/schema.js`, Linked QL could help keep it in sync both ways with your database:
 
@@ -431,7 +431,7 @@ Interesting yet? You may want to learn more about [Linked QL's unique take on Sc
 
 Here's for a quick overview of the Linked QL API.
 
-Here we talk about the `client.query()` method in detail along with other Linked QL APIs that essentially let us do the same things possible with `client.query()`, but this time, programmatically.
+Here we talk about the `client.query()` method in more detail along with other Linked QL APIs that essentially let us do the same things possible with `client.query()`, but this time, programmatically.
 
 For example, a `CREATE DATABASE` operation...
 
@@ -524,11 +524,11 @@ Run any SQL query.
 
 + `sql` (string): an SQL query.
 + `options` (Options, *optional*): extra parameters for the query.
-+ Return value: a [`Savepoint`](#the-savepoint-api) instance when it's a `CREATE`, `ALTER`, or `DROP` query, but an array (the result set) when it's a `SELECT` query or when it's an `INSERT`, `UPDATE`, or `DELETE` query that has a `RETURNING` clause.
++ Return value: a [`Savepoint`](#the-savepoint-api) instance when it's a `CREATE`, `ALTER`, or `DROP` operation, but an array (the result set) when it's a `SELECT` query or when it's an `INSERT`, `UPDATE`, or `DELETE` operation that has a `RETURNING` clause.
 
 ##### ✨ Usage:
 
-Run a `CREATE`, `ALTER`, or `DROP` query and get back a reference to the savepoint associated with it:
+Run a `CREATE`, `ALTER`, or `DROP` operation and get back a reference to the savepoint associated with it:
 
 ```js
 const savepoint = await client.query('ALTER TABLE users RENAME TO accounts');
@@ -544,7 +544,7 @@ const rows = await client.query('SELECT * FROM users WHERE id = 4');
 console.log(rows.length); // 1
 ```
 
-or an `INSERT`, `UPDATE`, or `DELETE` query with a `RETURNING` clause, and ge backt a result set:
+or an `INSERT`, `UPDATE`, or `DELETE` operation with a `RETURNING` clause, and ge backt a result set:
 
 ```js
 const rows = await client.query('INSERT INTO users SET name = \'John Doe\' RETURNING id');
@@ -564,12 +564,12 @@ Some additional parameters via `options`:
     ```js
     const rows = await client.query('SELECT * FROM users WHERE id = $1', { params: [4] });
     ```
-+ `description` (string, *optional*): the description for a `CREATE`, `ALTER`, `DROP` query and for the underlying savepoint they create.
++ `description` (string, *optional*): the description for a `CREATE`, `ALTER`, `DROP` operation and for the underlying savepoint they create.
 
     ```js
     const savepoint = await client.query('DROP DATABASE test', { description: 'No longer needed' });
     ```
-+ `noCreateSavepoint` (boolean, *optional*): a flag to prevent creating a savepoint on a `CREATE`, `ALTER`, `DROP` query.
++ `noCreateSavepoint` (boolean, *optional*): a flag to disable savepoint creation on a `CREATE`, `ALTER`, `DROP` operation.
 
     ```js
     await client.query('DROP DATABASE test', { noCreateSavepoint: true });
@@ -580,7 +580,7 @@ Some additional parameters via `options`:
 #### `client.createDatabase()`:
 
 <details><summary>
-Dynamically run a <code>CREATE DATABASE</code> query.
+Dynamically run a <code>CREATE DATABASE</code> operation.
 <pre><code>client.createDatabase(createSpec: string | { name: string, tables?: Array }, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 *└ Spec:*
@@ -604,7 +604,7 @@ const savepoint = await client.createDatabase({
     name: 'database_1',
     tables: [{
         name: 'table_1'
-        columns: [{ name: 'column_1', type: 'INT' }, { name: 'column_2', type: 'time' }]
+        columns: [{ name: 'column_1', type: 'int' }, { name: 'column_2', type: 'time' }]
     }]
 }, { description: 'Just testing database creation' });
 ```
@@ -622,12 +622,12 @@ Some additional parameters via `options`:
 #### `client.alterDatabase()`:
 
 <details><summary>
-Dynamically run an <code>ALTER DATABASE</code> query.
+Dynamically run an <code>ALTER DATABASE</code> operation.
 <pre><code>client.alterDatabase(alterSpec: string | { name: string, tables?: string[] }, callback: (schema: DatabaseSchema) => void, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 *└ Spec:*
 
-+ `alterSpec` (string | { name: string, tables?: string[] }): the database name, or an object with the name as property and, optionally, a list of tables to be altered along with it.
++ `alterSpec` (string | { name: string, tables?: string[] }): the database name, or an object with the name and, optionally, a list of tables to be altered along with it.
 + `callback` ((schema: DatabaseSchema) => void): a function that is called with the requested schema. This can be async. Received object is a [`DatabaseSchema`](#the-database-apischema) instance.
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
@@ -657,7 +657,7 @@ const savepoint = await client.alterDatabase({ name: 'database_1', tables: ['tab
 #### `client.dropDatabase()`:
 
 <details><summary>
-Dynamically run a <code>DROP DATABASE</code> query.
+Dynamically run a <code>DROP DATABASE</code> operation.
 <pre><code>client.dropDatabase(dbName: string, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 *└ Spec:*
@@ -789,7 +789,7 @@ const database = client.database('database_1');
 #### `database.name`:
 
 <details><summary>
-The name associated with the *Database* instance.
+The name associated with the <i>Database</i> instance.
 <pre><code>database.name: (string, <i>readonly</i>)</code></pre></summary>
 
 ##### ✨ Usage:
@@ -804,7 +804,7 @@ console.log(database.name); // test_db
 #### `database.createTable()`:
 
 <details><summary>
-Dynamically run a <code>CREATE TABLE</code> query.
+Dynamically run a <code>CREATE TABLE</code> operation.
 <pre><code>database.createTable(createSpec: { name: string, columns: Array, constraints?: Array, indexes?: Array }, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 *└ Spec:*
@@ -819,7 +819,7 @@ Dynamically run a <code>CREATE TABLE</code> query.
 const savepoint = await database.createTable({
     name: 'table_1'
     columns: [
-        { name: 'column_1', type: 'INT' }, 
+        { name: 'column_1', type: 'int' }, 
         { name: 'column_2', type: 'time' }
     ]
 }, { description: 'Just testing table creation' });
@@ -841,7 +841,7 @@ Some additional parameters via `options`:
 #### `database.alterTable()`:
 
 <details><summary>
-Dynamically run an <code>ALTER TABLE</code> query.
+Dynamically run an <code>ALTER TABLE</code> operation.
 <pre><code>database.alterTable(tblName: string, callback: (schema: TableSchema) => void, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 *└ Spec:*
@@ -866,7 +866,7 @@ const savepoint = await database.alterTable('table_1', schema => {
 #### `database.dropTable()`:
 
 <details><summary>
-Dynamically run a <code>DROP TABLE</code> query.
+Dynamically run a <code>DROP TABLE</code> operation.
 <pre><code>database.dropTable(tblName: string, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 *└ Spec:*
@@ -990,7 +990,7 @@ Obtain the next available <i>savepoint</i> for given database.
 
 ```js
 const savepoint = await database.savepoint();
-console.log(savepoint.versionTag); // Number
+console.log(savepoint.versionTag); // number
 
 await savepoint.rollback(); // true
 ```
@@ -1029,7 +1029,7 @@ Some additional parameters via `options`:
 #### `table.name`:
 
 <details><summary>
-The name associated with the *Table* instance.
+The name associated with the <i>Table</i> instance.
 <pre><code>table.name: (string, <i>readonly</i>)</code></pre></summary>
 
 ##### ✨ Usage:
@@ -1105,7 +1105,7 @@ const result = await table.select({ first_name: 'John', last_name: 'Doe' });
 #### `table.insert()`:
 
 <details><summary>
-Dynamically run an <code>INSERT</code> query.
+Dynamically run an <code>INSERT</code> operation.
 <pre><code>table.insert(payload: object | object[], returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre>
 <pre><code>table.insert(columns: string[], values: any[][], returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | boolean&gt;</code></pre></summary>
 
@@ -1150,7 +1150,7 @@ const insertedRow = await table.insert({ first_name: 'John', last_name: 'Doe', e
 #### `table.upsert()`:
 
 <details><summary>
-Dynamically run an <code>UPSERT</code> query.
+Dynamically run an <code>UPSERT</code> operation.
 <pre><code>table.upsert(payload: object | object[], returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre>
 <pre><code>table.upsert(columns: string[], values: any[][], returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | boolean&gt;</code></pre></summary>
 
@@ -1164,14 +1164,14 @@ Dynamically run an <code>UPSERT</code> query.
 
 ##### ✨ Usage:
 
-An `UPSERT` operation is an `INSERT` that automatically converts to an `UPDATE` where given record already exists. Usage is same as [`insert()`](#tableinsert) but as `upsert()`.
+An `UPSERT` operation is an `INSERT` operation that automatically converts to an `UPDATE` operation where given record already exists. API usage is same as [`insert()`](#tableinsert) but as `upsert()`.
 
 </details>
 
 #### `table.update()`:
 
 <details><summary>
-Dynamically run an <code>UPDATE</code> query.
+Dynamically run an <code>UPDATE</code> operation.
 <pre><code>table.update(where: number | object | Function | true, payload: object, returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | boolean&gt;</code></pre></summary>
 
 *└ Spec:*
@@ -1202,7 +1202,7 @@ await table.update(true, { updated_at: new Date });
 #### `table.delete()`:
 
 <details><summary>
-Dynamically run a <code>DELETE</code> query.
+Dynamically run a <code>DELETE</code> operation.
 <pre><code>table.delete(where: number | object | Function | true, returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | boolean&gt;</code></pre></summary>
 
 *└ Spec:*
@@ -1233,7 +1233,7 @@ await table.delete(true);
 
 ### The `Savepoint` API
 
-*Savepoint* is an object representation of a database's savepoint. This object is obtained via [`database.savepoint()`](#databasesavepoint)
+*Savepoint* is an object representation of a database's savepoint. This object is obtained either via [`database.savepoint()`](#databasesavepoint) or via a `CREATE`, `ALTER`, or `DROP` operation.
 
 <details><summary>See content</summary>
 
@@ -1245,7 +1245,7 @@ await table.delete(true);
 + [`savepoint.description`](#savepointdescription)
 + [`savepoint.savepointDate`](#savepointsavepointdate)
 + [`savepoint.rollbackDate`](#savepointrollbackdate)
-+ [`savepoint.rollbackOutcome`](#savepointrollbackoutcome)
++ [`savepoint.rollbackEffect`](#savepointrollbackoutcome)
 + [`savepoint.isNextPointInTime()`](#savepointisnextpointintime)
 + [`savepoint.rollback()`](#savepointrollback)
 + [`savepoint.toJson()`](#savepointtojson)
@@ -1272,12 +1272,12 @@ console.log(savepoint.id); // f740d66a-df5f-4a34-a281-8ef3ba6fe754
 #### `savepoint.databaseTag`:
 
 <details><summary>
-The subject database's special identifier even across name changes.
+The subject database's generic identifier that transcends name changes.
 <pre><code>savepoint.databaseTag: (string, <i>readonly</i>)</code></pre></summary>
 
 ##### ✨ Usage:
 
-See a database's special tag before and after a name change:
+Consider a database's generic identifier before and after a name change:
 
 ```js
 // Before name change
@@ -1335,7 +1335,7 @@ console.log(savepoint.versionTag); // 2
 #### `savepoint.versionMax`:
 
 <details><summary>
-The subject database's highest version reached regardless of rollback state.
+The database's all-time peak version regardless of its current rollback level.
 <pre><code>savepoint.versionMax: (number, <i>readonly</i>)</code></pre></summary>
 
 ##### ✨ Usage:
@@ -1361,7 +1361,7 @@ console.log(savepoint.versionMax); // 2
 #### `savepoint.cursor`:
 
 <details><summary>
-The savepoint's position in the database's list of available savepoints.
+The savepoint's current level in the database's list of available savepoints.
 <pre><code>savepoint.cursor: (string, <i>readonly</i>)</code></pre></summary>
 
 ##### ✨ Usage:
@@ -1440,39 +1440,45 @@ console.log(savepoint.rollbackDate); // 2024-07-20T15:31:06.096Z
 
 </details>
 
-#### `savepoint.rollbackOutcome`:
+#### `savepoint.rollbackEffect`:
 
 <details><summary>
-The outcome of rolling back to this savepoint as to whether the subject DB will be *created*, *altered*, or *dropped*.
-<pre><code>savepoint.rollbackOutcome: (string, <i>readonly</i>)</code></pre></summary>
+The effect that rolling back to this savepoint will have on subject DB.
+<pre><code>savepoint.rollbackEffect: (string, <i>readonly</i>)</code></pre></summary>
 
 ##### ✨ Usage:
 
 Will rolling back to given savepoint create or drop the subject database?:
 
+For create operation...
+
 ```js
-// Create DB
 const savepoint = await client.createDatabase('test_db', { descripton: 'Create db' });
-// Rolling back will mean dropping the DB
-console.log(savepoint.rollbackOutcome); // DROP
+```
+Rolling back will mean dropping the DB:
+
+```js
 console.log(savepoint.descripton); // Create db
+console.log(savepoint.rollbackEffect); // DROP
 ```
 
 ```js
 // Drop DB
 await savepoint.rollback();
-console.log(savepoint.rollbackOutcome); // DROP
+console.log(savepoint.rollbackEffect); // DROP
 ```
+
+Having rolled back, rolling forward will mean a re-creation of the DB:
 
 ```js
 // Find the same savepoint with a forward lookup
 const savepoint = await client.database('test_db').savepoint({ direction: 'forward' });
 // Now rolling back will mean re-creating the DB
-console.log(savepoint.rollbackOutcome); // CREATE
 console.log(savepoint.descripton); // Create db
+console.log(savepoint.rollbackEffect); // CREATE
 ```
 
-Compare with that of rolling back table-level operations - which always shows as `ALTER`:
+Compare with that of rolling back table-level operations - which always just has an `ALTER` effect:
 
 ```js
 // Create table - which translates to a DB "alter" operation
@@ -1481,22 +1487,22 @@ const savepoint = await client.database('test_db').createTable({
     columns: [],
 }, { description: 'Create test_tbl2' });
 // Rolling back will mean dropping the table - which will still translate to a DB "alter" operation
-console.log(savepoint.rollbackOutcome); // ALTER
 console.log(savepoint.descripton); // Create test_tbl2
+console.log(savepoint.rollbackEffect); // ALTER
 ```
 
 ```js
 // Drop DB
 await savepoint.rollback();
-console.log(savepoint.rollbackOutcome); // ALTER
+console.log(savepoint.rollbackEffect); // ALTER
 ```
 
 ```js
 // Find the same savepoint with a forward lookup
 const savepoint = await client.database('test_db').savepoint({ direction: 'forward' });
 // Now rolling back will mean re-creating the table - which will still translate to a DB "alter" operation
-console.log(savepoint.rollbackOutcome); // ALTER
 console.log(savepoint.descripton); // Create test_tbl2
+console.log(savepoint.rollbackEffect); // ALTER
 ```
 
 </details>
@@ -1513,14 +1519,14 @@ Check if the savepoint is the next actual <i>point in time</i> for the database.
 
 ##### ✨ Usage:
 
-Perform an operation and obtain the savepoint associated with it:
+For a new operation, that would be true:
 
 ```js
 const dbCreationSavepoint = await client.createDatabase('test_db');
 console.log(await dbCreationSavepoint.isNextPointInTime()); // true
 ```
 
-See if `dbCreationSavepoint` is still the DB's immediate *point in time* to rollback to after having possibly performed more operations:
+But after having performed more operations, that wouldn't be:
 
 ```js
 const tblCreationSavepoint = await client.database('test_db').createTable({
@@ -1547,7 +1553,7 @@ console.log(await dbCreationSavepoint.isNextPointInTime()); // true
 #### `savepoint.rollback()`:
 
 <details><summary>
-Rollback all changes predated by given savepoint.
+Rollback all changes associated with given savepoint.
 <pre><code>savepoint.rollback(): Promise&lt;boolean&gt;</code></pre></summary>
 
 *└ Spec:*
@@ -1584,7 +1590,7 @@ Get a plain object representation of the savepoint.
 
 *└ Spec:*
 
-+ Return value: an object of the form `{ id: string, name: string, database_tag: string, version_tag: number, version_max: number, cursor: string, description: string, savepoint_date: Date, rollback_date: Date | null }`. (Notice the snake casing of the camel-cased equivalents on the savepoint instance.)
++ Return value: an object of the form `{ id: string, name: string, databaseTag: string, versionTag: number, versionMax: number, cursor: string, description: string, savepointDate: Date, rollbackDate: Date | null }`.
 
 ##### ✨ Usage:
 
@@ -1598,7 +1604,7 @@ console.log(savepoint.toJson());
 #### `savepoint.schema()`:
 
 <details><summary>
-Get the subject database's snapshot at this point in time.
+Get the subject DB's schema snapshot at this point in time.
 <pre><code>savepoint.schema(): object</code></pre></summary>
 
 *└ Spec:*

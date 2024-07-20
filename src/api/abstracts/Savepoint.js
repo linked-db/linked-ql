@@ -69,7 +69,7 @@ export default class Savepoint {
     /**
      * @returns String
      */
-    get rollbackOutcome() {
+    get rollbackEffect() {
         const $outcome = typeof this.$.json.keep !== 'boolean' ? ['DROP', 'CREATE'] : (this.$.json.keep === false ? ['CREATE', 'DROP'] : ['ALTER']);
         return this.direction === 'forward' ? $outcome.reverse()[0] : $outcome[0];
     }
@@ -94,8 +94,8 @@ export default class Savepoint {
      * @returns Object
      */
     toJson() {
-        const { id, database_tag, version_tag, version_max, cursor, savepoint_description: description, savepoint_date, rollback_date } = this.$.json;
-        return { id, name: this.name(), database_tag, version_tag, version_max, cursor, description, savepoint_date, rollback_date };
+        const { id, database_tag: databaseTag, version_tag: versionTag, version_max: versionMax, cursor, savepoint_description: description, savepoint_date: savepointDate, rollback_date: rollbackDate } = this.$.json;
+        return { id, name: this.name(), databaseTag, versionTag, versionMax, cursor, description, savepointDate, rollbackDate };
     }
 
     /**
@@ -129,7 +129,7 @@ export default class Savepoint {
         }
         // Update record
         const tblName = [this.client.constructor.OBJ_INFOSCHEMA_DB, 'database_savepoints'].join('.');
-        const updatedRecord = await this.client.query(`UPDATE ${tblName} SET rollback_date = ${this.direction === 'forward' ? 'NULL' : 'now()'} WHERE id = '${this.$.json.id}' RETURNING rollback_date`);
+        const updatedRecord = await this.client.query(`UPDATE ${ tblName } SET rollback_date = ${ this.direction === 'forward' ? 'NULL' : 'now()' } WHERE id = '${ this.$.json.id }' RETURNING rollback_date`);
         this.$.json.rollback_date = updatedRecord[0].rollback_date;
         return true;
     }
