@@ -218,6 +218,8 @@ console.table(savepoint.versionTag);    // 1
 console.table(savepoint.savepointDate); // 2024-07-17T22:40:56.786Z
 ```
 
+*(More details in the [Savepoint API](#the-savepoint-api).)*
+
 ✨ PRO: *DB versioning concerns are now essentially taken out of the client application - to the DB itself; and with zero upfront setup!*
 
 Now, when it's time to rollback, a magic wand button makes it all nifty:
@@ -246,8 +248,6 @@ let savepoint = await client.database('public').savepoint({ direction: 'forward'
 await savepoint.rollback();
 ```
 
-*More details in the [Savepoint API](#the-savepoint-api).*
-
 ## Re-Introducing Schema-as-Code with `schema.json`
 
 💥 *Have your entire DB structure live in a single `schema.json` file that you edit in-place!*
@@ -269,11 +269,7 @@ With schema versioning now over to the database, all related database concerns a
 ]
 ```
 
-<details><summary>Full details</summary>
-
-### test heading
-
-</details>
+*(Full spec in the [Schemas](#schemas) section.)*
 
 Now, if you had that somewhere in your application, say at `./database/schema.js`, Linked QL could help keep it in sync both ways with your database:
 
@@ -437,7 +433,7 @@ Here's for a quick overview of the Linked QL API.
 
 Here we talk about the `client.query()` method in detail along with other Linked QL APIs that essentially let us do the same things possible with `client.query()`, but this time, programmatically.
 
-For example, a `CREATE DATABASE` query...
+For example, a `CREATE DATABASE` operation...
 
 ```js
 const savepoint = await client.query('CREATE DATABASE IF NOT EXISTS database_1');
@@ -451,11 +447,11 @@ const savepoint = await client.createDatabase('database_1', { ifNotExists: true 
 
 That said, while the `createDatabase()` method is associated with the base `Client` object, the different programmatic query APIs in Linked QL are actually organized into three hierarchical scopes:
 
-+ the top-level scope (represented by the [`Client`](#the-client-api) interface), featuring methods such as: [`createDatabase()`](#clientcreatedatabase), [`alterDatabase()`](#clientalterdatabase), [`dropDatabase()`](#clientdropdatabase), [`hasDatabase()`](#clienthasdatabase), [`describeDatabase()`](#clientdescribedatabase)
++ the top-level scope (represented by the [`Client`](#the-client-api) interface), featuring methods such as: `createDatabase()`, `alterDatabase()`, `dropDatabase()`, `hasDatabase()`, `describeDatabase()`
 
-+ the database-level scope (represented by a certain [`Database`](#the-database-api) interface), featuring methods such as: [`createTable()`](#databasecreatetable), [`alterTable()`](#databasealtertable), [`dropTable()`](#databasedroptable), [`hasTable()`](#databasehastable), [`describeTable()`](#databasedescribetable)
++ the database-level scope (represented by a certain [`Database`](#the-database-api) interface), featuring methods such as: `createTable()`, `alterTable()`, `dropTable()`, `hasTable()`, `describeTable()`
 
-+ the table-level scope (represented by a certain [`Table`](#the-table-api) interface), featuring methods such as: [`select()`](#tableselect), [`insert()`](#tableinsert), [`upsert()`](#tableupsert), [`update()`](#tableupdate), [`delete()`](#tabledelete)
++ the table-level scope (represented by a certain [`Table`](#the-table-api) interface), featuring methods such as: `select()`, `insert()`, `upsert()`, `update()`, `delete()`
 
 And it's easy to narrow down from the top-level scope to a database scope...
 
@@ -505,6 +501,8 @@ Click on each method definition for details.
 
 *Client* is the top-level object for the individual database kinds in Linked QL. Each instance implements the following interface:
 
+<details><summary>See content</summary>
+
 + [`client.query()`](#clientquery)
 + [`client.createDatabase()`](#clientcreatedatabase)
 + [`client.alterDatabase()`](#clientalterdatabase)
@@ -513,6 +511,8 @@ Click on each method definition for details.
 + [`client.describeDatabase()`](#clientdescribedatabase)
 + [`client.databases()`](#clientdatabases)
 + [`client.database()`](#clientdatabase)
+
+</details>
 
 #### `client.query()`:
 
@@ -772,6 +772,8 @@ const database = client.database('database_1');
 
 *Database* is the API for database-level operations. This object is obtained via [`client.database()`](#clientdatabase)
 
+<details><summary>See content</summary>
+
 + [`database.name`](#databasename)
 + [`database.createTable()`](#databasecreatetable)
 + [`database.alterTable()`](#databasealtertable)
@@ -781,6 +783,8 @@ const database = client.database('database_1');
 + [`database.tables()`](#databasetables)
 + [`database.table()`](#databasetable)
 + [`database.savepoint()`](#databasesavepoint)
+
+</details>
 
 #### `database.name`:
 
@@ -1010,6 +1014,8 @@ Some additional parameters via `options`:
 
 *Table* is the API for table-level operations. This object is obtained via [`database.table()`](#databasetable)
 
+<details><summary>See content</summary>
+
 + [`table.name`](#tablename)
 + [`table.count()`](#tablecount)
 + [`table.select()`](#tableselect)
@@ -1017,6 +1023,8 @@ Some additional parameters via `options`:
 + [`table.upsert()`](#tableupsert)
 + [`table.update()`](#tableupdate)
 + [`table.delete()`](#tabledelete)
+
+</details>
 
 #### `table.name`:
 
@@ -1227,6 +1235,8 @@ await table.delete(true);
 
 *Savepoint* is an object representation of a database's savepoint. This object is obtained via [`database.savepoint()`](#databasesavepoint)
 
+<details><summary>See content</summary>
+
 + [`savepoint.id`](#savepointid)
 + [`savepoint.databaseTag`](#savepointdatabasetag)
 + [`savepoint.versionTag`](#savepointversiontag)
@@ -1241,6 +1251,8 @@ await table.delete(true);
 + [`savepoint.toJson()`](#savepointtojson)
 + [`savepoint.schema()`](#savepointschema)
 + [`savepoint.name()`](#savepointname)
+
+</details>
 
 #### `savepoint.id`:
 
