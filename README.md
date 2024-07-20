@@ -554,7 +554,7 @@ const rows = await client.query('INSERT INTO users SET name = \'John Doe\' RETUR
 console.log(rows.length); // 1
 ```
 
-Use `options` for some additional parameters:
+Some additional parameters via `options`:
 
 + `dialect` (string, *optional*): the SQL dialect in use: `postgres` (the default) or `mysql`. (Details soon as to how this is treated by Linked QL.)
 
@@ -612,7 +612,7 @@ const savepoint = await client.createDatabase({
 }, { description: 'Just testing database creation' });
 ```
 
-Use `options` for some additional parameters:
+Some additional parameters via `options`:
 
 + `ifNotExists` (boolean, *optional*): a flag to conditionally create the database.
 
@@ -675,7 +675,7 @@ Dynamically run a <code>DROP DATABASE</code> query.
 const savepoint = await client.dropDatabase('database_1', { description: 'Dropping for testing purposes' });
 ```
 
-Use `options` for some additional parameters:
+Some additional parameters via `options`:
 
 + `ifExists` (boolean, *optional*): a flag to conditionally drop the database.
 
@@ -808,7 +808,7 @@ const savepoint = await database.createTable({
 }, { description: 'Just testing table creation' });
 ```
 
-Use `options` for some additional parameters:
+Some additional parameters via `options`:
 
 + `ifNotExists` (boolean, *optional*): a flag to conditionally create the table.
 
@@ -864,7 +864,7 @@ Dynamically run a <code>DROP TABLE</code> query.
 const savepoint = await database.dropTable('table_1', { description: 'Dropping for testing purposes' });
 ```
 
-Use `options` for some additional parameters:
+Some additional parameters via `options`:
 
 + `ifExists` (boolean, *optional*): a flag to conditionally drop the table.
 
@@ -978,7 +978,7 @@ console.log(savepoint.versionTag); // Number
 await savepoint.rollback(); // true
 ```
 
-Use `options` for some additional parameters:
+Some additional parameters via `options`:
 
 + `direction` (string, *optional*): the direction in which to go - either back in time: `backward` (the default), or forward in time: `forward`.
 
