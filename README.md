@@ -463,13 +463,13 @@ That said, while the `createDatabase()` method is associated with the base `Clie
 And it's easy to narrow down from the top-level scope to a database...
 
 ```js
-const database = client.database('database_1');
+const database_1 = client.database('database_1');
 ```
 
 and from there to a table:
 
 ```js
-const table = database.table('table_1');
+const table_1 = database.table('table_1');
 ```
 
 These APIs at play would look something like:
@@ -498,7 +498,7 @@ await client.database('database_1').table('table_1').insert({
 });
 ```
 
-Now, these APIs and more are what's covered in this section.
+These APIs and more are what's covered in this section.
 
 Click on each method definition for details.
 
@@ -962,12 +962,12 @@ Count total entries in table.
 + Return value: number.
 
 ```js
-const rowCount = table.count();
+const rowCount = await table.count();
 ```
 
 ```js
 // Number of rows where column_1 isn't null
-const rowCount = table.count('column_1');
+const rowCount = await table.count('column_1');
 ```
 
 </details>
@@ -976,25 +976,67 @@ const rowCount = table.count('column_1');
 
 <details><summary>
 Dynamically run a <code>SELECT</code> query.
-<pre><code>table.select(fields?: (string | Function)[] = *, where?: number | object | Function): Promise&lt;Array&lt;object&gt;&gt;</code></pre></summary>
+<pre><code>table.select(fields: (string | Function)[] = *, where?: number | object | Function): Promise&lt;Array&lt;object&gt;&gt;</code></pre>
+<pre><code>table.select(where: number | object | Function): Promise&lt;Array&lt;object&gt;&gt;</code></pre></summary>
 
 *└ Spec:*
-+ `fields` ((string | Function)[] = *, *optional*): a array of fields to select. A field being either a string denoting column name, or a function that recieves a *Field* object with which to build an expression.
++ `fields` ((string | Function)[] = *, *optional*): a array of fields to select. (A field being either a string denoting column name, or a function that recieves a *Field* object with which to build an expression.)
 + `where` (number | object | Function, *optional*): a number denoting primary key value of the target row, or an object denoting column name/column value conditions, or a function that recieves an *Assertion* object with which to build the conditions.
 
 ```js
 // Select record by primary key value, specifying fields
-const result = table.select(['first_name', 'last_name', 'email'], 4);
+const result = await table.select(['first_name', 'last_name', 'email'], 4);
 ```
 
 ```js
 // Select record by primary key value, ommiting fields
-const result = table.select(4);
+const result = await table.select(4);
 ```
 
 ```js
 // Select record by some column name/column value conditions, ommiting fields
-const result = table.select({ first_name: 'John', last_name: 'Doe' });
+const result = await table.select({ first_name: 'John', last_name: 'Doe' });
+```
+
+</details>
+
+#### `table.insert()`:
+
+<details><summary>
+Dynamically run an <code>INSERT</code> query.
+<pre><code>table.insert(payload: object | object[], returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre>
+<pre><code>table.insert(columns: string[], values: any[][], returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre></summary>
+
+*└ Spec:*
++ `payload` (object | object[]): an object denoting a single entry, or an array of said objects denoting multiple entries. (An entry having the general form: `{ [key: string]: string | number | any[] | object | Date | null | boolean; }`, where arrays and objects are acceptable only for JSON columns.)
++ `columns` (string[]): just column names (as against the key/value-based `payload` in the first call pattern).
++ `values` (any[][]): a two-dimensional array of just values (as against the key/value-based `payload` in the first call pattern), denoting multiple entries. 
++ `returnList` ((string | Function)[], *optional*): a list of fields, corresponding to a [select list](#tableselect), specifying data to be returned from the just inserted row. (Equivalent to Postgres' [RETURNING clause](https://www.postgresql.org/docs/current/dml-returning.html), but supported for other DB kinds in Linked QL.)
+
+```js
+// Insert single entry
+await table.insert({ first_name: 'John', last_name: 'Doe', email: 'johndoe@example.com'});
+```
+
+```js
+// Insert multiple entries
+await table.insert([
+    { first_name: 'John', last_name: 'Doe', email: 'johndoe@example.com'},
+    { first_name: 'James', last_name: 'Clerk', email: 'jamesclerk@example.com'},
+]);
+```
+
+```js
+// Insert multiple entries another way
+await table.insert(['first_name', 'last_name', 'email'], [
+    ['John', 'Doe', 'johndoe@example.com'],
+    ['James', 'Clerk', 'jamesclerk@example.com'],
+]);
+```
+
+```js
+// Insert single entry with a return list
+const returnList = await table.insert({ first_name: 'John', last_name: 'Doe', email: 'johndoe@example.com'}, ['id']);
 ```
 
 </details>
