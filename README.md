@@ -1033,7 +1033,7 @@ Dynamically run a <code>SELECT</code> query.
 *└ Spec:*
 
 + `fields` ((string | Function)[] = *, *optional*): a array of fields to select. (A field being either a string denoting column name, or a function that recieves a *Field* object with which to build an expression.)
-+ `where` (number | object | Function | bool, *optional*): a number denoting primary key value of the target row, or an object denoting column name/column value conditions, or a function that recieves an *Assertion* object with which to build the conditions. Defaults to `true`, matching all records.
++ `where` (number | object | Function | bool, *optional*): a number denoting primary key value of the target row, or an object denoting column name/column value conditions, or a function that recieves an *Assertion* object with which to build the conditions, or the value `true` denoting all records. Defaults to `true`.
 + Return value: an array (the result set).
 
 ##### ✨ Usage:
@@ -1099,7 +1099,7 @@ await table.insert(['first_name', 'last_name', 'email'], [
 ```
 
 ```js
-// Insert single entry with a return list
+// Insert single entry, obtaining return list streamlined to just "id"
 const returnList = await table.insert({ first_name: 'John', last_name: 'Doe', email: 'johndoe@example.com'}, ['id']);
 ```
 
@@ -1134,7 +1134,7 @@ Dynamically run an <code>UPDATE</code> query.
 
 *└ Spec:*
 
-+ `where` (number | object | Function | bool): a number denoting primary key value of the target row, or an object denoting column name/column value conditions, or a function that recieves an *Assertion* object with which to build the conditions, or the value `true` denoting all records.
++ `where` (number | object | Function | bool): as described in [`select()`](#tableselect).
 + `payload` (object): an object having the general form: `{ [key: string]: string | number | any[] | object | Date | null | boolean; }` where arrays and objects as values are acceptable only for JSON columns.
 + `returnList` ((string | Function)[], *optional*): as described in [`insert()`](#tableinsert).
 + Return value: as described in [`insert()`](#tableinsert).
@@ -1151,6 +1151,40 @@ await table.update(4, { first_name: 'John', last_name: 'Doe' });
 const updatedRow = await table.update({ email: 'johndoe@example.com' }, { first_name: 'John', last_name: 'Doe' });
 ```
 
+```js
+// Update all records
+await table.update(true, { updated_at: new Date });
+```
+</details>
+
+#### `table.delete()`:
+
+<details><summary>
+Dynamically run a <code>DELETE</code> query.
+<pre><code>table.delete(where: number | object | Function | bool, returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre></summary>
+
+*└ Spec:*
+
++ `where` (number | object | Function | bool): as described in [`select()`](#tableselect).
++ `returnList` ((string | Function)[], *optional*): as described in [`insert()`](#tableinsert).
++ Return value: as described in [`insert()`](#tableinsert).
+
+##### ✨ Usage:
+
+```js
+// Delete the record having primary key value of 4
+await table.delete(4);
+```
+
+```js
+// Delete the record having specified email, obtaining the deleted row
+const deletedRow = await table.delete({ email: 'johndoe@example.com' });
+```
+
+```js
+// Delete all records
+await table.delete(true);
+```
 </details>
 
 ------------
