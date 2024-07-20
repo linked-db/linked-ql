@@ -1013,7 +1013,7 @@ Dynamically run an <code>INSERT</code> query.
 <pre><code>table.insert(columns: string[], values: any[][], returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 *└ Spec:*
-+ `payload` (object | object[]): an object denoting a single entry, or an array of said objects denoting multiple entries. (An entry having the general form: `{ [key: string]: string | number | any[] | object | Date | null | boolean; }`, where arrays and objects are acceptable only for JSON columns.)
++ `payload` (object | object[]): an object denoting a single entry, or an array of said objects denoting multiple entries. (An entry having the general form: `{ [key: string]: string | number | any[] | object | Date | null | boolean; }` where arrays and objects as values are acceptable only for JSON columns.)
 + `columns` (string[]): just column names (as against the key/value-based `payload` in the first call pattern).
 + `values` (any[][]): a two-dimensional array of just values (as against the key/value-based `payload` in the first call pattern), denoting multiple entries. 
 + `returnList` ((string | Function)[], *optional*): a list of fields, corresponding to a [select list](#tableselect), specifying data to be returned from the just inserted row. (Equivalent to Postgres' [RETURNING clause](https://www.postgresql.org/docs/current/dml-returning.html), but supported for other DB kinds in Linked QL.)
@@ -1043,6 +1043,19 @@ await table.insert(['first_name', 'last_name', 'email'], [
 // Insert single entry with a return list
 const returnList = await table.insert({ first_name: 'John', last_name: 'Doe', email: 'johndoe@example.com'}, ['id']);
 ```
+
+</details>
+
+#### `table.upsert()`:
+
+<details><summary>
+Dynamically run an <code>UPSERT</code> query.
+<pre><code>table.insert(payload: object | object[], returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre>
+<pre><code>table.insert(columns: string[], values: any[][], returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre></summary>
+
+*└ Spec:* (Same as [`insert()`](#tableinsert).)
+
+*└ Usage:* An `UPSERT` operation is an `INSERT` that automatically converts to an `UPDATE` where given record already exists. Usage is same as [`insert()`](#tableinsert).
 
 </details>
 
