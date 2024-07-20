@@ -477,7 +477,7 @@ Use `options` for some additional parameters:
     // Unlock certain dialect-specific clauses or conventions
     const rows = await client.query('ALTER TABLE users MODIFY COLUMN id int', { dialect: 'mysql' });
     ```
-+ `params` ((string | number)[], *optional*): the values for any parameters used in the query.
++ `params` ((string | number)[], *optional*): the values for parameter-binding in the query.
 
     ```js
     const rows = await client.query('SELECT * FROM users WHERE id = $1', { params: [4] });
@@ -487,7 +487,7 @@ Use `options` for some additional parameters:
     ```js
     const savepoint = await client.query('DROP DATABASE test', { description: 'No longer needed' });
     ```
-+ `noCreateSavepoint` (boolean, *optional*): to prevent creating a savepoint on a `CREATE`, `ALTER`, `DROP` query.
++ `noCreateSavepoint` (boolean, *optional*): a flag to prevent creating a savepoint on a `CREATE`, `ALTER`, `DROP` query.
 
     ```js
     await client.query('DROP DATABASE test', { noCreateSavepoint: true });
@@ -538,29 +538,29 @@ Use `options` for some additional parameters:
 
 <details><summary>
 Dynamically run an <code>ALTER DATABASE</code> query.
-<pre><code>client.alterDatabase(alterSpec: string | { name: string, tables?: array }, callback: (db: DatabaseSchema) => void, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
+<pre><code>client.alterDatabase(alterSpec: string | { name: string, tables?: string[] }, callback: (schema: DatabaseSchema) => void, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 *└ Spec:*
-+ `alterSpec` (string | { name: string, tables?: array }): the database name, or an object with an optional list of tables to be altered along with it.
-+ `callback` ((db: DatabaseSchema) => void): a function that is called with the requested schema. This can be async. Received object is a [`DatabaseSchema`](#the-database-apischema) instance.
++ `alterSpec` (string | { name: string, tables?: string[] }): the database name, or an object with an optional list of tables to be altered along with it.
++ `callback` ((schema: DatabaseSchema) => void): a function that is called with the requested schema. This can be async. Received object is a [`DatabaseSchema`](#the-database-apischema) instance.
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
 Specify database by name:
 
 ```js
-const savepoint = await client.alterDatabase('database_1', db => {
-    db.name('database_1_new');
+const savepoint = await client.alterDatabase('database_1', schema => {
+    schema.name('database_1_new');
 }, { description: 'Renaming for testing purposes' });
 ```
 
 or by an object, with an optional list of tables to be altered along with it:
 
 ```js
-const savepoint = await client.alterDatabase({ name: 'database_1', tables: ['table_1'] }, db => {
-    db.name('database_1_new');
-    db.table('table_1').column('column_1').name('column_1_new');
-    db.table('table_1').column('column_2').type('varchar');
+const savepoint = await client.alterDatabase({ name: 'database_1', tables: ['table_1'] }, schema => {
+    schema.name('database_1_new');
+    schema.table('table_1').column('column_1').name('column_1_new');
+    schema.table('table_1').column('column_2').type('varchar');
 }, { description: 'Renaming for testing purposes' });
 ```
 
@@ -716,17 +716,19 @@ Use `options` for some additional parameters:
 
 <details><summary>
 Dynamically run an <code>ALTER TABLE</code> query.
-<pre><code>database.alterTable(tblName: string, callback: (db: TableSchema) => void, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
+<pre><code>database.alterTable(tblName: string, callback: (schema: TableSchema) => void, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 *└ Spec:*
 + `tblName` (string): the table name.
-+ `callback` ((db: TableSchema) => void): a function that is called with the requested table schema. This can be async. Received object is a [`TableSchema`](#the-table-apischema) instance.
++ `callback` ((schema: TableSchema) => void): a function that is called with the requested table schema. This can be async. Received object is a [`TableSchema`](#the-table-apischema) instance.
 + `options`  (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
 ```js
-const savepoint = await database.alterTable('table_1', tbl => {
-    tbl.name('table_1_new');
+const savepoint = await database.alterTable('table_1', schema => {
+    schema.name('table_1_new');
+    schema.column('column_1').type('int');
+    schema.column('column_2').drop();
 }, { description: 'Renaming for testing purposes' });
 ```
 
@@ -879,6 +881,11 @@ Count total entries in table.
 
 ```js
 const rowCount = table.count();
+```
+
+```js
+// Number of rows where column_1 isn't null
+const rowCount = table.count('column_1');
 ```
 
 </details>
