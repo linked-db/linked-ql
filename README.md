@@ -1248,7 +1248,7 @@ await table.delete(true);
 #### `savepoint.id`:
 
 <details><summary>
-The savepoint's globally unique identifier.
+The UUID associated with the savepoint.
 <pre><code>savepoint.id: (UUID, <i>readonly</i>)</code></pre></summary>
 
 ##### ✨ Usage:
@@ -1257,6 +1257,8 @@ The savepoint's globally unique identifier.
 const savepoint = await client.database('test_db').savepoint();
 console.log(savepoint.id); // f740d66a-df5f-4a34-a281-8ef3ba6fe754
 ```
+
+</details>
 
 #### `savepoint.databaseTag`:
 
