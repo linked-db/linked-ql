@@ -1321,6 +1321,8 @@ const savepoint = await client.database('test_db').savepoint();
 console.log(savepoint.versionTag); // 2
 ```
 
+</details>
+
 #### `savepoint.versionMax`:
 
 <details><summary>
@@ -1345,6 +1347,8 @@ console.log(savepoint.versionTag); // 1
 console.log(savepoint.versionMax); // 2
 ```
 
+</details>
+
 #### `savepoint.cursor`:
 
 <details><summary>
@@ -1357,6 +1361,8 @@ The savepoint's position in the database's list of available savepoints.
 const savepoint = await client.database('test_db').savepoint();
 console.log(savepoint.cursor); // 2/3
 ```
+
+</details>
 
 #### `savepoint.description`:
 
@@ -1379,6 +1385,8 @@ const savepoint = await client.database('test_db').savepoint();
 console.log(savepoint.description); // Create test_tbl2
 ```
 
+</details>
+
 #### `savepoint.savepointDate`:
 
 <details><summary>
@@ -1391,6 +1399,8 @@ The savepoint's creation date.
 const savepoint = await client.database('test_db').savepoint();
 console.log(savepoint.savepointDate); // 2024-07-20T15:31:06.096Z
 ```
+
+</details>
 
 #### `savepoint.rollbackDate`:
 
@@ -1417,6 +1427,8 @@ console.log(savepoint.rollbackDate); // 2024-07-20T15:31:06.096Z
 const savepoint = await client.database('test_db').savepoint({ direction: 'forward' });
 console.log(savepoint.rollbackDate); // 2024-07-20T15:31:06.096Z
 ```
+
+</details>
 
 #### `savepoint.rollbackOutcome`:
 
@@ -1476,6 +1488,8 @@ const savepoint = await client.database('test_db').savepoint({ direction: 'forwa
 console.log(savepoint.rollbackOutcome); // ALTER
 console.log(savepoint.descripton); // Create test_tbl2
 ```
+
+</details>
 
 #### `savepoint.isNextPointInTime()`:
 
