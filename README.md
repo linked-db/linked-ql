@@ -788,7 +788,7 @@ const database = client.database('database_1');
 #### `database.name`:
 
 <details><summary>
-The subject database's name.
+The name associated with the *Database* instance.
 <pre><code>database.name: (string, <i>readonly</i>)</code></pre></summary>
 
 ##### ✨ Usage:
@@ -1024,7 +1024,7 @@ Some additional parameters via `options`:
 #### `table.name`:
 
 <details><summary>
-The subject table's name.
+The name associated with the *Table* instance.
 <pre><code>table.name: (string, <i>readonly</i>)</code></pre></summary>
 
 ##### ✨ Usage:
@@ -1033,6 +1033,8 @@ The subject table's name.
 const table = client.database('test_db').table('table_1');
 console.log(table.name); // table_1
 ```
+
+</details>
 
 #### `table.count()`:
 
