@@ -600,7 +600,7 @@ Specify database by name:
 const savepoint = await client.createDatabase('database_1', { description: 'Just testing database creation' });
 ```
 
-or by a schema object, with an optional list of tables to be created along with it, with each listed table corresponding to the [table JSON schema](#schemajson):
+or by a schema object, with an optional list of tables to be created along with it. (Each listed table corresponding to the [table JSON schema](#schemajson)):
 
 ```js
 const savepoint = await client.createDatabase({
