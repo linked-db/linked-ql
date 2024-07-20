@@ -1050,8 +1050,8 @@ const returnList = await table.insert({ first_name: 'John', last_name: 'Doe', em
 
 <details><summary>
 Dynamically run an <code>UPSERT</code> query.
-<pre><code>table.insert(payload: object | object[], returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre>
-<pre><code>table.insert(columns: string[], values: any[][], returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre></summary>
+<pre><code>table.upsert(payload: object | object[], returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre>
+<pre><code>table.upsert(columns: string[], values: any[][], returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 *└ Spec:* (Same as [`insert()`](#tableinsert).)
 
