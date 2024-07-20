@@ -418,7 +418,89 @@ Interesting yet? You may want to learn more about [Linked QL's unique take on Sc
 
 ## API
 
-This is a quick overview of the Linked QL API. Click on each method definition for details.
+This is a quick overview of the Linked QL API.
+
+Here we talk about the `client.query()` method in detail along with other Linked QL APIs that essentially let us do the same things as with `client.query()`, but this time, programmatically.
+
+For example, a `CREATE DATABASE` query...
+
+```js
+const savepoint = await client.query('CREATE DATABASE IF NOT EXISTS database_1');
+```
+
+could also be programmatically done as:
+
+```js
+const savepoint = await client.createDatabase('database_1', { ifNotExists: true });
+```
+
+That said, while the `createDatabase()` method is associated with the base `Client` object, the different programmatic query APIs in Linked QL are actually organized into three hierarchical scopes:
+
++ the top-level scope (represented by the [`Client`](#the-client-api) interface), featuring methods such as:
+
+    + [`createDatabase()`](#clientcreatedatabase)
+    + [`alterDatabase()`](#clientalterdatabase)
+    + [`dropDatabase()`](#clientdropdatabase)
+    + [`hasDatabase()`](#clienthasdatabase)
+    + [`describeDatabase()`](#clientdescribedatabase)
+
++ the database-level scope (represented by a certain [`Database`](#the-database-api) interface), featuring methods such as:
+
+    + [`createTable()`](#databasecreatetable)
+    + [`alterTable()`](#databasealtertable)
+    + [`dropTable()`](#databasedroptable)
+    + [`hasTable()`](#databasehastable)
+    + [`describeTable()`](#databasedescribetable)
+
++ the table-level scope (represented by a certain [`Table`](#the-table-api) interface), featuring methods such as:
+
+    + [`select()`](#tableselect)
+    + `insert()`
+    + `upsert()`
+    + `update()`
+    + `delete()`
+
+And it's easy to narrow down from the top-level scope to a database...
+
+```js
+const database = client.database('database_1');
+```
+
+and from there to a table:
+
+```js
+const table = database.table('table_1');
+```
+
+These APIs at play would look something like:
+
+```js
+// Create database "database_1"
+await client.createDatabase('database_1', { ifNotExists: true });
+```
+
+```js
+// Enter "database_1" and create a table
+await client.database('database_1').createTable({
+    name: 'table_1', columns: [
+        { name: 'column_1', type: 'int', identity: true, primaryKey: true },
+        { name: 'column_2', type: 'varchar' },
+        { name: 'column_3', type: 'varchar' },
+    ]
+});
+```
+
+```js
+// Enter "table_1" and insert data
+await client.database('database_1').table('table_1').insert({
+    column_2: 'Column 2 test content',
+    column_3: 'Column 3 test content',
+});
+```
+
+Now, these APIs and more are what's covered in this section.
+
+Click on each method definition for details.
 
 ------------
 
