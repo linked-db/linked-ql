@@ -251,7 +251,7 @@ let savepoint = await client.database('public').savepoint({ direction: 'forward'
 await savepoint.rollback();
 ```
 
-You essentially are able to go *back in time* and *forward in time* as randomly as iteration demands.
+You essentially are able to go *back in time* or *forward in time*, and as randomly as iteration may demand.
 
 ## Re-Introducing Schema-as-Code with `schema.json`
 
