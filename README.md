@@ -399,8 +399,8 @@ An example index object:
 
 Now, if you had that somewhere in your application, say at `./database/schema.json`, Linked QL could help keep it in sync both ways with your database:
 
-+ you add or remove a database or table or column... and it is automatically reflected in your DB structure at the click of a button: `linkedql migrate`
-+ your colleague makes new changes from their codebase... and it is automatically reflected in your local copy at the click of a button: `linkedql reflect`
++ you add or remove a database or table or column... and it is automatically reflected in your DB structure with a simple command: `linkedql migrate`
++ your colleague makes new changes from their codebase... and it is automatically reflected in your local copy with a simple command: `linkedql reflect`
 
 You also get to see a version indicator on each database object in your schema essentially incrementing on each migrate operation (whether by you or by colleague), and decrementing on each rollback operation (whether by you or by colleague).
 
@@ -1705,6 +1705,8 @@ console.log(savepoint.name(true)); // test_db
 
 Linked QL migrations are a **small** addition to Linked QL. And it comes ready-to-use, via the `linkedql` command, upon Linked QL's installation. (No extra setup is required.)
 
+### Overview
+
 The `linkedql` command comes as part of your local Linked QL installation and not as a global package, and that means you'll need the `npx` prefix to run the commands below. E.g.
 
 ```cmd
@@ -1731,11 +1733,13 @@ Use the flag `--auto` to turn off prompts and just take the "sensible-default" a
 npx linkedql migrate --auto
 ```
 
-### `linkedql migrate`
+### Commands
+
+#### `linkedql migrate`
 
 *Interactively run new migrations.* Linked QL looks through your local schema and compares with your active DB structure to see what's new. It works interactively by default and you're able to preview each SQL query to be run.
 
-#### 🎲 Usage:
+##### 🎲 Usage:
 
 ```cmd
 npx linkedql migrate
@@ -1757,11 +1761,11 @@ Use the flag `--quiet` to turn off SQL previews:
 npx linkedql migrate --quiet
 ```
 
-### `linkedql rollback`
+#### `linkedql rollback`
 
 *Interactively perform a rollback.* Linked QL looks for the next savepoint at each database and initiates a rollback. It works interactively by default and you're able to preview each SQL query to be run.
 
-#### 🎲 Usage:
+##### 🎲 Usage:
 
 ```cmd
 npx linkedql rollback
@@ -1783,11 +1787,11 @@ Use the flag `--quiet` to turn off SQL previews:
 npx linkedql migrate --quiet
 ```
 
-### `linkedql leaderboard`
+#### `linkedql leaderboard`
 
 *View the latest savepoint at each database.* Linked QL displays details about the next savepoint at each database.
 
-#### 🎲 Usage:
+##### 🎲 Usage:
 
 ```cmd
 npx linkedql leaderboard
@@ -1803,11 +1807,11 @@ Use the flag `--direction` to specify either a "back in time" lookup (the defaul
 npx linkedql leaderboard --direction=forward
 ```
 
-### `linkedql erase`
+#### `linkedql erase`
 
 *Permanently delete savepoint histories.* Linked QL deletes the savepoint history of each database. This is irreversible.
 
-#### 🎲 Usage:
+##### 🎲 Usage:
 
 ```cmd
 npx linkedql erase
