@@ -177,25 +177,27 @@ Databases have historically lacked the concept of schema versioning, and that ha
 
 ```sql
 app
-  ├── migrations
+  ├─ migrations
   │ │
-  │ ├── 20240523_1759_create_users_table_and_drop_accounts_table
-  │ │ ├── up.sql
-  │ │ │   CREATE TABLE users (id INT, first_n...);
-  │ │ │   DROP TABLE accounts;
-  │ │ └── down.sql
-  │ │     DROP TABLE users;
-  │ │     CREATE TABLE accounts (id INT, first_name VAR...);
+  │ ├─ 20240523_1759_create_users_table_and_drop_accounts_table
+  │ │ │
+  │ │ ├─ up.sql
+  │ │ │    CREATE TABLE users (id INT, first_n...);
+  │ │ │    DROP TABLE accounts;
+  │ │ └─ down.sql
+  │ │      DROP TABLE users;
+  │ │      CREATE TABLE accounts (id INT, first_name VAR...);
   │ │
-  │ ├── 20240523_1760_add_last_login_to_users_table_and_rename_order_status_table
-  │ │ ├── up.sql
-  │ │ │   ALTER TABLE users ADD COLUMN last_lo...;
-  │ │ │   ALTER TABLE order_status RENAME TO o...;
-  │ │ └── down.sql
-  │ │     ALTER TABLE users DROP COLUMN last_login;
-  │ │     ALTER TABLE order_tracking RENAME TO order_status;
+  │ ├─ 20240523_1760_add_last_login_to_users_table_and_rename_order_status_table
+  │ │ │
+  │ │ ├─ up.sql
+  │ │ │    ALTER TABLE users ADD COLUMN last_lo...;
+  │ │ │    ALTER TABLE order_status RENAME TO o...;
+  │ │ └─ down.sql
+  │ │      ALTER TABLE users DROP COLUMN last_login;
+  │ │      ALTER TABLE order_tracking RENAME TO order_status;
   │ │
-  │ ├── +256 more...
+  │ ├─ +256 more...
 ```
 
 then you've faced the problem that this defeciency in databases creates! But what if databases magically got to do the heavy lifting?
@@ -254,58 +256,47 @@ await savepoint.rollback();
 
 With schema versioning now over to the database, much of the related database concerns at the application level should now be irrelevant. It turns out that we could essentially streamline our application-level database footprint from spanning hundreds of migration files to fitting into a single `schema.json` (or `schema.yml`) file!
 
-└ `schema.json`
+### └ `schema.json`
 
 ```js
 [
     {
-        "name": "database_1", // Required
+        "name": "database_1",
         "tables": [] // Table objects
     },
     {
-        "name": "database_2", // Required
+        "name": "database_2",
         "tables": [] // Table objects
     }
 ]
 ```
 
-*(Full spec in the [Schema Specs](#schema-specs) section.)*
+<details><summary>Details</summary>
 
-Now, if you had that somewhere in your application, say at `./database/schema.js`, Linked QL could help keep it in sync both ways with your database:
-
-+ you add or remove a database or table or column... and it is automatically reflected in your DB structure with one command: `linkedql migrate`
-+ your colleague makes new changes from their codebase... and it is automatically reflected in your local copy with one command: `linkedql reflect`
-
-Thanks to a DB-native schema version control system, no need to maintain past states, or risk losing them, as the DB now becomes the absolute source of truth for both itself and its client applications, as against the other way around. (You may want to see how that brings us to [true "Schema as Code" in practice](#test-heading).)
-
-
-<!--
-
-
-A table object:
+An example table object:
 
 ```js
 {
-    "name": "users", // Required
-    "columns": [], // Column objects (min: 1)
+    "name": "users",
+    "columns": [], // Column objects (minimum of 1)
     "constraints": [], // Constraint objects
     "indexes": [] // Index objects
 }
 ```
 
-A column object:
+An example column object:
 
 ```js
 {
-    "name": "id", // Required
-    "type": "int", // Required
+    "name": "id",
+    "type": "int",
     "primaryKey": true,
     "identity": true
 }
 ```
 
 <details>
-<summary>More column objects</summary>
+<summary>More column examples</summary>
 
 ```js
 {
@@ -331,8 +322,8 @@ A column object:
     "type": "int",
     "notNull": true,
     "references": {
-        "targetTable": "users", // Required
-        "targetColumns": ["id"], // Required
+        "targetTable": "users",
+        "targetColumns": ["id"],
         "matchRull": "full",
         "updateRule": "cascade",
         "deleteRule": "restrict"
@@ -341,18 +332,18 @@ A column object:
 ```
 </details>
 
-A constraint object:
+An example constraint object:
 
 ```js
 {
-    "type": "PRIMARY_KEY", // Required
-    "columns": ["id"], // Required
+    "type": "PRIMARY_KEY",
+    "columns": ["id"],
     "name": "constraint_name"
 }
 ```
 
 <details>
-<summary>More constraint objects</summary>
+<summary>More constraint examples</summary>
 
 ```js
 {
@@ -381,7 +372,7 @@ A constraint object:
 ```
 </details>
 
-An index object:
+An example index object:
 
 ```js
 {
@@ -391,7 +382,7 @@ An index object:
 ```
 
 <details>
-<summary>More index objects</summary>
+<summary>More index examples</summary>
 
 ```js
 {
@@ -400,6 +391,60 @@ An index object:
 }
 ```
 </details>
+
+</details>
+
+*(Full spec in the [Linked QL Schemas](#linked-ql-schemas) section.)*
+
+Now, if you had that somewhere in your application, say at `./database/schema.js`, Linked QL could help keep it in sync both ways with your database:
+
++ you add or remove a database or table or column... and it is automatically reflected in your DB structure with one command: `linkedql migrate`
++ your colleague makes new changes from their codebase... and it is automatically reflected in your local copy with one command: `linkedql reflect`
+
+You also get to see a version indicator on each database object in your schema essentially incrementing on each migrate operation (whether by you or colleague), and decrementing on each rollback operation (whether by you or colleague).
+
+Thanks to a DB-native schema version control system, no need to maintain past states, or risk losing them, as the DB now becomes the absolute source of truth for both itself and its client applications, as against the other way around. (You may want to see how that brings us to [true "Schema as Code" in practice](#test-heading).)
+
+To setup:
+
+1. Make a directory within your application for database concerns. Linked QL will look in `./database`, but you will be able to point to your preferred location when running Linked QL commands.
+
+2. Have a `driver.js` file in there that exports as *default* a function that returns a Linked QL instance. This will be imported and used by Linked QL to interact with your database. This could look something like:
+
+    ```js
+    import pg from 'pg';
+    import SQLClient from '@linked-db/linked-ql/sql';
+
+    const pgClient = new pg.Client({
+        host: 'localhost',
+        port: 5432,
+    });
+    await pgClient.connect();
+    const sqlClient = new SQLClient(pgClient, { dialect: 'postgres' });
+
+    export default function() {
+        return sqlClient;
+    }
+    ```
+
+3. Have your schemas defined in a `schema.json` file in the same location. (See [`schema.js`](#-schemajson) above for a guide.)
+
+To run:
+
++ Use `lnkd migrate` to walk through your local schema changes and interactively perform a commit to your database.
++ Use `lnkd rollback` to walk through the latest savepoint at each database and interactively perform a rollback.
++ Use `lnkd leaderboard` to just view the latest savepoint at each database.
++ Use the flag `--desc` in conjunction with `lnkd migrate` to add a description to the new savepoint created by the migration.
++ Use the flag `--direction` in conjunction with `lnkd rollback` and `lnkd leaderboard` to specify either a "back in time" movement (the default) or "forward in time" movement.
++ Use the flag `--db` to scope given command to a specific database out of the list of databases.
++ Use the flag `--dir` to point Linked QL to your "database" directory. (Relative paths will resolve against your current working directory (CWD).)
++ Use the flag `--force` to turn of interactive mode and just run given command in "sensible-default" mode.
+
+*(More details in the [Linked QL CLI](#linked-ql-cli) section.)*
+
+
+<!--
+
 
 
 
@@ -429,11 +474,11 @@ Interesting yet? You may want to learn more about [Linked QL's unique take on Sc
 
 ## Linked QL API
 
-Here's for a quick overview of the Linked QL API.
+Here's for a quick overview of the Linked QL API:
 
 Here we talk about the `client.query()` method in more detail along with other Linked QL APIs that essentially let us do the same things possible with `client.query()`, but this time, programmatically.
 
-For example, a `CREATE DATABASE` operation...
+We mean, a `CREATE DATABASE` operation...
 
 ```js
 const savepoint = await client.query('CREATE DATABASE IF NOT EXISTS database_1');
@@ -493,7 +538,7 @@ await client.database('database_1').table('table_1').insert({
 
 These APIs and more are what's covered in this section.
 
-Click on each method definition for details.
+Click on a definition to expand.
 
 ------------
 
@@ -1657,14 +1702,17 @@ console.log(savepoint.name(true)); // test_db
 
 ------------
 
-## TODO
+## Linked QL CLI
 
-There's a lot here:
+*(TODO)*
 
-+ Write detailed docs.
-+ Upgrade support for MySQL.
+## Linked QL Schemas
+
+*(TODO)*
+
+## Roadmap
+
 + Implement support for IndexedDB and in-mem.
-+ Write detailed tests.
 
 > Much of that could happen sooner with your support! If you'd like to help out, please consider a [sponsorship](https://github.com/sponsors/ox-harris). PRs are also always welcome.
 

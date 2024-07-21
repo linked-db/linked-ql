@@ -10,12 +10,13 @@ import CreateDatabase from '../query/create/CreateDatabase.js';
 
 // Parse argv
 const { command, flags } = parseArgv(process.argv);
-// flags: --preview, --desc, --force --db, --schema, --driver, --force-new
+// flags: --desc --direction --db, --dir, --force, --force-new
 if (flags.direction && !['forward','backward'].includes(flags.direction)) throw new Error(`Invalid --direction. Expected: forward|backward`);
+const dir = flags.dir || './database/';
 
 // ------
 // Load schema file
-let schema, schemaFile = path.resolve(flags['schema'] || './database/schema.json');
+let schema, schemaFile = path.resolve(dir, 'schema.json');
 if (!fs.existsSync(schemaFile) || !(schema = JSON.parse(fs.readFileSync(schemaFile)))) {
     console.log(`\nNo schemas have been defined at ${ schemaFile }. Aborting.`);
     process.exit();
@@ -23,7 +24,7 @@ if (!fs.existsSync(schemaFile) || !(schema = JSON.parse(fs.readFileSync(schemaFi
 
 // ------
 // Load driver
-let driver, driverFile = path.resolve(flags['driver'] || './database/driver.js');
+let driver, driverFile = path.resolve(dir, 'driver.js');
 if (!fs.existsSync(driverFile) || !(driver = await (await import(url.pathToFileURL(driverFile))).default?.())) {
     console.log(`\nNo driver has been configured at ${ driverFile }. Aborting.`);
     process.exit();
@@ -31,7 +32,7 @@ if (!fs.existsSync(driverFile) || !(driver = await (await import(url.pathToFileU
 
 // ------
 // Show?
-if (command === 'savepoints') {
+if (command === 'leaderboard') {
     //TEMP:console.log('DATABASES:', await driver.databases());
     //TEMP:console.log('SAVEPOINTS:', await driver.database(SQLClient.OBJ_INFOSCHEMA_DB).table('database_savepoints').select());
     const savepointSummaries = await driver.getSavepoints({ direction: flags.direction });
@@ -56,7 +57,7 @@ if (command === 'migrate') {
 
         if (dbInstance.keep() === false && !flags['force-new']) {
             console.log(`\nDropping database: ${ dbSchema.name }`);
-            if (flags.preview !== false) console.log(`\nSQL preview:\nDROP SCHEMA ${ dbSchema.name } CASCADE\n`);
+            if (!flags.force) console.log(`\nSQL preview:\nDROP SCHEMA ${ dbSchema.name } CASCADE\n`);
             const proceed = flags.force || (await enquirer.prompt({
                 type: 'confirm',
                 name: 'proceed',
@@ -72,7 +73,7 @@ if (command === 'migrate') {
             const alt = dbInstance.getAlt().with({ resultSchema: dbInstance });
             if (alt.ACTIONS.length) {
                 console.log(`\nAltering database: ${ dbSchema.name }`);
-                if (flags.preview !== false) console.log(`\nSQL preview:\n${ alt }\n`);
+                if (!flags.force) console.log(`\nSQL preview:\n${ alt }\n`);
                 const proceed = flags.force || (await enquirer.prompt({
                     type: 'confirm',
                     name: 'proceed',
@@ -89,7 +90,7 @@ if (command === 'migrate') {
         if (typeof dbInstance.keep() !== 'boolean' || flags['force-new']){
             if (typeof dbInstance.keep() === 'boolean' && flags['force-new']) dbInstance.keep(undefined, true); // Force "keep" to undefined for new?
             console.log(`\nCreating database: ${ dbSchema.name }`);
-            if (flags.preview !== false) console.log(`\nSQL preview:\n${ dbInstance }\n`);
+            if (!flags.force) console.log(`\nSQL preview:\n${ dbInstance }\n`);
             const proceed = flags.force || (await enquirer.prompt({
                 type: 'confirm',
                 name: 'proceed',
@@ -120,7 +121,7 @@ if (command === 'rollback') {
         }
         const postRollback = { returnValue: undefined };
         console.log(`\nRolling ${ flags.direction === 'forward' ? 'forward' : 'back' } database: ${ savepoint.name() }. (This database will now be ${ savepoint.rollbackEffect.toLowerCase() })`);
-        if (flags.preview !== false) {
+        if (!flags.force) {
             console.log(`\nSavepoint details:\n`);
             console.table(savepoint.toJson());
         }
