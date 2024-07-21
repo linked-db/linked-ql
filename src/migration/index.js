@@ -58,7 +58,7 @@ if (command === 'migrate') {
         if (dbInstance.keep() === false && !flags['force-new']) {
             console.log(`\nDropping database: ${ dbSchema.name }`);
             if (!flags.quiet) console.log(`\nSQL preview:\nDROP SCHEMA ${ dbSchema.name } CASCADE\n`);
-            const proceed = flags.quiet || (await enquirer.prompt({
+            const proceed = flags.auto || (await enquirer.prompt({
                 type: 'confirm',
                 name: 'proceed',
                 message: 'Proceed?'
@@ -74,7 +74,7 @@ if (command === 'migrate') {
             if (alt.ACTIONS.length) {
                 console.log(`\nAltering database: ${ dbSchema.name }`);
                 if (!flags.quiet) console.log(`\nSQL preview:\n${ alt }\n`);
-                const proceed = flags.quiet || (await enquirer.prompt({
+                const proceed = flags.auto || (await enquirer.prompt({
                     type: 'confirm',
                     name: 'proceed',
                     message: 'Proceed?'
@@ -91,7 +91,7 @@ if (command === 'migrate') {
             if (typeof dbInstance.keep() === 'boolean' && flags['force-new']) dbInstance.keep(undefined, true); // Force "keep" to undefined for new?
             console.log(`\nCreating database: ${ dbSchema.name }`);
             if (!flags.quiet) console.log(`\nSQL preview:\n${ dbInstance }\n`);
-            const proceed = flags.quiet || (await enquirer.prompt({
+            const proceed = flags.auto || (await enquirer.prompt({
                 type: 'confirm',
                 name: 'proceed',
                 message: 'Proceed?'
@@ -125,7 +125,7 @@ if (command === 'rollback') {
             console.log(`\nSavepoint details:\n`);
             console.table(savepoint.toJson());
         }
-        const proceed = flags.quiet || (await enquirer.prompt({
+        const proceed = flags.auto || (await enquirer.prompt({
             type: 'confirm',
             name: 'proceed',
             message: 'Proceed?'
@@ -156,10 +156,10 @@ if (['migrate', 'rollback'].includes(command)) {
 
 // ------
 // Reset?
-if (command === 'reset-savepoints') {
+if (command === 'erase') {
     console.log(`\nThis will permanently delete all savepoint records$.`);
     if (flags.db) console.log(`\nThis will also drop the database: ${ flags.db }.`); // For testing purposes only
-    const proceed = flags.quiet || (await enquirer.prompt({
+    const proceed = flags.auto || (await enquirer.prompt({
         type: 'confirm',
         name: 'proceed',
         message: 'Proceed?'

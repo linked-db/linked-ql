@@ -100,7 +100,7 @@ Other APIs are covered just ahead in the [API](#linked-ql-api) section.
 
 💥 *Express relationships graphically.*
 
-JOINS can be good, but can be a curse too, as they almost always obfuscate your whole query! But what if you didn't have to write JOINS to express certain relationships?
+JOINS can be good, but can be a curse too, as they almost always obfuscate your entire query! But what if you didn't have to write JOINS to express certain relationships?
 
 Meet Linked QL's magic path operators, a syntax extension to SQL, that lets you connect to columns on other tables without writing a single JOIN. Linked QL uses heuristics on your DB structure to figure out the details and the relevant JOINs behind the scenes.
 
@@ -119,7 +119,7 @@ Linked QL lets you draw a path to express the relationship:
 SELECT title, author ~> fname AS author_name FROM posts
 ```
 
-And here's a scenario showing an example schema and a typical query each:
+And here's a scenario showing a typical schema and an example query each:
 
 ```sql
 -- The users table
@@ -152,9 +152,9 @@ SELECT id, title, content, created_time, author ~> id, author ~> title, author ~
 FROM books
 ```
 
-✨ PRO: *About 50% code and whole namespacing exercise are now eliminated; all with zero upfront setup!*
+✨ PRO: *About 50% code, and whole namespacing exercise, now eliminated; all with zero upfront setup!*
 
-Additionally, paths can be multi-level:
+Taking that further, paths can be multi-level:
 
 ```sql
 -- Linked QL
@@ -174,7 +174,7 @@ WHERE author <~ books ~> title = 'Beauty and the Beast'
 
 ⚡️ *Create, Alter, and Drop schemas without needing to worry about versioning.*
 
-Databases have historically lacked the concept of versioning, and that has seen all the engineering work pushed down to the client application level. If you've ever had to adopt a special process for defining and managing your schemas, wherein changes are handled through *serially-named* files within your application, each written as an `UP`/`DOWN` pair of actions, and overall supported by tooling...
+Databases have historically lacked the concept of versioning, and that has seen all of the engineering work pushed down to the client application. If you've ever had to adopt a special process for defining and managing your schemas, wherein changes are handled through *serially-named* files within your application, each written as an `UP`/`DOWN` pair of actions, and in all supported by tooling...
 
 ```sql
 app
@@ -203,7 +203,7 @@ app
 
 then you've faced the problem that this defeciency in databases creates! But what if databases magically got to do the heavy lifting?
 
-Meet Linked QL's special extension to your database that does exactly that and lets you just alter your DB however you may but in the safety net of something behind-the-scenes that snapshots your schema before each alteration! Meet Automatic Schema Savepoints and Rollbacks!
+Meet Linked QL's little addition to your database that does exactly that and lets you just alter your DB however you may but in the safety net of some behind-the-scenes magic that snapshots your schema before each alteration! Meet Automatic Schema Savepoints and Rollbacks!
 
 Linked QL:
 
@@ -223,9 +223,9 @@ console.table(savepoint.savepointDate); // 2024-07-17T22:40:56.786Z
 
 *(More details in the [Savepoint](#the-savepoint-api) API.)*
 
-✨ PRO: *DB versioning concerns are now essentially taken out of the client application - to the DB itself; and with zero upfront setup!*
+✨ PRO: *Whole engineering work now essentially over to the DB where it rightly belongs; all with zero upfront setup!*
 
-Now, when it's time to rollback, a magic wand button makes it all nifty:
+Taking that further, it gets nifty when it's time to rollback:
 
 ```js
 // Rollback all associated changes (Gets the users table dropped)
@@ -243,7 +243,7 @@ while(savepoint = await client.database('public').savepoint()) {
 }
 ```
 
-and it turns out you can "undo" a rollback, or in other words, roll forward to a point in time:
+and you can "undo" a rollback, or in other words, roll forward to a point in time:
 
 ```js
 // "Undo" the last rollback (Gets the users table re-created)
@@ -251,11 +251,13 @@ let savepoint = await client.database('public').savepoint({ direction: 'forward'
 await savepoint.rollback();
 ```
 
+You essentially are able to go *back in time* and *forward in time* as randomly as iteration demands.
+
 ## Re-Introducing Schema-as-Code with `schema.json`
 
 💥 *Have your entire DB structure live in a single `schema.json` file that you edit in-place!*
 
-With schema versioning now over to the database, much of the remaining database concerns and formalities should now be irrelevant. We found that we could essentially streamline our database footprint from spanning hundreds of migration files to fitting into a single `schema.json` (or `schema.yml`) file!
+With schema versioning now over to the database, much of the old conventions and formalities should now be irrelevant. We found that we could essentially streamline the whole "database" footprint from spanning hundreds of migration files to fitting into a single `schema.json` (or `schema.yml`) file!
 
 ### `schema.json`
 
@@ -272,7 +274,7 @@ With schema versioning now over to the database, much of the remaining database 
 ]
 ```
 
-<details><summary>Details</summary>
+<details><summary>Explore the structure</summary>
 
 An example table object:
 
@@ -395,16 +397,14 @@ An example index object:
 
 </details>
 
-*(Full spec in the [Linked QL Schemas](#linked-ql-schemas) section.)*
-
 Now, if you had that somewhere in your application, say at `./database/schema.json`, Linked QL could help keep it in sync both ways with your database:
 
-+ you add or remove a database or table or column... and it is automatically reflected in your DB structure with one command: `linkedql migrate`
-+ your colleague makes new changes from their codebase... and it is automatically reflected in your local copy with one command: `linkedql reflect`
++ you add or remove a database or table or column... and it is automatically reflected in your DB structure at the click of a button: `linkedql migrate`
++ your colleague makes new changes from their codebase... and it is automatically reflected in your local copy at the click of a button: `linkedql reflect`
 
 You also get to see a version indicator on each database object in your schema essentially incrementing on each migrate operation (whether by you or by colleague), and decrementing on each rollback operation (whether by you or by colleague).
 
-Thanks to a DB-native schema version control system, no need to maintain past states, or risk losing them, as the DB now becomes the absolute source of truth for both itself and its client applications, as against the other way around. (You may want to see how that brings us to [true "Schema as Code" in practice](#test-heading).)
+Thanks to a DB-native schema version control system, no need to maintain past states, or risk losing them; the DB now becomes the absolute source of truth for both itself and its client applications, as against the other way around. (You may want to see how that brings us to [true "Schema as Code" in practice](#test-heading).)
 
 To setup:
 
@@ -428,18 +428,13 @@ To setup:
     }
     ```
 
-3. Have your schemas defined in a `schema.json` file in the same location. (See [`schema.json`](#schemajson) above for a guide.)
+3. Have your schemas defined in a `schema.json` file in there. (See [`schema.json`](#schemajson) above as a guide.)
 
 To run:
 
-+ Use `linkedql migrate` to walk through your local schema changes and interactively perform a commit to your database.
++ Use `linkedql migrate` to walk through your staged local changes and interactively perform a migration on your database.
 + Use `linkedql rollback` to walk through the latest savepoint at each database and interactively perform a rollback.
 + Use `linkedql leaderboard` to just view the latest savepoint at each database.
-+ Use the flag `--desc` in conjunction with `linkedql migrate` to add a description to the new savepoint created by the migration.
-+ Use the flag `--direction` in conjunction with `linkedql rollback` and `linkedql leaderboard` to specify either a "back in time" lookup (the default) or "forward in time" lookup.
-+ Use the flag `--db` to scope given command to a specific database out of the list of databases.
-+ Use the flag `--dir` to point Linked QL to your "database" directory. (Relative paths will resolve against your current working directory (CWD).)
-+ Use the flag `--quiet` to turn of interactive mode and just run given command in "sensible-default" mode.
 
 *(More details in the [Linked QL CLI](#linked-ql-cli) section.)*
 
@@ -631,7 +626,7 @@ Dynamically run a <code>CREATE DATABASE</code> operation.
 
 ⚙️ Spec:
 
-+ `createSpec` (string | { name: string, tables?: Array }): the database name, or an object corresponding to the [database JSON schema](#schemajson).
++ `createSpec` (string | { name: string, tables?: Array }): the database name, or an object corresponding to the *database* object in [schema.json](#schemajson).
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
@@ -643,7 +638,7 @@ Specify database by name:
 const savepoint = await client.createDatabase('database_1', { description: 'Just testing database creation' });
 ```
 
-or by a schema object, with an optional list of tables to be created along with it. (Each listed table corresponding to the [table JSON schema](#schemajson).):
+or by a schema object, with an optional list of tables to be created along with it. (Each listed table corresponding to the *table* object in [schema.json](#schemajson).):
 
 ```js
 const savepoint = await client.createDatabase({
@@ -762,7 +757,7 @@ Get the schema structure for a database.
 ⚙️ Spec:
 
 + `dbName` (string): the database name.
-+ Return value: an object corresponding to the [database JSON schema](#schemajson).
++ Return value: an object corresponding to the *database* object in [schema.json](#schemajson).
 
 ##### 🎲 Usage:
 
@@ -855,7 +850,7 @@ Dynamically run a <code>CREATE TABLE</code> operation.
 
 ⚙️ Spec:
 
-+ `createSpec` ({ name: string, columns: Array, constraints?: Array, indexes?: Array }): an object corresponding to the [table JSON schema](#schemajson).
++ `createSpec` ({ name: string, columns: Array, constraints?: Array, indexes?: Array }): an object corresponding to the *table* object in [schema.json](#schemajson).
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
@@ -957,7 +952,7 @@ Check if a table exists.
 ##### 🎲 Usage:
 
 ```js
-const exists = await database.hasTable('database_1');
+const exists = await database.hasTable('table_1');
 ```
 
 </details>
@@ -971,7 +966,7 @@ Get the schema structure for a table.
 ⚙️ Spec:
 
 + `tblName` (string): the table name.
-+ Return value: an object corresponding to the [Table JSON schema](#schemajson).
++ Return value: an object corresponding to the *table* object in [schema.json](#schemajson).
 
 ##### 🎲 Usage:
 
@@ -1043,7 +1038,7 @@ await savepoint.rollback(); // true
 
 Some additional parameters via `options`:
 
-+ `direction` (string, *optional*): the direction in which to go - either back in time: `backward` (the default), or forward in time: `forward`.
++ `direction` (string, *optional*): the direction of lookup - either back in time: `backward` (the default), or forward in time: `forward`.
 
     ```js
     const savepoint = await database.savepoint({ direction: 'forward' });
@@ -1091,7 +1086,7 @@ console.log(table.name); // table_1
 
 <details><summary>
 Count total entries in table.
-<pre><code>table.count(expr?: string | Function = *): number</code></pre></summary>
+<pre><code>table.count(expr?: string | Function = *): Promise&lt;number&gt;</code></pre></summary>
 
 ⚙️ Spec:
 
@@ -1120,8 +1115,8 @@ Dynamically run a <code>SELECT</code> query.
 
 ⚙️ Spec:
 
-+ `fields` ((string | Function)[] = *, *optional*): a array of fields to select. (A field being either a string denoting column name, or a function that recieves a *Field* object with which to build an expression.)
-+ `where` (number | object | Function | true, *optional*): a number denoting primary key value of the target row, or an object specifying some column name/column value conditions, or a function that recieves an *Assertion* object with which to build the conditions, or the value `true` denoting all records. Defaults to `true`.
++ `fields` ((string | Function)[] = *, *optional*): an array of fields to select. (A field being either a column name string, or a function that recieves a *Field* object with which to build an expression.)
++ `where` (number | object | Function | true, *optional*): a number targeting the primary key value of the target row, or an object specifying some column name/column value conditions, or a function that recieves an *Assertion* object with which to build the conditions, or the value `true` denoting all records. Defaults to `true`.
 + Return value: an array (the result set).
 
 ##### 🎲 Usage:
@@ -1157,9 +1152,9 @@ Dynamically run an <code>INSERT</code> operation.
 
 ⚙️ Spec:
 
-+ `payload` (object | object[]): an object denoting a single entry, or an array of said objects denoting multiple entries. (An entry having the general form: `{ [key: string]: string | number | boolean | null | Date | object | any[] }` where arrays and objects as values are acceptable only for JSON columns.)
-+ `columns` (string[]): just column names (as against the key/value-based `payload` in the first call pattern).
-+ `values` (any[][]): a two-dimensional array of just values (as against the key/value-based `payload` in the first call pattern), denoting multiple entries. 
++ `payload` (object | object[]): an object denoting a single entry, or an array of said objects denoting multiple entries. (An entry having the general form: `{ [key: string]: string | number | boolean | null | Date | object | any[] }` where arrays and objects as values are automatically JSON-stringified.)
++ `columns` (string[]): just column names (as against the key/value `payload` in the first call pattern).
++ `values` (any[][]): a two-dimensional array of just values (as against the key/value `payload` in the first call pattern), denoting multiple entries. 
 + `returnList` (((string | Function)[] | false), *optional*): a list of fields, corresponding to a [select list](#tableselect), specifying data to be returned from the just inserted row. (Equivalent to Postgres' [RETURNING clause](https://www.postgresql.org/docs/current/dml-returning.html), but supported for other DB kinds in Linked QL.)
 + Return value: an array (the new row being automatically returned), or the value `true`, where that behaviour has been explicitly disbaled with `returnList` set to `false`.
 
@@ -1223,7 +1218,7 @@ Dynamically run an <code>UPDATE</code> operation.
 ⚙️ Spec:
 
 + `where` (number | object | Function | true): as described in [`select()`](#tableselect).
-+ `payload` (object): an object having the general form: `{ [key: string]: string | number | boolean | null | Date | object | any[] }` where arrays and objects as values are acceptable only for JSON columns.
++ `payload` (object): an object having the general form: `{ [key: string]: string | number | boolean | null | Date | object | any[] }` where arrays and objects as values are automatically JSON-stringified.
 + `returnList` ((string | Function)[], *optional*): as described in [`insert()`](#tableinsert).
 + Return value: as described in [`insert()`](#tableinsert).
 
@@ -1337,7 +1332,7 @@ await client.alterDatabase('test_db', schema => schema.name('test_db_new'));
 ```
 
 ```js
-// After name change
+// Now even after name change
 const savepoint = await client.database('test_db_new').savepoint();
 console.log(savepoint.databaseTag); // db:18m6z
 ```
@@ -1353,6 +1348,7 @@ The savepoint's version tag.
 ##### 🎲 Usage:
 
 ```js
+// Version 1
 const savepoint = await client.createDatabase({
     name: 'test_db',
     tables: [{
@@ -1364,6 +1360,7 @@ console.log(savepoint.versionTag); // 1
 ```
 
 ```js
+// Version 2
 const savepoint = await client.database('test_db').createTable({
     name: 'test_tbl2',
     columns: [],
@@ -1372,6 +1369,7 @@ console.log(savepoint.versionTag); // 2
 ```
 
 ```js
+// Version 2 currently
 const savepoint = await client.database('test_db').savepoint();
 console.log(savepoint.versionTag); // 2
 ```
@@ -1381,7 +1379,7 @@ console.log(savepoint.versionTag); // 2
 #### `savepoint.versionMax`:
 
 <details><summary>
-The database's all-time peak version regardless of its current rollback level.
+The database's peak version regardless of its current rollback level.
 <pre><code>savepoint.versionMax: (number, <i>readonly</i>)</code></pre></summary>
 
 ##### 🎲 Usage:
@@ -1489,14 +1487,14 @@ console.log(savepoint.rollbackDate); // 2024-07-20T15:31:06.096Z
 #### `savepoint.rollbackEffect`:
 
 <details><summary>
-The effect that rolling back to this savepoint will have on subject DB.
+A single-word summary of the effect that rolling back to this savepoint will have on subject DB.
 <pre><code>savepoint.rollbackEffect: (string, <i>readonly</i>)</code></pre></summary>
 
 ##### 🎲 Usage:
 
-Will rolling back to given savepoint create or drop the subject database?:
+Will rolling back to given savepoint mean dropping or re-creating the subject database?:
 
-For create operation...
+For a create operation...
 
 ```js
 const savepoint = await client.createDatabase('test_db', { descripton: 'Create db' });
@@ -1655,7 +1653,7 @@ Get the subject DB's schema snapshot at this point in time.
 
 ⚙️ Spec:
 
-+ Return value: an object corresponding to the [database JSON schema](#schemajson).
++ Return value: an object corresponding to the *database* object in [schema.json](#schemajson).
 
 ##### 🎲 Usage:
 
@@ -1705,15 +1703,124 @@ console.log(savepoint.name(true)); // test_db
 
 ## Linked QL CLI
 
-*(TODO)*
+Linked QL migrations are a **small** addition to Linked QL. And it comes ready-to-use, via the `linkedql` command, upon Linked QL's installation. (No extra setup is required.)
 
-## Linked QL Schemas
+The `linkedql` command comes as part of your local Linked QL installation and not as a global package, and that means you'll need the `npx` prefix to run the commands below. E.g.
 
-*(TODO)*
+```cmd
+npx linkedql migrate
+```
+
+In each case, you can use the `--dir` flag to point Linked QL to your "database" directory:
+
+```cmd
+npx linkedql migrate --dir="./src/database-stuff"
+```
+
+*(Relative paths will resolve against your current working directory (CWD).)*
+
+Use the `--db` flag to run the command for a specific database out of the list of databases:
+
+```cmd
+npx linkedql migrate --db=database_1
+```
+
+Use the flag `--auto` to turn off prompts and just take the "sensible-default" action:
+
+```cmd
+npx linkedql migrate --auto
+```
+
+### `linkedql migrate`
+
+*Interactively run new migrations.* Linked QL looks through your local schema and compares with your active DB structure to see what's new. It works interactively by default and you're able to preview each SQL query to be run.
+
+#### 🎲 Usage:
+
+```cmd
+npx linkedql migrate
+```
+
+```cmd
+npx linkedql migrate --db=database_1
+```
+
+Use the `--desc` flag to provide the description for your new changes:
+
+```cmd
+npx linkedql migrate --desc="Initial DB creation"
+```
+
+Use the flag `--quiet` to turn off SQL previews:
+
+```cmd
+npx linkedql migrate --quiet
+```
+
+### `linkedql rollback`
+
+*Interactively perform a rollback.* Linked QL looks for the next savepoint at each database and initiates a rollback. It works interactively by default and you're able to preview each SQL query to be run.
+
+#### 🎲 Usage:
+
+```cmd
+npx linkedql rollback
+```
+
+```cmd
+npx linkedql rollback --db=database_1
+```
+
+Use the `--direction` flag to specify either a "backward" rollback (the default) or a "forward" rollback if already at a certain rollback state:
+
+```cmd
+npx linkedql rollback --direction=forward
+```
+
+Use the flag `--quiet` to turn off SQL previews:
+
+```cmd
+npx linkedql migrate --quiet
+```
+
+### `linkedql leaderboard`
+
+*View the latest savepoint at each database.* Linked QL displays details about the next savepoint at each database.
+
+#### 🎲 Usage:
+
+```cmd
+npx linkedql leaderboard
+```
+
+```cmd
+npx linkedql leaderboard --db=database_1
+```
+
+Use the flag `--direction` to specify either a "back in time" lookup (the default) or "forward in time" lookup if already at a certain rollback state:
+
+```cmd
+npx linkedql leaderboard --direction=forward
+```
+
+### `linkedql erase`
+
+*Permanently delete savepoint histories.* Linked QL deletes the savepoint history of each database. This is irreversible.
+
+#### 🎲 Usage:
+
+```cmd
+npx linkedql erase
+```
+
+```cmd
+npx linkedql erase --db=database_1
+```
 
 ## Roadmap
 
-+ Implement support for IndexedDB and in-mem.
++ Implement support for IndexedDB.
++ Implement the in-memory database.
 
 > Much of that could happen sooner with your support! If you'd like to help out, please consider a [sponsorship](https://github.com/sponsors/ox-harris). PRs are also always welcome.
 
