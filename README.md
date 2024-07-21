@@ -399,8 +399,8 @@ An example index object:
 
 Now, if you had that somewhere in your application, say at `./database/schema.json`, Linked QL could help keep it in sync both ways with your database:
 
-+ you add or remove a database or table or column... and it is automatically reflected in your DB structure with a simple command: `linkedql migrate`
-+ your colleague makes new changes from their codebase... and it is automatically reflected in your local copy with a simple command: `linkedql reflect`
++ you add or remove a database or table or column... and it is automatically reflected in your DB structure at the click of a command: `linkedql migrate`
++ your colleague makes new changes from their codebase... and it is automatically reflected in your local copy at the click of a command: `linkedql reflect`
 
 You also get to see a version indicator on each database object in your schema essentially incrementing on each migrate operation (whether by you or by colleague), and decrementing on each rollback operation (whether by you or by colleague).
 
