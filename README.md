@@ -225,7 +225,7 @@ console.table(savepoint.savepointDate); // 2024-07-17T22:40:56.786Z
 
 ✨ PRO: *Whole engineering work now essentially over to the DB where it rightly belongs; all with zero upfront setup!*
 
-Taking that further, it gets nifty when it's time to rollback:
+Taking that further, you get a magic wand button should you want to rollback:
 
 ```js
 // Rollback all associated changes (Gets the users table dropped)
