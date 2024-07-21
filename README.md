@@ -23,6 +23,7 @@ Jump to sections and features:
 + [Auto-Versioning](#introducing-auto-versioning)
 + [Schema-as-Code](#re-introducing-schema-as-code-with-schemajson)
 + [API](#linked-ql-api)
++ [CLI](#linked-ql-cli)
 
 ## Setup
 
@@ -171,9 +172,9 @@ WHERE author <~ books ~> title = 'Beauty and the Beast'
 
 ## Introducing Auto-Versioning
 
-⚡️ *Create, Alter, and Drop schemas without needing to worry about schema versioning.*
+⚡️ *Create, Alter, and Drop schemas without needing to worry about versioning.*
 
-Databases have historically lacked the concept of schema versioning, and that has seen all the engineering work pushed down to the client applications. If you've ever had to adopt a special process for defining and managing your schemas, wherein changes are handled through *serially-named* files within your application, each written as an `UP`/`DOWN` pair of actions, and overall supported by tooling...
+Databases have historically lacked the concept of versioning, and that has seen all the engineering work pushed down to the client application level. If you've ever had to adopt a special process for defining and managing your schemas, wherein changes are handled through *serially-named* files within your application, each written as an `UP`/`DOWN` pair of actions, and overall supported by tooling...
 
 ```sql
 app
@@ -202,7 +203,7 @@ app
 
 then you've faced the problem that this defeciency in databases creates! But what if databases magically got to do the heavy lifting?
 
-Meet Linked QL's special extension to your database that does exactly that and lets you just alter your DB however you may but in the safety net of some behind-the-scenes snapshots of your schema before each alteration! Meet Automatic Schema Savepoints and Rollbacks!
+Meet Linked QL's special extension to your database that does exactly that and lets you just alter your DB however you may but in the safety net of something behind-the-scenes that snapshots your schema before each alteration! Meet Automatic Schema Savepoints and Rollbacks!
 
 Linked QL:
 
@@ -220,7 +221,7 @@ console.table(savepoint.versionTag);    // 1
 console.table(savepoint.savepointDate); // 2024-07-17T22:40:56.786Z
 ```
 
-*(More details in the [Savepoint API](#the-savepoint-api).)*
+*(More details in the [Savepoint](#the-savepoint-api) API.)*
 
 ✨ PRO: *DB versioning concerns are now essentially taken out of the client application - to the DB itself; and with zero upfront setup!*
 
@@ -254,9 +255,9 @@ await savepoint.rollback();
 
 💥 *Have your entire DB structure live in a single `schema.json` file that you edit in-place!*
 
-With schema versioning now over to the database, much of the related database concerns at the application level should now be irrelevant. It turns out that we could essentially streamline our application-level database footprint from spanning hundreds of migration files to fitting into a single `schema.json` (or `schema.yml`) file!
+With schema versioning now over to the database, much of the remaining database concerns and formalities should now be irrelevant. We found that we could essentially streamline our database footprint from spanning hundreds of migration files to fitting into a single `schema.json` (or `schema.yml`) file!
 
-### └ `schema.json`
+### `schema.json`
 
 ```js
 [
@@ -396,12 +397,12 @@ An example index object:
 
 *(Full spec in the [Linked QL Schemas](#linked-ql-schemas) section.)*
 
-Now, if you had that somewhere in your application, say at `./database/schema.js`, Linked QL could help keep it in sync both ways with your database:
+Now, if you had that somewhere in your application, say at `./database/schema.json`, Linked QL could help keep it in sync both ways with your database:
 
 + you add or remove a database or table or column... and it is automatically reflected in your DB structure with one command: `linkedql migrate`
 + your colleague makes new changes from their codebase... and it is automatically reflected in your local copy with one command: `linkedql reflect`
 
-You also get to see a version indicator on each database object in your schema essentially incrementing on each migrate operation (whether by you or colleague), and decrementing on each rollback operation (whether by you or colleague).
+You also get to see a version indicator on each database object in your schema essentially incrementing on each migrate operation (whether by you or by colleague), and decrementing on each rollback operation (whether by you or by colleague).
 
 Thanks to a DB-native schema version control system, no need to maintain past states, or risk losing them, as the DB now becomes the absolute source of truth for both itself and its client applications, as against the other way around. (You may want to see how that brings us to [true "Schema as Code" in practice](#test-heading).)
 
@@ -409,7 +410,7 @@ To setup:
 
 1. Make a directory within your application for database concerns. Linked QL will look in `./database`, but you will be able to point to your preferred location when running Linked QL commands.
 
-2. Have a `driver.js` file in there that exports as *default* a function that returns a Linked QL instance. This will be imported and used by Linked QL to interact with your database. This could look something like:
+2. Have a `driver.js` file there that has a *default export* function that returns a Linked QL instance. This will be imported and used by Linked QL to interact with your database. This could look something like:
 
     ```js
     import pg from 'pg';
@@ -427,18 +428,18 @@ To setup:
     }
     ```
 
-3. Have your schemas defined in a `schema.json` file in the same location. (See [`schema.js`](#-schemajson) above for a guide.)
+3. Have your schemas defined in a `schema.json` file in the same location. (See [`schema.json`](#schemajson) above for a guide.)
 
 To run:
 
-+ Use `lnkd migrate` to walk through your local schema changes and interactively perform a commit to your database.
-+ Use `lnkd rollback` to walk through the latest savepoint at each database and interactively perform a rollback.
-+ Use `lnkd leaderboard` to just view the latest savepoint at each database.
-+ Use the flag `--desc` in conjunction with `lnkd migrate` to add a description to the new savepoint created by the migration.
-+ Use the flag `--direction` in conjunction with `lnkd rollback` and `lnkd leaderboard` to specify either a "back in time" movement (the default) or "forward in time" movement.
++ Use `linkedql migrate` to walk through your local schema changes and interactively perform a commit to your database.
++ Use `linkedql rollback` to walk through the latest savepoint at each database and interactively perform a rollback.
++ Use `linkedql leaderboard` to just view the latest savepoint at each database.
++ Use the flag `--desc` in conjunction with `linkedql migrate` to add a description to the new savepoint created by the migration.
++ Use the flag `--direction` in conjunction with `linkedql rollback` and `linkedql leaderboard` to specify either a "back in time" lookup (the default) or "forward in time" lookup.
 + Use the flag `--db` to scope given command to a specific database out of the list of databases.
 + Use the flag `--dir` to point Linked QL to your "database" directory. (Relative paths will resolve against your current working directory (CWD).)
-+ Use the flag `--force` to turn of interactive mode and just run given command in "sensible-default" mode.
++ Use the flag `--quiet` to turn of interactive mode and just run given command in "sensible-default" mode.
 
 *(More details in the [Linked QL CLI](#linked-ql-cli) section.)*
 
@@ -478,13 +479,13 @@ Here's for a quick overview of the Linked QL API:
 
 Here we talk about the `client.query()` method in more detail along with other Linked QL APIs that essentially let us do the same things possible with `client.query()`, but this time, programmatically.
 
-We mean, a `CREATE DATABASE` operation...
+As an example of one of these APIs, a `CREATE DATABASE` operation...
 
 ```js
 const savepoint = await client.query('CREATE DATABASE IF NOT EXISTS database_1');
 ```
 
-could also be programmatically achieved as:
+could be programmatically achieved as:
 
 ```js
 const savepoint = await client.createDatabase('database_1', { ifNotExists: true });
@@ -498,7 +499,7 @@ That said, while the `createDatabase()` method is associated with the base `Clie
 
 + the table-level scope (represented by a certain [`Table`](#the-table-api) interface), featuring methods such as: `select()`, `insert()`, `upsert()`, `update()`, `delete()`
 
-And it's easy to narrow down from the top-level scope to a database scope...
+Each object provides a way to narrow down to the next; e.g. from the top-level scope to a database scope...
 
 ```js
 const database_1 = client.database('database_1');
@@ -565,13 +566,13 @@ Click on a definition to expand.
 Run any SQL query.
 <pre><code>client.query(sql: string, options?: Options): Promise&lt;Savepoint | Array&lt;object&gt;&gt;</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + `sql` (string): an SQL query.
 + `options` (Options, *optional*): extra parameters for the query.
 + Return value: a [`Savepoint`](#the-savepoint-api) instance when it's a `CREATE`, `ALTER`, or `DROP` operation, but an array (the result set) when it's a `SELECT` query or when it's an `INSERT`, `UPDATE`, or `DELETE` operation that has a `RETURNING` clause.
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 Run a `CREATE`, `ALTER`, or `DROP` operation and get back a reference to the savepoint associated with it:
 
@@ -628,13 +629,13 @@ Some additional parameters via `options`:
 Dynamically run a <code>CREATE DATABASE</code> operation.
 <pre><code>client.createDatabase(createSpec: string | { name: string, tables?: Array }, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + `createSpec` (string | { name: string, tables?: Array }): the database name, or an object corresponding to the [database JSON schema](#schemajson).
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 Specify database by name:
 
@@ -670,14 +671,14 @@ Some additional parameters via `options`:
 Dynamically run an <code>ALTER DATABASE</code> operation.
 <pre><code>client.alterDatabase(alterSpec: string | { name: string, tables?: string[] }, callback: (schema: DatabaseSchema) => void, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + `alterSpec` (string | { name: string, tables?: string[] }): the database name, or an object with the name and, optionally, a list of tables to be altered along with it.
 + `callback` ((schema: DatabaseSchema) => void): a function that is called with the requested schema. This can be async. Received object is a [`DatabaseSchema`](#the-database-apischema) instance.
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 Specify database by name:
 
@@ -705,13 +706,13 @@ const savepoint = await client.alterDatabase({ name: 'database_1', tables: ['tab
 Dynamically run a <code>DROP DATABASE</code> operation.
 <pre><code>client.dropDatabase(dbName: string, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + `dbName` (string): the database name.
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const savepoint = await client.dropDatabase('database_1', { description: 'Dropping for testing purposes' });
@@ -739,12 +740,12 @@ Some additional parameters via `options`:
 Check if a database exists.
 <pre><code>client.hasDatabase(dbName: string): Promise&lt;Boolean&gt;</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + `dbName` (string): the database name.
 + Return value: Boolean.
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const exists = await client.hasDatabase('database_1');
@@ -758,12 +759,12 @@ const exists = await client.hasDatabase('database_1');
 Get the schema structure for a database.
 <pre><code>client.describeDatabase(dbName: string): Promise&lt;{ name: string, tables: Array }&gt;</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + `dbName` (string): the database name.
 + Return value: an object corresponding to the [database JSON schema](#schemajson).
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const schema = await client.describeDatabase('database_1');
@@ -779,11 +780,11 @@ console.log(schema.tables);
 Get a list of available databases.
 <pre><code>client.databases(): Promise&lt;Array&lt;string&gt;&gt;</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + Return value: an array of database names.
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const databases = await client.databases();
@@ -798,12 +799,12 @@ console.log(databases); // ['public', 'database_1', ...]
 Obtain a <code>Database</code> instance.
 <pre><code>client.database(dbName: string): Database</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + `dbName` (string): the database name.
 + Return value: a [`Database`](#the-database-api) instance.
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const database = client.database('database_1');
@@ -837,7 +838,7 @@ const database = client.database('database_1');
 The name associated with the <i>Database</i> instance.
 <pre><code>database.name: (string, <i>readonly</i>)</code></pre></summary>
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const database = client.database('test_db');
@@ -852,13 +853,13 @@ console.log(database.name); // test_db
 Dynamically run a <code>CREATE TABLE</code> operation.
 <pre><code>database.createTable(createSpec: { name: string, columns: Array, constraints?: Array, indexes?: Array }, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + `createSpec` ({ name: string, columns: Array, constraints?: Array, indexes?: Array }): an object corresponding to the [table JSON schema](#schemajson).
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const savepoint = await database.createTable({
@@ -889,14 +890,14 @@ Some additional parameters via `options`:
 Dynamically run an <code>ALTER TABLE</code> operation.
 <pre><code>database.alterTable(tblName: string, callback: (schema: TableSchema) => void, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + `tblName` (string): the table name.
 + `callback` ((schema: TableSchema) => void): a function that is called with the requested table schema. This can be async. Received object is a [`TableSchema`](#the-table-apischema) instance.
 + `options`  (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const savepoint = await database.alterTable('table_1', schema => {
@@ -914,13 +915,13 @@ const savepoint = await database.alterTable('table_1', schema => {
 Dynamically run a <code>DROP TABLE</code> operation.
 <pre><code>database.dropTable(tblName: string, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + `tblName` (string): the table name.
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const savepoint = await database.dropTable('table_1', { description: 'Dropping for testing purposes' });
@@ -948,12 +949,12 @@ Some additional parameters via `options`:
 Check if a table exists.
 <pre><code>database.hasTable(tblName: string): Promise&lt;Boolean&gt;</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + `tblName` (string): the table name.
 + Return value: Boolean.
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const exists = await database.hasTable('database_1');
@@ -967,12 +968,12 @@ const exists = await database.hasTable('database_1');
 Get the schema structure for a table.
 <pre><code>database.describeTable(tblName: string): Promise&lt;{ name: string, columns: Array, constraints: Array, indexes: Array }&gt;</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + `tblName` (string): the table name.
 + Return value: an object corresponding to the [Table JSON schema](#schemajson).
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const schema = await database.describeTable('table_1');
@@ -988,11 +989,11 @@ console.log(schema.columns);
 Get a list of available tables.
 <pre><code>database.tables(): Promise&lt;Array&lt;string&gt;&gt;</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + Return value: an array of table names.
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const tables = await database.tables();
@@ -1007,12 +1008,12 @@ console.log(tables); // ['table_1', 'table_2', ...]
 Obtain a <code>Table</code> instance.
 <pre><code>database.table(tblName: string): Table</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + `tblName` (string): the table name.
 + Return value: a [`Table`](#the-table-api) instance.
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const table = database.table('table_1');
@@ -1026,12 +1027,12 @@ const table = database.table('table_1');
 Obtain the next available <i>savepoint</i> for given database.
 <pre><code>database.savepoint(options?: { direction: string }): Savepoint</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + `options` ({ direction: string }, *optional*): extra paramters for the method.
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const savepoint = await database.savepoint();
@@ -1077,7 +1078,7 @@ Some additional parameters via `options`:
 The name associated with the <i>Table</i> instance.
 <pre><code>table.name: (string, <i>readonly</i>)</code></pre></summary>
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const table = client.database('test_db').table('table_1');
@@ -1092,12 +1093,12 @@ console.log(table.name); // table_1
 Count total entries in table.
 <pre><code>table.count(expr?: string | Function = *): number</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + `expr` (string | Function = *, *optional*): a string denoting column name, or a function that recieves a *Field* object with which to build an expression. Defaults to `*`.
 + Return value: number.
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const rowCount = await table.count();
@@ -1117,13 +1118,13 @@ Dynamically run a <code>SELECT</code> query.
 <pre><code>table.select(fields?: (string | Function)[] = *, where?: number | object | Function | true): Promise&lt;Array&lt;object&gt;&gt;</code></pre>
 <pre><code>table.select(where?: number | object | Function): Promise&lt;Array&lt;object&gt;&gt;</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + `fields` ((string | Function)[] = *, *optional*): a array of fields to select. (A field being either a string denoting column name, or a function that recieves a *Field* object with which to build an expression.)
 + `where` (number | object | Function | true, *optional*): a number denoting primary key value of the target row, or an object specifying some column name/column value conditions, or a function that recieves an *Assertion* object with which to build the conditions, or the value `true` denoting all records. Defaults to `true`.
 + Return value: an array (the result set).
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 // Select all fields (*) from all records
@@ -1154,7 +1155,7 @@ Dynamically run an <code>INSERT</code> operation.
 <pre><code>table.insert(payload: object | object[], returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre>
 <pre><code>table.insert(columns: string[], values: any[][], returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | boolean&gt;</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + `payload` (object | object[]): an object denoting a single entry, or an array of said objects denoting multiple entries. (An entry having the general form: `{ [key: string]: string | number | boolean | null | Date | object | any[] }` where arrays and objects as values are acceptable only for JSON columns.)
 + `columns` (string[]): just column names (as against the key/value-based `payload` in the first call pattern).
@@ -1162,7 +1163,7 @@ Dynamically run an <code>INSERT</code> operation.
 + `returnList` (((string | Function)[] | false), *optional*): a list of fields, corresponding to a [select list](#tableselect), specifying data to be returned from the just inserted row. (Equivalent to Postgres' [RETURNING clause](https://www.postgresql.org/docs/current/dml-returning.html), but supported for other DB kinds in Linked QL.)
 + Return value: an array (the new row being automatically returned), or the value `true`, where that behaviour has been explicitly disbaled with `returnList` set to `false`.
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 // Insert single entry
@@ -1199,7 +1200,7 @@ Dynamically run an <code>UPSERT</code> operation.
 <pre><code>table.upsert(payload: object | object[], returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre>
 <pre><code>table.upsert(columns: string[], values: any[][], returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | boolean&gt;</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + `payload` (object | object[]): as described in [`insert()`](#tableinsert).
 + `columns` (string[]): as described in [`insert()`](#tableinsert).
@@ -1207,7 +1208,7 @@ Dynamically run an <code>UPSERT</code> operation.
 + `returnList` ((string | Function)[], *optional*): as described in [`insert()`](#tableinsert).
 + Return value: as described in [`insert()`](#tableinsert).
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 An `UPSERT` operation is an `INSERT` operation that automatically converts to an `UPDATE` operation where given record already exists. API usage is same as [`insert()`](#tableinsert) but as `upsert()`.
 
@@ -1219,14 +1220,14 @@ An `UPSERT` operation is an `INSERT` operation that automatically converts to an
 Dynamically run an <code>UPDATE</code> operation.
 <pre><code>table.update(where: number | object | Function | true, payload: object, returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | boolean&gt;</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + `where` (number | object | Function | true): as described in [`select()`](#tableselect).
 + `payload` (object): an object having the general form: `{ [key: string]: string | number | boolean | null | Date | object | any[] }` where arrays and objects as values are acceptable only for JSON columns.
 + `returnList` ((string | Function)[], *optional*): as described in [`insert()`](#tableinsert).
 + Return value: as described in [`insert()`](#tableinsert).
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 // Update the record having primary key value of 4
@@ -1250,13 +1251,13 @@ await table.update(true, { updated_at: new Date });
 Dynamically run a <code>DELETE</code> operation.
 <pre><code>table.delete(where: number | object | Function | true, returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | boolean&gt;</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + `where` (number | object | Function | true): as described in [`select()`](#tableselect).
 + `returnList` ((string | Function)[], *optional*): as described in [`insert()`](#tableinsert).
 + Return value: as described in [`insert()`](#tableinsert).
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 // Delete the record having primary key value of 4
@@ -1305,7 +1306,7 @@ await table.delete(true);
 The UUID associated with the savepoint.
 <pre><code>savepoint.id: (UUID, <i>readonly</i>)</code></pre></summary>
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const savepoint = await client.database('test_db').savepoint();
@@ -1320,7 +1321,7 @@ console.log(savepoint.id); // f740d66a-df5f-4a34-a281-8ef3ba6fe754
 The subject database's generic identifier that transcends name changes.
 <pre><code>savepoint.databaseTag: (string, <i>readonly</i>)</code></pre></summary>
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 Consider a database's generic identifier before and after a name change:
 
@@ -1349,7 +1350,7 @@ console.log(savepoint.databaseTag); // db:18m6z
 The savepoint's version tag.
 <pre><code>savepoint.versionTag: (number, <i>readonly</i>)</code></pre></summary>
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const savepoint = await client.createDatabase({
@@ -1383,7 +1384,7 @@ console.log(savepoint.versionTag); // 2
 The database's all-time peak version regardless of its current rollback level.
 <pre><code>savepoint.versionMax: (number, <i>readonly</i>)</code></pre></summary>
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const savepoint = await client.database('test_db').savepoint();
@@ -1409,7 +1410,7 @@ console.log(savepoint.versionMax); // 2
 The savepoint's current level in the database's list of available savepoints.
 <pre><code>savepoint.cursor: (string, <i>readonly</i>)</code></pre></summary>
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const savepoint = await client.database('test_db').savepoint();
@@ -1424,7 +1425,7 @@ console.log(savepoint.cursor); // 1/2
 The description for the changes associated with the savepoint.
 <pre><code>savepoint.description: (string, <i>readonly</i>)</code></pre></summary>
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const savepoint = await client.database('test_db').createTable({
@@ -1447,7 +1448,7 @@ console.log(savepoint.description); // Create test_tbl2
 The savepoint's creation date.
 <pre><code>savepoint.savepointDate: (Date, <i>readonly</i>)</code></pre></summary>
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const savepoint = await client.database('test_db').savepoint();
@@ -1462,7 +1463,7 @@ console.log(savepoint.savepointDate); // 2024-07-20T15:31:06.096Z
 The savepoint's rollback date.
 <pre><code>savepoint.rollbackDate: (Date, <i>readonly</i>)</code></pre></summary>
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const savepoint = await client.database('test_db').createTable({
@@ -1491,7 +1492,7 @@ console.log(savepoint.rollbackDate); // 2024-07-20T15:31:06.096Z
 The effect that rolling back to this savepoint will have on subject DB.
 <pre><code>savepoint.rollbackEffect: (string, <i>readonly</i>)</code></pre></summary>
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 Will rolling back to given savepoint create or drop the subject database?:
 
@@ -1558,11 +1559,11 @@ console.log(savepoint.rollbackEffect); // ALTER
 Check if the savepoint is the next actual <i>point in time</i> for the database.
 <pre><code>savepoint.isNextPointInTime(): Promise&lt;boolean&gt;</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + Return value: boolean.
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 For a new operation, that would be true:
 
@@ -1601,11 +1602,11 @@ console.log(await dbCreationSavepoint.isNextPointInTime()); // true
 Rollback all changes associated with given savepoint.
 <pre><code>savepoint.rollback(): Promise&lt;boolean&gt;</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + Return value: boolean.
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 Create database and rollback:
 
@@ -1633,11 +1634,11 @@ await savepoint.rollback();
 Get a plain object representation of the savepoint.
 <pre><code>savepoint.toJson(): object</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + Return value: an object of the form `{ id: string, name: string, databaseTag: string, versionTag: number, versionMax: number, cursor: string, description: string, savepointDate: Date, rollbackDate: Date | null }`.
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const savepoint = await client.createDatabase('test_db', { descripton: 'Create db' });
@@ -1652,11 +1653,11 @@ console.log(savepoint.toJson());
 Get the subject DB's schema snapshot at this point in time.
 <pre><code>savepoint.schema(): object</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + Return value: an object corresponding to the [database JSON schema](#schemajson).
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 const savepoint = await client.database('test_db').createTable({
@@ -1682,12 +1683,12 @@ await savepoint.schema();
 Get the subject database's name.
 <pre><code>savepoint.name(postRollback?: boolean): string</code></pre></summary>
 
-*└ Spec:*
+📐 Spec:
 
 + `postRollback` (boolean, *optional*): in case a name change was captured in the savepoint, whether to return the database's post-rollback name. Otherwise the database's active, pre-rollback name is returned.
 + Return value: the database name.
 
-##### ✨ Usage:
+##### 📝 Usage:
 
 ```js
 // Name change
