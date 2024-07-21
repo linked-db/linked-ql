@@ -566,7 +566,7 @@ Click on a definition to expand.
 Run any SQL query.
 <pre><code>client.query(sql: string, options?: Options): Promise&lt;Savepoint | Array&lt;object&gt;&gt;</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + `sql` (string): an SQL query.
 + `options` (Options, *optional*): extra parameters for the query.
@@ -629,7 +629,7 @@ Some additional parameters via `options`:
 Dynamically run a <code>CREATE DATABASE</code> operation.
 <pre><code>client.createDatabase(createSpec: string | { name: string, tables?: Array }, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + `createSpec` (string | { name: string, tables?: Array }): the database name, or an object corresponding to the [database JSON schema](#schemajson).
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
@@ -671,7 +671,7 @@ Some additional parameters via `options`:
 Dynamically run an <code>ALTER DATABASE</code> operation.
 <pre><code>client.alterDatabase(alterSpec: string | { name: string, tables?: string[] }, callback: (schema: DatabaseSchema) => void, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + `alterSpec` (string | { name: string, tables?: string[] }): the database name, or an object with the name and, optionally, a list of tables to be altered along with it.
 + `callback` ((schema: DatabaseSchema) => void): a function that is called with the requested schema. This can be async. Received object is a [`DatabaseSchema`](#the-database-apischema) instance.
@@ -706,7 +706,7 @@ const savepoint = await client.alterDatabase({ name: 'database_1', tables: ['tab
 Dynamically run a <code>DROP DATABASE</code> operation.
 <pre><code>client.dropDatabase(dbName: string, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + `dbName` (string): the database name.
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
@@ -740,7 +740,7 @@ Some additional parameters via `options`:
 Check if a database exists.
 <pre><code>client.hasDatabase(dbName: string): Promise&lt;Boolean&gt;</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + `dbName` (string): the database name.
 + Return value: Boolean.
@@ -759,7 +759,7 @@ const exists = await client.hasDatabase('database_1');
 Get the schema structure for a database.
 <pre><code>client.describeDatabase(dbName: string): Promise&lt;{ name: string, tables: Array }&gt;</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + `dbName` (string): the database name.
 + Return value: an object corresponding to the [database JSON schema](#schemajson).
@@ -780,7 +780,7 @@ console.log(schema.tables);
 Get a list of available databases.
 <pre><code>client.databases(): Promise&lt;Array&lt;string&gt;&gt;</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + Return value: an array of database names.
 
@@ -799,7 +799,7 @@ console.log(databases); // ['public', 'database_1', ...]
 Obtain a <code>Database</code> instance.
 <pre><code>client.database(dbName: string): Database</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + `dbName` (string): the database name.
 + Return value: a [`Database`](#the-database-api) instance.
@@ -853,7 +853,7 @@ console.log(database.name); // test_db
 Dynamically run a <code>CREATE TABLE</code> operation.
 <pre><code>database.createTable(createSpec: { name: string, columns: Array, constraints?: Array, indexes?: Array }, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + `createSpec` ({ name: string, columns: Array, constraints?: Array, indexes?: Array }): an object corresponding to the [table JSON schema](#schemajson).
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
@@ -890,7 +890,7 @@ Some additional parameters via `options`:
 Dynamically run an <code>ALTER TABLE</code> operation.
 <pre><code>database.alterTable(tblName: string, callback: (schema: TableSchema) => void, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + `tblName` (string): the table name.
 + `callback` ((schema: TableSchema) => void): a function that is called with the requested table schema. This can be async. Received object is a [`TableSchema`](#the-table-apischema) instance.
@@ -915,7 +915,7 @@ const savepoint = await database.alterTable('table_1', schema => {
 Dynamically run a <code>DROP TABLE</code> operation.
 <pre><code>database.dropTable(tblName: string, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + `tblName` (string): the table name.
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
@@ -949,7 +949,7 @@ Some additional parameters via `options`:
 Check if a table exists.
 <pre><code>database.hasTable(tblName: string): Promise&lt;Boolean&gt;</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + `tblName` (string): the table name.
 + Return value: Boolean.
@@ -968,7 +968,7 @@ const exists = await database.hasTable('database_1');
 Get the schema structure for a table.
 <pre><code>database.describeTable(tblName: string): Promise&lt;{ name: string, columns: Array, constraints: Array, indexes: Array }&gt;</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + `tblName` (string): the table name.
 + Return value: an object corresponding to the [Table JSON schema](#schemajson).
@@ -989,7 +989,7 @@ console.log(schema.columns);
 Get a list of available tables.
 <pre><code>database.tables(): Promise&lt;Array&lt;string&gt;&gt;</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + Return value: an array of table names.
 
@@ -1008,7 +1008,7 @@ console.log(tables); // ['table_1', 'table_2', ...]
 Obtain a <code>Table</code> instance.
 <pre><code>database.table(tblName: string): Table</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + `tblName` (string): the table name.
 + Return value: a [`Table`](#the-table-api) instance.
@@ -1027,7 +1027,7 @@ const table = database.table('table_1');
 Obtain the next available <i>savepoint</i> for given database.
 <pre><code>database.savepoint(options?: { direction: string }): Savepoint</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + `options` ({ direction: string }, *optional*): extra paramters for the method.
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
@@ -1093,7 +1093,7 @@ console.log(table.name); // table_1
 Count total entries in table.
 <pre><code>table.count(expr?: string | Function = *): number</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + `expr` (string | Function = *, *optional*): a string denoting column name, or a function that recieves a *Field* object with which to build an expression. Defaults to `*`.
 + Return value: number.
@@ -1118,7 +1118,7 @@ Dynamically run a <code>SELECT</code> query.
 <pre><code>table.select(fields?: (string | Function)[] = *, where?: number | object | Function | true): Promise&lt;Array&lt;object&gt;&gt;</code></pre>
 <pre><code>table.select(where?: number | object | Function): Promise&lt;Array&lt;object&gt;&gt;</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + `fields` ((string | Function)[] = *, *optional*): a array of fields to select. (A field being either a string denoting column name, or a function that recieves a *Field* object with which to build an expression.)
 + `where` (number | object | Function | true, *optional*): a number denoting primary key value of the target row, or an object specifying some column name/column value conditions, or a function that recieves an *Assertion* object with which to build the conditions, or the value `true` denoting all records. Defaults to `true`.
@@ -1155,7 +1155,7 @@ Dynamically run an <code>INSERT</code> operation.
 <pre><code>table.insert(payload: object | object[], returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre>
 <pre><code>table.insert(columns: string[], values: any[][], returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | boolean&gt;</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + `payload` (object | object[]): an object denoting a single entry, or an array of said objects denoting multiple entries. (An entry having the general form: `{ [key: string]: string | number | boolean | null | Date | object | any[] }` where arrays and objects as values are acceptable only for JSON columns.)
 + `columns` (string[]): just column names (as against the key/value-based `payload` in the first call pattern).
@@ -1200,7 +1200,7 @@ Dynamically run an <code>UPSERT</code> operation.
 <pre><code>table.upsert(payload: object | object[], returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre>
 <pre><code>table.upsert(columns: string[], values: any[][], returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | boolean&gt;</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + `payload` (object | object[]): as described in [`insert()`](#tableinsert).
 + `columns` (string[]): as described in [`insert()`](#tableinsert).
@@ -1220,7 +1220,7 @@ An `UPSERT` operation is an `INSERT` operation that automatically converts to an
 Dynamically run an <code>UPDATE</code> operation.
 <pre><code>table.update(where: number | object | Function | true, payload: object, returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | boolean&gt;</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + `where` (number | object | Function | true): as described in [`select()`](#tableselect).
 + `payload` (object): an object having the general form: `{ [key: string]: string | number | boolean | null | Date | object | any[] }` where arrays and objects as values are acceptable only for JSON columns.
@@ -1251,7 +1251,7 @@ await table.update(true, { updated_at: new Date });
 Dynamically run a <code>DELETE</code> operation.
 <pre><code>table.delete(where: number | object | Function | true, returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | boolean&gt;</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + `where` (number | object | Function | true): as described in [`select()`](#tableselect).
 + `returnList` ((string | Function)[], *optional*): as described in [`insert()`](#tableinsert).
@@ -1559,7 +1559,7 @@ console.log(savepoint.rollbackEffect); // ALTER
 Check if the savepoint is the next actual <i>point in time</i> for the database.
 <pre><code>savepoint.isNextPointInTime(): Promise&lt;boolean&gt;</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + Return value: boolean.
 
@@ -1602,7 +1602,7 @@ console.log(await dbCreationSavepoint.isNextPointInTime()); // true
 Rollback all changes associated with given savepoint.
 <pre><code>savepoint.rollback(): Promise&lt;boolean&gt;</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + Return value: boolean.
 
@@ -1634,7 +1634,7 @@ await savepoint.rollback();
 Get a plain object representation of the savepoint.
 <pre><code>savepoint.toJson(): object</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + Return value: an object of the form `{ id: string, name: string, databaseTag: string, versionTag: number, versionMax: number, cursor: string, description: string, savepointDate: Date, rollbackDate: Date | null }`.
 
@@ -1653,7 +1653,7 @@ console.log(savepoint.toJson());
 Get the subject DB's schema snapshot at this point in time.
 <pre><code>savepoint.schema(): object</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + Return value: an object corresponding to the [database JSON schema](#schemajson).
 
@@ -1683,7 +1683,7 @@ await savepoint.schema();
 Get the subject database's name.
 <pre><code>savepoint.name(postRollback?: boolean): string</code></pre></summary>
 
-📝 Spec:
+⚙️ Spec:
 
 + `postRollback` (boolean, *optional*): in case a name change was captured in the savepoint, whether to return the database's post-rollback name. Otherwise the database's active, pre-rollback name is returned.
 + Return value: the database name.
