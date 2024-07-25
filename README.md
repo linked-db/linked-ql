@@ -428,7 +428,7 @@ To setup:
     }
     ```
 
-3. Have your schemas defined in a `schema.json` file in that directory. (See [`schema.json`](#schemajson) above for a guide.)
+3. Have your DB structure defined in a `schema.json` file in that directory. (See [`schema.json`](#schemajson) above for a guide.)
 
     You can always extend your schema with new objects, and you can always drop objects or edit them in-place. For an existing database, table, column, constraint, or index, **names may be changed, but not in-place!** A "rename" operation is done with the addition of a temporary `$name` attribute:
 
@@ -439,7 +439,7 @@ To setup:
     }
     ```
 
-    The old name in place is needed to find the target during migration. The temporary `$name` attribute automatically disappears after migration.
+    The old name being in place is needed to find the target during migration. The temporary `$name` attribute automatically disappears after new name has been picked up by Linked QL at next `linkedql migrate`.
 
 To run:
 
