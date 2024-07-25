@@ -1,5 +1,5 @@
 
-import AbstractCursor from '../abstracts/AbstractCursor.js';
+import AbstractCursor from '../AbstractCursor.js';
 
 export default class SQLCursor extends AbstractCursor {
 	 

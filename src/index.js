@@ -9,4 +9,4 @@ export default Parser;
 export {
 	Parser,
 	ODB,
-};
+}

@@ -29,8 +29,9 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
 
     after(async function() {
         console.log('DROP 3', await sqlClient.query('DROP TABLE if exists public.test2 CASCADE', { noCreateSavepoint: true }));
-        console.log('DROP 5', await sqlClient.query('DROP DATABASE if exists obj_information_schema CASCADE', { noCreateSavepoint: true }));
-        console.log('DROP 5', await sqlClient.query('DROP DATABASE if exists "some_db.new" CASCADE', { noCreateSavepoint: true }));
+        console.log('DROP 5', await sqlClient.query('DROP SCHEMA if exists obj_information_schema CASCADE', { noCreateSavepoint: true }));
+        console.log('DROP 5', await sqlClient.query('DROP SCHEMA if exists "some_db" CASCADE', { noCreateSavepoint: true }));
+        console.log('DROP 5', await sqlClient.query('DROP SCHEMA if exists "some_db.new" CASCADE', { noCreateSavepoint: true }));
         console.log('---PUBLIC TABLES AFTER:', await sqlClient.database('public').tables());
         console.log('---DATABSES AFTER:', await sqlClient.databases());
     });
@@ -107,7 +108,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
                     { name: 'id', type: 'int', primaryKey: true },
                     { name: 'author1', type: 'int', references: { targetTable: 'users', targetColumns: ['id'] }, },
                     { name: 'author2', type: 'int', },
-                    { name: 'content', type: { name: 'varchar', precision: 30 }, default: { expr: '\'Hello world\'' }, },
+                    { name: 'content', type: ['varchar', 30], default: { expr: '\'Hello world\'' }, },
                     { name: 'isbn', type: 'int', identity: { always: false }, notNull: true },
                 ],
                 constraints: [

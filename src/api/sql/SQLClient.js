@@ -1,7 +1,11 @@
 
-import Lexer from '../../query/Lexer.js';
-import Identifier from '../../query/select/Identifier.js';
-import AbstractClient from '../abstracts/AbstractClient.js';
+import Lexer from '../../lang/Lexer.js';
+import Identifier from '../../lang/componets/Identifier.js';
+import InsertStatement from '../../lang/dml/insert/InsertStatement.js';
+import UpdateStatement from '../../lang/dml/update/UpdateStatement.js';
+import DeleteStatement from '../../lang/dml/delete/DeleteStatement.js';
+import SelectStatement from '../../lang/dml/select/SelectStatement.js';
+import AbstractClient from '../AbstractClient.js';
 import SQLDatabase from './SQLDatabase.js';	
 
 export default class SQLClient extends AbstractClient {
@@ -53,17 +57,19 @@ export default class SQLClient extends AbstractClient {
      * @return Any
      */
     async query(query, params = {}) {
-        return await this.queryCallback(async (queryInstance, params) => {
-            if (queryInstance.expandable) await queryInstance.expand(true);
+        return await this.queryCallback(async (query, params) => {
+            if (query.expandable) await query.expand(true);
+            const supportsReturnList = [InsertStatement,UpdateStatement,DeleteStatement].some(x => query instanceof x);
             let myReturningList;
-            if (this.params.dialect === 'mysql' && queryInstance.RETURNING_LIST?.length) {
-                queryInstance = queryInstance.clone();
-                myReturningList = queryInstance.RETURNING_LIST.splice(0);
+            if (supportsReturnList && this.params.dialect === 'mysql' && query.RETURNING_LIST.length) {
+                query = query.clone();
+                myReturningList = query.RETURNING_LIST.splice(0);
                 // TODO: myReturningList
             }
-            const bindings = (queryInstance.BINDINGS || []).concat(params.params || []).map(value => Array.isArray(value) || typeof value === 'object' && value ? JSON.stringify(value) : value);
-            const result = await this.driver.query(queryInstance.toString(), bindings);
-            return result.rows || result;
+            const bindings = (query.BINDINGS || []).concat(params.values || []).map(value => Array.isArray(value) || typeof value === 'object' && value ? JSON.stringify(value) : value);
+            const result = await this.driver.query(query.toString(), bindings);
+            if (query instanceof SelectStatement || (supportsReturnList && query.RETURNING_LIST.length)) return result.rows || result;
+            return 'rowCount' in result ? result.rowCount : result.affectedRows;
         }, ...arguments);
     }
 

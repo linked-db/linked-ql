@@ -3,10 +3,10 @@
  * @imports
  */
 import { expect } from 'chai';
-import Parser from '../src/query/Parser.js';
+import Parser from '../src/lang/Parser.js';
 import pg from 'pg';
 import SQLClient from '../src/api/sql/SQLClient.js';
-import Select from '../src/query/select/Select.js';
+import SelectStatement from '../src/lang/dml/select/SelectStatement.js';
 
 const pgClient = new pg.Client({
     host: 'localhost',
@@ -26,7 +26,7 @@ describe(`SELECT QUERIES`, function() {
 
         it(`"parse()" the expression and stringify to compare with original`, async function() {
             const query1 = await Parser.parse({}, expr1, null, { log: false });
-            const query2 = Select.fromJson(query1.CONTEXT, query1.toJson());
+            const query2 = SelectStatement.fromJson(query1.CONTEXT, query1.toJson());
             const sql1 = query1 + '';
             const sql2 = query2 + '';
             console.log(sql1);
@@ -39,7 +39,7 @@ describe(`SELECT QUERIES`, function() {
         });
 
         it(`"Build a query with the imperative api and stringify`, async function() {
-            const query1 = new Select(sqlClient);
+            const query1 = new SelectStatement(sqlClient);
             // JSON forms
             query1.select(
                 // Pass in a fully-qualified identifier object
@@ -122,7 +122,7 @@ describe(`SELECT QUERIES`, function() {
         it('.......................', async function() {
             const forward = false;
             const dbName = ['OBJ_INFOSCHEMA_DB','database_savepoints'];
-            const q = new Select(sqlClient);
+            const q = new SelectStatement(sqlClient);
             console.log('........................', q + '');
         });
 

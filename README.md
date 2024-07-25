@@ -4,11 +4,11 @@
 [![bundle][bundle-src]][bundle-href]
 [![License][license-src]][license-href]
 
-❄️ **_Save the overhead working with SQL and structured data - from the time and effort spent figuring out relational queries to the labour managing schemas!_** Try a modern, minimalistic take on SQL and databases in general!
+❄️ **_Save the overhead working with SQL and structured data - from the time and effort spent figuring out relational queries to the labour managing schemas!_** Try a modern, simplistic take on SQL and databases in general!
 
 Linked QL is a DB query client that simplfies how you interact with your database and manage your schemas.
 
-💥 Takes the ORM and friends out of the way and let's you just write SQL, but SQL that you will actually enjoy. (Linked QL extends standard SQL with [new syntax sugars](#introducing-magic-paths) that let you write relational queries in 50% less code and without a single JOIN clause.)
+💥 Takes the ORM and friends out of the way and let's you just write SQL, but SQL that you will actually enjoy. (Linked QL extends standard SQL with [new syntax sugars](#introducing-magic-paths) that let you write relational queries in less than half the code and without a single JOIN clause.)
 
 ⚡️ Takes the process out of schema management and lets you just *ALTER* away your DB, but in a safety net. (Linked QL extends your DB behind the scenes to [automatically version](#introducing-auto-versioning) each edit you make and have them kept as "savepoints" that you can always rollback to.)
 
@@ -18,14 +18,14 @@ It comes as a small library and is usable over your DB of choice - from the serv
 
 Jump to sections and features:
 
-+ [Basic Usage](#basic-usage)
++ [Getting Started](#getting-started)
 + [Magic Paths](#introducing-magic-paths)
 + [Auto-Versioning](#introducing-auto-versioning)
 + [Schema-as-Code](#re-introducing-schema-as-code-with-schemajson)
 + [API](#linked-ql-api)
 + [CLI](#linked-ql-cli)
 
-## Setup
+## Getting Started
 
 Install Linked QL:
 
@@ -71,11 +71,11 @@ Obtain the Linked QL client for your target database:
     const client = new LinkedQl;
     ```
     
-3. To work with Linked QL's in-memory object storage, import and instantiate the *ODB* client. _(Coming soon)_
+3. To work with Linked QL's in-memory object database, import and instantiate the *ODB* client. _(Coming soon)_
 
     ```js
     // Import ODB as LinkedQl
-    import LinkedQl from '@linked-db/linked-ql';
+    import LinkedQl from '@linked-db/linked-ql/odb';
     
     // Create an instance.
     const LinkedQlClient = new LinkedQl;
@@ -84,13 +84,13 @@ Obtain the Linked QL client for your target database:
 All `client` instances above implement the same interface:
 
 ```js
-client.query('SELECT fname, lname FROM users WHERE role = $1', { params: ['admin'] }).then(result => {
+client.query('SELECT fname, lname FROM users WHERE role = $1', { values: ['admin'] }).then(result => {
     console.log(result);
 });
 ```
 
 ```js
-const result = await client.query('SELECT fname, lname FROM users WHERE role = $1', { params: ['admin'] });
+const result = await client.query('SELECT fname, lname FROM users WHERE role = $1', { values: ['admin'] });
 console.log(result);
 ```
 
@@ -100,7 +100,7 @@ Other APIs are covered just ahead in the [API](#linked-ql-api) section.
 
 💥 *Express relationships graphically.*
 
-JOINS can be good, but can be a curse too, as they almost always obfuscate your entire query! But what if you didn't have to write JOINS to express certain relationships?
+JOINS can be good but can be a mess as they almost always obfuscate your entire query! But what if you didn't have to write JOINS to express certain relationships?
 
 Meet Linked QL's magic path operators, a syntax extension to SQL, that lets you connect to columns on other tables without writing a single JOIN. Linked QL uses heuristics on your DB structure to figure out the details and the relevant JOINs behind the scenes.
 
@@ -159,7 +159,7 @@ Taking that further, paths can be multi-level:
 ```sql
 -- Linked QL
 SELECT * FROM books
-WHERE author ~> role ~> name = 'admin'
+WHERE author ~> role ~> codename = 'admin'
 ```
 
 and they can also be used to express incoming references:
@@ -216,16 +216,16 @@ const savepoint = await client.query('CREATE TABLE public.users (id int, name va
 
 ```js
 // Inspect the automatic savepoint created for you
-console.table(savepoint.description);   // Create users table
-console.table(savepoint.versionTag);    // 1
-console.table(savepoint.savepointDate); // 2024-07-17T22:40:56.786Z
+console.log(savepoint.description);   // Create users table
+console.log(savepoint.versionTag);    // 1
+console.log(savepoint.savepointDate); // 2024-07-17T22:40:56.786Z
 ```
 
 *(More details in the [Savepoint](#the-savepoint-api) API.)*
 
-✨ PRO: *Whole engineering work now essentially over to the DB where it rightly belongs; all with zero upfront setup!*
+✨ PRO: *Whole engineering work now essentially moved over to the DB where it rightly belongs; all with zero upfront setup!*
 
-Taking that further, you get a magic wand button should you want to rollback:
+Taking that further, you get a nifty rollback button should you want to:
 
 ```js
 // Rollback all associated changes (Gets the users table dropped)
@@ -251,7 +251,7 @@ let savepoint = await client.database('public').savepoint({ direction: 'forward'
 await savepoint.rollback();
 ```
 
-You essentially are able to go *back in time* or *forward in time*, and as randomly as iteration may demand.
+You essentially are able to go *back in time* or *forward in time* as randomly as iteration may demand.
 
 ## Re-Introducing Schema-as-Code with `schema.json`
 
@@ -400,9 +400,9 @@ An example index object:
 Now, if you had that somewhere in your application, say at `./database/schema.json`, Linked QL could help keep it in sync both ways with your database:
 
 + you add or remove a database or table or column... and it is automatically reflected in your DB structure at the click of a command: `linkedql migrate`
-+ your colleague makes new changes from their codebase... and it is automatically reflected in your local copy at the click of a command: `linkedql reflect`
++ your colleague makes new changes from their codebase... and it is automatically reflected in your local copy at your next `git pull`, or at the click of a command: `linkedql refresh`
 
-You also get to see a version indicator on each database object in your schema essentially incrementing on each migrate operation (whether by you or by colleague), and decrementing on each rollback operation (whether by you or by colleague).
+🐥 You also get to see a version indicator on each database object in your schema essentially incrementing on each migrate operation (whether by you or by colleague), and decrementing on each rollback operation (whether by you or by colleague).
 
 Thanks to a DB-native schema version control system, no need to maintain past states, or risk losing them; the DB now becomes the absolute source of truth for both itself and its client applications, as against the other way around. (You may want to see how that brings us to [true "Schema as Code" in practice](#test-heading).)
 
@@ -410,7 +410,7 @@ To setup:
 
 1. Make a directory within your application for database concerns. Linked QL will look in `./database`, but you will be able to point to your preferred location when running Linked QL commands.
 
-2. Have a `driver.js` file there that has a *default export* function that returns a Linked QL instance. This will be imported and used by Linked QL to interact with your database. This could look something like:
+2. Have a `driver.js` file in that directory that has a *default export* function that returns a Linked QL instance. This will be imported and used by Linked QL to interact with your database. This could look something like:
 
     ```js
     import pg from 'pg';
@@ -428,7 +428,18 @@ To setup:
     }
     ```
 
-3. Have your schemas defined in a `schema.json` file in there. (See [`schema.json`](#schemajson) above as a guide.)
+3. Have your schemas defined in a `schema.json` file in that directory. (See [`schema.json`](#schemajson) above for a guide.)
+
+    You can always extend your schema with new objects, and you can always drop objects or edit them in-place. For an existing database, table, column, constraint, or index, **names may be changed, but not in-place!** A "rename" operation is done with the addition of a temporary `$name` attribute:
+
+    ```js
+    {
+        "name": "old_name",
+        "$name": "new_name"
+    }
+    ```
+
+    The old name in place is needed to find the target during migration. The temporary `$name` attribute automatically disappears after migration.
 
 To run:
 
@@ -437,36 +448,6 @@ To run:
 + Use `linkedql leaderboard` to just view the latest savepoint at each database.
 
 *(More details in the [Linked QL CLI](#linked-ql-cli) section.)*
-
-
-<!--
-
-
-
-
-
-**Now, you may simply edit any part of your schema in-place!** For example, you can add a new table by simply extending the tables list; a new column by simply extending the columns list; a new constraint by simply extending the constraints list. You can go on to change the respective objects at their respective property level! For example, you may remove a column-level constraint, say `uniqueKey`, by simply deleting it; or change the column type, or update the `check` constraint, by simply overwriting it.
-
-*Changes are commited to your database at your next [`linkedql migrate`](#cmd-linkedql-migrate).*
-
-**Names may be changed, but not in-place!** A "rename" operation - whether on a database object, a table object, a column object, a constraint object, or an index object - would need to be done via a new `$name` property:
-
-```js
-{
-    "name": "old_name",
-    "$name": "new_name"
-}
-```
-
-*Your new name is picked up at your next [`linkedql migrate`](#cmd-linkedql-migrate), and the `$name` property automatically disappears.*
-
-**Each `migrate` operation is automatically versioned and you can see that reflected in a `version` property for each database in your schema!** (The `version` property automatically appears for a database after the first `migrate` operation.) Now, you can roll back over a version, or over consecutive versions, at any time. And after rolling back, you can also roll forward!
-
-*You may use [`linkedql savepoints`](#cmd-linkedql-savepoints) to preview the next savepoint at each database before each [`linkedql rollback`](#cmd-linkedql-rollback).*
-
-Interesting yet? You may want to learn more about [Linked QL's unique take on Schema as Code](#) as a paradigm and a practice.
-
--->
 
 ## Linked QL API
 
@@ -494,7 +475,7 @@ That said, while the `createDatabase()` method is associated with the base `Clie
 
 + the table-level scope (represented by a certain [`Table`](#the-table-api) interface), featuring methods such as: `select()`, `insert()`, `upsert()`, `update()`, `delete()`
 
-Each object provides a way to narrow down to the next; e.g. from the top-level scope to a database scope...
+Each object provides a way to narrow in to the next; e.g. from the top-level scope to a database scope...
 
 ```js
 const database_1 = client.database('database_1');
@@ -565,7 +546,7 @@ Run any SQL query.
 
 + `sql` (string): an SQL query.
 + `options` (Options, *optional*): extra parameters for the query.
-+ Return value: a [`Savepoint`](#the-savepoint-api) instance when it's a `CREATE`, `ALTER`, or `DROP` operation, but an array (the result set) when it's a `SELECT` query or when it's an `INSERT`, `UPDATE`, or `DELETE` operation that has a `RETURNING` clause.
++ Return value: a [`Savepoint`](#the-savepoint-api) instance when it's a `CREATE`, `ALTER`, or `DROP` operation, an array (the result set) when it's a `SELECT` query or when it's an `INSERT`, `UPDATE`, or `DELETE` operation that has a `RETURNING` clause, a number, in all other cases, indicating number of rows processed by the query.
 
 ⚽️ Usage:
 
@@ -585,11 +566,18 @@ const rows = await client.query('SELECT * FROM users WHERE id = 4');
 console.log(rows.length); // 1
 ```
 
-or an `INSERT`, `UPDATE`, or `DELETE` operation with a `RETURNING` clause, and ge backt a result set:
+or an `INSERT`, `UPDATE`, or `DELETE` operation with a `RETURNING` clause, and ge back a result set:
 
 ```js
 const rows = await client.query('INSERT INTO users SET name = \'John Doe\' RETURNING id');
 console.log(rows.length); // 1
+```
+
+or an `INSERT`, `UPDATE`, or `DELETE` operation without a `RETURNING` clause, and ge back a number indicating the number of rows processed by the query:
+
+```js
+const rowCount = await client.query('INSERT INTO users SET name = \'John Doe\'');
+console.log(rowCount); // 1
 ```
 
 Some additional parameters via `options`:
@@ -600,10 +588,10 @@ Some additional parameters via `options`:
     // Unlock certain dialect-specific clauses or conventions
     const rows = await client.query('ALTER TABLE users MODIFY COLUMN id int', { dialect: 'mysql' });
     ```
-+ `params` ((string | number | boolean | null | Date | object | any[])[], *optional*): the values for parameter-binding in the query.
++ `values` ((string | number | boolean | null | Date | object | any[])[], *optional*): the values for parameters in the query.
 
     ```js
-    const rows = await client.query('SELECT * FROM users WHERE id = $1', { params: [4] });
+    const rows = await client.query('SELECT * FROM users WHERE id = $1', { values: [4] });
     ```
 + `description` (string, *optional*): the description for a `CREATE`, `ALTER`, `DROP` operation and for the underlying savepoint they create.
 
@@ -1146,17 +1134,17 @@ const result = await table.select({ first_name: 'John', last_name: 'Doe' });
 #### `table.insert()`:
 
 <details><summary>
-Dynamically run an <code>INSERT</code> operation.
-<pre><code>table.insert(payload: object | object[], returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre>
-<pre><code>table.insert(columns: string[], values: any[][], returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | boolean&gt;</code></pre></summary>
+Dynamically run an <code>INSERT</code> operation. (With automatic parameter binding.)
+<pre><code>table.insert(payload: object | object[], returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | number&gt;</code></pre>
+<pre><code>table.insert(columns: string[], values: any[][], returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | number&gt;</code></pre></summary>
 
 ⚙️ Spec:
 
 + `payload` (object | object[]): an object denoting a single entry, or an array of said objects denoting multiple entries. (An entry having the general form: `{ [key: string]: string | number | boolean | null | Date | object | any[] }` where arrays and objects as values are automatically JSON-stringified.)
 + `columns` (string[]): just column names (as against the key/value `payload` in the first call pattern).
-+ `values` (any[][]): a two-dimensional array of just values (as against the key/value `payload` in the first call pattern), denoting multiple entries. 
++ `values` (any[][]): a two-dimensional array of just values (as against the key/value `payload` in the first call pattern), denoting multiple entries.
 + `returnList` (((string | Function)[] | false), *optional*): a list of fields, corresponding to a [select list](#tableselect), specifying data to be returned from the just inserted row. (Equivalent to Postgres' [RETURNING clause](https://www.postgresql.org/docs/current/dml-returning.html), but supported for other DB kinds in Linked QL.)
-+ Return value: an array (the new row being automatically returned), or the value `true`, where that behaviour has been explicitly disbaled with `returnList` set to `false`.
++ Return value: a number indicating number of rows processed by the query, or where `returnList` was provided, an array of the processed row(s).
 
 ⚽️ Usage:
 
@@ -1182,8 +1170,8 @@ await table.insert(['first_name', 'last_name', 'email'], [
 ```
 
 ```js
-// Insert single entry, obtaining inserted row - which is itself streamlined to just the "id" column
-const insertedRow = await table.insert({ first_name: 'John', last_name: 'Doe', email: 'johndoe@example.com'}, ['id']);
+// Insert single entry, obtaining inserted rows - which is itself streamlined to just the "id" column
+const insertedRows = await table.insert({ first_name: 'John', last_name: 'Doe', email: 'johndoe@example.com'}, ['id']);
 ```
 
 </details>
@@ -1191,9 +1179,9 @@ const insertedRow = await table.insert({ first_name: 'John', last_name: 'Doe', e
 #### `table.upsert()`:
 
 <details><summary>
-Dynamically run an <code>UPSERT</code> operation.
-<pre><code>table.upsert(payload: object | object[], returnList?: (string | Function)[]): Promise&lt;Savepoint&gt;</code></pre>
-<pre><code>table.upsert(columns: string[], values: any[][], returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | boolean&gt;</code></pre></summary>
+Dynamically run an <code>UPSERT</code> operation. (With automatic parameter binding.)
+<pre><code>table.upsert(payload: object | object[], returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | number&gt;</code></pre>
+<pre><code>table.upsert(columns: string[], values: any[][], returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | number&gt;</code></pre></summary>
 
 ⚙️ Spec:
 
@@ -1212,8 +1200,8 @@ An `UPSERT` operation is an `INSERT` operation that automatically converts to an
 #### `table.update()`:
 
 <details><summary>
-Dynamically run an <code>UPDATE</code> operation.
-<pre><code>table.update(where: number | object | Function | true, payload: object, returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | boolean&gt;</code></pre></summary>
+Dynamically run an <code>UPDATE</code> operation. (With automatic parameter binding.)
+<pre><code>table.update(where: number | object | Function | true, payload: object, returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | number&gt;</code></pre></summary>
 
 ⚙️ Spec:
 
@@ -1230,8 +1218,8 @@ await table.update(4, { first_name: 'John', last_name: 'Doe' });
 ```
 
 ```js
-// Update the record having specified email value, obtaining the updated row
-const updatedRow = await table.update({ email: 'johndoe@example.com' }, { first_name: 'John', last_name: 'Doe' });
+// Update the record having specified email value, obtaining the updated rows
+const updatedRows = await table.update({ email: 'johndoe@example.com' }, { first_name: 'John', last_name: 'Doe' }, ['*']);
 ```
 
 ```js
@@ -1243,8 +1231,8 @@ await table.update(true, { updated_at: new Date });
 #### `table.delete()`:
 
 <details><summary>
-Dynamically run a <code>DELETE</code> operation.
-<pre><code>table.delete(where: number | object | Function | true, returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | boolean&gt;</code></pre></summary>
+Dynamically run a <code>DELETE</code> operation. (With automatic parameter binding.)
+<pre><code>table.delete(where: number | object | Function | true, returnList?: (string | Function)[]): Promise&lt;Array&lt;object&gt; | number&gt;</code></pre></summary>
 
 ⚙️ Spec:
 
@@ -1499,6 +1487,7 @@ For a create operation...
 ```js
 const savepoint = await client.createDatabase('test_db', { descripton: 'Create db' });
 ```
+
 Rolling back will mean dropping the DB:
 
 ```js
@@ -1547,6 +1536,30 @@ const savepoint = await client.database('test_db').savepoint({ direction: 'forwa
 // Now rolling back will mean re-creating the table - which will still translate to a DB "alter" operation
 console.log(savepoint.descripton); // Create test_tbl2
 console.log(savepoint.rollbackEffect); // ALTER
+```
+
+</details>
+
+#### `savepoint.rollbackQuery`:
+
+<details><summary>
+A query preview of the rollback.
+<pre><code>savepoint.rollbackQuery: ({ toString(): string }, <i>readonly</i>)</code></pre></summary>
+
+⚽️ Usage:
+
+You get a query instance that is *toString()able*:
+
+For a create operation...
+
+```js
+const savepoint = await client.createDatabase('test_db', { descripton: 'Create db' });
+```
+
+Rolling back will mean dropping the DB:
+
+```js
+console.log(savepoint.rollbackQuery.toString()); // DROP SCHEMA test_db CASCADE
 ```
 
 </details>
@@ -1721,7 +1734,7 @@ npx linkedql migrate --dir="./src/database-stuff"
 
 *(Relative paths will resolve against your current working directory (CWD).)*
 
-Use the `--db` flag to run the command for a specific database out of the list of databases:
+Use the `--db` flag to run given command for a specific database out of the list of databases:
 
 ```cmd
 npx linkedql migrate --db=database_1
@@ -1739,7 +1752,7 @@ npx linkedql migrate --auto
 
 *Interactively run new migrations.* Linked QL looks through your local schema and compares with your active DB structure to see what's new. It works interactively by default and you're able to preview each SQL query to be run.
 
-##### 🐹 Usage:
+🐹 Usage:
 
 ```cmd
 npx linkedql migrate
@@ -1765,7 +1778,7 @@ npx linkedql migrate --quiet
 
 *Interactively perform a rollback.* Linked QL looks for the next savepoint at each database and initiates a rollback. It works interactively by default and you're able to preview each SQL query to be run.
 
-##### 🐹 Usage:
+🐹 Usage:
 
 ```cmd
 npx linkedql rollback
@@ -1791,7 +1804,7 @@ npx linkedql migrate --quiet
 
 *View the latest savepoint at each database.* Linked QL displays details about the next savepoint at each database.
 
-##### 🐹 Usage:
+🐹 Usage:
 
 ```cmd
 npx linkedql leaderboard
@@ -1807,19 +1820,35 @@ Use the flag `--direction` to specify either a "back in time" lookup (the defaul
 npx linkedql leaderboard --direction=forward
 ```
 
-#### `linkedql erase`
+#### `linkedql refresh`
 
-*Permanently delete savepoint histories.* Linked QL deletes the savepoint history of each database. This is irreversible.
+*Refresh local schema file.* Linked QL regenerates the schema from current DB structure for each database it has managed and refreshes local copy.
 
-##### 🐹 Usage:
+🐹 Usage:
 
 ```cmd
-npx linkedql erase
+npx linkedql refresh
 ```
 
 ```cmd
-npx linkedql erase --db=database_1
+npx linkedql refresh --db=database_1
 ```
+
+#### `linkedql forget`
+
+*Permanently erase savepoint histories.* Linked QL deletes the savepoint history of all databases or specified database. This is irreversible.
+
+🐹 Usage:
+
+```cmd
+npx linkedql forget
+```
+
+```cmd
+npx linkedql forget --db=database_1
+```
+
+🐣 *And that's a wrap!*
 
 ## Roadmap
 

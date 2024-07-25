@@ -1,7 +1,7 @@
 
 
 import { _intersect } from '@webqit/util/arr/index.js';
-import AbstractDatabase from '../abstracts/AbstractDatabase.js';
+import AbstractDatabase from '../AbstractDatabase.js';
 import SQLTable from './SQLTable.js';
 
 export default class SQLDatabase extends AbstractDatabase {
@@ -15,6 +15,7 @@ export default class SQLDatabase extends AbstractDatabase {
 
     /**
      * Returns a list of tables.
+
      * 
      * @return Array
 	 */
@@ -28,19 +29,21 @@ export default class SQLDatabase extends AbstractDatabase {
      * Describes table.
      * 
      * @param String|Array      tblName_s
-     * @param Object            params
      * 
      * @return Object|Array
      */
-    async describeTable(tblName_s, params = {}) {
-        const isSingle = !Array.isArray(tblName_s) && tblName_s !== '*';
-        const tblNames = [].concat(tblName_s);
-        const [ sql0, sql1 ] = this.getDescribeTableSql(tblNames);
-        const columns = await this.client.driver.query(sql0);
-        const constraints = await this.client.driver.query(sql1);
-        const schemas = this.formatDescribeTableResult(tblNames, (columns.rows || columns), (constraints.rows || constraints), []);
-        return isSingle ? schemas[0] : schemas;
+    async describeTable(tblName_s) {
+        return this.describeTableCallback(async (tblNames, isAll) => {
+            const [ sql0, sql1 ] = this.getDescribeTableSql(tblNames);
+            const columns = await this.client.driver.query(sql0);
+            const constraints = await this.client.driver.query(sql1);
+            return this.formatDescribeTableResult(tblNames, (columns.rows || columns), (constraints.rows || constraints), []);
+        }, ...arguments);
     }
+	
+	/**
+	 * -------------------------------
+	 */
 
     /**
      * Composes the SQL for a SHOW TABLE operation.
@@ -183,7 +186,7 @@ export default class SQLDatabase extends AbstractDatabase {
                     const temp = {};
                     return cols.concat({
                         name: col.column_name,
-                        type: col.character_maximum_length ? { name: dataType(col.data_type), maxLen: col.character_maximum_length } : dataType(col.data_type),
+                        type: col.character_maximum_length ? [ dataType(col.data_type), col.character_maximum_length ] : dataType(col.data_type),
                         ...(primaryKey.length === 1 && primaryKey[0].column_name === col.column_name && (temp.pKeys = primaryKey.pop()) ? {
                             primaryKey: { name: temp.pKeys.constraint_name }
                         } : {}),
@@ -200,7 +203,7 @@ export default class SQLDatabase extends AbstractDatabase {
                             identity: { always: col.identity_generation === 'ALWAYS' }
                         } : {}),
                         ...(col.is_generated !== 'NEVER' ? {
-                            generated: { always: col.is_generated === 'ALWAYS', expr: col.generation_expression }
+                            expression: { always: col.is_generated === 'ALWAYS', expr: col.generation_expression }
                         } : {}),
                         ...(col.is_nullable === 'NO' ? {
                             notNull: true

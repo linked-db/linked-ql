@@ -5,9 +5,10 @@
 import pg from 'pg';
 import { expect } from 'chai';
 import SQLClient from '../src/api/sql/SQLClient.js';
-import CreateTable from '../src/query/create/CreateTable.js';
-import AlterTable from '../src/query/alter/AlterTable.js';
-import Parser from '../src/query/Parser.js';
+import CreateStatement from '../src/lang/ddl/create/CreateStatement.js';
+import AlterStatement from '../src/lang/ddl/alter/AlterStatement.js';
+import TableSchema from '../src/lang/schema/tbl/TableSchema.js';
+import Parser from '../src/lang/Parser.js';
 
 // --------------------------
 const pgClient = new pg.Client({
@@ -39,7 +40,7 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
                 UNIQUE (rand2,rand)
             )`;
             const tblCreateInstance1 = await Parser.parse({ name: 'some_database' }, createTableSql);
-            const tblCreateInstance2 = CreateTable.fromJson(tblCreateInstance1.CONTEXT, tblCreateInstance1.toJson());
+            const tblCreateInstance2 = CreateStatement.fromJson(tblCreateInstance1.CONTEXT, tblCreateInstance1.toJson());
             const sql1 = tblCreateInstance1 + '';
             const sql2 = tblCreateInstance2 + '';
             console.log(sql1);
@@ -83,7 +84,7 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
                 ALTER constraint constraint_name8 DEFERRABLE
             `;
             const tblAlterInstance1 = Parser.parse({ name: 'some_database' }, alterTableSql);
-            const tblAlterInstance2 = AlterTable.fromJson(tblAlterInstance1.CONTEXT, tblAlterInstance1.toJson());
+            const tblAlterInstance2 = AlterStatement.fromJson(tblAlterInstance1.CONTEXT, tblAlterInstance1.toJson());
             const sql1 = tblAlterInstance1 + '';
             const sql2 = tblAlterInstance2 + '';
             console.log(sql2);
@@ -97,12 +98,11 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
         
         it(`DO: Diffs 2 schemas into an Alter Table statement`, async function() {
             const schema = {
-                name: 'testt',
+                name: ['public','testt'],
                 $name: 'testtttt',
-                basename: 'public',
                 columns: [
-                    { name: 'id', $name: 'iddd', type: { name: 'VARCHAR', precision: 30 }, $type: 'int', default: 20, $default: 9, notNull: true },
-                    { name: 'author', type: { name: 'INT' }, references: { name: 'fkk', targetTable: 'table1', targetColumns: ['col3', 'col4']}, keep: true },
+                    { name: 'id', $name: 'iddd', type: ['VARCHAR', 30], $type: 'int', default: 20, $default: 9, notNull: true },
+                    { name: 'author', type: ['INT'], references: { name: 'fkk', targetTable: 'table1', targetColumns: ['col3', 'col4']}, keep: true },
                 ],
                 constraints: [
                     { type: 'FOREIGN_KEY', columns: ['id', 'author'], targetTable: 'testt', targetColumns: ['col5', 'author'] },
@@ -110,7 +110,7 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
                 ],
                 indexes: []
             };
-            const schemaInstance = CreateTable.fromJson({}, schema);
+            const schemaInstance = TableSchema.fromJson({}, schema);
             //schemaInstance.keep(true, 'auto');
             schemaInstance.column('author').drop();//.name('author2');
             //schemaInstance.reverseAlt(true);
@@ -118,7 +118,7 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
             const tblAlterInstance1 = schemaInstance.getAlt();
 
             
-            const tblAlterInstance2 = AlterTable.fromJson(tblAlterInstance1.CONTEXT, tblAlterInstance1.toJson());
+            const tblAlterInstance2 = AlterStatement.fromJson(tblAlterInstance1.CONTEXT, tblAlterInstance1.toJson());
             const sql1 = tblAlterInstance1 + '';
             const sql2 = tblAlterInstance2 + '';
             console.log(sql1);

@@ -1,5 +1,5 @@
 
-import AbstractTable from '../abstracts/AbstractTable.js';
+import AbstractTable from '../AbstractTable.js';
 import SQLCursor from './SQLCursor.js';
 
 export default class SQLTable extends AbstractTable {
