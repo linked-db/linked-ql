@@ -1752,7 +1752,7 @@ npx linkedql migrate --auto
 
 *Interactively run new migrations.* Linked QL looks through your local schema and compares with your active DB structure to see what's new. It works interactively by default and you're able to preview each SQL query to be run.
 
-🐹 Usage:
+<details><summary>🐹 Usage:</summary>
 
 ```cmd
 npx linkedql migrate
@@ -1774,11 +1774,13 @@ Use the flag `--quiet` to turn off SQL previews:
 npx linkedql migrate --quiet
 ```
 
+</details>
+
 #### `linkedql rollback`
 
 *Interactively perform a rollback.* Linked QL looks for the next savepoint at each database and initiates a rollback. It works interactively by default and you're able to preview each SQL query to be run.
 
-🐹 Usage:
+<details><summary>🐹 Usage:</summary>
 
 ```cmd
 npx linkedql rollback
@@ -1800,11 +1802,13 @@ Use the flag `--quiet` to turn off SQL previews:
 npx linkedql migrate --quiet
 ```
 
+</details>
+
 #### `linkedql leaderboard`
 
 *View the latest savepoint at each database.* Linked QL displays details about the next savepoint at each database.
 
-🐹 Usage:
+<details><summary>🐹 Usage:</summary>
 
 ```cmd
 npx linkedql leaderboard
@@ -1820,11 +1824,13 @@ Use the flag `--direction` to specify either a "back in time" lookup (the defaul
 npx linkedql leaderboard --direction=forward
 ```
 
+</details>
+
 #### `linkedql refresh`
 
 *Refresh local schema file.* Linked QL regenerates the schema from current DB structure for each database it has managed and refreshes local copy.
 
-🐹 Usage:
+<details><summary>🐹 Usage:</summary>
 
 ```cmd
 npx linkedql refresh
@@ -1834,11 +1840,13 @@ npx linkedql refresh
 npx linkedql refresh --db=database_1
 ```
 
+</details>
+
 #### `linkedql forget`
 
 *Permanently erase savepoint histories.* Linked QL deletes the savepoint history of all databases or specified database. This is irreversible.
 
-🐹 Usage:
+<details><summary>🐹 Usage:</summary>
 
 ```cmd
 npx linkedql forget
@@ -1847,6 +1855,8 @@ npx linkedql forget
 ```cmd
 npx linkedql forget --db=database_1
 ```
+
+</details>
 
 🐣 *And that's a wrap!*
 
