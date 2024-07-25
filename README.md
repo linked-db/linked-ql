@@ -1726,7 +1726,7 @@ The `linkedql` command comes as part of your local Linked QL installation and no
 npx linkedql migrate
 ```
 
-In each case, you can use the `--dir` flag to point Linked QL to your "database" directory:
+On each command, you can use the `--dir` flag to point Linked QL to your "database" directory (where you have your `schema.json` and `driver.js` files):
 
 ```cmd
 npx linkedql migrate --dir="./src/database-stuff"
