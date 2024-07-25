@@ -1828,7 +1828,7 @@ npx linkedql leaderboard --direction=forward
 
 #### `linkedql refresh`
 
-*Refresh local schema file.* Linked QL regenerates the schema from current DB structure for each database it has managed and refreshes local copy.
+*Refresh local schema file.* Linked QL regenerates the schema from current DB structure for each database it has managed; refreshes local copy.
 
 <details><summary>🐹 Usage:</summary>
 
@@ -1844,7 +1844,7 @@ npx linkedql refresh --db=database_1
 
 #### `linkedql forget`
 
-*Permanently erase savepoint histories.* Linked QL deletes the savepoint history of all databases or specified database. This is irreversible.
+*Permanently erase savepoint histories.* Linked QL deletes the savepoint history of all databases, or a specific database from the `--db` flag. This is irreversible.
 
 <details><summary>🐹 Usage:</summary>
 
