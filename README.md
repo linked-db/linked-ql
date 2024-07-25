@@ -1734,13 +1734,13 @@ npx linkedql migrate --dir="./src/database-stuff"
 
 *(Relative paths will resolve against your current working directory (CWD).)*
 
-Use the `--db` flag to run given command for a specific database out of the list of databases:
+To run a command for a specific database out of your list of databases, use the `--db` flag:
 
 ```cmd
 npx linkedql migrate --db=database_1
 ```
 
-Use the flag `--auto` to turn off prompts and just take the "sensible-default" action:
+To turn off prompts and get Linked QL to just take the "sensible-default" action, use the flag `--auto`:
 
 ```cmd
 npx linkedql migrate --auto
