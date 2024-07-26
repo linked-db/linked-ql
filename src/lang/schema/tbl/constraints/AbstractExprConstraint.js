@@ -68,7 +68,7 @@ export default Class => class extends Class {
      */
     static parse(context, expr) {
         let { name, expr: $expr } = this.parseName(context, expr, true);
-        if (!$expr || !($expr = $expr.match(new RegExp(`^${ this.TYPE }\\s+([\\s\\S]+)$`, 'i'))?.[1])) return;
+        if (!$expr || !($expr = $expr.match(new RegExp(`^${ this.TYPE.replace(/_/g, '\\s+') }\\s+([\\s\\S]+)$`, 'i'))?.[1])) return;
         const instance = (new this(context))
             .expr(_wrapped($expr.trim(), '(', ')') ? _unwrap($expr.trim(), '(', ')') : $expr)
             .name(name);

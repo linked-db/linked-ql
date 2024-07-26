@@ -11,7 +11,9 @@ import ColumnPrimaryKey from './constraints/ColumnPrimaryKey.js';
 import ColumnForeignKey from './constraints/ColumnForeignKey.js';
 import ColumnUniqueKey from './constraints/ColumnUniqueKey.js';
 import CheckConstraint from './constraints/CheckConstraint.js';
-import DataType from './DataType.js';		
+import OnUpdate from './constraints/OnUpdate.js';
+import Null from './constraints/Null.js';
+import DataType from './DataType.js';
 
 export default class Column extends AbstractNode {
 
@@ -31,7 +33,7 @@ export default class Column extends AbstractNode {
     /**
      * @var Array
      */
-    static CONSTRAINT_TYPES = [AutoIncrement,Identity,Expression,Default,NotNull,ColumnPrimaryKey,ColumnForeignKey,ColumnUniqueKey,CheckConstraint];
+    static CONSTRAINT_TYPES = [AutoIncrement,Identity,Expression,Default,NotNull,Null,OnUpdate,ColumnPrimaryKey,ColumnForeignKey,ColumnUniqueKey,CheckConstraint];
 
 	/**
 	 * Sets the column type,
@@ -69,6 +71,11 @@ export default class Column extends AbstractNode {
      * NOT_NULL
      */
     notNull(...args) { return this.constraint('NOT_NULL', ...args); }
+
+    /**
+     * ON_UPDATE
+     */
+    onUpdate(...args) { return this.constraint('ON_UPDATE', ...args); }
 
     /**
      * PRIMARY_KEY
@@ -124,7 +131,7 @@ export default class Column extends AbstractNode {
         super.diffWith(nodeB);
         const typeA = this.type().toJson(), typeB = nodeB.type().toJson();
         if (!this.isSame(typeA, typeB)) this.type(typeB);
-        for (const type of ['IDENTITY', 'EXPRESSION', 'NOT_NULL', 'DEFAULT', 'AUTO_INCREMENT']) {
+        for (const type of ['IDENTITY', 'EXPRESSION', 'NOT_NULL', 'DEFAULT', 'AUTO_INCREMENT', 'ON_UPDATE']) {
             const consA = this.constraint(type);
             const consB = nodeB.constraint(type);
             if (consA && (!consB || consB.dropped())) consA.drop();
@@ -209,6 +216,7 @@ export default class Column extends AbstractNode {
             { test: `${ qualifier }(PRIMARY[ ]+KEY|NOT[ ]+NULL|GENERATED|REFERENCES|UNIQUE(?:[ ]+KEY)?|CHECK|AUTO_INCREMENT)` },
             { backtest: '^(?!.*\\s+(NOT|SET)\\s+$)', test: `${ qualifier }NULL` },
             { backtest: '^(?!.*\\s+BY\\s+$)', test: `${ qualifier }DEFAULT` },
+            { backtest: '^(?!.*\\s+REFERENCES\\s+)', test: `ON\\s+UPDATE` },
         ];
         const [ columnType, ...tokens ] = Lexer.split(bodyPart, regexes, { useRegex:'i', preserveDelims: true });
         // Type

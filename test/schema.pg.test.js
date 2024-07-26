@@ -34,12 +34,13 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
                 "$ref" int CONSTRAINT nn not    null CONSTRAINT uni_q unique CONSTRAINT fk REFERENCES pretest (id) MATCH FULL ON DELETE RESTRICT ON UPDATE SET NULL,
                 ref2 int,
                 rand VARCHAR (11) CHECK (rand IS NOT NULL),
-                rand2 text,
+                rand2 text null,
+                timee timestamp on update CURRENT_TIMESTAMP,
                 CONSTRAINT ck CHECK (ref > 10),
                 CONSTRAINT "fk .. "" .. 2" FOREIGN    KEY (ref2) REFERENCES pretest2 (id),
                 UNIQUE (rand2,rand)
             )`;
-            const tblCreateInstance1 = await Parser.parse({ name: 'some_database' }, createTableSql);
+            const tblCreateInstance1 = await Parser.parse({ name: 'some_database' }, createTableSql, null, { log: false });
             const tblCreateInstance2 = CreateStatement.fromJson(tblCreateInstance1.CONTEXT, tblCreateInstance1.toJson());
             const sql1 = tblCreateInstance1 + '';
             const sql2 = tblCreateInstance2 + '';

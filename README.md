@@ -259,7 +259,7 @@ You essentially are able to go *back in time* or *forward in time* as randomly a
 
 ## Re-Introducing Schema-as-Code with `schema.json`
 
-💥 *Have your entire DB structure live in a single `schema.json` file that you edit in-place!*
+💥 *Have your entire DB structure live in a single `schema.json` (or `schema.yml`) file that you edit in-place!*
 
 With schema versioning now over to the database, much of the old conventions and formalities should now be irrelevant. We found that we could essentially streamline the whole "database" footprint from spanning hundreds of migration files to fitting into a single `schema.json` (or `schema.yml`) file!
 
@@ -1866,8 +1866,8 @@ npx linkedql forget --db=database_1
 
 ## Roadmap
 
-+ Improve support for MySQL.
-+ Implement support for a `schema.yml` alternative to `schema.json` file.
++ [ONGOING] Improve support for MySQL.
++ [DONE] Implement support for a `schema.yml` alternative to `schema.json` file.
 + Implement support for IndexedDB.
 + Implement the in-memory database.
 

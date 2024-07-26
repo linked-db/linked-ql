@@ -40,7 +40,8 @@
   },
   "dependencies": {
     "@webqit/util": "^0.8.14",
-    "enquirer": "^2.4.1"
+    "enquirer": "^2.4.1",
+    "yaml": "^2.5.0"
   },
   "devDependencies": {
     "chai": "^4.3.4",

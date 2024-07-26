@@ -4,6 +4,7 @@ import { _unwrap, _wrapped } from '@webqit/util/str/index.js';
 import AbstractSchema from '../AbstractSchema.js';
 import Identifier from '../../components/Identifier.js';
 import AlterStatement from '../../ddl/alter/AlterStatement.js';
+import AbstractLevel1Constraint from './constraints/AbstractLevel1Constraint.js'
 import AbstractLevel2Constraint from './constraints/AbstractLevel2Constraint.js';
 import TablePrimaryKey from './constraints/TablePrimaryKey.js';
 import ColumnForeignKey from './constraints/ColumnForeignKey.js';
@@ -201,7 +202,7 @@ export default class TableSchema extends AbstractSchema {
 				} else if (subAction.CLAUSE === 'SET') {
 					if (subAction.argument() instanceof DataType) {
 						node.type(subAction.argument().toJson());
-					} else if (subAction.KIND === 'DEFAULT') {
+					} else if (['DEFAULT', 'ON_UPDATE'].includes(subAction.KIND)) {
 						node.constraint(subAction.KIND, subAction.argument());
 					} else if (subAction.KIND === 'NOT_NULL') {
 						node.constraint(subAction.KIND, true);
@@ -250,7 +251,7 @@ export default class TableSchema extends AbstractSchema {
 				if (this.params.dialect === 'mysql') {
 					// // Column name or type changed, or these attrs changed? Use MySQL CHANGE clause?
 					if ((col.$TYPE && !this.isSame(col.$TYPE.toJson(), col.TYPE.toJson(), 'ci'))
-					|| (col.CONSTRAINTS.some(cons => ['EXPRESSION', 'NOT_NULL', 'AUTO_INCREMENT'].includes(cons.TYPE) && constraintDirty(cons, true)))) {
+					|| (col.CONSTRAINTS.some(cons => ['EXPRESSION', 'NOT_NULL', 'AUTO_INCREMENT', 'ON_UPDATE'].includes(cons.TYPE) && constraintDirty(cons, true)))) {
 						const columnClone = col.clone();
 						columnClone.CONSTRAINTS = columnClone.CONSTRAINTS.filter(cons => !(cons instanceof AbstractLevel2Constraint));
 						instance.modify('COLUMN', columnClone);
@@ -280,7 +281,7 @@ export default class TableSchema extends AbstractSchema {
 							if (cons.keep() === false) return { clause: 'DROP', kind: cons.TYPE };
 							else if (cons.TYPE === 'EXPRESSION') throw new Error('EXPRESSION constraints cannot be added or modified after column creation.');
 							else if (cons.TYPE === 'IDENTITY') return !cons.keep() ? { clause: 'ADD', argument: cons.clone() } : { clause: 'SET', kind: 'IDENTITY', argument: cons.always() ? 'ALWAYS' : true };
-							else if (cons.TYPE === 'DEFAULT') return { clause: 'SET', kind: 'DEFAULT', argument: cons.expr() };
+							else if (['DEFAULT'/*, 'ON_UPDATE'*//*useless in postgres*/].includes(cons.TYPE)) return { clause: 'SET', kind: cons.TYPE, argument: cons.expr() };
 							else if (cons.TYPE === 'NOT_NULL') return { clause: 'SET', kind: 'NOT_NULL' };
 						})());
 					}
