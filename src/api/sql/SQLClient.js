@@ -1,6 +1,6 @@
 
 import Lexer from '../../lang/Lexer.js';
-import Identifier from '../../lang/componets/Identifier.js';
+import Identifier from '../../lang/components/Identifier.js';
 import InsertStatement from '../../lang/dml/insert/InsertStatement.js';
 import UpdateStatement from '../../lang/dml/update/UpdateStatement.js';
 import DeleteStatement from '../../lang/dml/delete/DeleteStatement.js';

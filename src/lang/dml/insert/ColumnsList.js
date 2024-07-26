@@ -1,7 +1,7 @@
 
 import Lexer from '../../Lexer.js';
 import { _wrapped, _unwrap } from '@webqit/util/str/index.js';
-import Identifier from '../../componets/Identifier.js';
+import Identifier from '../../components/Identifier.js';
 import AbstractNode from '../../AbstractNode.js';
 
 export default class ColumnsList extends AbstractNode {

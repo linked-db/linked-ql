@@ -1,7 +1,7 @@
 
 import AbstractNode from "../AbstractNode.js";
 import Lexer from "../Lexer.js";
-import Identifier from "../componets/Identifier.js";
+import Identifier from "../components/Identifier.js";
 
 export default class AbstractStatement extends AbstractNode {
 

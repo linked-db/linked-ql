@@ -1,5 +1,5 @@
 
-import Identifier from '../../componets/Identifier.js';
+import Identifier from '../../components/Identifier.js';
 import AbstractStatement from '../AbstractStatement.js';
 import AbstractNode from '../AbstractNode.js';
 

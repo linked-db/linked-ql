@@ -3,11 +3,11 @@ import Lexer from '../../Lexer.js';
 import AbstractStatement from '../AbstractStatement.js';
 import AssignmentList from '../insert/AssignmentList.js';
 import OrderByClause from '../select/orderby/OrderByClause.js';
-import JoinClause from '../../componets/JoinClause.js';
-import Condition from '../../componets/Condition.js';
-import Assertion from '../../componets/Assertion.js';
-import Table from '../../componets/Table.js';
-import Field from '../../componets/Field.js';
+import JoinClause from '../../components/JoinClause.js';
+import Condition from '../../components/Condition.js';
+import Assertion from '../../components/Assertion.js';
+import Table from '../../components/Table.js';
+import Field from '../../components/Field.js';
 
 export default class UpdateStatement extends AbstractStatement {
 	 

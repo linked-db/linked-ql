@@ -2,7 +2,7 @@
 import Lexer from '../../Lexer.js';
 import { _wrapped, _unwrap } from '@webqit/util/str/index.js';
 import AbstractNode from '../../AbstractNode.js';
-import Expr from '../../componets/Expr.js';
+import Expr from '../../components/Expr.js';
 
 export default class ValuesList extends AbstractNode {
 

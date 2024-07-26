@@ -5,8 +5,8 @@ import AbstractStatement from '../AbstractStatement.js';
 import AssignmentList from './AssignmentList.js';
 import OnConflictClause from './OnConflictClause.js';
 import Select from '../select/SelectStatement.js';
-import Table from '../../componets/Table.js';
-import Field from '../../componets/Field.js';
+import Table from '../../components/Table.js';
+import Field from '../../components/Field.js';
 import ValuesList from './ValuesList.js';
 import ColumnsList from './ColumnsList.js';
 

@@ -2,7 +2,7 @@
 import Lexer from '../../Lexer.js';
 import { _unwrap, _wrapped } from '@webqit/util/str/index.js';
 import AbstractSchema from '../AbstractSchema.js';
-import Identifier from '../../componets/Identifier.js';
+import Identifier from '../../components/Identifier.js';
 import AlterStatement from '../../ddl/alter/AlterStatement.js';
 import AbstractLevel2Constraint from './constraints/AbstractLevel2Constraint.js';
 import TablePrimaryKey from './constraints/TablePrimaryKey.js';

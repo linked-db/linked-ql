@@ -1,6 +1,6 @@
 
 
-import Literal from '../../componets/Literal.js';
+import Literal from '../../components/Literal.js';
 import Modify from './Modify.js';
 import Add from '../create/Add.js';
 import Drop from '../drop/Drop.js';

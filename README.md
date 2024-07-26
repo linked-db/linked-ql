@@ -8,13 +8,13 @@
 
 Linked QL is a DB query client that simplfies how you interact with your database and manage your schemas.
 
-💥 Takes the ORM and friends out of the way and let's you just write SQL, but SQL that you will actually enjoy. (Linked QL extends standard SQL with [new syntax sugars](#introducing-magic-paths) that let you write relational queries in less than half the code and without a single JOIN clause.)
+💥 Takes the ORM and friends out of the way and let's you just write SQL, but SQL that you will actually enjoy. (Linked QL extends standard SQL with [new syntax sugars](#introducing-magic-paths) that let you write relational queries in less than half the code and without a single JOIN clause in most cases.)
 
 ⚡️ Takes the process out of schema management and lets you just *ALTER* away your DB, but in a safety net. (Linked QL extends your DB behind the scenes to [automatically version](#introducing-auto-versioning) each edit you make and have them kept as "savepoints" that you can always rollback to.)
 
-💥 Brings the "schema-as-code" paradigm to its true meaning and essentially lets you have your entire DB structure go in a single [`schema.json` file](#re-introducing-schema-as-code-with-schemajson) that you edit in-place, as against the "hundreds of migration files" story. (Linked QL essentially rewrites that story.)
+💥 Brings the "schema-as-code" paradigm to its true meaning and essentially lets you have your entire DB structure go in a single [`schema.json` file](#re-introducing-schema-as-code-with-schemajson) that you edit in-place, as against the "hundreds of migration files" practice. (Linked QL essentially rewrites your "migrations" experience.)
 
-It comes as a small library and is usable over your DB of choice - from the server-side Postgres and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), to the plain JSON object!
+It comes as a small library and is usable over your DB of choice - from the server-side Postgres, mariadb and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), to the plain JSON object!
 
 Jump to sections and features:
 
@@ -35,9 +35,9 @@ npm install @linked-db/linked-ql
 
 Obtain the Linked QL client for your target database:
 
-1. For SQL databases, install the regular SQL client you use for your DB. (Typically, `pg` for Postgres, `mysql2` for MySQL databases.)
+1. For SQL databases, install the regular SQL client you use for your DB. (Typically, [`pg`](https://github.com/brianc/node-postgres) for PostgreSQL, [`mariadb`](https://github.com/mariadb-corporation/mariadb-connector-nodejs) for mariadb, [`mysql`](https://www.npmjs.com/package/mysql)/[`mysql2`](https://www.npmjs.com/package/mysql2) for MySQL databases.)
 
-    Given a Postgres DB, install the `pg` client:
+    Using PostgreSQL as an example, install the `pg` client:
 
     ```cmd
     npm install pg
@@ -174,7 +174,7 @@ WHERE author <~ books ~> title = 'Beauty and the Beast'
 
 ⚡️ *Create, Alter, and Drop schemas without needing to worry about versioning.*
 
-Databases have historically lacked the concept of versioning, and that has seen all of the engineering work pushed down to the client application. If you've ever had to adopt a special process for defining and managing your schemas, wherein changes are handled through *serially-named* files within your application, each written as an `UP`/`DOWN` pair of actions, and in all supported by tooling...
+Databases have historically lacked the concept of versioning, and that has seen all of the engineering work pushed down to the client application. If you've ever had to adopt a special process for defining and managing your schemas, wherein changes are handled through *serially*-named files within your application, each written as an `UP`/`DOWN` pair of actions, and in all supported by tooling...
 
 ```sql
 app
@@ -203,9 +203,9 @@ app
 
 then you've faced the problem that this defeciency in databases creates! But what if databases magically got to do the heavy lifting?
 
-Meet Linked QL's little addition to your database that does exactly that and lets you just alter your DB however you may but in the safety net of some behind-the-scenes magic that snapshots your schema before each alteration! Meet Automatic Schema Savepoints and Rollbacks!
+Meet Linked QL's little addition to your database that does exactly that and lets you alter your DB carefree, but in the safety net of some behind-the-scenes magic that snapshots your schema before each alteration! Meet Automatic Schema Savepoints and Rollbacks!
 
-Linked QL:
+You:
 
 ```js
 // Alter schema
@@ -214,8 +214,10 @@ const savepoint = await client.query('CREATE TABLE public.users (id int, name va
 });
 ```
 
+Linked QL:
+
 ```js
-// Inspect the automatic savepoint created for you
+// A savepoint automatically created for you
 console.log(savepoint.description);   // Create users table
 console.log(savepoint.versionTag);    // 1
 console.log(savepoint.savepointDate); // 2024-07-17T22:40:56.786Z
@@ -304,7 +306,7 @@ An example column object:
 ```js
 {
     "name": "full_name",
-    "type": ["varchar","101"],
+    "type": ["varchar", 101],
     "generated": "(first_name || ' ' || last_name)"
 }
 ```
@@ -312,7 +314,7 @@ An example column object:
 ```js
 {
     "name": "email",
-    "type": ["varchar","50"],
+    "type": ["varchar", "50"],
     "uniqueKey": true,
     "notNull": true,
     "check": "(email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')"
@@ -399,7 +401,7 @@ An example index object:
 
 Now, if you had that somewhere in your application, say at `./database/schema.json`, Linked QL could help keep it in sync both ways with your database:
 
-+ you add or remove a database or table or column... and it is automatically reflected in your DB structure at the click of a command: `linkedql migrate`
++ you add or remove a database object or table object or column object... and it is automatically reflected in your DB structure at the click of a command: `linkedql migrate`
 + your colleague makes new changes from their codebase... and it is automatically reflected in your local copy at your next `git pull`, or at the click of a command: `linkedql refresh`
 
 🐥 You also get to see a version indicator on each database object in your schema essentially incrementing on each migrate operation (whether by you or by colleague), and decrementing on each rollback operation (whether by you or by colleague).
@@ -453,7 +455,7 @@ To run:
 
 Here's for a quick overview of the Linked QL API:
 
-Here we talk about the `client.query()` method in more detail along with other Linked QL APIs that essentially let us do the same things possible with `client.query()`, but this time, programmatically.
+Here we talk about the `client.query()` method in more detail along with other Linked QL APIs that essentially let you do the same things possible with `client.query()`, but this time, programmatically.
 
 As an example of one of these APIs, a `CREATE DATABASE` operation...
 
@@ -546,7 +548,7 @@ Run any SQL query.
 
 + `sql` (string): an SQL query.
 + `options` (Options, *optional*): extra parameters for the query.
-+ Return value: a [`Savepoint`](#the-savepoint-api) instance when it's a `CREATE`, `ALTER`, or `DROP` operation, an array (the result set) when it's a `SELECT` query or when it's an `INSERT`, `UPDATE`, or `DELETE` operation that has a `RETURNING` clause, a number, in all other cases, indicating number of rows processed by the query.
++ Return value: a [`Savepoint`](#the-savepoint-api) instance when it's a `CREATE`, `ALTER`, or `DROP` operation, an array (the result set) when it's a `SELECT` query or when it's an `INSERT`, `UPDATE`, or `DELETE` operation that has a `RETURNING` clause, but a number (indicating number of rows processed by the query) when not having a `RETURNING` clause. Null in all other cases.
 
 ⚽️ Usage:
 
@@ -566,7 +568,7 @@ const rows = await client.query('SELECT * FROM users WHERE id = 4');
 console.log(rows.length); // 1
 ```
 
-or an `INSERT`, `UPDATE`, or `DELETE` operation with a `RETURNING` clause, and ge back a result set:
+or an `INSERT`, `UPDATE`, or `DELETE` operation with a `RETURNING` clause, and get back a result set:
 
 ```js
 const rows = await client.query('INSERT INTO users SET name = \'John Doe\' RETURNING id');
@@ -1497,8 +1499,8 @@ console.log(savepoint.rollbackEffect); // DROP
 
 ```js
 // Drop DB
-await savepoint.rollback();
 console.log(savepoint.rollbackEffect); // DROP
+await savepoint.rollback();
 ```
 
 Having rolled back, rolling forward will mean a re-creation of the DB:
@@ -1511,7 +1513,7 @@ console.log(savepoint.descripton); // Create db
 console.log(savepoint.rollbackEffect); // CREATE
 ```
 
-Compare with that of rolling back table-level operations - which always just has an `ALTER` effect:
+But note that table-level create/drop operations always only have an `ALTER` effect on parent DB:
 
 ```js
 // Create table - which translates to a DB "alter" operation
@@ -1726,7 +1728,7 @@ The `linkedql` command comes as part of your local Linked QL installation and no
 npx linkedql migrate
 ```
 
-On each command, you can use the `--dir` flag to point Linked QL to your "database" directory (where you have your `schema.json` and `driver.js` files):
+On each command, you can use the `--dir` flag to point Linked QL to your "database" directory (where you have your `schema.json` and `driver.js` files), that's if you have chosen a different location other than `./database`:
 
 ```cmd
 npx linkedql migrate --dir="./src/database-stuff"
@@ -1862,6 +1864,8 @@ npx linkedql forget --db=database_1
 
 ## Roadmap
 
++ Improve support for MySQL.
++ Implement support for a `schema.yml` alternative to `schema.json` file.
 + Implement support for IndexedDB.
 + Implement the in-memory database.
 

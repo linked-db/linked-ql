@@ -3,7 +3,7 @@ import AbstractSchema from '../AbstractSchema.js';
 import CreateStatement from '../../ddl/create/CreateStatement.js';
 import AlterStatement from '../../ddl/alter/AlterStatement.js';
 import DropStatement from '../../ddl/drop/DropStatement.js';
-import Identifier from '../../componets/Identifier.js';
+import Identifier from '../../components/Identifier.js';
 import TableSchema from '../tbl/TableSchema.js';
 
 export default class DatabaseSchema extends AbstractSchema {

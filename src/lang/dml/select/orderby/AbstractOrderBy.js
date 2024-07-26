@@ -1,7 +1,7 @@
 
 import Lexer from '../../../Lexer.js';
 import AbstractNode from '../../../AbstractNode.js';
-import Expr from '../../../componets/Expr.js';
+import Expr from '../../../components/Expr.js';
 
 export default class AbstractOrderBy extends AbstractNode {
 	

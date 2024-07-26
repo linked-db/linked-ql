@@ -10,7 +10,7 @@ import SelectStatement from './dml/select/SelectStatement.js';
 //import Union from './select/Union.js';
 import UpdateStatement from './dml/update/UpdateStatement.js';
 // Expressions
-import Expr from './componets/Expr.js';
+import Expr from './components/Expr.js';
 
 /**
  * @var object

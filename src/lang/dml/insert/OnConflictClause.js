@@ -1,8 +1,8 @@
 
 import Lexer from '../../Lexer.js';
 import AssignmentList from './AssignmentList.js';
-import Condition from '../../componets/Condition.js';
-import Assertion from '../../componets/Assertion.js';
+import Condition from '../../components/Condition.js';
+import Assertion from '../../components/Assertion.js';
 
 export default class OnConflictClause extends AssignmentList {
 

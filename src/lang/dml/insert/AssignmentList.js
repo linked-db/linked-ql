@@ -2,8 +2,8 @@
 import Lexer from '../../Lexer.js';
 import { _wrapped } from '@webqit/util/str/index.js';
 import AbstractNode from '../../AbstractNode.js';
-import Expr from '../../componets/Expr.js';
-import Identifier from '../../componets/Identifier.js';
+import Expr from '../../components/Expr.js';
+import Identifier from '../../components/Identifier.js';
 import ColumnsList from './ColumnsList.js';
 import ValuesList from './ValuesList.js';
 
