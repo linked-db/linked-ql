@@ -12,7 +12,7 @@ Linked QL is a DB query client that simplfies how you interact with your databas
 
 ⚡️ Takes the process out of schema management and lets you just *ALTER* away your DB, but in a safety net. (Linked QL extends your DB behind the scenes to [automatically version](#introducing-auto-versioning) each edit you make and have them kept as "savepoints" that you can always rollback to.)
 
-💥 Brings the "schema-as-code" paradigm to its true meaning and essentially lets you have your entire DB structure go in a single [`schema.json` file](#re-introducing-schema-as-code-with-schemajson) that you edit in-place, as against the "hundreds of migration files" practice. (Linked QL essentially rewrites your "migrations" experience.)
+💥 Brings the "schema-as-code" practice to its true meaning and essentially lets you have your entire DB structure go in a single [`schema.json` file](#re-introducing-schema-as-code-with-schemajson) that you edit in-place, as against the "hundreds of migration files" experience. (Linked QL essentially rewrites your "migrations" experience.)
 
 It comes as a small library and is usable over your DB of choice - from the server-side Postgres, mariadb and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), to the plain JSON object!
 
@@ -162,13 +162,15 @@ SELECT * FROM books
 WHERE author ~> role ~> codename = 'admin'
 ```
 
-and they can also be used to express incoming references:
+and they can also be used to express the relationships in the reverse direction (many-to-one):
 
 ```sql
 -- Linked QL
 SELECT * FROM users
 WHERE author <~ books ~> title = 'Beauty and the Beast'
 ```
+
+*(Now pivot tables get a new syntax sugar!)*
 
 ## Introducing Auto-Versioning
 
@@ -404,7 +406,7 @@ Now, if you had that somewhere in your application, say at `./database/schema.js
 + you add or remove a database object or table object or column object... and it is automatically reflected in your DB structure at the click of a command: `linkedql migrate`
 + your colleague makes new changes from their codebase... and it is automatically reflected in your local copy at your next `git pull`, or at the click of a command: `linkedql refresh`
 
-🐥 You also get to see a version indicator on each database object in your schema essentially incrementing on each migrate operation (whether by you or by colleague), and decrementing on each rollback operation (whether by you or by colleague).
+🐥 You also get to see a version number on each database object in your schema essentially incrementing on each migrate operation (whether by you or by colleague), and decrementing on each rollback operation (whether by you or by colleague).
 
 Thanks to a DB-native schema version control system, no need to maintain past states, or risk losing them; the DB now becomes the absolute source of truth for both itself and its client applications, as against the other way around. (You may want to see how that brings us to [true "Schema as Code" in practice](#test-heading).)
 

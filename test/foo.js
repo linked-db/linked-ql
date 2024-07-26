@@ -2,15 +2,24 @@
 /**
  * @imports
  */
-console.log('----------------------------foo');
 import pg from 'pg';
+import mariadb from 'mariadb';
 import SQLClient from '../src/api/sql/SQLClient.js';
 
+// ---------------------------------
+const maClient = await mariadb.createConnection({
+    host: '127.0.0.1',
+    user: 'root',
+    password: '',
+    port: 3306,
+});
+// ---------------------------------
 const pgClient = new pg.Client({
     host: 'localhost',
     port: 5432,
 });
 await pgClient.connect();
+// ---------------------------------
 
 let showQuery = false;
 const lqlClient = new SQLClient({
