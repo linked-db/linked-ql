@@ -73,6 +73,11 @@ export default class Column extends AbstractNode {
     notNull(...args) { return this.constraint('NOT_NULL', ...args); }
 
     /**
+     * NULL
+     */
+    null(...args) { return this.constraint('NULL', ...args); }
+
+    /**
      * ON_UPDATE
      */
     onUpdate(...args) { return this.constraint('ON_UPDATE', ...args); }

@@ -28,6 +28,7 @@ export default class SelectStatement extends AbstractStatement {
 	ORDER_BY_CLAUSE = null;
 	OFFSET_CLAUSE = null;
 	LIMIT_CLAUSE = null;
+	UNION_CLAUSE = null;
 
 	/**
 	 * @properties Array
@@ -234,6 +235,15 @@ export default class SelectStatement extends AbstractStatement {
 	}
 
 	/**
+	 * Sets the statement's UNION_CLAUSE
+	 * 
+	 * .union(query);
+	 * 
+	 * @return string
+	 */
+	union(...union) { return (this.build('UNION_CLAUSE', union, this.constructor, 'select'), this.UNION_CLAUSE/* for: chaining purposes */); }
+
+	/**
 	 * @inheritdoc
 	 */
 	get expandable() { return this.PATHS.length > 0 || this.SUBQUERIES.some(q => q.expandable); }
@@ -264,6 +274,7 @@ export default class SelectStatement extends AbstractStatement {
 			order_by_clause: this.ORDER_BY_CLAUSE?.toJson(),
 			offset_clause: this.OFFSET_CLAUSE,
 			limit_clause: this.LIMIT_CLAUSE,
+			union_clause: this.UNION_CLAUSE,
 			flags: this.FLAGS,
 		};
 	}
@@ -284,6 +295,7 @@ export default class SelectStatement extends AbstractStatement {
 		if (json.order_by_clause) instance.orderBy(json.order_by_clause);
 		if (json.offset_clause) instance.offset(json.offset_clause);
 		if (json.limit_clause) instance.limit(json.limit_clause);
+		if (json.union_clause) instance.union(json.union_clause);
 		return instance;
 	}
 	
@@ -303,6 +315,7 @@ export default class SelectStatement extends AbstractStatement {
 		if (this.ORDER_BY_CLAUSE) sql.push(this.ORDER_BY_CLAUSE);
 		if (this.OFFSET_CLAUSE) sql.push('OFFSET', this.OFFSET_CLAUSE);
 		if (this.LIMIT_CLAUSE) sql.push('LIMIT', (Array.isArray(this.LIMIT_CLAUSE) ? this.LIMIT_CLAUSE : [this.LIMIT_CLAUSE]).join(','));
+		if (this.UNION_CLAUSE) sql.push('UNION', this.UNION_CLAUSE);
 		return sql.join(' ');
 	}
 	
@@ -316,7 +329,7 @@ export default class SelectStatement extends AbstractStatement {
 		if (withUac) instance.withFlag('WITH_UAC');
 		if (allOrDistinct) instance.withFlag(allOrDistinct);
 		const $body = this.mySubstitutePlaceholders(instance, body.trim());
-		const clausesMap = { from: { backtest: '^(?!.*\\s+DISTINCT\\s+$)', test: 'FROM' }, join:JoinClause, where:'WHERE', groupBy:GroupByClause, having:'HAVING', window:WindowClause, orderBy:OrderByClause, offset:'OFFSET', limit:'LIMIT' };
+		const clausesMap = { from: { backtest: '^(?!.*\\s+DISTINCT\\s+$)', test: 'FROM' }, join:JoinClause, where:'WHERE', groupBy:GroupByClause, having:'HAVING', window:WindowClause, orderBy:OrderByClause, offset:'OFFSET', limit:'LIMIT', union:'UNION' };
 		const { tokens: [ fieldsSpec, ...tokens ], matches: clauses } = Lexer.lex($body, Object.values(clausesMap).map(x => typeof x === 'string' || x.test ? x : x.regex), { useRegex: 'i' });
 		// SELECT_LIST
 		for (const fieldExpr of Lexer.split(fieldsSpec, [','])) {
@@ -337,6 +350,11 @@ export default class SelectStatement extends AbstractStatement {
 			// WHERE_CLAUSE|HAVING_CLAUSE
 			else if (['where', 'having'].includes(clauseKey)) {
 				const node = parseCallback(instance, tokens.shift().trim(), [Condition,Assertion]);
+				instance[clauseKey](node);
+			}
+			// UNION
+			else if (clauseKey === 'UNION') {
+				const node = parseCallback(instance, tokens.shift().trim(), [this]);
 				instance[clauseKey](node);
 			}
 			// OFFSET|LIMIT

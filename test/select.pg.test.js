@@ -106,6 +106,7 @@ describe(`SELECT QUERIES`, function() {
                 field => field.path('author1', '<~', q => q.path(['new_db_name','books'], '~>', 'isbn')),//.as('path3'),
                 field => field.path('author1', '<~', q => q.path(['new_db_name','books'], '~>', q => q.path('isbn', '->', 3))),//.as('path3'),
             )
+            query1.union(q => q.name('a'));
             //query1.from(['new_db_name','books']).as('base_alias');
             query1.from(['new_db_name','users']).as('base_alias');
             //await query1.expand();
