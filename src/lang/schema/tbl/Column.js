@@ -136,7 +136,7 @@ export default class Column extends AbstractNode {
         super.diffWith(nodeB);
         const typeA = this.type().toJson(), typeB = nodeB.type().toJson();
         if (!this.isSame(typeA, typeB)) this.type(typeB);
-        for (const type of ['IDENTITY', 'EXPRESSION', 'NOT_NULL', 'DEFAULT', 'AUTO_INCREMENT', 'ON_UPDATE']) {
+        for (const type of ['IDENTITY', 'EXPRESSION', 'NOT_NULL', 'NULL', 'DEFAULT', 'AUTO_INCREMENT', 'ON_UPDATE']) {
             const consA = this.constraint(type);
             const consB = nodeB.constraint(type);
             if (consA && (!consB || consB.dropped())) consA.drop();

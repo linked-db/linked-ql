@@ -56,5 +56,5 @@ export default class Set extends AbstractNode {
 	}
 
 	static get CLAUSE() { return 'SET'; }
-    static KINDS = ['SCHEMA', 'DATA_TYPE', 'TYPE', 'IDENTITY', 'DEFAULT', 'NOT_NULL'];
+    static KINDS = ['SCHEMA', 'DATA_TYPE', 'TYPE', 'IDENTITY', 'DEFAULT', 'NOT_NULL', 'NULL', 'AUTO_INCREMENT', 'ON_UPDATE'];
 }

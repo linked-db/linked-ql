@@ -22,7 +22,7 @@ export default class DropStatement extends AbstractStatement(AbstractNode) {
 	 * @inheritdoc
 	 */
 	stringify() {
-		const restrictOrCascade = this.getFlag('RESTRICT') || this.getFlag('CASCADE');
+		const restrictOrCascade = this.params.dialect !== 'mysql' && (this.getFlag('RESTRICT') || this.getFlag('CASCADE'));
 		const resolveName = name => {
 			if (name.BASENAME || ['SCHEMA','DATABASE'].includes(this.KIND)) return name;
 			const basename = this.$trace('get:name:database');

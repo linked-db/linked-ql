@@ -300,15 +300,16 @@ export default class AbstractClient {
                 tables: [{
                     name: 'database_savepoints',
                     columns: [
-                        { name: 'id', type: 'uuid', primaryKey: true, default: { expr: 'gen_random_uuid()' } },
+                        { name: 'id', ...(this.params.dialect === 'mysql' ? { type: 'char(36)', default: { expr: 'uuid()' } } : { type: 'uuid', default: { expr: 'gen_random_uuid()' } }), primaryKey: true },
+                        //{ name: 'id', ...(this.params.dialect === 'mysql' ? { type: 'int', autoIncrement: true } : { type: 'uuid', default: { expr: 'gen_random_uuid()' } }), primaryKey: true },
                         // Actual snapshot
-                        { name: 'name', type: 'varchar', notNull: true },
-                        { name: '$name', type: 'varchar' },
+                        { name: 'name', type: ['varchar', 255], notNull: true },
+                        { name: '$name', type: ['varchar', 255] },
                         { name: 'tables', type: 'json' },
-                        { name: 'keep', type: 'boolean' },
+                        { name: 'keep', type: /*this.params.dialect === 'mysql' ? ['bit',1] : */'boolean' },
                         // Meta data
-                        { name: 'savepoint_description', type: 'varchar' },
-                        { name: 'database_tag', type: 'varchar', notNull: true },
+                        { name: 'savepoint_description', type: ['varchar', 255] },
+                        { name: 'database_tag', type: ['varchar', 12], notNull: true },
                         { name: 'version_tag', type: 'int', notNull: true },
                         { name: 'savepoint_date', type: 'timestamp', notNull: true },
                         { name: 'rollback_date', type: 'timestamp' },

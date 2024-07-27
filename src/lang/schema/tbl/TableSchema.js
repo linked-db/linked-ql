@@ -54,11 +54,6 @@ export default class TableSchema extends AbstractSchema {
 		return super.$trace(request, ...args);
 	}
 
-    /**
-     * PRIMARY_KEY
-     */
-    primaryKey() { return this.NODES.find(node => node.TYPE === 'PRIMARY_KEY'); }
-
 	/**
 	 * Returns a column or adds a column to the schema,
 	 * 
@@ -68,7 +63,7 @@ export default class TableSchema extends AbstractSchema {
 	 */
 	column(column) {
 		if (typeof column === 'string') return this.COLUMNS.find(col => this.isSame(col.name(), column, 'ci'));
-		return (this.build('COLUMNS', [column], Column), this);
+		return (this.build('COLUMNS', [column], Column), this.column(column.name));
 	}
 
 	/**
@@ -82,6 +77,11 @@ export default class TableSchema extends AbstractSchema {
 		if (typeof constraint === 'string') return this.NODES.find(node => node instanceof AbstractLevel1Constraint && this.isSame(node.name(), constraint, 'ci'));
 		return (this.build('CONSTRAINTS', [constraint], this.constructor.CONSTRAINT_TYPES), this);
 	}
+
+    /**
+     * PRIMARY_KEY
+     */
+    primaryKey() { return this.NODES.find(node => node.TYPE === 'PRIMARY_KEY'); }
 
 	/**
 	 * Returns a constraint or adds a constraint to the schema,
@@ -204,7 +204,7 @@ export default class TableSchema extends AbstractSchema {
 						node.type(subAction.argument().toJson());
 					} else if (['DEFAULT', 'ON_UPDATE'].includes(subAction.KIND)) {
 						node.constraint(subAction.KIND, subAction.argument());
-					} else if (subAction.KIND === 'NOT_NULL') {
+					} else if (['NOT_NULL', 'NULL', 'AUTO_INCREMENT'].includes(subAction.KIND)) {
 						node.constraint(subAction.KIND, true);
 					} else if (subAction.KIND === 'IDENTITY') {
 						const existing = node.identity();
@@ -251,7 +251,7 @@ export default class TableSchema extends AbstractSchema {
 				if (this.params.dialect === 'mysql') {
 					// // Column name or type changed, or these attrs changed? Use MySQL CHANGE clause?
 					if ((col.$TYPE && !this.isSame(col.$TYPE.toJson(), col.TYPE.toJson(), 'ci'))
-					|| (col.CONSTRAINTS.some(cons => ['EXPRESSION', 'NOT_NULL', 'AUTO_INCREMENT', 'ON_UPDATE'].includes(cons.TYPE) && constraintDirty(cons, true)))) {
+					|| (col.CONSTRAINTS.some(cons => ['EXPRESSION', 'NOT_NULL', 'NULL', 'AUTO_INCREMENT', 'ON_UPDATE'].includes(cons.TYPE) && constraintDirty(cons, true)))) {
 						const columnClone = col.clone();
 						columnClone.CONSTRAINTS = columnClone.CONSTRAINTS.filter(cons => !(cons instanceof AbstractLevel2Constraint));
 						instance.modify('COLUMN', columnClone);
@@ -282,7 +282,7 @@ export default class TableSchema extends AbstractSchema {
 							else if (cons.TYPE === 'EXPRESSION') throw new Error('EXPRESSION constraints cannot be added or modified after column creation.');
 							else if (cons.TYPE === 'IDENTITY') return !cons.keep() ? { clause: 'ADD', argument: cons.clone() } : { clause: 'SET', kind: 'IDENTITY', argument: cons.always() ? 'ALWAYS' : true };
 							else if (['DEFAULT'/*, 'ON_UPDATE'*//*useless in postgres*/].includes(cons.TYPE)) return { clause: 'SET', kind: cons.TYPE, argument: cons.expr() };
-							else if (cons.TYPE === 'NOT_NULL') return { clause: 'SET', kind: 'NOT_NULL' };
+							else if (['NOT_NULL'/*, 'NULL'*//*pretty useless in both languages*/].includes(cons.TYPE)) return { clause: 'SET', kind: cons.TYPE };
 						})());
 					}
 					// Column rename? Must come last!!!

@@ -278,20 +278,68 @@ With schema versioning now over to the database, much of the old conventions and
 ]
 ```
 
-<details><summary>Explore the structure</summary>
+<details><summary>Database object spec</summary>
 
-An example table object:
+```ts
+interface DatabaseJson {
+    name: string;
+    tables: TableJson[];
+}
+```
+
+</details>
+
+<details><summary>Explore the structure further</summary>
+
+-------------
+
+Table object spec:
+
+```ts
+interface TableJson {
+    name: string | string[];
+    columns: ColumnJson[];
+    constraints: (PkConstraintJson | FkConstraintJson | UkConstraintJson | CkConstraintJson)[];
+    indexes: IndexSpec[];
+}
+```
+
+<details><summary>Table object example</summary>
 
 ```js
 {
-    "name": "users",
+    "name": "users", // or something like ['db1', 'tbl1'] which would translate to db1.tbl1
     "columns": [], // Column objects (minimum of 1)
     "constraints": [], // Constraint objects
     "indexes": [] // Index objects
 }
 ```
 
-An example column object:
+</details>
+
+-------------
+
+Column object spec:
+
+```ts
+interface ColumnJson {
+    name: string;
+    type: string | Array;
+    primaryKey?: boolean;
+    [ foreignKey | references ]?: FkTargetJson;
+    uniqueKey?: boolean;
+    check?: string | { expr: string };
+    default?: string | { expr: string };
+    notNull?: boolean;
+    null?: boolean;
+    identity: boolean | { always: true };
+    expression?: string | { expr: string }; // (PostgreSQL-specific attributes)
+    autoIncrement?: boolean; // (MySQL-specific attributes)
+    onUpdate?: string; // (MySQL-specific attributes)
+}
+```
+
+<details><summary>Column object examples</summary>
 
 ```js
 {
@@ -301,9 +349,6 @@ An example column object:
     "identity": true
 }
 ```
-
-<details>
-<summary>More column examples</summary>
 
 ```js
 {
@@ -339,18 +384,53 @@ An example column object:
 ```
 </details>
 
-An example constraint object:
+---------------
 
-```js
-{
-    "type": "PRIMARY_KEY",
-    "columns": ["id"],
-    "name": "constraint_name"
+Constraint objects spec:
+
+```ts
+interface PkConstraintJson {
+    name?: string;
+    type: 'PRIMARY_KEY';
+    columns: string[];
+}
+
+interface FkConstraintJson extends FkTargetJson {
+    name?: string;
+    type: 'FOREIGN_KEY';
+    columns: string[];
+}
+
+interface UkConstraintJson {
+    name?: string;
+    type: 'UNIQUE_KEY';
+    columns: string[];
+}
+
+interface CkConstraintJson {
+    name?: string;
+    type: 'CHECK';
+    expr: string;
+}
+
+interface FkTargetJson {
+    targetTable: string | string[];
+    targetColumns: string[];
+    matchRule?: string;
+    updateRule?: string | { rule: string, columns: string[] };
+    deleteRule?: string | { rule: string, columns: string[] };
 }
 ```
 
-<details>
-<summary>More constraint examples</summary>
+<details><summary>Constraint object examples</summary>
+
+```js
+{
+    "name": "constraint_name",
+    "type": "PRIMARY_KEY",
+    "columns": ["id"],
+}
+```
 
 ```js
 {
@@ -363,11 +443,11 @@ An example constraint object:
 {
     "type": "FOREIGN_KEY",
     "columns": ["parent"],
-    "targetTable": "users",
+    "targetTable": "users", // or something like ['db1', 'tbl1'] which would translate to db1.tbl1
     "targetColumns": ["id"],
     "matchRull": "full",
     "updateRule": "cascade",
-    "deleteRule": "restrict"
+    "deleteRule": { rule: "restrict", "columns": ["col1", "col2"] }
 }
 ```
 
@@ -377,9 +457,21 @@ An example constraint object:
     "expr": "(email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')"
 }
 ```
+
 </details>
 
-An example index object:
+-------------
+
+Index object spec:
+
+```ts
+interface IndexSpec {
+    type: string;
+    columns: string[];
+}
+```
+
+<details><summary>Index object examples</summary>
 
 ```js
 {
@@ -388,15 +480,13 @@ An example index object:
 }
 ```
 
-<details>
-<summary>More index examples</summary>
-
 ```js
 {
     "type": "SPATIAL",
     "columns": ["full_name"]
 }
 ```
+
 </details>
 
 </details>
@@ -614,11 +704,11 @@ Some additional parameters via `options`:
 
 <details><summary>
 Dynamically run a <code>CREATE DATABASE</code> operation.
-<pre><code>client.createDatabase(createSpec: string | { name: string, tables?: Array }, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
+<pre><code>client.createDatabase(createSpec: string | DatabaseJson, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 ⚙️ Spec:
 
-+ `createSpec` (string | { name: string, tables?: Array }): the database name, or an object corresponding to the *database* object in [schema.json](#schemajson).
++ `createSpec` (string | DatabaseJson): the database name, or an object corresponding to `DatabaseJson` in [schema.json](#schemajson).
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
@@ -630,7 +720,7 @@ Specify database by name:
 const savepoint = await client.createDatabase('database_1', { description: 'Just testing database creation' });
 ```
 
-or by a schema object, with an optional list of tables to be created along with it. (Each listed table corresponding to the *table* object in [schema.json](#schemajson).):
+or by a schema object, with an optional list of tables to be created along with it. (Each listed table corresponding to `TableJson` in [schema.json](#schemajson).):
 
 ```js
 const savepoint = await client.createDatabase({
@@ -744,12 +834,12 @@ const exists = await client.hasDatabase('database_1');
 
 <details><summary>
 Get the schema structure for a database.
-<pre><code>client.describeDatabase(dbName: string): Promise&lt;{ name: string, tables: Array }&gt;</code></pre></summary>
+<pre><code>client.describeDatabase(dbName: string): Promise&lt;DatabaseJson&gt;</code></pre></summary>
 
 ⚙️ Spec:
 
 + `dbName` (string): the database name.
-+ Return value: an object corresponding to the *database* object in [schema.json](#schemajson).
++ Return value: an object corresponding to `DatabaseJson` in [schema.json](#schemajson).
 
 ⚽️ Usage:
 
@@ -838,11 +928,11 @@ console.log(database.name); // test_db
 
 <details><summary>
 Dynamically run a <code>CREATE TABLE</code> operation.
-<pre><code>database.createTable(createSpec: { name: string, columns: Array, constraints?: Array, indexes?: Array }, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
+<pre><code>database.createTable(createSpec: TableJson, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 ⚙️ Spec:
 
-+ `createSpec` ({ name: string, columns: Array, constraints?: Array, indexes?: Array }): an object corresponding to the *table* object in [schema.json](#schemajson).
++ `createSpec` (TableJson): an object corresponding to `TableJson` in [schema.json](#schemajson).
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
@@ -880,17 +970,17 @@ Dynamically run an <code>ALTER TABLE</code> operation.
 ⚙️ Spec:
 
 + `tblName` (string): the table name.
-+ `callback` ((schema: TableSchema) => void): a function that is called with the requested table schema. This can be async. Received object is a [`TableSchema`](#the-table-apischema) instance.
++ `callback` ((schema: TableSchema) => void): a function that is called with the requested table schema. This can be async. Received object is a [`TableSchema`](#the-tableschema-api) instance.
 + `options`  (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
 ⚽️ Usage:
 
 ```js
-const savepoint = await database.alterTable('table_1', schema => {
-    schema.name('table_1_new');
-    schema.column('column_1').type('int');
-    schema.column('column_2').drop();
+const savepoint = await database.alterTable('table_1', tableSchema => {
+    tableSchema.name('table_1_new');
+    tableSchema.column('column_1').type('int');
+    tableSchema.column('column_2').drop();
 }, { description: 'Renaming for testing purposes' });
 ```
 
@@ -953,12 +1043,12 @@ const exists = await database.hasTable('table_1');
 
 <details><summary>
 Get the schema structure for a table.
-<pre><code>database.describeTable(tblName: string): Promise&lt;{ name: string, columns: Array, constraints: Array, indexes: Array }&gt;</code></pre></summary>
+<pre><code>database.describeTable(tblName: string): Promise&lt;TableJson&gt;</code></pre></summary>
 
 ⚙️ Spec:
 
 + `tblName` (string): the table name.
-+ Return value: an object corresponding to the *table* object in [schema.json](#schemajson).
++ Return value: an object corresponding to `TableJson` in [schema.json](#schemajson).
 
 ⚽️ Usage:
 
@@ -1670,7 +1760,7 @@ Get the subject DB's schema snapshot at this point in time.
 
 ⚙️ Spec:
 
-+ Return value: an object corresponding to the *database* object in [schema.json](#schemajson).
++ Return value: an object corresponding to `DatabaseJson` in [schema.json](#schemajson).
 
 ⚽️ Usage:
 
@@ -1712,6 +1802,90 @@ const savepoint = await client.alterDatabase('test_db', schema => schema.name('t
 console.log(savepoint.name()); // test_db_new
 // The database's post-rollback name
 console.log(savepoint.name(true)); // test_db
+```
+
+</details>
+
+------------
+
+### The `TableSchema` API
+
+*TableSchema* is the API for manipulating *table* JSON structures (i.e. `TableJson` in [schema.json](#schemajson)). This object is obtained via [`database.alterTable()`](#databasealtertable)'s callback function.
+
+<details><summary>See content</summary>
+
++ [`tableSchema.primaryKey()`](#tableschemaprimarykey)
++ [`tableSchema.column()`](#tableschemacolumn)
++ [`tableSchema.constraint()`](#tableschemaconstraint)
++ [`tableSchema.index()`](#tableschemaindex)
++ [`tableSchema.toJson()`](#tableschematojson)
+
+</details>
+
+#### `tableSchema.column()`:
+
+<details><summary>
+Add a column definition or find one by name.
+<pre><code>tableSchema.column(columnSpec: string | ColumnJson): ColumnSchema</code></pre></summary>
+
+⚙️ Spec:
+
++ `columnSpec` a column name to look up or an object corresponding to `ColumnJson` in [schema.json](#schemajson) to add as a column.
++ Return value: a [`ColumnSchema`](#the-columnschema-api) instance of the specified column name or of the just added one.
+
+⚽️ Usage:
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchema => {
+    tableSchema.column('column_1').type('int'); // Obtain existing column_1 and modify its type attribute
+    tableSchema.column({
+        name: 'column_2',
+        type: ['varchar', 50],
+    }); // Add column_2
+}, { description: 'Altering for testing purposes' });
+```
+
+</details>
+
+------------
+
+### The `ColumnSchema` API
+
+*ColumnSchema* is the API for manipulating *column* JSON structures (i.e. `ColumnJson` in [schema.json](#schemajson)). This object is obtained via [`tableSchema.column()`](#tableschemacolumn).
+
+<details><summary>See content</summary>
+
++ [`columnSchema.name()`](#columnschemaname)
++ [`columnSchema.constraint()`](#columnschemaconstraint)
++ [`columnSchema.primaryKey()`](#columnschemaprimarykey)
++ [`columnSchema.foreignKey()`](#columnschemaforeignkey)
++ [`columnSchema.uniqueKey()`](#columnschemauniquekey)
++ [`columnSchema.check()`](#columnschemacheck)
++ [`columnSchema.toJson()`](#columnschematojson)
+
+</details>
+
+#### `columnSchema.name()`:
+
+<details><summary>
+Add a column definition or find one by name.
+<pre><code>tableSchema.column(columnSpec: string | ColumnJson): ColumnSchema</code></pre></summary>
+
+⚙️ Spec:
+
++ `columnSpec` a column name to look up or an object corresponding to `ColumnJson` in [schema.json](#schemajson) to add as a column.
++ Return value: a `ColumnSchema` instance of the specified column name or of the just added one.
+
+⚽️ Usage:
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchema => {
+    tableSchema.column('column_1').type('int'); // Obtain existing column_1 and modify its type attribute
+    tableSchema.column({
+        name: 'column_2',
+        type: ['varchar', 50],
+    }); // Add column_2
+}, { description: 'Altering for testing purposes' });
 ```
 
 </details>

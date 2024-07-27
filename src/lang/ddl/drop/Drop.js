@@ -34,7 +34,7 @@ export default class Drop extends AbstractNode {
 	 * @inheritdoc
 	 */
 	stringify() {
-		const restrictOrCascade = this.getFlag('RESTRICT') || this.getFlag('CASCADE');
+		const restrictOrCascade = this.params.dialect !== 'mysql' && (this.getFlag('RESTRICT') || this.getFlag('CASCADE'));
 		let kind = this.KIND?.replace(/_/g, ' '), name = this.NAME && this.autoEsc(this.NAME);
 		if (['PRIMARY_KEY', 'FOREIGN_KEY', 'CHECK'].includes(this.KIND)) {
 			if (this.params.dialect === 'mysql') {
@@ -58,5 +58,5 @@ export default class Drop extends AbstractNode {
 	}
 
 	static get CLAUSE() { return 'DROP'; }
-    static KINDS = ['COLUMN', 'CONSTRAINT', 'PRIMARY_KEY', 'FOREIGN_KEY', 'UNIQUE_KEY', 'CHECK', 'INDEX', 'KEY', 'IDENTITY', 'EXPRESSION', 'DEFAULT', 'NOT_NULL'];
+    static KINDS = ['COLUMN', 'CONSTRAINT', 'PRIMARY_KEY', 'FOREIGN_KEY', 'UNIQUE_KEY', 'CHECK', 'INDEX', 'KEY', 'IDENTITY', 'EXPRESSION', 'DEFAULT', 'NOT_NULL', 'NULL', 'AUTO_INCREMENT', 'ON_UPDATE'];
 }
