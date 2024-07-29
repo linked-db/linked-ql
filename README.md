@@ -293,8 +293,7 @@ interface DatabaseSchemaSpec {
 
 -------------
 
-<table><tr><td>
-<details><summary>Table schema example</summary>
+Table schema example:
 
 ```js
 {
@@ -305,8 +304,6 @@ interface DatabaseSchemaSpec {
 }
 ```
 
-</details>
-</td><td>
 <details><summary>Table schema spec</summary>
 
 ```ts
@@ -319,7 +316,6 @@ interface TableSchemaSpec {
 ```
 
 </details>
-</td></tr></table>
 
 -------------
 
