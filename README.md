@@ -2025,7 +2025,7 @@ Add a Primary Key constraint to the table or get the existing one. <i>(Translate
 ⚙️ Spec:
 
 + `constraintJson` ([`TablePrimaryKeySchemaSpec`](#schemajson), *optional*): when provided, an object that defines a new Primary Key to create, specifying the intended Primary Key column(s), and optionally, a constraint name. When ommitted, gets the `PRIMARY_KEY` instance on the table returned if exists.
-+ Return value: [`TablePrimaryKeySchemaAPI`](#constraint-schemas) - the existing `PRIMARY_KEY` instance requested or the one just added.
++ Return value: [`TablePrimaryKeySchemaAPI`](#table-constraint-schema-apis) - the existing `PRIMARY_KEY` instance requested or the one just added.
 
 ⚽️ Usage:
 
@@ -2050,7 +2050,7 @@ Add a Primary Key, Foreign Key, Unique Key, or Check constraint to the table or 
 ⚙️ Spec:
 
 + `constraintNameOrJson` (string | [`TableConstraintSchemaType`](#schemajson)): when a string, the name of a constraint to get. When an object, an object that defines a new constraint to create.
-+ Return value: [`TableConstraintSchemaAPI`](#constraint-schemas) - the constraint requested or the one just added.
++ Return value: [`TableConstraintSchemaAPI`](#table-constraint-schema-apis) - the constraint requested or the one just added.
 
 ⚽️ Usage:
 
@@ -2118,6 +2118,54 @@ const index = tableSchemaApi.index({
 // Inspect is auto-generated name
 console.log(index.name()); // auto_name_4gkbc
 ```
+
+</details>
+
+------------
+
+## Table Constraint Schema APIs
+
+```ts
+type TableConstraintSchemaAPI = TablePrimaryKeySchemaAPI | TableForeignKeySchemaAPI | TableUniqueKeySchemaAPI | TableCheckConstraintSchemaAPI
+```
+
+<details><summary>See details</summary>
+
+```ts
+interface TablePrimaryKeySchemaAPI extends PrimaryKeySchemaAPI {
+    // Set/get the constraint columns
+    columns(value?: string[]): Array;
+}
+```
+
+> *Jump to [`PrimaryKeySchemaAPI`](#column-constraint-schema-apis)*
+
+```ts
+interface TableForeignKeySchemaAPI extends ForeignKeySchemaAPI {
+    // Set/get the constraint columns
+    columns(value?: string[]): Array;
+}
+```
+
+> *Jump to [`ForeignKeySchemaAPI`](#column-constraint-schema-apis)*
+
+```ts
+interface TableUniqueKeySchemaAPI extends UniqueKeySchemaAPI {
+    // Set/get the constraint columns
+    columns(value?: string[]): Array;
+}
+```
+
+> *Jump to [`UniqueKeySchemaAPI`](#column-constraint-schema-apis)*
+
+```ts
+interface TableCheckConstraintSchemaAPI extends CheckConstraintSchemaAPI {
+    // Get the constraint columns
+    columns(): Array;
+}
+```
+
+> *Jump to [`CheckConstraintSchemaAPI`](#column-constraint-schema-apis)*
 
 </details>
 
@@ -2192,7 +2240,7 @@ Designate the column as Primary Key for the table or get the column's current <c
 ⚙️ Spec:
 
 + `constraintToggleOrJson` (boolean | [`PrimaryKeySchemaSpec`](#schemajson), *optional*): when a boolean, toggles the designation of the column as Primary Key for the table. When an object, an object that specifies a constraint name. When ommitted, gets the column's `PRIMARY_KEY` instance returned if exists.
-+ Return value: [`PrimaryKeySchemaAPI`](#constraint-schemas) - the existing `PRIMARY_KEY` instance on the column or the one just added.
++ Return value: [`PrimaryKeySchemaAPI`](#column-constraint-schema-apis) - the existing `PRIMARY_KEY` instance on the column or the one just added.
 
 ⚽️ Usage:
 
@@ -2224,7 +2272,7 @@ Add the <code>FOREIGN_KEY</code> constraint type to the column or get the column
 ⚙️ Spec:
 
 + `constraintJson` ([`ForeignKeySchemaSpec`](#schemajson), *optional*): when provided, an object that defines a new Foreign Key to create, specifying, among other things, the target table and target columns, and optionally, a constraint name. When ommitted, gets the column's `FOREIGN_KEY` instance returned if exists.
-+ Return value: [`ForeignKeySchemaAPI`](#constraint-schemas) - the existing `FOREIGN_KEY` instance on the column or the one just added.
++ Return value: [`ForeignKeySchemaAPI`](#column-constraint-schema-apis) - the existing `FOREIGN_KEY` instance on the column or the one just added.
 
 ⚽️ Usage:
 
@@ -2260,7 +2308,7 @@ Add the <code>UNIQUE_KEY</code> constraint type to the column or get the column'
 ⚙️ Spec:
 
 + `constraintToggleOrJson` (boolean | [`UniqueKeySchemaSpec`](#schemajson), *optional*): when a boolean, toggles the existence of the `UNIQUE_KEY` constraint on the column. When an object, an object that defines a new constraint to create, specifying a constraint name. When ommitted, gets the column's `UNIQUE_KEY` instance returned if exists.
-+ Return value: [`UniqueKeySchemaAPI`](#constraint-schemas) - the existing `UNIQUE_KEY` instance on the column or the one just added.
++ Return value: [`UniqueKeySchemaAPI`](#column-constraint-schema-apis) - the existing `UNIQUE_KEY` instance on the column or the one just added.
 
 ⚽️ Usage:
 
@@ -2292,7 +2340,7 @@ Add the <code>CHECK</code> constraint type to the column or get the column's cur
 ⚙️ Spec:
 
 + `constraintJson` ([`CheckConstraintSchemaSpec`](#schemajson), *optional*): when provided, an object that defines a new constraint to create, specifying the intended SQL expression, and, optionally, a constraint name. When ommitted, gets the column's `CHECK` constraint instance returned if exists.
-+ Return value: [`CheckConstraintSchemaAPI`](#constraint-schemas) - the existing `CHECK` constraint instance on the column or the one just added.
++ Return value: [`CheckConstraintSchemaAPI`](#column-constraint-schema-apis) - the existing `CHECK` constraint instance on the column or the one just added.
 
 ⚽️ Usage:
 
@@ -2324,7 +2372,7 @@ Add the <code>DEFAULT</code> constraint type to the column or get the column's c
 ⚙️ Spec:
 
 + `constraintJson` ([`DefaultConstraintSchemaSpec`](#schemajson), *optional*): when provided, an object that defines a new constraint to create, specifying the intended SQL expression, and, optionally, a constraint name. When ommitted, gets the column's `DEFAULT` constraint instance returned if exists.
-+ Return value: [`DefaultConstraintSchemaAPI`](#constraint-schemas) - the existing `DEFAULT` constraint instance on the column or the one just added.
++ Return value: [`DefaultConstraintSchemaAPI`](#column-constraint-schema-apis) - the existing `DEFAULT` constraint instance on the column or the one just added.
 
 ⚽️ Usage:
 
@@ -2349,7 +2397,7 @@ Add the <code>EXPRESSION</code> constraint type to the column or get the column'
 ⚙️ Spec:
 
 + `constraintJson` ([`ExpressionConstraintSchemaSpec`](#schemajson), *optional*): when provided, an object that defines a new constraint to create, specifying the intended SQL expression, and, optionally, a constraint name. When ommitted, gets the column's `EXPRESSION` constraint instance returned if exists.
-+ Return value: [`ExpressionConstraintSchemaAPI`](#constraint-schemas) - the existing `EXPRESSION` constraint instance on the column or the one just added.
++ Return value: [`ExpressionConstraintSchemaAPI`](#column-constraint-schema-apis) - the existing `EXPRESSION` constraint instance on the column or the one just added.
 
 ⚽️ Usage:
 
@@ -2374,7 +2422,7 @@ Add the <code>IDENTITY</code> constraint type to the column or get the column's 
 ⚙️ Spec:
 
 + `constraintToggleOrJson` (boolean | [`IdentityConstraintSchemaSpec`](#schemajson), *optional*): when boolean, toggles the existence of the `IDENTITY` constraint on the column. When an object, an object that defines a new constraint to create, specifying an `always` rule. When ommitted, gets the column's `IDENTITY` constraint instance returned if exists.
-+ Return value: [`IdentityConstraintSchemaAPI`](#constraint-schemas) - the existing `IDENTITY` constraint instance on the column or the one just added.
++ Return value: [`IdentityConstraintSchemaAPI`](#column-constraint-schema-apis) - the existing `IDENTITY` constraint instance on the column or the one just added.
 
 ⚽️ Usage:
 
@@ -2399,7 +2447,7 @@ Add the <code>NOT_NULL</code> constraint type to the column or get the column's 
 ⚙️ Spec:
 
 + `constraintToggle` (boolean, *optional*): when provided, toggles the existence of the `NOT_NULL` constraint on the column. When ommitted, gets the column's `NOT_NULL` constraint instance returned if exists.
-+ Return value: [`NotNullConstraintSchemaAPIBuilder`](#constraint-schemas) - the existing `NOT_NULL` constraint instance on the column or the one just added.
++ Return value: [`NotNullConstraintSchemaAPIBuilder`](#column-constraint-schema-apis) - the existing `NOT_NULL` constraint instance on the column or the one just added.
 
 ⚽️ Usage:
 
@@ -2424,7 +2472,7 @@ Add the <code>NULL</code> constraint type to the column or get the column's curr
 ⚙️ Spec:
 
 + `constraintToggle` (boolean, *optional*): when provided, toggles the existence of the `NULL` constraint on the column. When ommitted, gets the column's `NULL` constraint instance returned if exists.
-+ Return value: [`NullConstraintSchemaAPI`](#constraint-schemas) - the existing `NULL` constraint instance on the column or the one just added.
++ Return value: [`NullConstraintSchemaAPI`](#column-constraint-schema-apis) - the existing `NULL` constraint instance on the column or the one just added.
 
 ⚽️ Usage:
 
@@ -2449,7 +2497,7 @@ Add the <code>AUTO_INCREMENT</code> constraint type to the column or get the col
 ⚙️ Spec:
 
 + `constraintToggle` (boolean, *optional*): when provided, toggles the existence of the `AUTO_INCREMENT` constraint on the column. When ommitted, gets the column's `AUTO_INCREMENT` constraint instance returned if exists.
-+ Return value: [`AutoIncrementConstraintSchemaAPI`](#constraint-schemas) - the existing `AUTO_INCREMENT` constraint instance on the column or the one just added.
++ Return value: [`AutoIncrementConstraintSchemaAPI`](#column-constraint-schema-apis) - the existing `AUTO_INCREMENT` constraint instance on the column or the one just added.
 
 ⚽️ Usage:
 
@@ -2474,7 +2522,7 @@ Add the <code>ON_UPDATE</code> clause to the column or get the column's current 
 ⚙️ Spec:
 
 + `constraintToggle` ([`OnUpdateClauseSpec`](#schemajson), *optional*): when provided, an object that defines a new constraint to create, specifying the intended SQL expression. When ommitted, gets the `ON_UPDATE` clause returned if exists.
-+ Return value: [`OnUpdateClauseSchemaAPI`](#constraint-schemas) - the existing `ON_UPDATE` clause on the column or the one just added.
++ Return value: [`OnUpdateClauseSchemaAPI`](#column-constraint-schema-apis) - the existing `ON_UPDATE` clause on the column or the one just added.
 
 ⚽️ Usage:
 
@@ -2502,7 +2550,7 @@ Add a Primary Key, Foreign Key, Unique Key, Check, or other constraint, to the c
 + `constraintType` (string): One of `PRIMARY_KEY`, `FOREIGN_KEY`, `UNIQUE_KEY`, `CHECK`, `DEFAULT`, `EXPRESSION`, `NOT_NULL`, `NULL`, `IDENTITY`, `AUTO_INCREMENT`, `ON_UPDATE`. When provided as only argument, gets the existing constraint on the column returned. When in conjucntion with `constraintToggleOrJson`, gets the constraint added to the column.
 + `constraintToggleOrJson` (boolean | ColumnConstraintSchemaType, *optional*): as explained for `constraintToggle`/`constraintJson` in the individual constraint sections above.
 + `constraintJson` (ColumnConstraintSchemaType):  as explained for `constraintJson` in the individual constraint sections above.
-+ Return value: [`ColumnConstraintSchemaAPI`](#constraint-schemas) - the constraint requested or the one just added.
++ Return value: [`ColumnConstraintSchemaAPI`](#column-constraint-schema-apis) - the constraint requested or the one just added.
 
 ⚽️ Usage:
 
@@ -2517,6 +2565,92 @@ const savepoint = await database.alterTable('table_1', tableSchemaApi => {
     }
 });
 ```
+
+</details>
+
+------------
+
+## Column Constraint Schema APIs
+
+```ts
+type ColumnConstraintSchemaAPI = PrimaryKeySchemaAPI | ForeignKeySchemaAPI | UniqueKeySchemaAPI | CheckConstraintSchemaAPI | DefaultConstraintSchemaAPI | ExpressionConstraintSchemaAPI | IdentityConstraintSchemaAPI | NotNullConstraintSchemaAPI | NullConstraintSchemaAPI | AutoIncrementConstraintSchemaAPI | OnUpdateClauseSchemaAPI
+```
+
+<details><summary>See details</summary>
+
+```ts
+interface PrimaryKeySchemaAPI extends AbstractSchemaAPI {}
+```
+
+```ts
+interface ForeignKeySchemaAPI extends AbstractSchemaAPI {
+    // Set/get the target table
+    targetTable(value?: string | string[]): Identifier;
+    // Set/get the target columns
+    targetColumns(value?: string[]): Array;
+    // Set/get the match rule
+    matchRule(value?: string): string;
+    // Set/get the update rule
+    updateRule(value?: string | { rule: string, columns: string[] }): string | { rule: string, columns: string[] };
+    // Set/get the delete rule
+    deleteRule(value?: string | { rule: string, columns: string[] }): string | { rule: string, columns: string[] };
+}
+```
+
+```ts
+interface UniqueKeySchemaAPI extends AbstractSchemaAPI {}
+```
+
+```ts
+interface CheckConstraintSchemaAPI extends AbstractSchemaAPI {
+    // Set/get the SQL expression
+    expr(value?: string): string;
+}
+```
+
+```ts
+interface DefaultConstraintSchemaAPI extends AbstractSchemaAPI {
+    // Set/get the SQL expression
+    expr(value?: string): string;
+}
+```
+
+```ts
+interface ExpressionConstraintSchemaAPI extends AbstractSchemaAPI {
+    // Set/get the SQL expression
+    expr(value?: string): string;
+    // Set/get the "stored" false
+    stored(value?: boolean): boolean;
+}
+```
+
+```ts
+interface IdentityConstraintSchemaAPI extends AbstractSchemaAPI {
+    // Set/get the "always" rule
+    always(value?: boolean): boolean;
+}
+```
+
+```ts
+interface NotNullConstraintSchemaAPI extends AbstractSchemaAPI {}
+```
+
+```ts
+interface NullConstraintSchemaAPI extends AbstractSchemaAPI {}
+```
+
+```ts
+interface AutoIncrementConstraintSchemaAPI extends AbstractSchemaAPI {}
+```
+
+```ts
+interface OnUpdateClauseSchemaAPI extends AbstractSchemaAPI {
+    // Set/get the SQL expression
+    expr(value?: string): string;
+}
+```
+
+> *Jump to [`AbstractSchemaAPI`](#the-abstractschemaapi-api)*
 
 </details>
 
@@ -2658,12 +2792,6 @@ const savepoint = await database.alterTable('table_1', tableSchemaApi => {
 ```
 
 </details>
-
-------------
-
-## Constraint Schemas
-
-*TODO*
 
 ------------
 
