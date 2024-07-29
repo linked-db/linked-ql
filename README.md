@@ -293,7 +293,7 @@ With schema versioning now over to the database, much of the old conventions and
 
 -------------
 
-Table schema example:
+└ *Table schema example:*
 
 ```js
 {
@@ -319,7 +319,7 @@ Table schema example:
 
 -------------
 
-Column schema examples:
+└ *Column schema examples:*
 
 ```js
 {
@@ -387,7 +387,7 @@ Column schema examples:
 
 ---------------
 
-Table constraint examples:
+└ *Table constraint examples:*
 
 ```js
 {
@@ -503,7 +503,7 @@ Table constraint examples:
 
 -------------
 
-Index schema examples:
+└ *Index schema examples:*
 
 ```js
 {
