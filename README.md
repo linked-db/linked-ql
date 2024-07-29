@@ -1872,7 +1872,7 @@ console.log(savepoint.name(true)); // test_db
 #### `databaseSchemaApi.name()`:
 
 <details><summary>
-Set or get the database name. *(Overrides <code><a href="#abstractschemaapiname">abstractSchemaApi.name()</a><code>.)*
+Set or get the database name. <i>(Overrides <code><a href="#abstractschemaapiname">abstractSchemaApi.name()</a></code>.)</i>
 <pre><code>databaseSchemaApi.name(name?: string): this</code></pre></summary>
 
 ⚙️ Spec:
@@ -1950,7 +1950,7 @@ const savepoint = await client.alterDatabase('database_1', databaseSchemaApi => 
 #### `tableSchemaApi.name()`:
 
 <details><summary>
-Set or get the table name. *(Overrides <code><a href="#abstractschemaapiname">abstractSchemaApi.name()</a><code>.)*
+Set or get the table name. <i>(Overrides <code><a href="#abstractschemaapiname">abstractSchemaApi.name()</a></code>.)</i>
 <pre><code>tableSchemaApi.name(name?: string | string[]): this</code></pre></summary>
 
 ⚙️ Spec:
