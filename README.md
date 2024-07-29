@@ -1,6 +1,6 @@
 # Linked QL
 
- <img src="https://github.com/linked-db/linked-ql/blob/master/linked-ql2.gif?raw=true" alt="Linked QL Banner" width="200">
+ <img src="https://github.com/linked-db/linked-ql/blob/master/linked-ql2.gif?raw=true" alt="Linked QL Banner" width="200" align="right">
 
 [![npm version][npm-version-src]][npm-version-href]<!--[![npm downloads][npm-downloads-src]][npm-downloads-href]-->
 [![bundle][bundle-src]][bundle-href]
