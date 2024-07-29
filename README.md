@@ -304,18 +304,18 @@ Table schema example:
 }
 ```
 
-<details><summary>Table schema spec</summary>
-
-```ts
-interface TableSchemaSpec {
-    name: string | string[];
-    columns: ColumnSchemaSpec[];
-    constraints: TableConstraintSchemaType[];
-    indexes: IndexSchemaSpec[];
-}
-```
-
-</details>
+> <details><summary>See the table schema spec</summary>
+> 
+> ```ts
+> interface TableSchemaSpec {
+>     name: string | string[];
+>     columns: ColumnSchemaSpec[];
+>     constraints: TableConstraintSchemaType[];
+>     indexes: IndexSchemaSpec[];
+> }
+> ```
+> 
+> </details>
 
 -------------
 
@@ -363,27 +363,27 @@ Column schema examples:
 }
 ```
 
-<details><summary>Column schema spec</summary>
-
-```ts
-interface ColumnSchemaSpec {
-    name: string;
-    type: string | Array;
-    primaryKey?: boolean | PrimaryKeySchemaSpec;
-    [ foreignKey | references ]?: ForeignKeySchemaSpec;
-    uniqueKey?: boolean | UniqueKeySchemaSpec;
-    check?: string | CheckConstraintSchemaSpec;
-    default?: string | DefaultConstraintSchemaSpec;
-    expression?: string | ExpressionConstraintSchemaSpec;
-    identity: boolean | IdentityConstraintSchemaSpec;
-    onUpdate?: string | OnUpdateConstraintSchemaSpec; // (MySQL-specific attributes)
-    autoIncrement?: boolean; // (MySQL-specific attributes)
-    notNull?: boolean;
-    null?: boolean;
-}
-```
-
-</details>
+> <details><summary>See the column schema spec</summary>
+> 
+> ```ts
+> interface ColumnSchemaSpec {
+>     name: string;
+>     type: string | Array;
+>     primaryKey?: boolean | PrimaryKeySchemaSpec;
+>     [ foreignKey | references ]?: ForeignKeySchemaSpec;
+>     uniqueKey?: boolean | UniqueKeySchemaSpec;
+>     check?: string | CheckConstraintSchemaSpec;
+>     default?: string | DefaultConstraintSchemaSpec;
+>     expression?: string | ExpressionConstraintSchemaSpec;
+>     identity: boolean | IdentityConstraintSchemaSpec;
+>     onUpdate?: string | OnUpdateConstraintSchemaSpec; // (MySQL-specific attributes)
+>     autoIncrement?: boolean; // (MySQL-specific attributes)
+>     notNull?: boolean;
+>     null?: boolean;
+> }
+> ```
+> 
+> </details>
 
 ---------------
 
@@ -423,83 +423,83 @@ Table constraint examples:
 }
 ```
 
-<details><summary>Table constraint schema spec</summary>
+> <details><summary>See the table constraint schema spec</summary>
+> 
+> ```ts
+> type TableConstraintSchemaType = TablePrimaryKeySchemaSpec | TableForeignKeySchemaSpec | TableUniqueKeySchemaSpec | TableCheckConstraintSchemaSpec;
+> ```
+> 
+> ```ts
+> interface TablePrimaryKeySchemaSpec extends PrimaryKeySchemaSpec {
+>     type: 'PRIMARY_KEY';
+>     columns: string[];
+> }
+> 
+> interface TableForeignKeySchemaSpec extends ForeignKeySchemaSpec {
+>     type: 'FOREIGN_KEY';
+>     columns: string[];
+> }
+> 
+> interface TableUniqueKeySchemaSpec extends UniqueKeySchemaSpec {
+>     type: 'UNIQUE_KEY';
+>     columns: string[];
+> }
+> 
+> interface TableCheckConstraintSchemaSpec extends CheckConstraintSchemaSpec {
+>     type: 'CHECK';
+> }
+> ```
+> 
+> </details>
 
-```ts
-type TableConstraintSchemaType = TablePrimaryKeySchemaSpec | TableForeignKeySchemaSpec | TableUniqueKeySchemaSpec | TableCheckConstraintSchemaSpec;
-```
-
-```ts
-interface TablePrimaryKeySchemaSpec extends PrimaryKeySchemaSpec {
-    type: 'PRIMARY_KEY';
-    columns: string[];
-}
-
-interface TableForeignKeySchemaSpec extends ForeignKeySchemaSpec {
-    type: 'FOREIGN_KEY';
-    columns: string[];
-}
-
-interface TableUniqueKeySchemaSpec extends UniqueKeySchemaSpec {
-    type: 'UNIQUE_KEY';
-    columns: string[];
-}
-
-interface TableCheckConstraintSchemaSpec extends CheckConstraintSchemaSpec {
-    type: 'CHECK';
-}
-```
-
-</details>
-
-<details><summary>Column constraint schema spec</summary>
-
-```ts
-type ColumnConstraintSchemaType = PrimaryKeySchemaSpec | ForeignKeySchemaSpec | UniqueKeySchemaSpec | CheckConstraintSchemaSpec | DefaultConstraintSchemaSpec | ExpressionConstraintSchemaSpec | IdentityConstraintSchemaSpec | OnUpdateConstraintSchemaSpec;
-```
-
-```ts
-interface PrimaryKeySchemaSpec {
-    name: string;
-}
-
-interface ForeignKeySchemaSpec {
-    name?: string;
-    targetTable: string | string[];
-    targetColumns: string[];
-    matchRule?: string;
-    updateRule?: string | { rule: string, columns: string[] };
-    deleteRule?: string | { rule: string, columns: string[] };
-}
-
-interface UniqueKeySchemaSpec {
-    name: string;
-}
-
-interface CheckConstraintSchemaSpec {
-    name?: string;
-    expr: string;
-}
-
-interface DefaultConstraintSchemaSpec {
-    expr: string;
-}
-
-interface ExpressionConstraintSchemaSpec {
-    expr: string;
-    stored: boolean;
-}
-
-interface IdentityConstraintSchemaSpec {
-    always: boolean;
-}
-
-interface OnUpdateConstraintSchemaSpec {
-    expr: string;
-}
-```
-
-</details>
+> <details><summary>See the column constraint schema spec</summary>
+> 
+> ```ts
+> type ColumnConstraintSchemaType = PrimaryKeySchemaSpec | ForeignKeySchemaSpec | UniqueKeySchemaSpec | CheckConstraintSchemaSpec | DefaultConstraintSchemaSpec | ExpressionConstraintSchemaSpec | IdentityConstraintSchemaSpec | OnUpdateConstraintSchemaSpec;
+> ```
+> 
+> ```ts
+> interface PrimaryKeySchemaSpec {
+>     name: string;
+> }
+> 
+> interface ForeignKeySchemaSpec {
+>     name?: string;
+>     targetTable: string | string[];
+>     targetColumns: string[];
+>     matchRule?: string;
+>     updateRule?: string | { rule: string, columns: string[] };
+>     deleteRule?: string | { rule: string, columns: string[] };
+> }
+> 
+> interface UniqueKeySchemaSpec {
+>     name: string;
+> }
+> 
+> interface CheckConstraintSchemaSpec {
+>     name?: string;
+>     expr: string;
+> }
+> 
+> interface DefaultConstraintSchemaSpec {
+>     expr: string;
+> }
+> 
+> interface ExpressionConstraintSchemaSpec {
+>     expr: string;
+>     stored: boolean;
+> }
+> 
+> interface IdentityConstraintSchemaSpec {
+>     always: boolean;
+> }
+> 
+> interface OnUpdateConstraintSchemaSpec {
+>     expr: string;
+> }
+> ```
+> 
+> </details>
 
 -------------
 
@@ -519,16 +519,16 @@ Index schema examples:
 }
 ```
 
-<details><summary>Index schema spec</summary>
-
-```ts
-interface IndexSchemaSpec {
-    type: string;
-    columns: string[];
-}
-```
-
-</details>
+> <details><summary>See the index schema spec</summary>
+> 
+> ```ts
+> interface IndexSchemaSpec {
+>     type: string;
+>     columns: string[];
+> }
+> ```
+> 
+> </details>
 
 </details>
 
