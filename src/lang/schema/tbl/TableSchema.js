@@ -7,7 +7,7 @@ import AlterStatement from '../../ddl/alter/AlterStatement.js';
 import AbstractLevel1Constraint from './constraints/AbstractLevel1Constraint.js'
 import AbstractLevel2Constraint from './constraints/AbstractLevel2Constraint.js';
 import TablePrimaryKey from './constraints/TablePrimaryKey.js';
-import ColumnForeignKey from './constraints/ColumnForeignKey.js';
+import ForeignKey from './constraints/ForeignKey.js';
 import TableForeignKey from './constraints/TableForeignKey.js';
 import TableUniqueKey from './constraints/TableUniqueKey.js';
 import CheckConstraint from './constraints/CheckConstraint.js';
@@ -54,6 +54,11 @@ export default class TableSchema extends AbstractSchema {
 		return super.$trace(request, ...args);
 	}
 
+    /**
+     * PRIMARY_KEY
+     */
+    primaryKey() { return this.NODES.find(node => node.TYPE === 'PRIMARY_KEY'); }
+
 	/**
 	 * Returns a column or adds a column to the schema,
 	 * 
@@ -63,7 +68,7 @@ export default class TableSchema extends AbstractSchema {
 	 */
 	column(column) {
 		if (typeof column === 'string') return this.COLUMNS.find(col => this.isSame(col.name(), column, 'ci'));
-		return (this.build('COLUMNS', [column], Column), this.column(column.name));
+		return (this.build('COLUMNS', [column], Column), this.COLUMNS[this.COLUMNS.length - 1]);
 	}
 
 	/**
@@ -75,13 +80,8 @@ export default class TableSchema extends AbstractSchema {
 	 */
 	constraint(constraint) {
 		if (typeof constraint === 'string') return this.NODES.find(node => node instanceof AbstractLevel1Constraint && this.isSame(node.name(), constraint, 'ci'));
-		return (this.build('CONSTRAINTS', [constraint], this.constructor.CONSTRAINT_TYPES), this);
+		return (this.build('CONSTRAINTS', [constraint], this.constructor.CONSTRAINT_TYPES), this.CONSTRAINTS[this.CONSTRAINTS.length - 1]);
 	}
-
-    /**
-     * PRIMARY_KEY
-     */
-    primaryKey() { return this.NODES.find(node => node.TYPE === 'PRIMARY_KEY'); }
 
 	/**
 	 * Returns a constraint or adds a constraint to the schema,
@@ -92,7 +92,7 @@ export default class TableSchema extends AbstractSchema {
 	 */
 	index(index) {
 		if (typeof index === 'string') return this.INDEXES.find(idx => this.isSame(idx.name(), index, 'ci'));
-		return (this.build('INDEXES', [index], Index), this);
+		return (this.build('INDEXES', [index], Index), this.INDEXES[this.INDEXES - 1]);
 	}
 
 	/**
@@ -356,7 +356,7 @@ export default class TableSchema extends AbstractSchema {
 	updateDatabaseReferences(db, altType) {
 		// A database was dropped or renamed. We check with our own references to databases
 		for (const node of this.NODES) {
-			if (!(node instanceof ColumnForeignKey)) continue;
+			if (!(node instanceof ForeignKey)) continue;
 			if (node.targetTable().basename() !== db.NAME) continue;
 			if (altType === 'DOWN') node.drop();
 			else if (altType === 'RENAME') node.targetTable().basename(db.$NAME);
@@ -369,7 +369,7 @@ export default class TableSchema extends AbstractSchema {
 	updateTableReferences(tbl, altType) {
 		// A table was dropped or renamed. We check with our own references to tables
 		for (const node of this.NODES) {
-			if (!(node instanceof ColumnForeignKey)) continue;
+			if (!(node instanceof ForeignKey)) continue;
 			if (node.targetTable().basename() && tbl.basename() && node.targetTable().basename() !== tbl.basename()) continue;
 			if (node.targetTable().name() === tbl.NAME) {
 				if (altType === 'DOWN') node.drop();
@@ -384,7 +384,7 @@ export default class TableSchema extends AbstractSchema {
 	updateColumnReferences(col, altType) {
 		// A column somewhere was dropped or renamed. We check with our own references to columns
 		for (const node of this.NODES) {
-			if (!(node instanceof ColumnForeignKey)) continue;
+			if (!(node instanceof ForeignKey)) continue;
 			if (node.targetTable().basename() && col.$trace('get:name:database') && node.targetTable().basename() !== col.$trace('get:name:database')) continue;
 			if (node.targetTable().name() !== col.$trace('get:table:name')) continue;
 			const targetList = cons.$TARGET_COLUMNS.length ? cons.$TARGET_COLUMNS : cons.TARGET_COLUMNS;

@@ -6,7 +6,7 @@ import pg from 'pg';
 import mariadb from 'mariadb';
 import SQLClient from '../src/api/sql/SQLClient.js';
 
-let driver, dialect = 'mysql', dbPublic;
+let driver, dialect = 'postgres', dbPublic;
 // ---------------------------------
 if (dialect === 'mysql') {
     // JSON support: MariaDB 10.2.7, MySQL 5.7.8
@@ -50,15 +50,15 @@ console.log('DROP 1', await lqlClient.query(`DROP TABLE if exists ${ dbPublic }.
 
 console.log('....create roles......', await lqlClient.query(`CREATE TABLE roles (
     id int primary key generated always as identity,
-    name varchar(10),
+    name varchar(100),
     created_time timestamp
 )`, { description: 'Created roles' }));
 const savepoint1 = await lqlClient.database(dbPublic).savepoint();
 
 console.log('.....create users.....', await lqlClient.query(`CREATE TABLE users (
     id int primary key generated always as identity,
-    title varchar(10) default '...',
-    name varchar(10),
+    title varchar(100) default '...',
+    name varchar(100),
     role int references roles (id),
     created_time timestamp
 )`, { description: 'Created users' }));
@@ -68,16 +68,16 @@ console.log('.....create test_db.....', await lqlClient.query(`CREATE SCHEMA tes
 const savepoint2b = await lqlClient.database('test_db').savepoint();
 console.log('.....create test_db.users.....', await lqlClient.query(`CREATE TABLE test_db.test_users (
     id int primary key generated always as identity,
-    title varchar(10),
-    name varchar(10),
+    title varchar(100),
+    name varchar(100),
     created_time timestamp
 )`, { description: 'Created users' }));
 const savepoint2c = await lqlClient.database('test_db').savepoint();
 
 console.log('.....create books.....', await lqlClient.query(`CREATE TABLE books (
     id int primary key generated always as identity,
-    title varchar(10),
-    content varchar(10),
+    title varchar(100),
+    content varchar(100),
     author int references users (id),
     created_timeeee timestamp (3) without time zone
 )`, { description: 'Created books' }));
@@ -94,8 +94,8 @@ let spliceForwardHistories = false;
 if (spliceForwardHistories) {
     console.log('.....create publications.....', await lqlClient.query(`CREATE TABLE publications (
         id int primary key generated always as identity,
-        title varchar(10),
-        content varchar(10),
+        title varchar(100),
+        content varchar(100),
         created_time timestamp
     )`, { description: 'Created publications' }));
     const savepoint4 = await lqlClient.database(dbPublic).savepoint();

@@ -1,9 +1,9 @@
 
 import Lexer from '../../../Lexer.js';
-import ColumnForeignKey from './ColumnForeignKey.js';
+import ForeignKey from './ForeignKey.js';
 import AbstractTableConstraint from './AbstractTableConstraint.js';
 
-export default class TableForeignKey extends AbstractTableConstraint(ColumnForeignKey) {
+export default class TableForeignKey extends AbstractTableConstraint(ForeignKey) {
 
     /**
      * @returns String

@@ -4,7 +4,7 @@ import { _unwrap } from '@webqit/util/str/index.js';
 import Identifier from '../../../components/Identifier.js';
 import AbstractLevel2Constraint from './AbstractLevel2Constraint.js';
 
-export default class ColumnForeignKey extends AbstractLevel2Constraint {
+export default class ForeignKey extends AbstractLevel2Constraint {
 
     /**
 	 * Instance properties

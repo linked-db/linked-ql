@@ -36,7 +36,7 @@ export default class DatabaseSchema extends AbstractSchema {
 	 */
 	table(table) {
 		if (typeof table === 'string') return this.TABLES.find(tbl => this.isSame(tbl.name().NAME, table, 'ci'));
-		return (this.build('TABLES', [table], TableSchema), this);
+		return (this.build('TABLES', [table], TableSchema), this.TABLES[this.TABLES.length - 1]);
 	}
 
 	/**

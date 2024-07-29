@@ -12,7 +12,7 @@ export default class AbstractConstraint extends AbstractNode {
     /**
 	 * @var String
 	 */
-    static get TYPE() { return _fromCamel(this.name.replace(/TABLE|COLUMN|CONSTRAINT/ig, ''), '_').toUpperCase(); }
+    static get TYPE() { return _fromCamel(this.name.replace(/TABLE|COLUMN|CONSTRAINT|CLAUSE/ig, ''), '_').toUpperCase(); }
 
     /**
 	 * @var String

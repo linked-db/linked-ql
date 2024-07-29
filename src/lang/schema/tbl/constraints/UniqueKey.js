@@ -1,7 +1,7 @@
 
 import AbstractLevel2Constraint from './AbstractLevel2Constraint.js';
 
-export default class ColumnUniqueKey extends AbstractLevel2Constraint {
+export default class UniqueKey extends AbstractLevel2Constraint {
 
     /**
      * @returns String

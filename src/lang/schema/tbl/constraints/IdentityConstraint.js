@@ -1,8 +1,8 @@
 
 import AbstractLevel1Constraint from './AbstractLevel1Constraint.js';
-import AutoIncrement from './AutoIncrement.js';
+import AutoIncrementConstraint from './AutoIncrementConstraint.js';
 
-export default class Identity extends AbstractLevel1Constraint {
+export default class IdentityConstraint extends AbstractLevel1Constraint {
 
     /**
 	 * Instance properties
@@ -62,7 +62,7 @@ export default class Identity extends AbstractLevel1Constraint {
      * @returns String
      */
     stringify() {
-		if (this.params.dialect === 'mysql') return (new AutoIncrement(this.CONTEXT)).stringify();
+		if (this.params.dialect === 'mysql') return (new AutoIncrementConstraint(this.CONTEXT)).stringify();
 		return `GENERATED ${ this.always() ? 'ALWAYS' : 'BY DEFAULT' } AS IDENTITY`;
 	}
 

@@ -2,17 +2,17 @@
 import Lexer from '../../Lexer.js';
 import { _toCamel, _fromCamel } from '@webqit/util/str/index.js';
 import AbstractNode from '../AbstractNode.js';
-import AutoIncrement from './constraints/AutoIncrement.js';
-import Expression from './constraints/Expression.js';
-import Identity from './constraints/Identity.js';
-import Default from './constraints/Default.js';
-import NotNull from './constraints/NotNull.js';
-import ColumnPrimaryKey from './constraints/ColumnPrimaryKey.js';
-import ColumnForeignKey from './constraints/ColumnForeignKey.js';
-import ColumnUniqueKey from './constraints/ColumnUniqueKey.js';
+import AutoIncrementConstraint from './constraints/AutoIncrementConstraint.js';
+import ExpressionConstraint from './constraints/ExpressionConstraint.js';
+import IdentityConstraint from './constraints/IdentityConstraint.js';
+import DefaultConstraint from './constraints/DefaultConstraint.js';
+import NotNullConstraint from './constraints/NotNullConstraint.js';
+import PrimaryKey from './constraints/PrimaryKey.js';
+import ForeignKey from './constraints/ForeignKey.js';
+import UniqueKey from './constraints/UniqueKey.js';
 import CheckConstraint from './constraints/CheckConstraint.js';
-import OnUpdate from './constraints/OnUpdate.js';
-import Null from './constraints/Null.js';
+import OnUpdateClause from './constraints/OnUpdateClause.js';
+import NullConstraint from './constraints/NullConstraint.js';
 import DataType from './DataType.js';
 
 export default class Column extends AbstractNode {
@@ -33,7 +33,7 @@ export default class Column extends AbstractNode {
     /**
      * @var Array
      */
-    static CONSTRAINT_TYPES = [AutoIncrement,Identity,Expression,Default,NotNull,Null,OnUpdate,ColumnPrimaryKey,ColumnForeignKey,ColumnUniqueKey,CheckConstraint];
+    static CONSTRAINT_TYPES = [AutoIncrementConstraint,IdentityConstraint,ExpressionConstraint,DefaultConstraint,NotNullConstraint,NullConstraint,OnUpdateClause,PrimaryKey,ForeignKey,UniqueKey,CheckConstraint];
 
 	/**
 	 * Sets the column type,

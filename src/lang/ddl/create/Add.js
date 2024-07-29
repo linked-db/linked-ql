@@ -1,6 +1,6 @@
 
 import AbstractNode from '../AbstractNode.js';
-import Identity from '../../schema/tbl/constraints/Identity.js';
+import IdentityConstraint from '../../schema/tbl/constraints/IdentityConstraint.js';
 import TablePrimaryKey from '../../schema/tbl/constraints/TablePrimaryKey.js';
 import TableForeignKey from '../../schema/tbl/constraints/TableForeignKey.js';
 import TableUniqueKey from '../../schema/tbl/constraints/TableUniqueKey.js';
@@ -72,6 +72,6 @@ export default class Add extends AbstractNode {
 	}
 
 	static get CLAUSE() { return 'ADD'; }
-    static NODE_TYPES = [Identity,TablePrimaryKey,TableForeignKey,TableUniqueKey,CheckConstraint,Index,Column];
+    static NODE_TYPES = [IdentityConstraint,TablePrimaryKey,TableForeignKey,TableUniqueKey,CheckConstraint,Index,Column];
     static KINDS = ['COLUMN','CONSTRAINT', 'PRIMARY_KEY', 'FOREIGN_KEY', 'UNIQUE_KEY', 'CHECK', 'FULLTEXT_INDEX', 'SPATIAL_INDEX', 'INDEX', 'KEY'];
 }

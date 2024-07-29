@@ -278,12 +278,12 @@ With schema versioning now over to the database, much of the old conventions and
 ]
 ```
 
-<details><summary>Database object spec</summary>
+<details><summary>Database schema spec</summary>
 
 ```ts
-interface DatabaseJson {
+interface DatabaseSchemaSpec {
     name: string;
-    tables: TableJson[];
+    tables: TableSchemaSpec[];
 }
 ```
 
@@ -293,18 +293,7 @@ interface DatabaseJson {
 
 -------------
 
-Table object spec:
-
-```ts
-interface TableJson {
-    name: string | string[];
-    columns: ColumnJson[];
-    constraints: (PkConstraintJson | FkConstraintJson | UkConstraintJson | CkConstraintJson)[];
-    indexes: IndexSpec[];
-}
-```
-
-<details><summary>Table object example</summary>
+Table schema example:
 
 ```js
 {
@@ -315,31 +304,22 @@ interface TableJson {
 }
 ```
 
+<details><summary>Table schema spec</summary>
+
+```ts
+interface TableSchemaSpec {
+    name: string | string[];
+    columns: ColumnSchemaSpec[];
+    constraints: TableConstraintSchemaSpec[];
+    indexes: IndexSchemaSpec[];
+}
+```
+
 </details>
 
 -------------
 
-Column object spec:
-
-```ts
-interface ColumnJson {
-    name: string;
-    type: string | Array;
-    primaryKey?: boolean;
-    [ foreignKey | references ]?: FkTargetJson;
-    uniqueKey?: boolean;
-    check?: string | { expr: string };
-    default?: string | { expr: string };
-    notNull?: boolean;
-    null?: boolean;
-    identity: boolean | { always: true };
-    expression?: string | { expr: string }; // (PostgreSQL-specific attributes)
-    autoIncrement?: boolean; // (MySQL-specific attributes)
-    onUpdate?: string; // (MySQL-specific attributes)
-}
-```
-
-<details><summary>Column object examples</summary>
+Column schema examples:
 
 ```js
 {
@@ -382,52 +362,37 @@ interface ColumnJson {
     }
 }
 ```
+
+<details><summary>Column schema spec</summary>
+
+```ts
+interface ColumnSchemaSpec {
+    name: string;
+    type: string | Array;
+    primaryKey?: boolean | PrimaryKeySchemaSpec;
+    [ foreignKey | references ]?: ForeignKeySchemaSpec;
+    uniqueKey?: boolean | UniqueKeySchemaSpec;
+    check?: string | CheckConstraintSchemaSpec;
+    default?: string | DefaultConstraintSchemaSpec;
+    expression?: string | ExpressionConstraintSchemaSpec;
+    identity: boolean | IdentityConstraintSchemaSpec;
+    onUpdate?: string | OnUpdateConstraintSchemaSpec; // (MySQL-specific attributes)
+    autoIncrement?: boolean; // (MySQL-specific attributes)
+    notNull?: boolean;
+    null?: boolean;
+}
+```
+
 </details>
 
 ---------------
 
-Constraint objects spec:
-
-```ts
-interface PkConstraintJson {
-    name?: string;
-    type: 'PRIMARY_KEY';
-    columns: string[];
-}
-
-interface FkConstraintJson extends FkTargetJson {
-    name?: string;
-    type: 'FOREIGN_KEY';
-    columns: string[];
-}
-
-interface UkConstraintJson {
-    name?: string;
-    type: 'UNIQUE_KEY';
-    columns: string[];
-}
-
-interface CkConstraintJson {
-    name?: string;
-    type: 'CHECK';
-    expr: string;
-}
-
-interface FkTargetJson {
-    targetTable: string | string[];
-    targetColumns: string[];
-    matchRule?: string;
-    updateRule?: string | { rule: string, columns: string[] };
-    deleteRule?: string | { rule: string, columns: string[] };
-}
-```
-
-<details><summary>Constraint object examples</summary>
+Table constraint examples:
 
 ```js
 {
-    "name": "constraint_name",
     "type": "PRIMARY_KEY",
+    "name": "constraint_name",
     "columns": ["id"],
 }
 ```
@@ -458,20 +423,87 @@ interface FkTargetJson {
 }
 ```
 
+<details><summary>Table constraint schema spec</summary>
+
+```ts
+type TableConstraintSchemaSpec = TablePrimaryKeySchemaSpec | TableForeignKeySchemaSpec | TableUniqueKeySchemaSpec | TableCheckConstraintSchemaSpec;
+```
+
+```ts
+interface TablePrimaryKeySchemaSpec extends PrimaryKeySchemaSpec {
+    type: 'PRIMARY_KEY';
+    columns: string[];
+}
+
+interface TableForeignKeySchemaSpec extends ForeignKeySchemaSpec {
+    type: 'FOREIGN_KEY';
+    columns: string[];
+}
+
+interface TableUniqueKeySchemaSpec extends UniqueKeySchemaSpec {
+    type: 'UNIQUE_KEY';
+    columns: string[];
+}
+
+interface TableCheckConstraintSchemaSpec extends CheckConstraintSchemaSpec {
+    type: 'CHECK';
+}
+```
+
+</details>
+
+<details><summary>Column constraint schema spec</summary>
+
+```ts
+type ColumnConstraintSchemaSpec = PrimaryKeySchemaSpec | ForeignKeySchemaSpec | UniqueKeySchemaSpec | CheckConstraintSchemaSpec | DefaultConstraintSchemaSpec | ExpressionConstraintSchemaSpec | IdentityConstraintSchemaSpec | OnUpdateConstraintSchemaSpec;
+```
+
+```ts
+interface PrimaryKeySchemaSpec {
+    name: string;
+}
+
+interface ForeignKeySchemaSpec {
+    name?: string;
+    targetTable: string | string[];
+    targetColumns: string[];
+    matchRule?: string;
+    updateRule?: string | { rule: string, columns: string[] };
+    deleteRule?: string | { rule: string, columns: string[] };
+}
+
+interface UniqueKeySchemaSpec {
+    name: string;
+}
+
+interface CheckConstraintSchemaSpec {
+    name?: string;
+    expr: string;
+}
+
+interface DefaultConstraintSchemaSpec {
+    expr: string;
+}
+
+interface ExpressionConstraintSchemaSpec {
+    expr: string;
+    stored: boolean;
+}
+
+interface IdentityConstraintSchemaSpec {
+    always: boolean;
+}
+
+interface OnUpdateConstraintSchemaSpec {
+    expr: string;
+}
+```
+
 </details>
 
 -------------
 
-Index object spec:
-
-```ts
-interface IndexSpec {
-    type: string;
-    columns: string[];
-}
-```
-
-<details><summary>Index object examples</summary>
+Index schema examples:
 
 ```js
 {
@@ -484,6 +516,15 @@ interface IndexSpec {
 {
     "type": "SPATIAL",
     "columns": ["full_name"]
+}
+```
+
+<details><summary>Index schema spec</summary>
+
+```ts
+interface IndexSchemaSpec {
+    type: string;
+    columns: string[];
 }
 ```
 
@@ -704,11 +745,11 @@ Some additional parameters via `options`:
 
 <details><summary>
 Dynamically run a <code>CREATE DATABASE</code> operation.
-<pre><code>client.createDatabase(createSpec: string | DatabaseJson, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
+<pre><code>client.createDatabase(databaseNameOrJson: string | DatabaseSchemaSpec, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 ⚙️ Spec:
 
-+ `createSpec` (string | DatabaseJson): the database name, or an object corresponding to `DatabaseJson` in [schema.json](#schemajson).
++ `databaseNameOrJson` (string | [`DatabaseSchemaSpec`](#schemajson)): the database name, or an object specifying the intended database structure to create.
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
@@ -720,7 +761,7 @@ Specify database by name:
 const savepoint = await client.createDatabase('database_1', { description: 'Just testing database creation' });
 ```
 
-or by a schema object, with an optional list of tables to be created along with it. (Each listed table corresponding to `TableJson` in [schema.json](#schemajson).):
+or by a schema object, with an optional list of tables to be created along with it. (Each listed table corresponding to `TableSchemaSpec` *(in [schema.json](#schemajson))*.):
 
 ```js
 const savepoint = await client.createDatabase({
@@ -746,12 +787,12 @@ Some additional parameters via `options`:
 
 <details><summary>
 Dynamically run an <code>ALTER DATABASE</code> operation.
-<pre><code>client.alterDatabase(alterSpec: string | { name: string, tables?: string[] }, callback: (schema: DatabaseSchema) => void, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
+<pre><code>client.alterDatabase(databaseNameOrJson: string | { name: string, tables?: string[] }, callback: (databaseSchemaApi: DatabaseSchemaAPI) => void, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 ⚙️ Spec:
 
-+ `alterSpec` (string | { name: string, tables?: string[] }): the database name, or an object with the name and, optionally, a list of tables to be altered along with it.
-+ `callback` ((schema: DatabaseSchema) => void): a function that is called with the requested schema. This can be async. Received object is a [`DatabaseSchema`](#the-database-apischema) instance.
++ `databaseNameOrJson` (string | { name: string, tables?: string[] }): the database name, or an object with the name and, optionally, a list of tables to be altered along with it.
++ `callback` ((databaseSchemaApi: [`DatabaseSchemaAPI`](#the-databaseschemaapi-api)) => void): a function that is called with the requested schema. This can be async.
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
@@ -760,18 +801,18 @@ Dynamically run an <code>ALTER DATABASE</code> operation.
 Specify database by name:
 
 ```js
-const savepoint = await client.alterDatabase('database_1', schema => {
-    schema.name('database_1_new');
+const savepoint = await client.alterDatabase('database_1', databaseSchemaApi => {
+    databaseSchemaApi.name('database_1_new');
 }, { description: 'Renaming for testing purposes' });
 ```
 
 or by an object, with an optional list of tables to be altered along with it:
 
 ```js
-const savepoint = await client.alterDatabase({ name: 'database_1', tables: ['table_1'] }, schema => {
-    schema.name('database_1_new');
-    schema.table('table_1').column('column_1').name('column_1_new');
-    schema.table('table_1').column('column_2').type('varchar');
+const savepoint = await client.alterDatabase({ name: 'database_1', tables: ['table_1'] }, databaseSchemaApi => {
+    databaseSchemaApi.name('database_1_new');
+    databaseSchemaApi.table('table_1').column('column_1').name('column_1_new');
+    databaseSchemaApi.table('table_1').column('column_2').type('varchar');
 }, { description: 'Renaming for testing purposes' });
 ```
 
@@ -781,11 +822,11 @@ const savepoint = await client.alterDatabase({ name: 'database_1', tables: ['tab
 
 <details><summary>
 Dynamically run a <code>DROP DATABASE</code> operation.
-<pre><code>client.dropDatabase(dbName: string, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
+<pre><code>client.dropDatabase(databaseName: string, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 ⚙️ Spec:
 
-+ `dbName` (string): the database name.
++ `databaseName` (string): the database name.
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
@@ -815,11 +856,11 @@ Some additional parameters via `options`:
 
 <details><summary>
 Check if a database exists.
-<pre><code>client.hasDatabase(dbName: string): Promise&lt;Boolean&gt;</code></pre></summary>
+<pre><code>client.hasDatabase(databaseName: string): Promise&lt;Boolean&gt;</code></pre></summary>
 
 ⚙️ Spec:
 
-+ `dbName` (string): the database name.
++ `databaseName` (string): the database name.
 + Return value: Boolean.
 
 ⚽️ Usage:
@@ -834,12 +875,12 @@ const exists = await client.hasDatabase('database_1');
 
 <details><summary>
 Get the schema structure for a database.
-<pre><code>client.describeDatabase(dbName: string): Promise&lt;DatabaseJson&gt;</code></pre></summary>
+<pre><code>client.describeDatabase(databaseName: string): Promise&lt;DatabaseSchemaSpec&gt;</code></pre></summary>
 
 ⚙️ Spec:
 
-+ `dbName` (string): the database name.
-+ Return value: an object corresponding to `DatabaseJson` in [schema.json](#schemajson).
++ `databaseName` (string): the database name.
++ Return value: an object corresponding to [`DatabaseSchemaSpec`](#schemajson); the requested schema.
 
 ⚽️ Usage:
 
@@ -874,11 +915,11 @@ console.log(databases); // ['public', 'database_1', ...]
 
 <details><summary>
 Obtain a <code>Database</code> instance.
-<pre><code>client.database(dbName: string): Database</code></pre></summary>
+<pre><code>client.database(databaseName: string): Database</code></pre></summary>
 
 ⚙️ Spec:
 
-+ `dbName` (string): the database name.
++ `databaseName` (string): the database name.
 + Return value: a [`Database`](#the-database-api) instance.
 
 ⚽️ Usage:
@@ -928,11 +969,11 @@ console.log(database.name); // test_db
 
 <details><summary>
 Dynamically run a <code>CREATE TABLE</code> operation.
-<pre><code>database.createTable(createSpec: TableJson, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
+<pre><code>database.createTable(tableJson: TableSchemaSpec, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 ⚙️ Spec:
 
-+ `createSpec` (TableJson): an object corresponding to `TableJson` in [schema.json](#schemajson).
++ `tableJson` ([`TableSchemaSpec`](#schemajson)): an object specifying the intended table structure to create.
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
@@ -965,22 +1006,22 @@ Some additional parameters via `options`:
 
 <details><summary>
 Dynamically run an <code>ALTER TABLE</code> operation.
-<pre><code>database.alterTable(tblName: string, callback: (schema: TableSchema) => void, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
+<pre><code>database.alterTable(tableName: string, callback: (tableSchemaApi: TableSchemaAPI) => void, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 ⚙️ Spec:
 
-+ `tblName` (string): the table name.
-+ `callback` ((schema: TableSchema) => void): a function that is called with the requested table schema. This can be async. Received object is a [`TableSchema`](#the-tableschema-api) instance.
++ `tableName` (string): the table name.
++ `callback` ((tableSchemaApi: [`TableSchemaAPI`](#the-tableschemaapi-api)) => void): a function that is called with the requested table schema. This can be async.
 + `options`  (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
 ⚽️ Usage:
 
 ```js
-const savepoint = await database.alterTable('table_1', tableSchema => {
-    tableSchema.name('table_1_new');
-    tableSchema.column('column_1').type('int');
-    tableSchema.column('column_2').drop();
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    tableSchemaApi.name('table_1_new');
+    tableSchemaApi.column('column_1').type('int');
+    tableSchemaApi.column('column_2').drop();
 }, { description: 'Renaming for testing purposes' });
 ```
 
@@ -990,11 +1031,11 @@ const savepoint = await database.alterTable('table_1', tableSchema => {
 
 <details><summary>
 Dynamically run a <code>DROP TABLE</code> operation.
-<pre><code>database.dropTable(tblName: string, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
+<pre><code>database.dropTable(tableName: string, options?: Options): Promise&lt;Savepoint&gt;</code></pre></summary>
 
 ⚙️ Spec:
 
-+ `tblName` (string): the table name.
++ `tableName` (string): the table name.
 + `options` (Options, *optional*): as described in [`query()`](#clientquery).
 + Return value: a [`Savepoint`](#the-savepoint-api) instance.
 
@@ -1024,11 +1065,11 @@ Some additional parameters via `options`:
 
 <details><summary>
 Check if a table exists.
-<pre><code>database.hasTable(tblName: string): Promise&lt;Boolean&gt;</code></pre></summary>
+<pre><code>database.hasTable(tableName: string): Promise&lt;Boolean&gt;</code></pre></summary>
 
 ⚙️ Spec:
 
-+ `tblName` (string): the table name.
++ `tableName` (string): the table name.
 + Return value: Boolean.
 
 ⚽️ Usage:
@@ -1043,12 +1084,12 @@ const exists = await database.hasTable('table_1');
 
 <details><summary>
 Get the schema structure for a table.
-<pre><code>database.describeTable(tblName: string): Promise&lt;TableJson&gt;</code></pre></summary>
+<pre><code>database.describeTable(tableName: string): Promise&lt;TableSchemaSpec&gt;</code></pre></summary>
 
 ⚙️ Spec:
 
-+ `tblName` (string): the table name.
-+ Return value: an object corresponding to `TableJson` in [schema.json](#schemajson).
++ `tableName` (string): the table name.
++ Return value: an object corresponding to [`TableSchemaSpec`](#schemajson); the requested schema.
 
 ⚽️ Usage:
 
@@ -1083,11 +1124,11 @@ console.log(tables); // ['table_1', 'table_2', ...]
 
 <details><summary>
 Obtain a <code>Table</code> instance.
-<pre><code>database.table(tblName: string): Table</code></pre></summary>
+<pre><code>database.table(tableName: string): Table</code></pre></summary>
 
 ⚙️ Spec:
 
-+ `tblName` (string): the table name.
++ `tableName` (string): the table name.
 + Return value: a [`Table`](#the-table-api) instance.
 
 ⚽️ Usage:
@@ -1760,7 +1801,7 @@ Get the subject DB's schema snapshot at this point in time.
 
 ⚙️ Spec:
 
-+ Return value: an object corresponding to `DatabaseJson` in [schema.json](#schemajson).
++ Return value: an object corresponding to `DatabaseSchemaSpec` *(in [schema.json](#schemajson))*.
 
 ⚽️ Usage:
 
@@ -1808,40 +1849,74 @@ console.log(savepoint.name(true)); // test_db
 
 ------------
 
-### The `TableSchema` API
+### The `DatabaseSchemaAPI` API
 
-*TableSchema* is the API for manipulating *table* JSON structures (i.e. `TableJson` in [schema.json](#schemajson)). This object is obtained via [`database.alterTable()`](#databasealtertable)'s callback function.
+*DatabaseSchemaAPI* is the programmatic interface to `DatabaseSchemaSpec` *(in [schema.json](#schemajson))*. This object is obtained via [`client.alterDatabase()`](#clientalterdatabase)'s callback function.
+
+*DatabaseSchemaAPI inherits from [`AbstractSchemaAPI`](#the-abstractschemaapi-api).*
 
 <details><summary>See content</summary>
 
-+ [`tableSchema.primaryKey()`](#tableschemaprimarykey)
-+ [`tableSchema.column()`](#tableschemacolumn)
-+ [`tableSchema.constraint()`](#tableschemaconstraint)
-+ [`tableSchema.index()`](#tableschemaindex)
-+ [`tableSchema.toJson()`](#tableschematojson)
++ [`databaseSchemaApi.name()`](#databaseschemaapiname)
++ [`databaseSchemaApi.table()`](#databaseschemaapitable)
+
+    *Inherited:*
+
++ [`abstractSchemaApi.toJson()`](#abstractschemaapitojson)
++ [`abstractSchemaApi.toString()`](#abstractschemaapitostring)
++ [`abstractSchemaApi.keep()`](#abstractschemaapikeep)
++ [`abstractSchemaApi.drop()`](#abstractschemaapidrop)
 
 </details>
 
-#### `tableSchema.column()`:
+#### `databaseSchemaApi.name()`:
 
 <details><summary>
-Add a column definition or find one by name.
-<pre><code>tableSchema.column(columnSpec: string | ColumnJson): ColumnSchema</code></pre></summary>
+Set or get the database name. *(Overrides <code><a href="#abstractschemaapiname">abstractSchemaApi.name()</a><code>.)*
+<pre><code>databaseSchemaApi.name(name?: string): this</code></pre></summary>
 
 ⚙️ Spec:
 
-+ `columnSpec` a column name to look up or an object corresponding to `ColumnJson` in [schema.json](#schemajson) to add as a column.
-+ Return value: a [`ColumnSchema`](#the-columnschema-api) instance of the specified column name or of the just added one.
++ `name` (string, *optional*): when provided, sets the database name. When ommitted, gets the database name returned.
++ Return value: `Identifier` - the current database name, or `this` - the `databaseSchemaApi` instance.
+
+⚽️ Usage:
+
+Rename the database:
+
+```js
+const savepoint = await client.alterDatabase('database_1', databaseSchemaApi => {
+    // Inspect existing name
+    console.log(databaseSchemaApi.name().toJson()); // database_1
+    // Rename
+    databaseSchemaApi.name('new_database_1');
+}, { description: 'Renaming for testing purposes' });
+```
+
+</details>
+
+#### `databaseSchemaApi.table()`:
+
+<details><summary>
+Add a table to the database or get an existing one.
+<pre><code>databaseSchemaApi.table(tableNameOrJson: string | TableSchemaSpec): TableSchemaAPI</code></pre></summary>
+
+⚙️ Spec:
+
++ `tableNameOrJson` (string | [`TableSchemaSpec`](#schemajson)): when a string, the name of a table to get. When an object, an object that defines a new table to create.
++ Return value: [`TableSchemaAPI`](#the-tableschemaapi-api) - the table schema requested or the one just added.
 
 ⚽️ Usage:
 
 ```js
-const savepoint = await database.alterTable('table_1', tableSchema => {
-    tableSchema.column('column_1').type('int'); // Obtain existing column_1 and modify its type attribute
-    tableSchema.column({
-        name: 'column_2',
-        type: ['varchar', 50],
-    }); // Add column_2
+const savepoint = await client.alterDatabase('database_1', databaseSchemaApi => {
+    // Drop existing table_1
+    databaseSchemaApi.table('table_1').drop();
+    // Add table_2
+    databaseSchemaApi.table({
+        name: 'table_2',
+        columns: [],
+    });
 }, { description: 'Altering for testing purposes' });
 ```
 
@@ -1849,46 +1924,747 @@ const savepoint = await database.alterTable('table_1', tableSchema => {
 
 ------------
 
-### The `ColumnSchema` API
+### The `TableSchemaAPI` API
 
-*ColumnSchema* is the API for manipulating *column* JSON structures (i.e. `ColumnJson` in [schema.json](#schemajson)). This object is obtained via [`tableSchema.column()`](#tableschemacolumn).
+*TableSchemaAPI* is the programmatic interface to `TableSchemaSpec` *(in [schema.json](#schemajson))*. This object is obtained via [`databaseSchemaApi.table()`](#databaseschemaapitable) and [`database.alterTable()`](#databasealtertable)'s callback function.
+
+*TableSchemaAPI inherits from [`AbstractSchemaAPI`](#the-abstractschemaapi-api).*
 
 <details><summary>See content</summary>
 
-+ [`columnSchema.name()`](#columnschemaname)
-+ [`columnSchema.constraint()`](#columnschemaconstraint)
-+ [`columnSchema.primaryKey()`](#columnschemaprimarykey)
-+ [`columnSchema.foreignKey()`](#columnschemaforeignkey)
-+ [`columnSchema.uniqueKey()`](#columnschemauniquekey)
-+ [`columnSchema.check()`](#columnschemacheck)
-+ [`columnSchema.toJson()`](#columnschematojson)
++ [`tableSchemaApi.name()`](#tableschemaapiname)
++ [`tableSchemaApi.column()`](#tableschemaapicolumn)
++ [`tableSchemaApi.primaryKey()`](#tableschemaapiprimarykey)
++ [`tableSchemaApi.constraint()`](#tableschemaapiconstraint)
++ [`tableSchemaApi.index()`](#tableschemaapiindex)
+
+    *Inherited:*
+
++ [`abstractSchemaApi.toJson()`](#abstractschemaapitojson)
++ [`abstractSchemaApi.toString()`](#abstractschemaapitostring)
++ [`abstractSchemaApi.keep()`](#abstractschemaapikeep)
++ [`abstractSchemaApi.drop()`](#abstractschemaapidrop)
 
 </details>
 
-#### `columnSchema.name()`:
+#### `tableSchemaApi.name()`:
 
 <details><summary>
-Add a column definition or find one by name.
-<pre><code>tableSchema.column(columnSpec: string | ColumnJson): ColumnSchema</code></pre></summary>
+Set or get the table name. *(Overrides <code><a href="#abstractschemaapiname">abstractSchemaApi.name()</a><code>.)*
+<pre><code>tableSchemaApi.name(name?: string | string[]): this</code></pre></summary>
 
 ⚙️ Spec:
 
-+ `columnSpec` a column name to look up or an object corresponding to `ColumnJson` in [schema.json](#schemajson) to add as a column.
-+ Return value: a `ColumnSchema` instance of the specified column name or of the just added one.
++ `name` (string | string[], *optional*): when provided, sets the table name. Accepts a two-part array for a fully-qualified table name. When ommitted, gets the table name returned.
++ Return value: `Identifier` - the current table name, or `this` - the `tableSchemaApi` instance.
+
+⚽️ Usage:
+
+Rename the table:
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    // Inspect existing name
+    console.log(tableSchemaApi.name().toJson()); // table_1
+    // Rename
+    tableSchemaApi.name('new_table_1');
+}, { description: 'Renaming for testing purposes' });
+```
+
+Rename the table - fully-qualified:
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    tableSchemaApi.name(['database_1', 'new_table_1']);
+}, { description: 'Renaming for testing purposes' });
+```
+
+Change the qualifier - moving the table to a different database:
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    tableSchemaApi.name(['database_4', 'new_table_1']);
+}, { description: 'Renaming for testing purposes' });
+```
+
+</details>
+
+#### `tableSchemaApi.column()`:
+
+<details><summary>
+Add a column to the table or get an existing one.
+<pre><code>tableSchemaApi.column(columnNameOrJson: string | ColumnSchemaSpec): ColumnSchemaAPI</code></pre></summary>
+
+⚙️ Spec:
+
++ `columnNameOrJson` (string | [`ColumnSchemaSpec`](#schemajson)): when a string, the name of a column to get. When an object, an object that defines a new column to create.
++ Return value: [`ColumnSchemaAPI`](#the-columnschemaapi-api) - the column requested or the one just added.
 
 ⚽️ Usage:
 
 ```js
-const savepoint = await database.alterTable('table_1', tableSchema => {
-    tableSchema.column('column_1').type('int'); // Obtain existing column_1 and modify its type attribute
-    tableSchema.column({
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    // Obtain existing column_1 and modify its type attribute
+    tableSchemaApi.column('column_1').type('int');
+    // Add column_2
+    tableSchemaApi.column({
         name: 'column_2',
         type: ['varchar', 50],
-    }); // Add column_2
+    });
 }, { description: 'Altering for testing purposes' });
 ```
 
 </details>
+
+#### `tableSchemaApi.primaryKey()`:
+
+<details><summary>
+Add a Primary Key constraint to the table or get the existing one. <i>(Translates to the SQL <code><a href="https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-PRIMARY-KEYS">PRIMARY KEY</a></code> constraint.)</i>
+<pre><code>tableSchemaApi.primaryKey(constraintJson?: TablePrimaryKeySchemaSpec): TablePrimaryKeySchemaAPI</code></pre></summary>
+
+⚙️ Spec:
+
++ `constraintJson` ([`TablePrimaryKeySchemaSpec`](#schemajson), *optional*): when provided, an object that defines a new Primary Key to create, specifying the intended Primary Key column(s), and optionally, a constraint name. When ommitted, gets the `PRIMARY_KEY` instance on the table returned if exists.
++ Return value: [`TablePrimaryKeySchemaAPI`](#constraint-schemas) - the existing `PRIMARY_KEY` instance requested or the one just added.
+
+⚽️ Usage:
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    // See if there's one set and undo that
+    if (tableSchemaApi.primaryKey()) {
+        tableSchemaApi.primaryKey().drop();
+    }
+    // Add a Primary Key constraint on columns 2 and 3
+    tableSchemaApi.primaryKey({ columns: ['column_2', 'column_3'] });
+}, { description: 'Altering for testing purposes' });
+```
+
+</details>
+
+#### `tableSchemaApi.constraint()`:
+
+<details><summary>
+Add a Primary Key, Foreign Key, Unique Key, or Check constraint to the table or get an existing one. (Provides a unified way to set/get table constraints.)
+<pre><code>tableSchemaApi.constraint(constraintNameOrJson: string | TableConstraintSchemaSpec): TableConstraintSchemaAPI</code></pre></summary>
+
+⚙️ Spec:
+
++ `constraintNameOrJson` (string | [`TableConstraintSchemaSpec`](#schemajson)): when a string, the name of a constraint to get. When an object, an object that defines a new constraint to create.
++ Return value: [`TableConstraintSchemaAPI`](#constraint-schemas) - the constraint requested or the one just added.
+
+⚽️ Usage:
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    // Obtain existing constraint_1 and modify its columns list
+    tableSchemaApi.constraint('constraint_1').columns(['id', 'bio']);
+    // Add constraint_2
+    tableSchemaApi.constraint({
+        type: 'PRIMARY_KEY',
+        name: 'constraint_2',
+        columns: ['id'],
+    });
+}, { description: 'Altering for testing purposes' });
+```
+
+Note that when a constraint name is ommitted, one is automatically generated for you:
+
+```js
+// Add an anonymous constraint
+const constraint = tableSchemaApi.constraint({
+    type: 'PRIMARY_KEY',
+    columns: ['id'],
+});
+// Inspect is auto-generated name
+console.log(constraint.name()); // auto_name_25kjd
+```
+
+</details>
+
+#### `tableSchemaApi.index()`:
+
+<details><summary>
+Add a Fulltext or Spartial Index to the table or get an existing one.
+<pre><code>tableSchemaApi.index(indexNameOrJson: string | IndexSchemaSpec): IndexSchema</code></pre></summary>
+
+⚙️ Spec:
+
++ `indexNameOrJson` (string | [`IndexSchemaSpec`](#schemajson)): when a string, the name of an index to get. When an object, an object that defines a new index to create.
++ Return value: [`IndexSchema`](#the-indexschema-api) - the index requested or the one just added.
+
+⚽️ Usage:
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    // Obtain existing index_1 and modify its columns list
+    tableSchemaApi.index('index_1').columns(['id', 'bio']);
+    // Add index_2
+    tableSchemaApi.index({
+        type: 'FULLTEXT',
+        name: 'index_2',
+        columns: ['id'],
+    });
+}, { description: 'Altering for testing purposes' });
+```
+
+Note that when an index name is ommitted, one is automatically generated for you:
+
+```js
+// Add an anonymous index
+const index = tableSchemaApi.index({
+    type: 'FULLTEXT',
+    columns: ['id'],
+});
+// Inspect is auto-generated name
+console.log(index.name()); // auto_name_4gkbc
+```
+
+</details>
+
+------------
+
+### The `ColumnSchemaAPI` API
+
+*ColumnSchemaAPI* is the programmatic interface to `ColumnSchemaSpec` *(in [schema.json](#schemajson))*. This object is obtained via [`tableSchemaApi.column()`](#tableschemaapicolumn).
+
+*ColumnSchemaAPI inherits from [`AbstractSchemaAPI`](#the-abstractschemaapi-api).*
+
+<details><summary>See content</summary>
+
++ [`columnSchemaApi.type()`](#columnschemaapitype)
++ [`columnSchemaApi.primaryKey()`](#columnschemaapiprimarykey)
++ [`columnSchemaApi.foreignKey()`](#columnschemaapiforeignkey)
++ [`columnSchemaApi.uniqueKey()`](#columnschemaapiuniquekey)
++ [`columnSchemaApi.check()`](#columnschemaapicheck)
++ [`columnSchemaApi.default()`](#columnschemaapidefault)
++ [`columnSchemaApi.expression()`](#columnschemaapiexpression)
++ [`columnSchemaApi.identity()`](#columnschemaapiidentity)
++ [`columnSchemaApi.notNull()`](#columnschemaapinotnull)
++ [`columnSchemaApi.null()`](#columnschemaapinull)
++ [`columnSchemaApi.autoIncrement()`](#columnschemaapiautoincrement)
++ [`columnSchemaApi.onUpdate()`](#columnschemaapionupdate)
++ [`columnSchemaApi.constraint()`](#columnschemaapiconstraint)
+
+    *Inherited:*
+
++ [`abstractSchemaApi.name()`](#abstractschemaapiname)
++ [`abstractSchemaApi.toJson()`](#abstractschemaapitojson)
++ [`abstractSchemaApi.toString()`](#abstractschemaapitostring)
++ [`abstractSchemaApi.keep()`](#abstractschemaapikeep)
++ [`abstractSchemaApi.drop()`](#abstractschemaapidrop)
+
+</details>
+
+#### `columnSchemaApi.type()`:
+
+<details><summary>
+Set the column type or get the current value.
+<pre><code>tableSchemaApi.type(typeJson?: string | string[]): ColumnTypeSchema</code></pre></summary>
+
+⚙️ Spec:
+
++ `typeJson` (string | string[], *optional*): when provided, sets the column type. Accepts a two-part array for a fully-qualified type. When ommitted, gets the current column type returned.
++ Return value:`ColumnTypeSchema` - the current column type, or `this` - the `columnSchema` object.
+
+⚽️ Usage:
+
+Obtain a column and change its type:
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    // New type
+    tableSchemaApi.column('column_1').type(['varchar', 255]);
+    // Current type as JSON
+    console.log(tableSchemaApi.column('column_1').type().toJson()); // ['varchar', 255]
+    // Current type as SQL
+    console.log(tableSchemaApi.column('column_1').type().toString()); // varchar(255)
+}, { description: 'Altering for testing purposes' });
+```
+
+</details>
+
+#### `columnSchemaApi.primaryKey()`:
+
+<details><summary>
+Designate the column as Primary Key for the table or get the column's current <code>PRIMARY_KEY</code> instance. <i>(Translates to the SQL <code><a href="https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-PRIMARY-KEYS">PRIMARY KEY</a></code> constraint.)</i>
+<pre><code>columnSchemaApi.primaryKey(constraintToggleOrJson?: boolean | PrimaryKeySchemaSpec): PrimaryKeySchemaAPI</code></pre></summary>
+
+⚙️ Spec:
+
++ `constraintToggleOrJson` (boolean | [`PrimaryKeySchemaSpec`](#schemajson), *optional*): when a boolean, toggles the designation of the column as Primary Key for the table. When an object, an object that specifies a constraint name. When ommitted, gets the column's `PRIMARY_KEY` instance returned if exists.
++ Return value: [`PrimaryKeySchemaAPI`](#constraint-schemas) - the existing `PRIMARY_KEY` instance on the column or the one just added.
+
+⚽️ Usage:
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    // Be sure that this doesn't already exist on column_1
+    if (!tableSchemaApi.column('column_1').primaryKey()) {
+        // Add a Primary Key constraint on column_1
+        tableSchemaApi.column('column_1').primaryKey(true);
+    }
+});
+```
+
+Note that when a constraint name is ommitted, one is automatically generated for you:
+
+```js
+// Inspect the auto-generated name
+console.log(tableSchemaApi.column('column_1').primaryKey().name()); // auto_name_25kjd
+```
+
+</details>
+
+#### `columnSchemaApi.foreignKey()`:
+
+<details><summary>
+Add the <code>FOREIGN_KEY</code> constraint type to the column or get the column's current <code>FOREIGN_KEY</code> instance. <i>(Translates to the SQL <code><a href="https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-FK">FOREIGN KEY</a></code> constraint.)</i>
+<pre><code>columnSchemaApi.foreignKey(constraintJson?: ForeignKeySchemaSpec): ForeignKeySchemaAPI</code></pre></summary>
+
+⚙️ Spec:
+
++ `constraintJson` ([`ForeignKeySchemaSpec`](#schemajson), *optional*): when provided, an object that defines a new Foreign Key to create, specifying, among other things, the target table and target columns, and optionally, a constraint name. When ommitted, gets the column's `FOREIGN_KEY` instance returned if exists.
++ Return value: [`ForeignKeySchemaAPI`](#constraint-schemas) - the existing `FOREIGN_KEY` instance on the column or the one just added.
+
+⚽️ Usage:
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    // Be sure that this doesn't already exist on column_1
+    if (!tableSchemaApi.column('column_1').foreignKey()) {
+        // Add a Foreign Key constraint on column_1
+        tableSchemaApi.column('column_1').foreignKey({
+            targetTable: 'table_2',
+            targetColumns: ['id'],
+            updateRule: 'CASCADE',
+        });
+    }
+});
+```
+
+Note that when a constraint name is ommitted, one is automatically generated for you:
+
+```js
+// Inspect the auto-generated name
+console.log(tableSchemaApi.column('column_1').foreignKey().name()); // auto_name_25kjd
+```
+
+</details>
+
+#### `columnSchemaApi.uniqueKey()`:
+
+<details><summary>
+Add the <code>UNIQUE_KEY</code> constraint type to the column or get the column's current <code>UNIQUE_KEY</code> instance. <i>(Translates to the SQL <code><a href="https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-UNIQUE-CONSTRAINTS">UNIQUE</a></code> constraint.)</i>
+<pre><code>columnSchemaApi.uniqueKey(constraintToggleOrJson?: boolean | UniqueKeySchemaSpec): UniqueKeySchemaAPI</code></pre></summary>
+
+⚙️ Spec:
+
++ `constraintToggleOrJson` (boolean | [`UniqueKeySchemaSpec`](#schemajson), *optional*): when a boolean, toggles the existence of the `UNIQUE_KEY` constraint on the column. When an object, an object that defines a new constraint to create, specifying a constraint name. When ommitted, gets the column's `UNIQUE_KEY` instance returned if exists.
++ Return value: [`UniqueKeySchemaAPI`](#constraint-schemas) - the existing `UNIQUE_KEY` instance on the column or the one just added.
+
+⚽️ Usage:
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    // Be sure that this doesn't already exist on column_1
+    if (!tableSchemaApi.column('column_1').uniqueKey()) {
+        // Add a Unique Key constraint on column_1
+        tableSchemaApi.column('column_1').uniqueKey(true);
+    }
+});
+```
+
+Note that when a constraint name is ommitted, one is automatically generated for you:
+
+```js
+// Inspect the auto-generated name
+console.log(tableSchemaApi.column('column_1').uniqueKey().name()); // auto_name_25kjd
+```
+
+</details>
+
+#### `columnSchemaApi.check()`:
+
+<details><summary>
+Add the <code>CHECK</code> constraint type to the column or get the column's current <code>CHECK</code> constraint instance. <i>(Translates to the SQL <code><a href="https://www.postgresql.org/docs/current/ddl-constraints.html">CHECK</a></code> constraint.)</i>
+<pre><code>columnSchemaApi.check(constraintJson?: CheckConstaintSpec): CheckConstraintSchemaAPI</code></pre></summary>
+
+⚙️ Spec:
+
++ `constraintJson` ([`CheckConstraintSchemaSpec`](#schemajson), *optional*): when provided, an object that defines a new constraint to create, specifying the intended SQL expression, and, optionally, a constraint name. When ommitted, gets the column's `CHECK` constraint instance returned if exists.
++ Return value: [`CheckConstraintSchemaAPI`](#constraint-schemas) - the existing `CHECK` constraint instance on the column or the one just added.
+
+⚽️ Usage:
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    // Be sure that this doesn't already exist on column_1
+    if (!tableSchemaApi.column('column_1').check()) {
+        // Add a Check constraint on column_1
+        tableSchemaApi.column('column_1').check({ expr: 'column_1 IS NOT NULL' });
+    }
+});
+```
+
+Note that when a constraint name is ommitted, one is automatically generated for you:
+
+```js
+// Inspect the auto-generated name
+console.log(tableSchemaApi.column('column_1').check().name()); // auto_name_25kjd
+```
+
+</details>
+
+#### `columnSchemaApi.default()`:
+
+<details><summary>
+Add the <code>DEFAULT</code> constraint type to the column or get the column's current <code>DEFAULT</code> constraint instance. <i>(Translates to the SQL <code><a href="https://www.postgresql.org/docs/current/ddl-default.html">DEFAULT</a></code> constraint.)</i>
+<pre><code>columnSchemaApi.default(constraintJson?: DefaultConstraintSchemaSpec): DefaultConstraintSchemaAPI</code></pre></summary>
+
+⚙️ Spec:
+
++ `constraintJson` ([`DefaultConstraintSchemaSpec`](#schemajson), *optional*): when provided, an object that defines a new constraint to create, specifying the intended SQL expression, and, optionally, a constraint name. When ommitted, gets the column's `DEFAULT` constraint instance returned if exists.
++ Return value: [`DefaultConstraintSchemaAPI`](#constraint-schemas) - the existing `DEFAULT` constraint instance on the column or the one just added.
+
+⚽️ Usage:
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    // Be sure that this doesn't already exist on column_1
+    if (!tableSchemaApi.column('column_1').default()) {
+        // Add a Default constraint on column_1
+        tableSchemaApi.column('column_1').default({ expr: 'now()' });
+    }
+});
+```
+
+</details>
+
+#### `columnSchemaApi.expression()`:
+
+<details><summary>
+Add the <code>EXPRESSION</code> constraint type to the column or get the column's current <code>EXPRESSION</code> instance. <i>(Translates to the SQL <code><a href="https://www.postgresql.org/docs/current/ddl-generated-columns.html">GENERATED COLUMN</a></code> type.)</i>
+<pre><code>columnSchemaApi.expression(constraintJson?: ExpressionConstraintSchemaSpec): ExpressionConstraintSchemaAPI</code></pre></summary>
+
+⚙️ Spec:
+
++ `constraintJson` ([`ExpressionConstraintSchemaSpec`](#schemajson), *optional*): when provided, an object that defines a new constraint to create, specifying the intended SQL expression, and, optionally, a constraint name. When ommitted, gets the column's `EXPRESSION` constraint instance returned if exists.
++ Return value: [`ExpressionConstraintSchemaAPI`](#constraint-schemas) - the existing `EXPRESSION` constraint instance on the column or the one just added.
+
+⚽️ Usage:
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    // Be sure that this doesn't already exist on column_1
+    if (!tableSchemaApi.column('column_1').expression()) {
+        // Add an Expression constraint on column_1
+        tableSchemaApi.column('column_1').expression({ expr: 'column_1 * 2', stored: true });
+    }
+});
+```
+
+</details>
+
+#### `columnSchemaApi.identity()`:
+
+<details><summary>
+Add the <code>IDENTITY</code> constraint type to the column or get the column's current <code>IDENTITY</code> constraint instance. <i>(Translates to the SQL <code><a href="https://www.postgresql.org/docs/17/ddl-identity-columns.html">IDENTITY COLUMN</a></code> type.)</i>
+<pre><code>columnSchemaApi.identity(constraintToggleOrJson?: boolean | IdentityConstraintSchemaSpec): IdentityConstraintSchemaAPI</code></pre></summary>
+
+⚙️ Spec:
+
++ `constraintToggleOrJson` (boolean | [`IdentityConstraintSchemaSpec`](#schemajson), *optional*): when boolean, toggles the existence of the `IDENTITY` constraint on the column. When an object, an object that defines a new constraint to create, specifying an `always` rule. When ommitted, gets the column's `IDENTITY` constraint instance returned if exists.
++ Return value: [`IdentityConstraintSchemaAPI`](#constraint-schemas) - the existing `IDENTITY` constraint instance on the column or the one just added.
+
+⚽️ Usage:
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    // Be sure that this doesn't already exist on column_1
+    if (!tableSchemaApi.column('column_1').identity()) {
+        // Add an Identity constraint on column_1
+        tableSchemaApi.column('column_1').identity({ always: false });
+    }
+});
+```
+
+</details>
+
+#### `columnSchemaApi.notNull()`:
+
+<details><summary>
+Add the <code>NOT_NULL</code> constraint type to the column or get the column's current <code>NOT_NULL</code> constraint instance. <i>(Translates to the SQL <code><a href="https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-NOT-NULL">NOT NULL</a></code> constraint.)</i>
+<pre><code>columnSchemaApi.notNull(constraintToggle?: boolean): NotNullConstraintSchemaAPIBuilder</code></pre></summary>
+
+⚙️ Spec:
+
++ `constraintToggle` (boolean, *optional*): when provided, toggles the existence of the `NOT_NULL` constraint on the column. When ommitted, gets the column's `NOT_NULL` constraint instance returned if exists.
++ Return value: [`NotNullConstraintSchemaAPIBuilder`](#constraint-schemas) - the existing `NOT_NULL` constraint instance on the column or the one just added.
+
+⚽️ Usage:
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    // Be sure that this doesn't already exist on column_1
+    if (!tableSchemaApi.column('column_1').notNull()) {
+        // Add an notNull constraint on column_1
+        tableSchemaApi.column('column_1').notNull(true);
+    }
+});
+```
+
+</details>
+
+#### `columnSchemaApi.null()`:
+
+<details><summary>
+Add the <code>NULL</code> constraint type to the column or get the column's current <code>NULL</code> constraint instance. <i>(Translates to the SQL <code><a href="https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-NOT-NULL">NULL</a></code> constraint.)</i>
+<pre><code>columnSchemaApi.null(constraintToggle?: boolean): NullConstraintSchemaAPI</code></pre></summary>
+
+⚙️ Spec:
+
++ `constraintToggle` (boolean, *optional*): when provided, toggles the existence of the `NULL` constraint on the column. When ommitted, gets the column's `NULL` constraint instance returned if exists.
++ Return value: [`NullConstraintSchemaAPI`](#constraint-schemas) - the existing `NULL` constraint instance on the column or the one just added.
+
+⚽️ Usage:
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    // Be sure that this doesn't already exist on column_1
+    if (!tableSchemaApi.column('column_1').null()) {
+        // Add an null constraint on column_1
+        tableSchemaApi.column('column_1').null(true);
+    }
+});
+```
+
+</details>
+
+#### `columnSchemaApi.autoIncrement()`:
+
+<details><summary>
+Add the <code>AUTO_INCREMENT</code> constraint type to the column or get the column's current <code>AUTO_INCREMENT</code> constraint instance. <i>(Translates to the MySQL-specific <code><a href="https://dev.mysql.com/doc/refman/8.4/en/example-auto-increment.html">AUTO_INCREMENT</a></code> constraint.)</i>
+<pre><code>columnSchemaApi.autoIncrement(constraintToggle?: boolean): AutoIncrementConstraintSchemaAPI</code></pre></summary>
+
+⚙️ Spec:
+
++ `constraintToggle` (boolean, *optional*): when provided, toggles the existence of the `AUTO_INCREMENT` constraint on the column. When ommitted, gets the column's `AUTO_INCREMENT` constraint instance returned if exists.
++ Return value: [`AutoIncrementConstraintSchemaAPI`](#constraint-schemas) - the existing `AUTO_INCREMENT` constraint instance on the column or the one just added.
+
+⚽️ Usage:
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchemaAPI => {
+    // Be sure that this doesn't already exist on column_1
+    if (!tableSchemaApi.column('column_1').autoIncrement()) {
+        // Add an autoIncrement constraint on column_1
+        tableSchemaApi.column('column_1').autoIncrement(true);
+    }
+});
+```
+
+</details>
+
+#### `columnSchemaApi.onUpdate()`:
+
+<details><summary>
+Add the <code>ON_UPDATE</code> clause to the column or get the column's current <code>ON_UPDATE</code> constraint instance. <i>(Translates to the MySQL-specific <code><a href="https://dev.mysql.com/doc/refman/8.4/en/timestamp-initialization.html">ON_UPDATE</a></code> constraint for timestamp/datetime columns.)</i>
+<pre><code>columnSchemaApi.onUpdate(constraintToggle?: OnUpdateClauseSpec): OnUpdateClauseSchemaAPI</code></pre></summary>
+
+⚙️ Spec:
+
++ `constraintToggle` ([`OnUpdateClauseSpec`](#schemajson), *optional*): when provided, an object that defines a new constraint to create, specifying the intended SQL expression. When ommitted, gets the `ON_UPDATE` clause returned if exists.
++ Return value: [`OnUpdateClauseSchemaAPI`](#constraint-schemas) - the existing `ON_UPDATE` clause on the column or the one just added.
+
+⚽️ Usage:
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    // Be sure that this doesn't already exist on column_1
+    if (!tableSchemaApi.column('column_1').onUpdate()) {
+        // Add an autoIncrement constraint on column_1
+        tableSchemaApi.column('column_1').onUpdate('CURRENT_TIMESTAMP');
+    }
+});
+```
+
+</details>
+
+#### `columnSchemaApi.constraint()`:
+
+<details><summary>
+Add a Primary Key, Foreign Key, Unique Key, Check, or other constraint, to the column or get an existing one. (Provides a unified way to set/get column constraints.)
+<pre><code>columnSchemaApi.constraint(constraintType: string, constraintToggleOrJson?: boolean | object): ColumnConstraintSchemaAPI</code></pre>
+<pre><code>columnSchemaApi.constraint(constraintJson: ColumnConstraintSchemaSpec): ColumnConstraintSchemaAPI</code></pre></summary>
+
+⚙️ Spec:
+
++ `constraintType` (string): One of `PRIMARY_KEY`, `FOREIGN_KEY`, `UNIQUE_KEY`, `CHECK`, `DEFAULT`, `EXPRESSION`, `NOT_NULL`, `NULL`, `IDENTITY`, `AUTO_INCREMENT`, `ON_UPDATE`. When provided as only argument, gets the existing constraint on the column returned. When in conjucntion with `constraintToggleOrJson`, gets the constraint added to the column.
++ `constraintToggleOrJson` (boolean | ColumnConstraintSchemaSpec, *optional*): as explained for `constraintToggle`/`constraintJson` in the individual constraint sections above.
++ `constraintJson` (ColumnConstraintSchemaSpec):  as explained for `constraintJson` in the individual constraint sections above.
++ Return value: [`ColumnConstraintSchemaAPI`](#constraint-schemas) - the constraint requested or the one just added.
+
+⚽️ Usage:
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    const col1 = tableSchemaApi.column('column_1');
+    // See if we already have a PRIMARY_KEY constraint on the column. Create one if not
+    if (!col1.constraint('PRIMARY_KEY')) {
+        // Add PRIMARY_KEY
+        col1.constraint('PRIMARY_KEY', true);
+        // Or: col1.constraint({ type: 'PRIMARY_KEY' });
+    }
+});
+```
+
+</details>
+
+------------
+
+### The `AbstractSchemaAPI` API
+
+*AbstractSchema* is a base class inheritted by all Schema APIs - e.g. [`DatabaseSchemaAPI`](#the-databaseschemaapi-api), [`TableSchemaAPI`](#the-tableschemaapi-api), [`ColumnSchemaAPI`](#the-columnschemaapi-api).
+
+<details><summary>See content</summary>
+
++ [`abstractSchemaApi.name()`](#abstractschemaapiname)
++ [`abstractSchemaApi.toJson()`](#abstractschemaapitojson)
++ [`abstractSchemaApi.toString()`](#abstractschemaapitostring)
++ [`abstractSchemaApi.keep()`](#abstractschemaapikeep)
++ [`abstractSchemaApi.drop()`](#abstractschemaapidrop)
+
+</details>
+
+#### `abstractSchemaApi.name()`:
+
+<details><summary>
+Set or get the name the schema instance.
+<pre><code>instance.name(value?: string): string | this</code></pre></summary>
+
+⚙️ Spec:
+
++ `value` (string, *optional*): when provided, the name of the schema instance. When ommitted, returns the current name.
++ Return value: `string` - the current name, or `this` - the schema instance.
+
+⚽️ Usage:
+
+Set or get the name of a [`ColumnSchemaAPI`](#the-columnschemaapi-api) instance:
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    // Get the name
+    console.log(tableSchemaApi.column('column_1').name()); // column_1
+    // Rename
+    tableSchemaApi.column('column_2').name('new_column_2');
+});
+```
+
+</details>
+
+#### `abstractSchemaApi.toJson()`:
+
+<details><summary>
+Render the Schema instance to a JSON object.
+<pre><code>instance.toJson(): object</code></pre></summary>
+
+⚙️ Spec:
+
++ Return value: an object corresponding to the instance's JSON equivalent in [`schema.json`](#schemajson).
+
+⚽️ Usage:
+
+Render a [`TableSchemaAPI`](#the-tableschemaapi-api) to JSON:
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    tableSchemaApi.column('column_1').primaryKey(true); // Designate existing column "column_1" as primary key
+    tableSchemaApi.column('column_2'); // Drop index_2
+
+    // Now inspect what you've done so far
+    console.log(tableSchemaApi.toJson());
+});
+```
+
+</details>
+
+#### `abstractSchemaApi.toString()`:
+
+<details><summary>
+Render the Schema instance to SQL.
+<pre><code>instance.toString(): string</code></pre></summary>
+
+⚙️ Spec:
+
++ Return value: an SQL representation of the instance.
+
+⚽️ Usage:
+
+Render a [`TableSchemaAPI`](#the-tableschemaapi-api) to SQL:
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    tableSchemaApi.column('column_1').primaryKey(true); // Designate existing column "column_1" as primary key
+    tableSchemaApi.column('column_2'); // Drop index_2
+
+    // Now inspect what you've done so far
+    console.log(tableSchemaApi.toString());
+});
+```
+
+</details>
+
+#### `abstractSchemaApi.keep()`:
+
+<details><summary>
+Specify whether to keep or drop the schema instance, or get the current <i>keep</i> status.
+<pre><code>instance.keep(toggle?: boolean): this</code></pre></summary>
+
+⚙️ Spec:
+
++ `toggle` (boolean, *optional*): when provided, toggles the *keep* status of the schema. When ommitted returns the current *keep* status of the schema.
++ Return value: `boolean` - the current status, or `this` - the schema instance.
+
+⚽️ Usage:
+
+Drop a [`Column`](#the-columnschemaapi-api):
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    tableSchemaApi.column('column_2').keep(false);
+});
+```
+
+</details>
+
+#### `abstractSchemaApi.drop()`:
+
+<details><summary>
+Set the schema instance to the <code>keep === false</code> state.
+<pre><code>instance.drop(): this</code></pre></summary>
+
+⚙️ Spec:
+
++ Return value: `this` - the schema instance.
+
+⚽️ Usage:
+
+Drop a [`Column`](#the-columnschemaapi-api):
+
+```js
+const savepoint = await database.alterTable('table_1', tableSchemaApi => {
+    tableSchemaApi.column('column_2').drop();
+});
+```
+
+</details>
+
+------------
+
+## Constraint Schemas
+
+*TODO*
 
 ------------
 
