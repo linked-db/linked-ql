@@ -589,10 +589,10 @@ To run:
 
 ## DOCS
 
-If you've made it so far, you may also want to see Linked QL in detail. Here's where to go next:
+If you've made it this far, you may go here next:
 
-+ [The Linked QL API](https://github.com/linked-db/linked-ql/wiki/API) ✈️
-+ [The Linked QL CLI](https://github.com/linked-db/linked-ql/wiki/CLI) ✈️
++ The Linked QL API: [in the wiki](https://github.com/linked-db/linked-ql/wiki/API) ✈️
++ The Linked QL CLI: [in the wiki](https://github.com/linked-db/linked-ql/wiki/CLI) ✈️
 
 ## Roadmap
 
