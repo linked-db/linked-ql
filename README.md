@@ -2123,7 +2123,7 @@ console.log(index.name()); // auto_name_4gkbc
 
 ------------
 
-## Table Constraint Schema APIs
+#### Table Constraint Schema APIs
 
 ```ts
 type TableConstraintSchemaAPI = TablePrimaryKeySchemaAPI | TableForeignKeySchemaAPI | TableUniqueKeySchemaAPI | TableCheckConstraintSchemaAPI
@@ -2570,7 +2570,7 @@ const savepoint = await database.alterTable('table_1', tableSchemaApi => {
 
 ------------
 
-## Column Constraint Schema APIs
+#### Column Constraint Schema APIs
 
 ```ts
 type ColumnConstraintSchemaAPI = PrimaryKeySchemaAPI | ForeignKeySchemaAPI | UniqueKeySchemaAPI | CheckConstraintSchemaAPI | DefaultConstraintSchemaAPI | ExpressionConstraintSchemaAPI | IdentityConstraintSchemaAPI | NotNullConstraintSchemaAPI | NullConstraintSchemaAPI | AutoIncrementConstraintSchemaAPI | OnUpdateClauseSchemaAPI
