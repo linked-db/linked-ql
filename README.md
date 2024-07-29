@@ -22,8 +22,8 @@ Jump to sections and features:
 + 🎯 [Magic Paths](#introducing-magic-paths)
 + ⛱ [Auto-Versioning](#introducing-auto-versioning)
 + 🧩 [Schema-as-Code](#re-introducing-schema-as-code-with-schemajson)
-+ [API](https://github.com/linked-db/linked-ql/wiki/API) ✈️
-+ [CLI](https://github.com/linked-db/linked-ql/wiki/CLI) ✈️
++ [The Linked QL API](https://github.com/linked-db/linked-ql/wiki/API) ✈️
++ [The Linked QL CLI](https://github.com/linked-db/linked-ql/wiki/CLI) ✈️
 
 ## Getting Started
 
@@ -94,7 +94,7 @@ const result = await client.query('SELECT fname, lname FROM users WHERE role = $
 console.log(result);
 ```
 
-Other APIs are covered just ahead in the [API](#linked-ql-api) section.
+Other APIs are covered right in [The Linked QL API](#linked-ql-api) section.
 
 ## Introducing Magic Paths
 
@@ -523,6 +523,7 @@ With schema versioning now over to the database, much of the old conventions and
 > 
 > ```ts
 > interface IndexSchemaSpec {
+>     name?: string;
 >     type: string;
 >     columns: string[];
 > }
@@ -590,8 +591,8 @@ To run:
 
 If you've made it so far, you may also want to see Linked QL in detail. Here's where to go next:
 
-+ [API](https://github.com/linked-db/linked-ql/wiki/API) ✈️
-+ [CLI](https://github.com/linked-db/linked-ql/wiki/CLI) ✈️
++ [The Linked QL API](https://github.com/linked-db/linked-ql/wiki/API) ✈️
++ [The Linked QL CLI](https://github.com/linked-db/linked-ql/wiki/CLI) ✈️
 
 ## Roadmap
 
