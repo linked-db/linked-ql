@@ -293,7 +293,8 @@ interface DatabaseSchemaSpec {
 
 -------------
 
-Table schema example:
+<table><tr><td>
+<details><summary>Table schema example</summary>
 
 ```js
 {
@@ -304,18 +305,21 @@ Table schema example:
 }
 ```
 
+</details>
+</td><td>
 <details><summary>Table schema spec</summary>
 
 ```ts
 interface TableSchemaSpec {
     name: string | string[];
     columns: ColumnSchemaSpec[];
-    constraints: TableConstraintSchemaSpec[];
+    constraints: TableConstraintSchemaType[];
     indexes: IndexSchemaSpec[];
 }
 ```
 
 </details>
+</td></tr></table>
 
 -------------
 
@@ -426,7 +430,7 @@ Table constraint examples:
 <details><summary>Table constraint schema spec</summary>
 
 ```ts
-type TableConstraintSchemaSpec = TablePrimaryKeySchemaSpec | TableForeignKeySchemaSpec | TableUniqueKeySchemaSpec | TableCheckConstraintSchemaSpec;
+type TableConstraintSchemaType = TablePrimaryKeySchemaSpec | TableForeignKeySchemaSpec | TableUniqueKeySchemaSpec | TableCheckConstraintSchemaSpec;
 ```
 
 ```ts
@@ -455,7 +459,7 @@ interface TableCheckConstraintSchemaSpec extends CheckConstraintSchemaSpec {
 <details><summary>Column constraint schema spec</summary>
 
 ```ts
-type ColumnConstraintSchemaSpec = PrimaryKeySchemaSpec | ForeignKeySchemaSpec | UniqueKeySchemaSpec | CheckConstraintSchemaSpec | DefaultConstraintSchemaSpec | ExpressionConstraintSchemaSpec | IdentityConstraintSchemaSpec | OnUpdateConstraintSchemaSpec;
+type ColumnConstraintSchemaType = PrimaryKeySchemaSpec | ForeignKeySchemaSpec | UniqueKeySchemaSpec | CheckConstraintSchemaSpec | DefaultConstraintSchemaSpec | ExpressionConstraintSchemaSpec | IdentityConstraintSchemaSpec | OnUpdateConstraintSchemaSpec;
 ```
 
 ```ts
@@ -2032,11 +2036,10 @@ Add a Primary Key constraint to the table or get the existing one. <i>(Translate
 ```js
 const savepoint = await database.alterTable('table_1', tableSchemaApi => {
     // See if there's one set and undo that
-    if (tableSchemaApi.primaryKey()) {
-        tableSchemaApi.primaryKey().drop();
+    if (!tableSchemaApi.primaryKey()) {
+        // Add a Primary Key constraint on columns 2 and 3
+        tableSchemaApi.primaryKey({ columns: ['column_2', 'column_3'] });
     }
-    // Add a Primary Key constraint on columns 2 and 3
-    tableSchemaApi.primaryKey({ columns: ['column_2', 'column_3'] });
 }, { description: 'Altering for testing purposes' });
 ```
 
@@ -2046,11 +2049,11 @@ const savepoint = await database.alterTable('table_1', tableSchemaApi => {
 
 <details><summary>
 Add a Primary Key, Foreign Key, Unique Key, or Check constraint to the table or get an existing one. (Provides a unified way to set/get table constraints.)
-<pre><code>tableSchemaApi.constraint(constraintNameOrJson: string | TableConstraintSchemaSpec): TableConstraintSchemaAPI</code></pre></summary>
+<pre><code>tableSchemaApi.constraint(constraintNameOrJson: string | TableConstraintSchemaType): TableConstraintSchemaAPI</code></pre></summary>
 
 ⚙️ Spec:
 
-+ `constraintNameOrJson` (string | [`TableConstraintSchemaSpec`](#schemajson)): when a string, the name of a constraint to get. When an object, an object that defines a new constraint to create.
++ `constraintNameOrJson` (string | [`TableConstraintSchemaType`](#schemajson)): when a string, the name of a constraint to get. When an object, an object that defines a new constraint to create.
 + Return value: [`TableConstraintSchemaAPI`](#constraint-schemas) - the constraint requested or the one just added.
 
 ⚽️ Usage:
@@ -2165,7 +2168,7 @@ Set the column type or get the current value.
 ⚙️ Spec:
 
 + `typeJson` (string | string[], *optional*): when provided, sets the column type. Accepts a two-part array for a fully-qualified type. When ommitted, gets the current column type returned.
-+ Return value:`ColumnTypeSchema` - the current column type, or `this` - the `columnSchema` object.
++ Return value:`ColumnTypeSchema` - the current column type, or `this` - the `columnSchemaApi` instance.
 
 ⚽️ Usage:
 
@@ -2469,7 +2472,7 @@ const savepoint = await database.alterTable('table_1', tableSchemaAPI => {
 #### `columnSchemaApi.onUpdate()`:
 
 <details><summary>
-Add the <code>ON_UPDATE</code> clause to the column or get the column's current <code>ON_UPDATE</code> constraint instance. <i>(Translates to the MySQL-specific <code><a href="https://dev.mysql.com/doc/refman/8.4/en/timestamp-initialization.html">ON_UPDATE</a></code> constraint for timestamp/datetime columns.)</i>
+Add the <code>ON_UPDATE</code> clause to the column or get the column's current <code>ON_UPDATE</code> constraint instance. <i>(Translates to the MySQL-specific <code><a href="https://dev.mysql.com/doc/refman/8.4/en/timestamp-initialization.html">ON UPDATE</a></code> clause for timestamp/datetime columns.)</i>
 <pre><code>columnSchemaApi.onUpdate(constraintToggle?: OnUpdateClauseSpec): OnUpdateClauseSchemaAPI</code></pre></summary>
 
 ⚙️ Spec:
@@ -2496,13 +2499,13 @@ const savepoint = await database.alterTable('table_1', tableSchemaApi => {
 <details><summary>
 Add a Primary Key, Foreign Key, Unique Key, Check, or other constraint, to the column or get an existing one. (Provides a unified way to set/get column constraints.)
 <pre><code>columnSchemaApi.constraint(constraintType: string, constraintToggleOrJson?: boolean | object): ColumnConstraintSchemaAPI</code></pre>
-<pre><code>columnSchemaApi.constraint(constraintJson: ColumnConstraintSchemaSpec): ColumnConstraintSchemaAPI</code></pre></summary>
+<pre><code>columnSchemaApi.constraint(constraintJson: ColumnConstraintSchemaType): ColumnConstraintSchemaAPI</code></pre></summary>
 
 ⚙️ Spec:
 
 + `constraintType` (string): One of `PRIMARY_KEY`, `FOREIGN_KEY`, `UNIQUE_KEY`, `CHECK`, `DEFAULT`, `EXPRESSION`, `NOT_NULL`, `NULL`, `IDENTITY`, `AUTO_INCREMENT`, `ON_UPDATE`. When provided as only argument, gets the existing constraint on the column returned. When in conjucntion with `constraintToggleOrJson`, gets the constraint added to the column.
-+ `constraintToggleOrJson` (boolean | ColumnConstraintSchemaSpec, *optional*): as explained for `constraintToggle`/`constraintJson` in the individual constraint sections above.
-+ `constraintJson` (ColumnConstraintSchemaSpec):  as explained for `constraintJson` in the individual constraint sections above.
++ `constraintToggleOrJson` (boolean | ColumnConstraintSchemaType, *optional*): as explained for `constraintToggle`/`constraintJson` in the individual constraint sections above.
++ `constraintJson` (ColumnConstraintSchemaType):  as explained for `constraintJson` in the individual constraint sections above.
 + Return value: [`ColumnConstraintSchemaAPI`](#constraint-schemas) - the constraint requested or the one just added.
 
 ⚽️ Usage:
