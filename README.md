@@ -170,7 +170,7 @@ SELECT * FROM users
 WHERE author <~ books ~> title = 'Beauty and the Beast'
 ```
 
-*(Now pivot tables get a new syntax sugar!)*
+*(Now pivot/junction/link tables get an easier way!)*
 
 ## Introducing Auto-Versioning
 
@@ -278,16 +278,16 @@ With schema versioning now over to the database, much of the old conventions and
 ]
 ```
 
-<details><summary>Database schema spec</summary>
-
-```ts
-interface DatabaseSchemaSpec {
-    name: string;
-    tables: TableSchemaSpec[];
-}
-```
-
-</details>
+> <details><summary>See the database schema spec</summary>
+> 
+> ```ts
+> interface DatabaseSchemaSpec {
+>     name: string;
+>     tables: TableSchemaSpec[];
+> }
+> ```
+> 
+> </details>
 
 <details><summary>Explore the structure further</summary>
 
