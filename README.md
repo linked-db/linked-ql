@@ -6,7 +6,7 @@
 
 <img src="https://github.com/linked-db/linked-ql/blob/master/linked-ql.png?raw=true" alt="Linked QL Banner" width="100%">
 
-> ❄️ **_Save the overhead working with SQL and structured data - from the time and effort spent figuring out relational queries to the labour managing schemas!_** Try a modern, simplistic take on SQL and databases in general! 
+> ❄️ **_Save the overhead working with SQL and structured data - from the time and effort spent figuring out relational queries to the labour managing schemas!_** Try a modern, simplistic take on SQL and databases in general!
 
 Linked QL is a DB query client that simplfies how you interact with your database and manage your schemas.
 
