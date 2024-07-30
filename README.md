@@ -5,7 +5,7 @@
 [![License][license-src]][license-href]
 
 <picture>
-  <source media="(max-width: 799px)" srcset="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-gh-mobile.png?raw=true">
+  <source media="(max-width: 799px)" srcset="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-gh-mobile2.png?raw=true">
   <source media="(min-width: 800px)" srcset="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql4b.png?raw=true">
     <img src="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql4b.png?raw=true" alt="Linked QL Banner" width="100%">
 </picture>
