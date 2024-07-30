@@ -4,7 +4,11 @@
 [![bundle][bundle-src]][bundle-href]
 [![License][license-src]][license-href]
 
-<img src="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql4b.png?raw=true" alt="Linked QL Banner" width="100%">
+<picture>
+  <source media="(max-width: 799px)" srcset="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-gh-mobile.png?raw=true">
+  <source media="(min-width: 800px)" srcset="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql4b.png?raw=true">
+    <img src="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql4b.png?raw=true" alt="Linked QL Banner" width="100%">
+</picture>
 
 > **_Save the overhead working with SQL and structured data - from the time and effort spent figuring out relational queries to the labour managing schemas!_** Try a modern, simplistic take on SQL and databases in general!
 
