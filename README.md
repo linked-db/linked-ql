@@ -2,7 +2,7 @@
 
 [![npm version][npm-version-src]][npm-version-href]<!--[![npm downloads][npm-downloads-src]][npm-downloads-href]-->
 [![bundle][bundle-src]][bundle-href]
-[![License][license-src]][license-href] 
+[![License][license-src]][license-href]
 
 <img src="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql4b.png?raw=true" alt="Linked QL Banner" width="100%">
 
@@ -552,7 +552,7 @@ Thanks to a DB-native schema version control system, no need to maintain past st
 
 To setup:
 
-1. Make a directory within your application for database concerns. Linked QL will want look in `./database`, but you will be able to point to your preferred location when running Linked QL commands.
+1. Make a directory within your application for database concerns. Linked QL will want to look in `./database`, but you will be able to point to your preferred location when running Linked QL commands.
 
 2. Have a `driver.js` file in that directory that has a *default export* function that returns a Linked QL instance. This will be imported and used by Linked QL to interact with your database. This could look something like:
 
