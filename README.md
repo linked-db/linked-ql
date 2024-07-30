@@ -2,7 +2,7 @@
 
 [![npm version][npm-version-src]][npm-version-href]<!--[![npm downloads][npm-downloads-src]][npm-downloads-href]-->
 [![bundle][bundle-src]][bundle-href]
-[![License][license-src]][license-href]
+[![License][license-src]][license-href] 
 
 > ❄️ **_Save the overhead working with SQL and structured data - from the time and effort spent figuring out relational queries to the labour managing schemas!_** Try a modern, simplistic take on SQL and databases in general! 
 
