@@ -11,6 +11,7 @@
 </picture>
 
 <br>
+<br>
 
 > **_Save the overhead working with SQL and structured data - from the time and effort spent figuring out relational queries to the labour managing schemas!_** Try a modern, simplistic take on SQL and databases in general!
 
