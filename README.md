@@ -4,7 +4,7 @@
 [![bundle][bundle-src]][bundle-href]
 [![License][license-src]][license-href] 
 
-<img src="https://github.com/linked-db/linked-ql/blob/master/linked-ql4.png?raw=true" alt="Linked QL Banner" width="100%">
+<img src="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql4.png?raw=true" alt="Linked QL Banner" width="100%">
 
 > ❄️ **_Save the overhead working with SQL and structured data - from the time and effort spent figuring out relational queries to the labour managing schemas!_** Try a modern, simplistic take on SQL and databases in general!
 
@@ -546,7 +546,7 @@ Thanks to a DB-native schema version control system, no need to maintain past st
 
 To setup:
 
-1. Make a directory within your application for database concerns. Linked QL will look in `./database`, but you will be able to point to your preferred location when running Linked QL commands.
+1. Make a directory within your application for database concerns. Linked QL will want look in `./database`, but you will be able to point to your preferred location when running Linked QL commands.
 
 2. Have a `driver.js` file in that directory that has a *default export* function that returns a Linked QL instance. This will be imported and used by Linked QL to interact with your database. This could look something like:
 
@@ -566,7 +566,7 @@ To setup:
     }
     ```
 
-3. Have your DB structure defined in a `schema.json` file in that directory. (See [`schema.json`](#schemajson) above for a guide.)
+3. Have your DB structure defined in a `schema.json` (or `schema.yml`) file in that directory. (See [`schema.json`](#schemajson) above for a guide.)
 
     You can always extend your schema with new objects, and you can always drop objects or edit them in-place. For an existing database, table, column, constraint, or index, **names may be changed, but not in-place!** A "rename" operation is done with the addition of a temporary `$name` attribute:
 
@@ -581,7 +581,7 @@ To setup:
 
 To run:
 
-+ Use `linkedql migrate` to walk through your staged local changes and interactively perform a migration on your database.
++ Use `linkedql migrate` to walk through your staged local changes and interactively perform a migration against your database.
 + Use `linkedql rollback` to walk through the latest savepoint at each database and interactively perform a rollback.
 + Use `linkedql leaderboard` to just view the latest savepoint at each database.
 
@@ -598,10 +598,10 @@ If you've made it this far, you may want to go here next:
 
 ## Roadmap
 
-+ [ONGOING] Improve support for MySQL.
-+ [DONE] Implement support for a `schema.yml` alternative to `schema.json` file.
-+ Implement support for IndexedDB.
-+ Implement the in-memory database.
++ [`ONGOING`] Improve support for MySQL.
++ [`DONE`] Implement support for a `schema.yml` alternative to `schema.json` file.
++ [`PENDING`] Implement support for IndexedDB.
++ [`PENDING`] Implement the in-memory database.
 
 > Much of that could happen sooner with your support! If you'd like to help out, please consider a [sponsorship](https://github.com/sponsors/ox-harris). PRs are also always welcome.
 
