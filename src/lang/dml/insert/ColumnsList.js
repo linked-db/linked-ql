@@ -18,19 +18,19 @@ export default class ColumnsList extends AbstractNode {
 	 * 
 	 * @returns this
 	 */
-	list(...args) { return this.build('LIST', args, Identifier); }
+	list(...args) { return (this.build('LIST', args, Identifier), this); }
 
 	/**
 	 * @inheritdoc
 	 */
-	toJson() { return { list: this.LIST.slice(0) }; }
+	toJson() { return { list: this.LIST.map(col => col.toJson()) }; }
 
 	/**
 	 * @inheritdoc
 	 */
 	static fromJson(context, json) {
 		if (!Array.isArray(json?.list)) return;
-		return (new this(context)).col(...json.list);
+		return (new this(context)).list(...json.list);
 	}
 	
 	/**

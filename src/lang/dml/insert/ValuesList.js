@@ -18,7 +18,7 @@ export default class ValuesList extends AbstractNode {
 	 * 
 	 * @returns this
 	 */
-	list(...args) { return this.build('LIST', args, Expr.Types); }
+	list(...args) { return (this.build('LIST', args, Expr.Types), this); }
 
 	/**
 	 * @inheritdoc

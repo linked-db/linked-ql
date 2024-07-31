@@ -6,7 +6,7 @@ import pg from 'pg';
 import mariadb from 'mariadb';
 import SQLClient from '../src/api/sql/SQLClient.js';
 
-let driver, dialect = 'postgres', dbPublic;
+let driver, dialect = 'mysql', dbPublic;
 // ---------------------------------
 if (dialect === 'mysql') {
     // JSON support: MariaDB 10.2.7, MySQL 5.7.8
@@ -16,8 +16,11 @@ if (dialect === 'mysql') {
         user: 'root',
         password: '',
         port: 3306,
+        // -------
         database: 'test',
         multipleStatements: true,
+        bitOneIsBoolean: true, // default
+        trace: true,
     });
     dbPublic = 'test';
 } else {
@@ -42,11 +45,11 @@ console.log('---DATABSES BEFORE:', await lqlClient.databases());
 console.log('---PUBLIC TABLES BEFORE:', await lqlClient.database(dbPublic).tables());
 /*
 */
-console.log('DROP 5', await lqlClient.query('DROP SCHEMA if exists obj_information_schema CASCADE', { noCreateSavepoint: true }));
-console.log('DROP 5', await lqlClient.query('DROP SCHEMA if exists test_db CASCADE', { noCreateSavepoint: true }));
-console.log('DROP 3', await lqlClient.query(`DROP TABLE if exists ${ dbPublic }.books CASCADE`, { noCreateSavepoint: true }));
-console.log('DROP 2', await lqlClient.query(`DROP TABLE if exists ${ dbPublic }.users CASCADE`, { noCreateSavepoint: true }));
-console.log('DROP 1', await lqlClient.query(`DROP TABLE if exists ${ dbPublic }.roles CASCADE`, { noCreateSavepoint: true }));
+console.log('DROP 5', await lqlClient.query(`DROP SCHEMA if exists obj_information_schema${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
+console.log('DROP 5', await lqlClient.query(`DROP SCHEMA if exists test_db${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
+console.log('DROP 3', await lqlClient.query(`DROP TABLE if exists ${ dbPublic }.books${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
+console.log('DROP 2', await lqlClient.query(`DROP TABLE if exists ${ dbPublic }.users${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
+console.log('DROP 1', await lqlClient.query(`DROP TABLE if exists ${ dbPublic }.roles${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
 
 console.log('....create roles......', await lqlClient.query(`CREATE TABLE roles (
     id int primary key generated always as identity,
@@ -79,7 +82,7 @@ console.log('.....create books.....', await lqlClient.query(`CREATE TABLE books 
     title varchar(100),
     content varchar(100),
     author int references users (id),
-    created_timeeee timestamp (3) without time zone
+    created_timeeee timestamp (3)
 )`, { description: 'Created books' }));
 const savepoint3 = await lqlClient.database(dbPublic).savepoint();
 console.log('\n\n\n\n\n\ntables---------', await lqlClient.database(dbPublic).tables());
@@ -113,18 +116,18 @@ if (spliceForwardHistories) {
     await lqlClient.query(`INSERT INTO users (title, name, role, created_time) VALUES ('Mr.', 'Ox-Harris', 1, now()), ('Mrs.', 'Jane', 2, now())`);
     await lqlClient.query(`INSERT INTO books (title, content, author, created_timeeee) VALUES ('Rich Dad & Poor Dad', 'content...1', 1, now()), ('Beauty & the Beast', 'content...2', 2, now())`);
 
-    //const ww = await lqlClient.query(`SELECT title, content, author ~> name, author ~> role ~> name role_name FROM books where author ~> role ~> name = 'admin'`);
-    //const ww = await lqlClient.query(`SELECT name, role <~ author <~ books ~> title FROM roles`);
-    const ww = await lqlClient.query(`SELECT users.name, roles.name as role_name FROM users LEFT JOIN roles ON roles.id = users.role where roles.name = $1`, { values: ['admin'] });
+    //const ww = await lqlClient.query(`SELECT title, content, author ~> name, author ~> role ~> name role_name FROM books as BBBBB where author ~> role ~> name = 'admin'`);
+    const ww = await lqlClient.query(`SELECT name, role <~ author <~ books ~> title FROM roles`);
+    //const ww = await lqlClient.query(`SELECT users.name, roles.name as role_name FROM users LEFT JOIN roles ON roles.id = users.role where roles.name = ${ dialect === 'mysql' ? '?' : '$1' }`, { values: ['admin'] });
     console.log(ww);
 }
 
 // Clean up
-console.log('DROP 1', await lqlClient.query(`DROP TABLE if exists ${ dbPublic }.roles CASCADE`, { noCreateSavepoint: true }));
-console.log('DROP 2', await lqlClient.query(`DROP TABLE if exists ${ dbPublic }.users CASCADE`, { noCreateSavepoint: true }));
-console.log('DROP 3', await lqlClient.query(`DROP TABLE if exists ${ dbPublic }.books CASCADE`, { noCreateSavepoint: true }));
-console.log('DROP 5', await lqlClient.query('DROP SCHEMA if exists test_db CASCADE', { noCreateSavepoint: true }));
-console.log('DROP 5', await lqlClient.query('DROP SCHEMA if exists obj_information_schema CASCADE', { noCreateSavepoint: true }));
+console.log('DROP 3', await lqlClient.query(`DROP TABLE if exists ${ dbPublic }.books${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
+console.log('DROP 2', await lqlClient.query(`DROP TABLE if exists ${ dbPublic }.users${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
+console.log('DROP 1', await lqlClient.query(`DROP TABLE if exists ${ dbPublic }.roles${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
+console.log('DROP 5', await lqlClient.query(`DROP SCHEMA if exists test_db${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
+console.log('DROP 5', await lqlClient.query(`DROP SCHEMA if exists obj_information_schema${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
 console.log('---PUBLIC TABLES AFTER:', await lqlClient.database(dbPublic).tables());
 console.log('---DATABSES AFTER:', await lqlClient.databases());
 

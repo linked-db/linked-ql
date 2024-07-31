@@ -1,6 +1,7 @@
 
 import Parser from '../lang/Parser.js';
 import AbstractNode from '../lang/AbstractNode.js';
+import Identifier from '../lang/components/Identifier.js';
 import TableSchema from '../lang/schema/tbl/TableSchema.js';
 import DatabaseSchema from '../lang/schema/db/DatabaseSchema.js';
 import CreateStatement from '../lang/ddl/create/CreateStatement.js';
@@ -271,14 +272,14 @@ export default class AbstractClient {
         if (!(await this.hasDatabase(OBJ_INFOSCHEMA_DB))) return [];
         const tblName = [OBJ_INFOSCHEMA_DB,'database_savepoints'].join('.');
         const result = await this.query(`
-            SELECT id, database_tag, name, "$name", keep, version_tag, version_max, rank_for_cursor || '/' || total AS cursor, savepoint_description, tables, savepoint_date, rollback_date FROM (
-                SELECT
+            SELECT id, database_tag, name, ${ Identifier.fromJson(this, '$name') }, keep, version_tag, version_max, CONCAT(rank_for_cursor, '/', total) AS ${ Identifier.fromJson(this, '$cursor') }, savepoint_description, tables, savepoint_date, rollback_date FROM (
+                SELECT *,
                 ROW_NUMBER() OVER (PARTITION BY database_tag ORDER BY rollback_date IS NOT NULL ${ params.direction === 'forward' ? 'DESC' : 'ASC' }, version_tag ${ params.direction === 'forward' ? 'ASC' : 'DESC' }) AS rank_for_target,
                 ROW_NUMBER() OVER (PARTITION BY database_tag ORDER BY version_tag ASC) AS rank_for_cursor,
                 MAX(version_tag) OVER (PARTITION BY database_tag) AS version_max,
-                COUNT(version_tag) OVER (PARTITION BY database_tag) AS total,
-                * FROM ${ tblName }
-            ) AS savepoint WHERE rollback_date IS ${ params.direction === 'forward' ? 'NOT NULL' : 'NULL' } AND rank_for_target = 1${ params.name ? (params.direction === 'forward' ? ` AND name = '${ params.name }'` : ` AND COALESCE("$name", name) = '${ params.name }'`) : '' }
+                COUNT(version_tag) OVER (PARTITION BY database_tag) AS total
+                FROM ${ tblName }
+            ) AS savepoint WHERE rollback_date IS ${ params.direction === 'forward' ? 'NOT NULL' : 'NULL' } AND rank_for_target = 1${ params.name ? (params.direction === 'forward' ? ` AND name = '${ params.name }'` : ` AND COALESCE(${ Identifier.fromJson(this, '$name') }, name) = '${ params.name }'`) : '' }
         `);
         return result.map(savepoint => new Savepoint(this, savepoint, params.direction))
     }
@@ -301,18 +302,17 @@ export default class AbstractClient {
                     name: 'database_savepoints',
                     columns: [
                         { name: 'id', ...(this.params.dialect === 'mysql' ? { type: 'char(36)', default: { expr: 'uuid()' } } : { type: 'uuid', default: { expr: 'gen_random_uuid()' } }), primaryKey: true },
-                        //{ name: 'id', ...(this.params.dialect === 'mysql' ? { type: 'int', autoIncrement: true } : { type: 'uuid', default: { expr: 'gen_random_uuid()' } }), primaryKey: true },
                         // Actual snapshot
-                        { name: 'name', type: ['varchar', 255], notNull: true },
-                        { name: '$name', type: ['varchar', 255] },
+                        { name: 'name', type: ['varchar',255], notNull: true },
+                        { name: '$name', type: ['varchar',255] },
                         { name: 'tables', type: 'json' },
-                        { name: 'keep', type: /*this.params.dialect === 'mysql' ? ['bit',1] : */'boolean' },
+                        { name: 'keep', type: this.params.dialect === 'mysql' ? ['bit',1] : 'boolean' },
                         // Meta data
                         { name: 'savepoint_description', type: ['varchar', 255] },
                         { name: 'database_tag', type: ['varchar', 12], notNull: true },
                         { name: 'version_tag', type: 'int', notNull: true },
-                        { name: 'savepoint_date', type: 'timestamp', notNull: true },
-                        { name: 'rollback_date', type: 'timestamp' },
+                        { name: 'savepoint_date', type: ['timestamp',3], notNull: true },
+                        { name: 'rollback_date', type: ['timestamp',3] },
                     ],
                 }],
             }, { noCreateSavepoint: true });
@@ -346,6 +346,6 @@ export default class AbstractClient {
         }
         // -- Create record
         const insertResult = await this.database(OBJ_INFOSCHEMA_DB).table('database_savepoints').insert(savepointJson, '*');
-        return new Savepoint(this, { ...insertResult[0], version_max: savepointJson.version_tag, cursor: null });
+        return new Savepoint(this, { ...insertResult[0], version_max: savepointJson.version_tag, $cursor: null });
     }
 }

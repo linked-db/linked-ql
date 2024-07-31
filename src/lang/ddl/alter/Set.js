@@ -1,6 +1,7 @@
 
 import AbstractNode from '../AbstractNode.js';
 import DataType from '../../schema/tbl/DataType.js';
+import Identifier from '../../components/Identifier.js';
 
 export default class Set extends AbstractNode {
 
@@ -16,6 +17,8 @@ export default class Set extends AbstractNode {
 		if (!arguments.length) return this.ARGUMENT;
 		if (['DATA_TYPE','TYPE'].includes(this.KIND)) {
 			this.build('ARGUMENT', [value], DataType);
+		} else if (this.KIND === 'SCHEMA') {
+			this.build('ARGUMENT', [value], Identifier);
 		} else { this.ARGUMENT = value; }
 		return this;
 	}
@@ -49,8 +52,10 @@ export default class Set extends AbstractNode {
 		if (!match) return;
 		const isIdentity = /^GENERATED$/i.test(kind);
 		const instance = new this(context, isIdentity ? 'IDENTITY' : kind.replace(/\s+/g, '_').toUpperCase());
-		if (/^(DATA\s+)?TYPE\s+/i.test(kind)) {
+		if (/^(DATA\s+)?TYPE$/i.test(kind)) {
 			instance.argument(parseCallback(instance, argument, [DataType]));
+		} else if (/^SCHEMA$/i.test(kind)) {
+			instance.argument(parseCallback(instance, argument, [Identifier]));
 		} else instance.argument(isIdentity ? (/^AS\s+ALWAYS$/i.test(argument) ? 'always' : true) : argument);
 		return instance;
 	}

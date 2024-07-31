@@ -53,7 +53,7 @@ export default class Rename extends AbstractNode {
 	 * @inheritdoc
 	 */
 	static parse(context, expr) {
-		const [ match, kind = '', name_unescaped, /*esc*/, name_escaped, argument_unescaped, /*esc*/, argument_escaped ] = (new RegExp(`^${ this.CLAUSE }\\s+(?:(${ this.KINDS.map(s => s).join('|') })\\s+)?(?:(?:(\\w+)|([\`"])((?:\\3\\3|[^\\3])+)\\3)\\s+)?(?:TO|AS)\\s+(?:(\\w+)|([\`"])((?:\\5\\5|[^\\5])+)\\5)$`, 'i')).exec(expr.trim()) || [];
+		const [ match, kind = '', name_unescaped, /*esc*/, name_escaped, argument_unescaped, /*esc*/, argument_escaped ] = (new RegExp(`^${ this.CLAUSE }\\s+(?:(${ this.KINDS.map(s => s).join('|') })\\s+)?(?:(?:(\\w+)|([\`"])((?:\\3\\3|[^\\3])+)\\3)\\s+)?(?:TO|AS)\\s+(?:(\\w+)|([\`"])((?:\\6\\6|[^\\6])+)\\6)$`, 'i')).exec(expr.trim()) || [];
 		if (!match) return;
 		const instance = new this(context, kind.replace(/\s+/g, '_').toUpperCase());
 		if (name_unescaped || name_escaped) instance.name(name_unescaped || this.autoUnesc(instance, name_escaped));

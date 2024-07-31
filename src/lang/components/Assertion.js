@@ -322,7 +322,7 @@ export default class Assertion extends AbstractNode {
 			this.OPERATOR.toUpperCase(),
 		];
 		const rightHandSide = operands;
-		if (this.OPERATOR === 'IN') sql.push(`(${ rightHandSide.join(',') })`);
+		if (this.OPERATOR === 'IN') sql.push(`(${ rightHandSide.join(', ') })`);
 		else if (/BETWEEN/i.test(this.OPERATOR)) sql.push(`(${ rightHandSide.join(' AND ') })`);
 		else sql.push(`${ rightHandSide.join(' ') }`);
 		return sql.filter(s => s).join(' ');

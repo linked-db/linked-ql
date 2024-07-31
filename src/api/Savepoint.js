@@ -1,7 +1,7 @@
 
-import CreateStatement from "../lang/ddl/create/CreateStatement.js";
-import DropStatement from "../lang/ddl/drop/DropStatement.js";
-import DatabaseSchema from "../lang/schema/db/DatabaseSchema.js";
+import CreateStatement from '../lang/ddl/create/CreateStatement.js';
+import DropStatement from '../lang/ddl/drop/DropStatement.js';
+import DatabaseSchema from '../lang/schema/db/DatabaseSchema.js';
 
 export default class Savepoint {
 
@@ -51,7 +51,7 @@ export default class Savepoint {
     /**
      * @returns Number
      */
-    get cursor() { return this.$.json.cursor; }
+    get cursor() { return this.$.json.$cursor; }
 
     /**
      * @returns String
@@ -111,8 +111,8 @@ export default class Savepoint {
      * @returns Object
      */
     toJson() {
-        const { id, database_tag: databaseTag, version_tag: versionTag, version_max: versionMax, cursor, savepoint_description: description, savepoint_date: savepointDate, rollback_date: rollbackDate } = this.$.json;
-        return { id, name: this.name(), databaseTag, versionTag, versionMax, cursor, description, savepointDate, rollbackDate, rollbackEffect: this.rollbackEffect };
+        const { id, database_tag: databaseTag, version_tag: versionTag, version_max: versionMax, $cursor, savepoint_description: description, savepoint_date: savepointDate, rollback_date: rollbackDate } = this.$.json;
+        return { id, name: this.name(), databaseTag, versionTag, versionMax, cursor: $cursor, description, savepointDate, rollbackDate, rollbackEffect: this.rollbackEffect };
     }
 
     /**

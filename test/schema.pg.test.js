@@ -40,7 +40,7 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
                 CONSTRAINT "fk .. "" .. 2" FOREIGN    KEY (ref2) REFERENCES pretest2 (id),
                 UNIQUE (rand2,rand)
             )`;
-            const tblCreateInstance1 = await Parser.parse({ name: 'some_database' }, createTableSql, null, { log: false });
+            const tblCreateInstance1 = await Parser.parse({ name: 'some_database', params: { inputDialect: 'postgres', dialect: 'mysql' } }, createTableSql, null, { log: false });
             const tblCreateInstance2 = CreateStatement.fromJson(tblCreateInstance1.CONTEXT, tblCreateInstance1.toJson());
             const sql1 = tblCreateInstance1 + '';
             const sql2 = tblCreateInstance2 + '';
@@ -61,7 +61,7 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
             ALTER TABLE IF EXISTS public.test
                 RENAME AS "new_tbl_n """"$ ame",
                 SET SCHEMA "newDDDDD Dbbbbbb",
-                RENAME constraint "constrai_ _nt_name1" TO new_constraint_name,
+                RENAME constraint "constrai_""_nt_name1" TO "new_cons""traint_name",
 
                 ADD constraint constraint_name2 PRIMARY KEY (col_name1),
                 ADD constraint fruit_type UNIQUE (hhh),
@@ -84,7 +84,7 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
                 ALTER COLUMN column_name8 SET COMPRESSION compression_method,
                 ALTER constraint constraint_name8 DEFERRABLE
             `;
-            const tblAlterInstance1 = Parser.parse({ name: 'some_database' }, alterTableSql);
+            const tblAlterInstance1 = Parser.parse({ name: 'some_database', params: { inputDialect: 'postgres', dialect: 'mysql' } }, alterTableSql);
             const tblAlterInstance2 = AlterStatement.fromJson(tblAlterInstance1.CONTEXT, tblAlterInstance1.toJson());
             const sql1 = tblAlterInstance1 + '';
             const sql2 = tblAlterInstance2 + '';

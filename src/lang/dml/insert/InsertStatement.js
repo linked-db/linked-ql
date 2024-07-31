@@ -16,7 +16,7 @@ export default class InsertStatement extends AbstractStatement {
 	 * Instance properties
 	 */
 	TABLE = null;
-	COLUMNS_LIST = [];
+	COLUMNS_CLAUSE = null;
 	VALUES_LIST = [];
 	SET_CLAUSE = null;
 	SELECT_CLAUSE = null;
@@ -43,13 +43,13 @@ export default class InsertStatement extends AbstractStatement {
 	into(table) { return this.build('TABLE', [table], Table); }
 
 	/**
-	 * Builds the statement's COLUMNS_LIST
+	 * Builds the statement's COLUMNS_CLAUSE
 	 * 
 	 * .columns('col1', 'col2');
 	 * 
 	 * @return Void
 	 */
-	columns(...columns) { return this.build('COLUMNS_LIST', columns, ColumnsList, 'list'); }
+	columns(...columns) { return this.build('COLUMNS_CLAUSE', columns, ColumnsList, 'list'); }
 
 	/**
 	 * Builds the statement's VALUES_LIST
@@ -107,12 +107,12 @@ export default class InsertStatement extends AbstractStatement {
 	toJson() {
 		return {
 			table: this.TABLE.toJson(),
-			columns_list: this.COLUMNS_LIST.toJson(),
-			values_list: this.VALUES_LIST.toJson(),
+			columns_clause: this.COLUMNS_CLAUSE?.toJson(),
+			values_list: this.VALUES_LIST.map(valuesList => valuesList.toJson()),
 			set_clause: this.SET_CLAUSE?.toJson(),
 			select_clause: this.SELECT_CLAUSE?.toJson(),
 			on_conflict_clause: this.ON_CONFLICT_CLAUSE?.toJson(),
-			returning_list: this.RETURNING_LIST,
+			returning_list: this.RETURNING_LIST.slice(0),
 			flags: this.FLAGS,
 		};
 	}
@@ -124,7 +124,7 @@ export default class InsertStatement extends AbstractStatement {
 		if (!json?.table) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
 		instance.into(json.table);
-		if (json.columns_list?.length) instance.columns(...json.columns_list);
+		if (json.columns_clause) instance.columns(json.columns_clause);
 		if (json.values_list?.length) instance.values(...json.values_list);
 		if (json.set_clause) instance.set(json.set_clause);
 		if (json.select_clause) instance.select(json.select_clause);
@@ -142,7 +142,7 @@ export default class InsertStatement extends AbstractStatement {
 		sql.push('INTO', this.TABLE);
 		if (this.SET_CLAUSE) sql.push('SET', this.SET_CLAUSE);
 		else {
-			if (this.COLUMNS_LIST) sql.push(this.COLUMNS_LIST);
+			if (this.COLUMNS_CLAUSE) sql.push(this.COLUMNS_CLAUSE);
 			if (this.SELECT_CLAUSE) sql.push(this.SELECT_CLAUSE);
 			else sql.push('VALUES', this.VALUES_LIST);
 		}

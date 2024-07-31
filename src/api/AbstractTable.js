@@ -123,7 +123,7 @@ export default class AbstractTable {
 		if (columns.length) query.columns(...columns);
 		for (const row of values) query.values(...row);
 		// On-conflict
-		query.onConflict({ entries: columns.map((col, i) => [col, values[i]])});
+		query.onConflict({ entries: columns.map((col, i) => [col, values[0][i]]) });
 		if (returnList) query.returning(returnList);
 		// Handle
 		query.into([this.database.name, this.name]);
@@ -221,9 +221,9 @@ export default class AbstractTable {
 }
 
 const toVal = (v, autoBindings) => {
+	if (v instanceof Date) return q => q.value(v.toISOString().split('.')[0]);
 	if (autoBindings !== false) return q => q.$bind(0, v);
 	if ([true,false,null].includes(v)) return q => q.literal(v);
-	if (v instanceof Date) return q => q.value(v.toISOString().split('.')[0]);
 	if (Array.isArray(v)) return q => q.array(v);
 	if (_isObject(v)) return q => q.object(v);
 	return q => q.value(v);

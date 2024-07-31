@@ -26,9 +26,9 @@ export default class AssignmentList extends AbstractNode {
 			target_s = ColumnsList.fromJson(this, target_s);
 			if (Array.isArray(value_s)) value_s = ValuesList.fromJson(this, value_s);
 			else value_s = Expr.cast(this, value_s);
-		} else if (!(target_s instanceof AbstractNode)) {
-			target_s = Identifier.fromJson(this, target_s);
-			value_s = Expr.cast(this, value_s);
+		} else {
+			target_s = target_s instanceof AbstractNode ? target_s : Identifier.fromJson(this, target_s);
+			value_s = value_s instanceof AbstractNode ? value_s : Expr.cast(this, value_s);
 		}
 		this.ENTRIES.push([target_s, value_s]);
 		return this;

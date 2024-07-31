@@ -57,7 +57,7 @@ export default class TableSchema extends AbstractSchema {
     /**
      * PRIMARY_KEY
      */
-    primaryKey() { return this.NODES.find(node => node.TYPE === 'PRIMARY_KEY'); }
+    primaryKey() { return [...this.NODES].find(node => node.TYPE === 'PRIMARY_KEY'); }
 
 	/**
 	 * Returns a column or adds a column to the schema,
@@ -79,7 +79,7 @@ export default class TableSchema extends AbstractSchema {
 	 * @returns Any
 	 */
 	constraint(constraint) {
-		if (typeof constraint === 'string') return this.NODES.find(node => node instanceof AbstractLevel1Constraint && this.isSame(node.name(), constraint, 'ci'));
+		if (typeof constraint === 'string') return this.CONSTRAINTS.find(cons => this.isSame(cons.name(), constraint, 'ci'));
 		return (this.build('CONSTRAINTS', [constraint], this.constructor.CONSTRAINT_TYPES), this.CONSTRAINTS[this.CONSTRAINTS.length - 1]);
 	}
 
@@ -152,7 +152,7 @@ export default class TableSchema extends AbstractSchema {
 	 */
 	alterWith(altInstance) {
 		const getNode = (reference, ifExists = false) => {
-			const node = this.NODES.find(node => {
+			const node = [...this.NODES].find(node => {
 				return (reference.kind === 'COLUMN' ? node instanceof Column : (reference.kind === 'CONSTRAINT' ? node instanceof AbstractLevel2Constraint : node.TYPE === reference.kind/* constraint or index */))
 				&& (!reference.name ? reference.kind === 'PRIMARY_KEY'/* mysql only */ : this.isSame(node.NAME, reference.name, 'ci'))
 			});
@@ -432,7 +432,7 @@ export default class TableSchema extends AbstractSchema {
 		if (this.params.dialect === 'mysql') {
 			constraints.push(...this.COLUMNS.reduce((constraints, col) => {
 				const constraint = col.foreignKey();
-				if (constraint) return constraints.concat(TableForeignKey.fromJson(this, constraint.toJson()).columns([col.name()]));
+				if (constraint) return constraints.concat(TableForeignKey.fromJson(this, { ...constraint.toJson(), columns: [col.name()] }));
 				return constraints;
 			}, []));
 		}

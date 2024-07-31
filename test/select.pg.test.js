@@ -39,7 +39,7 @@ describe(`SELECT QUERIES`, function() {
         });
 
         it(`"Build a query with the imperative api and stringify`, async function() {
-            const query1 = new SelectStatement(sqlClient);
+            const query1 = new SelectStatement({ name: 'some_database', params: { inputDialect: 'postgres', dialect: 'mysql' } });
             // JSON forms
             query1.select(
                 // Pass in a fully-qualified identifier object

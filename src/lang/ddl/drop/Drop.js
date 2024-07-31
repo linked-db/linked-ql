@@ -34,7 +34,7 @@ export default class Drop extends AbstractNode {
 	 * @inheritdoc
 	 */
 	stringify() {
-		const restrictOrCascade = this.params.dialect !== 'mysql' && (this.getFlag('RESTRICT') || this.getFlag('CASCADE'));
+		const restrictOrCascade = this.getFlag('RESTRICT') || this.getFlag('CASCADE');
 		let kind = this.KIND?.replace(/_/g, ' '), name = this.NAME && this.autoEsc(this.NAME);
 		if (['PRIMARY_KEY', 'FOREIGN_KEY', 'CHECK'].includes(this.KIND)) {
 			if (this.params.dialect === 'mysql') {
