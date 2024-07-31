@@ -76,7 +76,7 @@ Obtain the Linked QL client for your target database:
     const client = new LinkedQl(pgClient, { dialect: 'postgres' });
     ```
 
-    <details><summary>Sample setup for mariadb</summary>
+    <details><summary>See also: sample setup for mariadb</summary>
 
     > **Note that your mariadb database must be `v10.3` or higher.** (MySQL `v8` comparably.) In addition, Linked QL needs to be able to run multiple statements in one query. The `multipleStatements` connector parameter below is thus required. We also need to have the `bitOneIsBoolean` parameter in place.
 
@@ -193,9 +193,9 @@ SELECT id, title, content, created_time, author ~> id, author ~> title, author ~
 FROM books
 ```
 
-✨ PRO: *About 50% code, and whole namespacing exercise, now eliminated; all with zero upfront setup!*
+✨ PRO: *About 50% code, and whole namespacing exercise, now eliminated! And the wild part? No questions asked about your schemas; and no such thing as some upfront relational mapping; we save that for another day!*
 
-Taking that further, paths can be multi-level:
+Taking things further, multi-level relationships also get a new language: multi-level paths:
 
 ```sql
 -- Linked QL
@@ -203,7 +203,7 @@ SELECT * FROM books
 WHERE author ~> role ~> codename = 'admin'
 ```
 
-and they can also be used to express the relationships in the reverse direction (many-to-one):
+and in whatever direction the relationship goes (one-to-many, many-to-one, many-to-many), there's a perfect path expression:
 
 ```sql
 -- Linked QL
@@ -211,7 +211,20 @@ SELECT * FROM users
 WHERE author <~ books ~> title = 'Beauty and the Beast'
 ```
 
-*(Now pivot/junction/link tables get an easier way!)*
+*(Now pivot tables/junction tables/link tables get an easier way!)*
+
+And what's more? You can practically have the new magic together with the old craft:
+
+```sql
+-- Linked QL
+SELECT users.* FROM users, some_other_table.id
+LEFT JOIN some_other_table USING some_other_condition
+WHERE author <~ books ~> title = 'Beauty and the Beast'
+```
+
+with zero implications!
+
+We think this will make a lot of your tooling around SQL obsolete and your codebase saner! We're designing this to give you back SQL, and then, a simple, direct upgrade path to "magic mode" *on top of that*!
 
 ## Introducing Auto-Versioning
 
@@ -268,9 +281,9 @@ console.log(savepoint.savepointDate); // 2024-07-17T22:40:56.786Z
 
 *(More details in the [Savepoint](#the-savepoint-api) API.)*
 
-✨ PRO: *Whole engineering work now essentially moved over to the DB where it rightly belongs; all with zero upfront setup!*
+✨ PRO: *Whole engineering work now essentially moved to the database where they rightly belong! And the fun part? Zero configurations! Zero conventions! Zero costs!*
 
-Taking that further, you get a nifty rollback button should you want to:
+Taking that further, you get a nifty rollback button, should you want to:
 
 ```js
 // Rollback all associated changes (Gets the users table dropped)
@@ -282,9 +295,8 @@ and you can go many levels back:
 ```js
 // Rollback to public@3
 let savepoint;
-while(savepoint = await client.database('public').savepoint()) {
+while((savepoint = await client.database('public').savepoint()) && savepoint.versionTag <= 3) {
     await savepoint.rollback();
-    if (savepoint.versionTag === 3) break;
 }
 ```
 
@@ -296,13 +308,15 @@ let savepoint = await client.database('public').savepoint({ direction: 'forward'
 await savepoint.rollback();
 ```
 
-You essentially are able to go *back in time* or *forward in time* as randomly as iteration may demand.
+Now this means, *time travel* in any direction! You essentially are able to go *back in time* or *forward in time* in as seamlessly as you move on a movie track! We're building this to fix the broken iterations experience that structured data creates!
+
+As an additional perk, you also now get to have your schema histories encoded *as data* (instead of *as files*)! Query them; analize them; visualize them as you would any other form of data; or even sync those changes in realtime with the different aspects of your application development and delivery process!
 
 ## Re-Introducing Schema-as-Code with `schema.json`
 
 💥 *Have your entire DB structure live in a single `schema.json` (or `schema.yml`) file that you edit in-place!*
 
-With schema versioning now over to the database, much of the old conventions and formalities should now be irrelevant. We found that we could essentially streamline the whole "database" footprint from spanning hundreds of migration files to fitting into a single `schema.json` (or `schema.yml`) file!
+With schema versioning now over to the database, much of the old conventions and formalities should now be irrelevant. We found that you could essentially streamline you whole "database" footprint from spanning dozens of migration files to fitting into a single `schema.json` (or `schema.yml`) file!
 
 ### `schema.json`
 
