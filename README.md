@@ -78,7 +78,7 @@ Obtain the Linked QL client for your target database:
 
     <details><summary>See also: sample setup for mariadb</summary>
 
-    > **Note that your mariadb database must be `v10.3` or higher.** (MySQL `v8` comparably.) In addition, Linked QL needs to be able to run multiple statements in one query. The `multipleStatements` connector parameter below is thus required. We also need to have the `bitOneIsBoolean` parameter in place.
+    > **Note that your mariadb database must be `v10.5.2` or higher.** (MySQL `v8` comparably.) In addition, Linked QL needs to be able to run multiple statements in one query. The `multipleStatements` connector parameter below is thus required. We also need to have the `bitOneIsBoolean` parameter in place.
 
     ```js
     // Import mariadb and LinkedQl
