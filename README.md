@@ -6,10 +6,11 @@
 
 <picture>
   <source media="(max-width: 799px)" srcset="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-gh-mobile.png?raw=true">
-  <source media="(min-width: 800px)" srcset="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-gh1-2.png?raw=true">
-    <img src="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-gh1-2.png?raw=true" alt="Linked QL Banner" width="100%">
+  <source media="(min-width: 800px)" srcset="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-gh1.png?raw=true">
+    <img src="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-gh1.png?raw=true" alt="Linked QL Banner" width="100%">
 </picture>
 
+<br>
 <br>
 
 > **_Save the overhead working with SQL and structured data - from the time and effort spent figuring out relational queries to the labour managing schemas!_** Try a modern, simplistic take on SQL and databases in general!
