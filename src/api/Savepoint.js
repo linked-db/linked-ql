@@ -86,7 +86,7 @@ export default class Savepoint {
             schema.keep(schema.keep(), 'auto');
         }
         // Execute rollback
-        if (schema.keep() === false) return DropStatement.fromJson(this.client, { kind: 'SCHEMA', name: schema.name() }).withFlag('CASCADE');
+        if (schema.keep() === false) return DropStatement.fromJson(this.client, { kind: 'SCHEMA', name: schema.name() }).withFlag(this.client.params.dialect === 'mysql' ? '' : 'CASCADE');
         if (schema.keep() === true) return schema.getAlt().with({ resultSchema: schema });
         return CreateStatement.fromJson(this.client, { kind: 'SCHEMA', argument: schema });
     }

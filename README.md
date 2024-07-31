@@ -74,6 +74,32 @@ Obtain the Linked QL client for your target database:
     // Use LinkedQl as a wrapper over that
     const client = new LinkedQl(pgClient, { dialect: 'postgres' });
     ```
+
+    <details><summary>Sample setup for mariadb</summary>
+
+    > **Note that your mariadb database must be `v10.3` or higher.** (MySQL `v8` comparably.) In addition, Linked QL needs to be able to run multiple statements in one query. The `multipleStatements` connector parameter below is thus required. We also need to have the `bitOneIsBoolean` parameter in place.
+
+    ```js
+    // Import mariadb and LinkedQl
+    import mariadb from 'mariadb';
+    import LinkedQl from '@linked-db/linked-ql/sql';
+
+    // Connect pg
+    const myConnection = await mariadb.createConnection({
+        host: '127.0.0.1',
+        user: 'root',
+        port: 3306,
+        // -------
+        multipleStatements: true, // Required
+        bitOneIsBoolean: true, // The default, but required
+        trace: true, // Recommended
+    });
+
+    // Use LinkedQl as a wrapper over that
+    const client = new LinkedQl(myConnection, { dialect: 'mysql' });
+    ```
+
+    </details>
     
 2. For the client-side *IndexedDB*, import and instantiate the *IDB* client. _(Coming soon)_
     
@@ -108,7 +134,7 @@ const result = await client.query('SELECT fname, lname FROM users WHERE role = $
 console.log(result);
 ```
 
-Other APIs are covered right in [The Linked QL API](#linked-ql-api) section.
+Other APIs are covered right in [The Linked QL API](#linked-ql-api) section. You'll find that, in addition to writing pure SQL, you can also programmatically compose queries if you want; an example being the `client.createDatabase()` API for a `CREATE DATABASE` statement.
 
 ## Introducing Magic Paths
 

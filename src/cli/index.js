@@ -123,7 +123,8 @@ if (command === 'migrate') {
         }
         if (schemaApi.keep() === false) {
             console.log(`\nDropping database ${ dbSchema.name }@${ dbSchema.version }`);
-            const dropQuery = DropStatement.fromJson(driver, { kind: 'SCHEMA', name: dbSchema.name }).withFlag('CASCADE');
+            const dropQuery = DropStatement.fromJson(driver, { kind: 'SCHEMA', name: dbSchema.name });
+            if (driver.params.dialect !== 'mysql') dropQuery.withFlag('CASCADE');
             if (!flags.quiet) console.log(`\nSQL preview:\n${ dropQuery }\n`);
             const proceed = flags.auto || (await enquirer.prompt({
                 type: 'confirm',

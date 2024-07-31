@@ -14,7 +14,6 @@ if (dialect === 'mysql') {
     driver = await mariadb.createConnection({
         host: '127.0.0.1',
         user: 'root',
-        password: '',
         port: 3306,
         // -------
         database: 'test',
@@ -32,19 +31,12 @@ if (dialect === 'mysql') {
     dbPublic = 'public';
 }
 // ---------------------------------
+const lqlClient = new SQLClient(driver, { dialect });
 
-let showQuery = false;
-const lqlClient = new SQLClient({
-    query() {
-        if (showQuery) console.log('SQL:', ...arguments);
-        return driver.query(...arguments);
-    }
-}, { dialect });
-
-console.log('---DATABSES BEFORE:', await lqlClient.databases());
-console.log('---PUBLIC TABLES BEFORE:', await lqlClient.database(dbPublic).tables());
 /*
 */
+console.log('---DATABSES BEFORE:', await lqlClient.databases());
+console.log('---PUBLIC TABLES BEFORE:', await lqlClient.database(dbPublic).tables());
 console.log('DROP 5', await lqlClient.query(`DROP SCHEMA if exists obj_information_schema${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
 console.log('DROP 5', await lqlClient.query(`DROP SCHEMA if exists test_db${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
 console.log('DROP 3', await lqlClient.query(`DROP TABLE if exists ${ dbPublic }.books${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
@@ -114,13 +106,15 @@ if (spliceForwardHistories) {
 
     await lqlClient.query(`INSERT INTO roles (name, created_time) VALUES ('admin', now()), ('guest', now())`);
     await lqlClient.query(`INSERT INTO users (title, name, role, created_time) VALUES ('Mr.', 'Ox-Harris', 1, now()), ('Mrs.', 'Jane', 2, now())`);
-    await lqlClient.query(`INSERT INTO books (title, content, author, created_timeeee) VALUES ('Rich Dad & Poor Dad', 'content...1', 1, now()), ('Beauty & the Beast', 'content...2', 2, now())`);
+    const tt = await lqlClient.query(`INSERT INTO books (title, content, author, created_timeeee) VALUES ('Rich Dad & Poor Dad', 'content...1', 1, now()), ('Beauty & the Beast', 'content...2', 2, now())`);
+    console.log('\n\n\n\n',tt,'\n\n\n\n');
 
     //const ww = await lqlClient.query(`SELECT title, content, author ~> name, author ~> role ~> name role_name FROM books as BBBBB where author ~> role ~> name = 'admin'`);
     const ww = await lqlClient.query(`SELECT name, role <~ author <~ books ~> title FROM roles`);
     //const ww = await lqlClient.query(`SELECT users.name, roles.name as role_name FROM users LEFT JOIN roles ON roles.id = users.role where roles.name = ${ dialect === 'mysql' ? '?' : '$1' }`, { values: ['admin'] });
     console.log(ww);
 }
+
 
 // Clean up
 console.log('DROP 3', await lqlClient.query(`DROP TABLE if exists ${ dbPublic }.books${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));

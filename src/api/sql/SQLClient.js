@@ -118,7 +118,6 @@ export default class SQLClient extends AbstractClient {
         if (query instanceof InsertStatement && query.ON_CONFLICT_CLAUSE) {
             query.ON_CONFLICT_CLAUSE.set(colName, q => q.value(insertUuid));
         }
-        console.log('.......////\n\n\n\n\n', query+'');
         return [query, async () => {
             // ----------------------------------
             const result = await this.driver.query(`SELECT ${ selectList.join(', ' ) } FROM ${ tableIdent } WHERE ${ columnIdent } = '${ insertUuid }'`);
