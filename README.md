@@ -304,7 +304,7 @@ while((savepoint = await client.database('public').savepoint()) && savepoint.ver
 
 ✨ _Now, that translates to all the engineering work you once did manaually having been moved to the database! Plus, your schema histories now having been encoded **as data** (**instead of as files**), making them queryable, analyzable, and even visualizable, as regular data!_
 
-Taking that further, you also get a way to *roll forward* from a rollback! (Much like hitting "Redo" to reverse a certain "Undo"). This time, you simply specify a "forward" movement from your current point in time:
+Taking that further, you also get a way to *roll forward* from a rollback! (Much like hitting "Redo" to reverse a certain "Undo"). This time, on calling `database.savepoint()`, you specify a "forward" movement from your current point in time:
 
 ```js
 // "Undo" the last rollback (Gets the users table re-created)
