@@ -50,7 +50,7 @@ npm install @linked-db/linked-ql
 
 Obtain the Linked QL client for your target database:
 
-1. For SQL databases, install the regular SQL client you use for your DB. (Typically, [`pg`](https://github.com/brianc/node-postgres) for PostgreSQL, [`mariadb`](https://github.com/mariadb-corporation/mariadb-connector-nodejs) for mariadb, [`mysql`](https://www.npmjs.com/package/mysql)/[`mysql2`](https://www.npmjs.com/package/mysql2) for MySQL databases.)
++ For SQL databases, install the regular SQL client you use for your DB. (Typically, [`pg`](https://github.com/brianc/node-postgres) for PostgreSQL, [`mariadb`](https://github.com/mariadb-corporation/mariadb-connector-nodejs) for mariadb, [`mysql`](https://www.npmjs.com/package/mysql)/[`mysql2`](https://www.npmjs.com/package/mysql2) for MySQL databases.)
 
     Using PostgreSQL as an example, install the `pg` client:
 
@@ -102,7 +102,7 @@ Obtain the Linked QL client for your target database:
 
     </details>
     
-2. For the client-side *IndexedDB*, import and instantiate the *IDB* client. _(Coming soon)_
++ For the client-side *IndexedDB*, import and instantiate the *IDB* client. _(Coming soon)_
     
     ```js
     // Import IDB as LinkedQl
@@ -112,7 +112,7 @@ Obtain the Linked QL client for your target database:
     const client = new LinkedQl;
     ```
     
-3. To work with Linked QL's in-memory object database, import and instantiate the *ODB* client. _(Coming soon)_
++ To work with Linked QL's in-memory object database, import and instantiate the *ODB* client. _(Coming soon)_
 
     ```js
     // Import ODB as LinkedQl
@@ -193,7 +193,7 @@ SELECT id, title, content, created_time, author ~> id, author ~> title, author ~
 FROM books
 ```
 
-✨ _Now, that translates to about 50% code, and whole namespacing exercise, having been eliminated! And yet, no questions asked about your schemas; no such thing as the usual upfront relationship mapping!_
+✨ _Now, that translates to about 50% code, plus whole namespacing exercise, having been eliminated! And yet, no questions asked about your schemas; no such thing as the usual upfront relationship mapping!_
 
 Taking things further, multi-level relationships also get a corresponding pattern: multi-level paths:
 
@@ -222,9 +222,9 @@ WHERE author <~ books ~> title = 'Beauty and the Beast'
 
 with zero implications!
 
-This means, game on with the regular JOINs for whatever calls for them; take the "magic path" option for whatever doesn't benefit otherwise!
+This means, game on with the regular JOINs for whatever calls for them; take the "magic path" option for whatever doesn't benefit from tham otherwise!
 
-We think this will make a lot of the tooling and manual work around SQL obsolete and your codebase saner! And notice how this gives you back SQL - and every other thing as only an extension of that!
+We think this will make a lot of the tooling and manual work around SQL obsolete and your codebase saner! And notice how this gives you back SQL - while having every other thing as only an extension of that!
 
 ## Introducing Auto-Versioning
 
@@ -302,9 +302,9 @@ while((savepoint = await client.database('public').savepoint()) && savepoint.ver
 }
 ```
 
-✨ _Now, that translates to all the engineering work you once did manaually having been moved to the database, plus, your schema histories now having been encoded **as data** (**instead of as files**), making them queryable, analyzable, and even visualizable, as regular data!_
+✨ _Now, that translates to all the engineering work you once did manaually having been moved to the database, plus, your schema histories also having been encoded **as data** (**instead of as files**), making them queryable, analyzable, and even visualizable, as regular data!_
 
-Taking that further, you also get a way to *roll forward* from a rollback! (Much like hitting "Redo" to reverse a certain "Undo"). This time, on calling `database.savepoint()`, you specify a "forward" movement from your current point in time:
+Taking that further, you also get a way to *roll forward* from a rollback state! (Much like hitting "Redo" to reverse a certain "Undo"). This time, on calling `database.savepoint()`, you indicate that you want a "forward" movement from your current point in time:
 
 ```js
 // "Undo" the last rollback (Gets the users table re-created)
@@ -423,7 +423,7 @@ With schema versioning now over to the database, much of the old conventions and
 >                         // string - required
 >                         "type": "PRIMARY_KEY",
 >                         // string[] - required
->                         "columns": ["id"],
+>                         "columns": ["id_2"],
 >                     },
 >                     {
 >                         // string - required
@@ -634,7 +634,7 @@ To setup:
 
 3. Have your DB structure defined in a `schema.json` (or `schema.yml`) file in that directory. (See [`schema.json`](#schemajson) above for a guide.)
 
-    Now, you can always extend your DB structure with new objects, and you can always drop objects or edit them in-place. But note that for an existing database, table, column, constraint, or index, **names may be changed, but not in-place!** A "rename" operation is done with the addition of a temporary `$name` attribute:
+    Now, you can always extend your DB structure with new objects and always drop existsing objects or edit them in-place. But note that for an existing database, table, column, constraint, or index, **names may be changed, but not in-place!** A "rename" operation is done with the addition of a temporary `$name` attribute:
 
     ```js
     {

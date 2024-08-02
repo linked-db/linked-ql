@@ -63,7 +63,9 @@ export default class SQLDatabase extends AbstractDatabase {
             COLUMNS.is_nullable,
             COLUMNS.data_type,
             COLUMNS.character_maximum_length,
-            ${ this.client.params.dialect === 'mysql' ? '' : `
+            ${ this.client.params.dialect === 'mysql' ? `
+            COLUMNS.extra,
+            ` : `
             COLUMNS.is_identity,
             COLUMNS.identity_generation,
             COLUMNS.identity_start,
@@ -183,7 +185,8 @@ export default class SQLDatabase extends AbstractDatabase {
             const schema = {
                 name: tblName,
                 columns: $columns.reduce((cols, col) => {
-                    const temp = {};
+                    const temp = {}, extras = col.extra/*mysql*/?.split(',').map(s => s.trim()) || [];
+                    if (extras.includes('INVISIBLE') && false) return cols;
                     return cols.concat({
                         name: col.column_name,
                         type: col.character_maximum_length ? [ dataType(col.data_type), col.character_maximum_length ] : dataType(col.data_type),
@@ -199,16 +202,19 @@ export default class SQLDatabase extends AbstractDatabase {
                         ...((temp.cKeys = checks.filter(key => key.check_constraint_level !== 'Table' && key.columns.length === 1 && key.columns[0] === col.column_name)).length === 1 && (checks = checks.filter(key => key !== temp.cKeys[0])) ? {
                             check: { name: temp.cKeys[0].constraint_name, expr: temp.cKeys[0].check_clause }
                         } : {}),
-                        ...(col.is_identity !== 'NO' ? {
+                        ...(col.is_identity/*postgres*/ === 'YES' ? {
                             identity: { always: col.identity_generation === 'ALWAYS' }
                         } : {}),
                         ...(col.is_generated !== 'NEVER' ? {
                             expression: { always: col.is_generated === 'ALWAYS', expr: col.generation_expression }
                         } : {}),
+                        ...(extras.includes('auto_increment')/*mysql*/ ? {
+                            autoIncrement: true
+                        } : {}),
                         ...(col.is_nullable === 'NO' ? {
                             notNull: true
                         } : {}),
-                        ...(col.column_default ? {
+                        ...(col.column_default && col.column_default !== 'NULL' ? {
                             default: { expr: col.column_default }
                         } : {}),
                     });
@@ -218,7 +224,7 @@ export default class SQLDatabase extends AbstractDatabase {
             };
             schema.constraints.push(...[...primaryKey, ...uniqueKeys, ...foreignKeys].map(key => ({
                 name: key.constraint_name,
-                type: key.constraint_type === 'UNIQUE' ? 'UNIQUE_KEY' : key.constraint_type,
+                type: key.constraint_type === 'UNIQUE' ? 'UNIQUE_KEY' : key.constraint_type.replace('_', ''),
                 columns: key.column_name.split(',').map(col => col.trim()),
                 ...(key.constraint_type === 'FOREIGN KEY' ? { references: formatRelation(key, true) } : {}),
             })));

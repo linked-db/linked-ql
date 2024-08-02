@@ -89,13 +89,13 @@ export default class SQLClient extends AbstractClient {
         // ----------------------------------
         // Delete statements are handled ahead of the query
         if (query instanceof DeleteStatement) {
-            const result = await this.driver.query(`SELECT ${ selectList.join(', ' ) } FROM ${ tableIdent }${ this.WHERE_CLAUSE ? ` WHERE ${ this.WHERE_CLAUSE }` : '' }`);
+            const result = await this.driver.query(`SELECT ${ selectList.join(', ' ) } FROM ${ tableIdent }${ query.WHERE_CLAUSE ? ` WHERE ${ query.WHERE_CLAUSE }` : '' }`);
             return [query, () => result];
         }
         // Insert and update statements are post-handled
         // ----------------------------------
 		const colName = 'obj_column_for_returning_clause_support';
-        const columnIdent = Identifier.fromJson(this, colName );
+        const columnIdent = Identifier.fromJson(this, colName);
 		await this.driver.query(`ALTER TABLE ${ tableIdent } ADD COLUMN ${ columnIdent } char(36) INVISIBLE`);
         const insertUuid = ( 0 | Math.random() * 9e6 ).toString( 36 );
         // ----------------------------------
