@@ -50,7 +50,7 @@ npm install @linked-db/linked-ql
 
 Obtain the Linked QL client for your target database:
 
-+ For SQL databases, install the regular SQL client you use for your DB. (Typically, [`pg`](https://github.com/brianc/node-postgres) for PostgreSQL, [`mariadb`](https://github.com/mariadb-corporation/mariadb-connector-nodejs) for mariadb, [`mysql`](https://www.npmjs.com/package/mysql)/[`mysql2`](https://www.npmjs.com/package/mysql2) for MySQL databases.)
+1. For SQL databases, install the regular SQL client you use for your DB. (Typically, [`pg`](https://github.com/brianc/node-postgres) for PostgreSQL, [`mariadb`](https://github.com/mariadb-corporation/mariadb-connector-nodejs) for mariadb, [`mysql`](https://www.npmjs.com/package/mysql)/[`mysql2`](https://www.npmjs.com/package/mysql2) for MySQL databases.)
 
     Using PostgreSQL as an example, install the `pg` client:
 
@@ -102,7 +102,7 @@ Obtain the Linked QL client for your target database:
 
     </details>
     
-+ For the client-side *IndexedDB*, import and instantiate the *IDB* client. _(Coming soon)_
+2. For the client-side *IndexedDB*, import and instantiate the *IDB* client. _(Coming soon)_
     
     ```js
     // Import IDB as LinkedQl
@@ -112,7 +112,7 @@ Obtain the Linked QL client for your target database:
     const client = new LinkedQl;
     ```
     
-+ To work with Linked QL's in-memory object database, import and instantiate the *ODB* client. _(Coming soon)_
+3. To work with Linked QL's in-memory object database, import and instantiate the *ODB* client. _(Coming soon)_
 
     ```js
     // Import ODB as LinkedQl
