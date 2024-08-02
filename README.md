@@ -193,7 +193,7 @@ SELECT id, title, content, created_time, author ~> id, author ~> title, author ~
 FROM books
 ```
 
-✨ _Now, that translates to about 50% code, plus whole namespacing exercise, having been eliminated! And yet, no questions asked about your schemas; no such thing as the usual upfront relationship mapping!_
+✨ _Now, that translates to about 50% code, plus whole namespacing exercise, now eliminated! Yet, no questions asked about your schemas, and no such thing as the usual upfront relationship mapping!_
 
 Taking things further, multi-level relationships also get a corresponding pattern: multi-level paths:
 
