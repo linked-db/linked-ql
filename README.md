@@ -318,7 +318,7 @@ giving you *time travel* in any direction! You essentially are able to go back i
 
 💥 *Have your entire DB structure live in a single `schema.json` (or `schema.yml`) file that you edit in-place!*
 
-With schema versioning now over to the database, much of the old conventions and formalities should now be irrelevant. We found that you could essentially streamline you whole "database" footprint from spanning dozens of migration files to fitting into a single `schema.json` (or `schema.yml`) file!
+With schema versioning now over to the database, much of the old conventions and formalities should now be irrelevant. We found that you can essentially streamline you whole "database" footprint from spanning dozens of migration files to fitting into a single `schema.json` (or `schema.yml`) file!
 
 ### `schema.json`
 
@@ -506,7 +506,7 @@ With schema versioning now over to the database, much of the old conventions and
 > ```ts
 > interface ColumnSchemaSpec {
 >     name: string;
->     type: string | Array;
+>     type: string | array;
 >     primaryKey?: boolean | PrimaryKeySchemaSpec;
 >     [ foreignKey | references ]?: ForeignKeySchemaSpec;
 >     uniqueKey?: boolean | UniqueKeySchemaSpec;
@@ -514,8 +514,8 @@ With schema versioning now over to the database, much of the old conventions and
 >     default?: string | DefaultConstraintSchemaSpec;
 >     expression?: string | ExpressionConstraintSchemaSpec;
 >     identity: boolean | IdentityConstraintSchemaSpec;
->     onUpdate?: string | OnUpdateConstraintSchemaSpec; // (MySQL-specific attributes)
->     autoIncrement?: boolean; // (MySQL-specific attributes)
+>     onUpdate?: string | OnUpdateConstraintSchemaSpec; // (MySQL-specific attribute)
+>     autoIncrement?: boolean; // (MySQL-specific attribute)
 >     notNull?: boolean;
 >     null?: boolean;
 > }
@@ -634,7 +634,7 @@ To setup:
 
 3. Have your DB structure defined in a `schema.json` (or `schema.yml`) file in that directory. (See [`schema.json`](#schemajson) above for a guide.)
 
-    You can always extend your schema with new objects, and you can always drop objects or edit them in-place. For an existing database, table, column, constraint, or index, **names may be changed, but not in-place!** A "rename" operation is done with the addition of a temporary `$name` attribute:
+    Now, you can always extend your DB structure with new objects, and you can always drop objects or edit them in-place. But note that for an existing database, table, column, constraint, or index, **names may be changed, but not in-place!** A "rename" operation is done with the addition of a temporary `$name` attribute:
 
     ```js
     {
