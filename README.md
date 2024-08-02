@@ -193,7 +193,7 @@ SELECT id, title, content, created_time, author ~> id, author ~> title, author ~
 FROM books
 ```
 
-✨ _Now, that translates to: about 50% code, and whole namespacing exercise, having been eliminated! And yet: no questions asked about your schemas; no such thing as the usual upfront relationship mapping!_
+✨ _Now, that translates to about 50% code, and whole namespacing exercise, having been eliminated! And yet, no questions asked about your schemas; no such thing as the usual upfront relationship mapping!_
 
 Taking things further, multi-level relationships also get a corresponding pattern: multi-level paths:
 
@@ -203,7 +203,7 @@ SELECT * FROM books
 WHERE author ~> role ~> codename = 'admin'
 ```
 
-and for when you need to model the different forms of relationships out there (one-to-many, many-to-one, many-to-many), path operators that go in any direction:
+and for when you need to model the different forms of relationships out there (one-to-many, many-to-one, many-to-many), path operators can go in any direction:
 
 ```sql
 -- Linked QL
@@ -222,7 +222,7 @@ WHERE author <~ books ~> title = 'Beauty and the Beast'
 
 with zero implications!
 
-This means: game on with the regular JOINs for whatever calls for them; take the "magic path" option for whatever doesn't benefit otherwise!
+This means, game on with the regular JOINs for whatever calls for them; take the "magic path" option for whatever doesn't benefit otherwise!
 
 We think this will make a lot of the tooling and manual work around SQL obsolete and your codebase saner! And notice how this gives you back SQL - and every other thing as only an extension of that!
 
@@ -271,7 +271,7 @@ const savepoint = await client.query('CREATE TABLE public.users (id int, name va
 ```
 
 ```js
-// As an axample of what you will see:
+// As an axample of what you see:
 console.log(savepoint.description);   // Create users table
 console.log(savepoint.versionTag);    // 1
 console.log(savepoint.savepointDate); // 2024-07-17T22:40:56.786Z
@@ -302,7 +302,7 @@ while((savepoint = await client.database('public').savepoint()) && savepoint.ver
 }
 ```
 
-✨ _Now, that translates to: all the engineering work you once did manaually now having been moved to the database! Plus, your schema histories now having been encoded **as data** (**instead of as files**), making them queryable, analyzable, and even visualizable, as regular data!_
+✨ _Now, that translates to all the engineering work you once did manaually having been moved to the database! Plus, your schema histories now having been encoded **as data** (**instead of as files**), making them queryable, analyzable, and even visualizable, as regular data!_
 
 Taking that further, you also get a way to *roll forward* from a rollback! (Much like hitting "Redo" to reverse a certain "Undo"). This time, you simply specify a "forward" movement from your current point in time:
 
