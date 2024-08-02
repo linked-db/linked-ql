@@ -135,7 +135,7 @@ const result = await client.query('SELECT fname, lname FROM users WHERE role = $
 console.log(result);
 ```
 
-Other APIs are covered right in [The Linked QL API](#linked-ql-api) section. You'll find that, in addition to writing pure SQL, you can also programmatically compose queries if you want; an example being the `client.createDatabase()` API for a `CREATE DATABASE` statement.
+Other APIs are covered right in [The Linked QL API](https://github.com/linked-db/linked-ql/wiki/API) section. You'll find that, in addition to running pure SQL using `client.query()`, you can also programmatically compose queries if you want; an example being the `client.createDatabase()` API for a `CREATE DATABASE` statement.
 
 ## Introducing Magic Paths
 
@@ -193,9 +193,9 @@ SELECT id, title, content, created_time, author ~> id, author ~> title, author ~
 FROM books
 ```
 
-✨ PRO: *About 50% code, and whole namespacing exercise, now eliminated! And the wild part? No questions asked about your schemas; and no such thing as some upfront relational mapping; we save that for another day!*
+✨ _Now, that translates to: about 50% code, and whole namespacing exercise, having been eliminated! And yet: no questions asked about your schemas; no such thing as the usual upfront relationship mapping!_
 
-Taking things further, multi-level relationships also get a new language: multi-level paths:
+Taking things further, multi-level relationships also get a corresponding pattern: multi-level paths:
 
 ```sql
 -- Linked QL
@@ -203,7 +203,7 @@ SELECT * FROM books
 WHERE author ~> role ~> codename = 'admin'
 ```
 
-and in whatever direction the relationship goes (one-to-many, many-to-one, many-to-many), there's a perfect path expression:
+and for when you need to model the different forms of relationships out there (one-to-many, many-to-one, many-to-many), path operators that go in any direction:
 
 ```sql
 -- Linked QL
@@ -211,9 +211,7 @@ SELECT * FROM users
 WHERE author <~ books ~> title = 'Beauty and the Beast'
 ```
 
-*(Now pivot tables/junction tables/link tables get an easier way!)*
-
-And what's more? You can practically have the new magic together with the old craft:
+And it turns out, you can practically have the new magic together with the old craft:
 
 ```sql
 -- Linked QL
@@ -224,7 +222,9 @@ WHERE author <~ books ~> title = 'Beauty and the Beast'
 
 with zero implications!
 
-We think this will make a lot of your tooling around SQL obsolete and your codebase saner! We're designing this to give you back SQL, and then, a simple, direct upgrade path to "magic mode" *on top of that*!
+This means: game on with the regular JOINs for whatever calls for them; take the "magic path" option for whatever doesn't benefit otherwise!
+
+We think this will make a lot of the tooling and manual work around SQL obsolete and your codebase saner! And notice how this gives you back SQL - and every other thing as only an extension of that!
 
 ## Introducing Auto-Versioning
 
@@ -259,9 +259,9 @@ app
 
 then you've faced the problem that this defeciency in databases creates! But what if databases magically got to do the heavy lifting?
 
-Meet Linked QL's little addition to your database that does exactly that and lets you alter your DB carefree, but in the safety net of some behind-the-scenes magic that snapshots your schema before each alteration! Meet Automatic Schema Savepoints and Rollbacks!
+Meet Linked QL's little addition to your database that does exactly that and lets you alter your DB carefree, but in the safety net of some behind-the-scenes magic that snapshots the relevant schemas before each alteration! Meet Automatic Schema Savepoints and Rollbacks!
 
-You:
+You alter your schema and get back a reference to the savepoint automatically created for you:
 
 ```js
 // Alter schema
@@ -270,27 +270,29 @@ const savepoint = await client.query('CREATE TABLE public.users (id int, name va
 });
 ```
 
-Linked QL:
-
 ```js
-// A savepoint automatically created for you
+// As an axample of what you will see:
 console.log(savepoint.description);   // Create users table
 console.log(savepoint.versionTag);    // 1
 console.log(savepoint.savepointDate); // 2024-07-17T22:40:56.786Z
+// Or to see everything:
+console.table(savepoint.toJson());
 ```
 
-*(More details in the [Savepoint](#the-savepoint-api) API.)*
+And you're able to access the same savepoint on-demand using the [`database.savepoint()`](https://github.com/linked-db/linked-ql/wiki/API#databasesavepoint) API:
 
-✨ PRO: *Whole engineering work now essentially moved to the database where they rightly belong! And the fun part? Zero configurations! Zero conventions! Zero costs!*
+```js
+const savepoint = await client.database('public').savepoint();
+```
 
-Taking that further, you get a nifty rollback button, should you want to:
+Either way, you get a nifty rollback button, should you want to:
 
 ```js
 // Rollback all associated changes (Gets the users table dropped)
 await savepoint.rollback();
 ```
 
-and you can go many levels back:
+all the way back to a point in time, should you want to:
 
 ```js
 // Rollback to public@3
@@ -300,7 +302,9 @@ while((savepoint = await client.database('public').savepoint()) && savepoint.ver
 }
 ```
 
-and you can "undo" a rollback, or in other words, roll forward to a point in time:
+✨ _Now, that translates to: all the engineering work you once did manaually now having been moved to the database! Plus, your schema histories now having been encoded **as data** (**instead of as files**), making them queryable, analyzable, and even visualizable, as regular data!_
+
+Taking that further, you also get a way to *roll forward* from a rollback! (Much like hitting "Redo" to reverse a certain "Undo"). This time, you simply specify a "forward" movement from your current point in time:
 
 ```js
 // "Undo" the last rollback (Gets the users table re-created)
@@ -308,9 +312,7 @@ let savepoint = await client.database('public').savepoint({ direction: 'forward'
 await savepoint.rollback();
 ```
 
-Now this means, *time travel* in any direction! You essentially are able to go *back in time* or *forward in time* in as seamlessly as you move on a movie track! We're building this to fix the broken iterations experience that structured data creates!
-
-As an additional perk, you also now get to have your schema histories encoded *as data* (instead of *as files*)! Query them; analize them; visualize them as you would any other form of data; or even sync those changes in realtime with the different aspects of your application development and delivery process!
+giving you *time travel* in any direction! You essentially are able to go back in time or forward in time in as seamlessly as you move on a movie track!
 
 ## Re-Introducing Schema-as-Code with `schema.json`
 
@@ -323,17 +325,167 @@ With schema versioning now over to the database, much of the old conventions and
 ```js
 [
     {
+        // string
         "name": "database_1",
-        "tables": [] // Table objects
+        // TableSchemaSpec[]
+        "tables": []
     },
     {
+        // string
         "name": "database_2",
-        "tables": [] // Table objects
+        // TableSchemaSpec[]
+        "tables": []
     }
 ]
 ```
 
-> <details><summary>See the database schema spec</summary>
+> <details><summary>See a full example</summary>
+> 
+> ```js
+> [
+>     {
+>         // string - required
+>         "name": "database_1",
+>         // TableSchemaSpec[]
+>         "tables": [
+>             {
+>                 // string - required
+>                 "name": "users",
+>                 // ColumnSchemaSpec[] - required
+>                 "columns": [
+>                     {
+>                         // string - required
+>                         "name": "id",
+>                         // string or array like ["int",3] - required
+>                         "type": "int",
+>                         // boolean or PrimaryKeySchemaSpec
+>                         "primaryKey": true,
+>                         // boolean or IdentityConstraintSchemaSpec
+>                         "identity": true
+>                     },
+>                     {
+>                         // string - required
+>                         "name": "first_name",
+>                         // array or string like "varchar" - required
+>                         "type": ["varchar", 101]
+>                     },
+>                     {
+>                         // string - required
+>                         "name": "last_name",
+>                         // array or string like "varchar" - required
+>                         "type": ["varchar", 101]
+>                     },
+>                     {
+>                         // string - required
+>                         "name": "full_name",
+>                         // array or string like "varchar" - required
+>                         "type": ["varchar", 101],
+>                         // string or ExpressionConstraintSchemaSpec
+>                         "expression": "(first_name || ' ' || last_name)"
+>                     },
+>                     {
+>                         // string - required
+>                         "name": "email",
+>                         // array or string like "varchar" - required
+>                         "type": ["varchar", 50],
+>                         // boolean or UniqueKeySchemaSpec
+>                         "uniqueKey": true,
+>                         // boolean
+>                         "notNull": true,
+>                         // string or CheckConstraintSchemaSpec
+>                         "check": "(email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')"
+>                     },
+>                     {
+>                         // string - required
+>                         "name": "parent",
+>                         // string or array like ["int",3] - required
+>                         "type": "int",
+>                         // boolean
+>                         "notNull": true,
+>                         // ForeignKeySchemaSpec
+>                         "references": {
+>                             // string or string[] like ["database_2", "users"] - required
+>                             "targetTable": "users",
+>                             // string[] - required
+>                             "targetColumns": ["id"],
+>                             // string
+>                             "matchRull": "full",
+>                             // string or object like { rule: "cascade", columns: ["col1"] }
+>                             "updateRule": "cascade",
+>                             // string or object like { rule: "restrict", columns: ["col1"] }
+>                             "deleteRule": "restrict"
+>                         }
+>                     }
+>                 ],
+>                 // TableConstraintSchemaType[]
+>                 "constraints": [
+>                     {
+>                         // string - required
+>                         "type": "PRIMARY_KEY",
+>                         // string[] - required
+>                         "columns": ["id"],
+>                     },
+>                     {
+>                         // string - required
+>                         "type": "FOREIGN_KEY",
+>                         // string[] - required
+>                         "columns": ["parent_2"],
+>                         // string or string[] like ["database_2", "users"] - required
+>                         "targetTable": "users",
+>                         // string[] - required
+>                         "targetColumns": ["id"],
+>                         // string
+>                         "matchRull": "full",
+>                         // string or object like { rule: "cascade", columns: ["col1"] }
+>                         "updateRule": "cascade",
+>                         // string or object like { rule: "restrict", columns: ["col1"] }
+>                         "deleteRule": "restrict"
+>                     },
+>                     {
+>                         // string - required
+>                         "type": "UNIQUE_KEY",
+>                         // string
+>                         "name": "constraint_name",
+>                         // string[] - required
+>                         "columns": ["parent", "full_name"]
+>                     },
+>                     {
+>                         // string - required
+>                         "type": "CHECK",
+>                         // string - required
+>                         "expr": "(email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')"
+>                     }
+>                 ],
+>                 // IndexSchemaSpec[]
+>                 "indexes": [
+>                     {
+>                         // string - required
+>                         "type": "FULLTEXT",
+>                         // string[] - required
+>                         "columns": ["full_name"]
+>                     },
+>                     {
+>                         // string - required
+>                         "type": "SPATIAL",
+>                         // string[] - required
+>                         "columns": ["full_name"]
+>                     }
+>                 ]
+>             }
+>         ]
+>     },
+>     {
+>         // string - required
+>         "name": "database_2",
+>         // TableSchemaSpec[]
+>         "tables": []
+>     }
+> ]
+> ```
+> 
+> </details>
+
+> <details><summary>See the schema spec</summary>
 > 
 > ```ts
 > interface DatabaseSchemaSpec {
@@ -341,25 +493,6 @@ With schema versioning now over to the database, much of the old conventions and
 >     tables: TableSchemaSpec[];
 > }
 > ```
-> 
-> </details>
-
-<details><summary>Explore the structure further</summary>
-
--------------
-
-└ *Table schema example:*
-
-```js
-{
-    "name": "users", // or something like ['db1', 'tbl1'] which would translate to db1.tbl1
-    "columns": [], // Column objects (minimum of 1)
-    "constraints": [], // Constraint objects
-    "indexes": [] // Index objects
-}
-```
-
-> <details><summary>See the table schema spec</summary>
 > 
 > ```ts
 > interface TableSchemaSpec {
@@ -369,56 +502,6 @@ With schema versioning now over to the database, much of the old conventions and
 >     indexes: IndexSchemaSpec[];
 > }
 > ```
-> 
-> </details>
-
--------------
-
-└ *Column schema examples:*
-
-```js
-{
-    "name": "id",
-    "type": "int",
-    "primaryKey": true,
-    "identity": true
-}
-```
-
-```js
-{
-    "name": "full_name",
-    "type": ["varchar", 101],
-    "generated": "(first_name || ' ' || last_name)"
-}
-```
-
-```js
-{
-    "name": "email",
-    "type": ["varchar", "50"],
-    "uniqueKey": true,
-    "notNull": true,
-    "check": "(email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')"
-}
-```
-
-```js
-{
-    "name": "parent",
-    "type": "int",
-    "notNull": true,
-    "references": {
-        "targetTable": "users",
-        "targetColumns": ["id"],
-        "matchRull": "full",
-        "updateRule": "cascade",
-        "deleteRule": "restrict"
-    }
-}
-```
-
-> <details><summary>See the column schema spec</summary>
 > 
 > ```ts
 > interface ColumnSchemaSpec {
@@ -437,48 +520,6 @@ With schema versioning now over to the database, much of the old conventions and
 >     null?: boolean;
 > }
 > ```
-> 
-> </details>
-
----------------
-
-└ *Table constraint examples:*
-
-```js
-{
-    "type": "PRIMARY_KEY",
-    "name": "constraint_name",
-    "columns": ["id"],
-}
-```
-
-```js
-{
-    "type": "UNIQUE_KEY",
-    "columns": ["email"]
-}
-```
-
-```js
-{
-    "type": "FOREIGN_KEY",
-    "columns": ["parent"],
-    "targetTable": "users", // or something like ['db1', 'tbl1'] which would translate to db1.tbl1
-    "targetColumns": ["id"],
-    "matchRull": "full",
-    "updateRule": "cascade",
-    "deleteRule": { rule: "restrict", "columns": ["col1", "col2"] }
-}
-```
-
-```js
-{
-    "type": "CHECK",
-    "expr": "(email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')"
-}
-```
-
-> <details><summary>See the table constraint schema spec</summary>
 > 
 > ```ts
 > type TableConstraintSchemaType = TablePrimaryKeySchemaSpec | TableForeignKeySchemaSpec | TableUniqueKeySchemaSpec | TableCheckConstraintSchemaSpec;
@@ -504,10 +545,6 @@ With schema versioning now over to the database, much of the old conventions and
 >     type: 'CHECK';
 > }
 > ```
-> 
-> </details>
-
-> <details><summary>See the column constraint schema spec</summary>
 > 
 > ```ts
 > type ColumnConstraintSchemaType = PrimaryKeySchemaSpec | ForeignKeySchemaSpec | UniqueKeySchemaSpec | CheckConstraintSchemaSpec | DefaultConstraintSchemaSpec | ExpressionConstraintSchemaSpec | IdentityConstraintSchemaSpec | OnUpdateConstraintSchemaSpec;
@@ -554,28 +591,6 @@ With schema versioning now over to the database, much of the old conventions and
 > }
 > ```
 > 
-> </details>
-
--------------
-
-└ *Index schema examples:*
-
-```js
-{
-    "type": "FULLTEXT",
-    "columns": ["full_name"]
-}
-```
-
-```js
-{
-    "type": "SPATIAL",
-    "columns": ["full_name"]
-}
-```
-
-> <details><summary>See the index schema spec</summary>
-> 
 > ```ts
 > interface IndexSchemaSpec {
 >     name?: string;
@@ -583,17 +598,15 @@ With schema versioning now over to the database, much of the old conventions and
 >     columns: string[];
 > }
 > ```
-> 
+>
 > </details>
-
-</details>
 
 Now, if you had that somewhere in your application, say at `./database/schema.json`, Linked QL could help keep it in sync both ways with your database:
 
 + you add or remove a database object or table object or column object... and it is automatically reflected in your DB structure at the click of a command: `linkedql migrate`
 + your colleague makes new changes from their codebase... and it is automatically reflected in your local copy at your next `git pull`, or at the click of a command: `linkedql refresh`
 
-🐥 You also get to see a version number on each database object in your schema essentially incrementing on each migrate operation (whether by you or by colleague), and decrementing on each rollback operation (whether by you or by colleague).
+⚡️ You also get to see a version number on each database object in your schema essentially incrementing on each migrate operation (whether by you or by colleague), and decrementing on each rollback operation (whether by you or by colleague).
 
 Thanks to a DB-native schema version control system, no need to maintain past states, or risk losing them; the DB now becomes the absolute source of truth for both itself and its client applications, as against the other way around. (You may want to see how that brings us to [true "Schema as Code" in practice](#test-heading).)
 
