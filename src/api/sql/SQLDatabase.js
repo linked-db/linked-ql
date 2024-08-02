@@ -224,7 +224,7 @@ export default class SQLDatabase extends AbstractDatabase {
             };
             schema.constraints.push(...[...primaryKey, ...uniqueKeys, ...foreignKeys].map(key => ({
                 name: key.constraint_name,
-                type: key.constraint_type === 'UNIQUE' ? 'UNIQUE_KEY' : key.constraint_type.replace('_', ''),
+                type: key.constraint_type === 'UNIQUE' ? 'UNIQUE_KEY' : key.constraint_type.replace(' ', '_'),
                 columns: key.column_name.split(',').map(col => col.trim()),
                 ...(key.constraint_type === 'FOREIGN KEY' ? { references: formatRelation(key, true) } : {}),
             })));
