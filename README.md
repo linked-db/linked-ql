@@ -23,6 +23,8 @@
 
 Linked QL is a database query client that simplfies how you interact with your database and manage your schemas.
 
+## What Does It Do?
+
 💥 Takes the ORM and friends out of the way and let's you just write SQL, but SQL that you will actually enjoy. (Linked QL extends standard SQL with [new syntax sugars](#introducing-magic-paths) that let you write relational queries in less than half the code and without a single JOIN clause in most cases.)
 
 ⚡️ Takes the process out of schema management and lets you just *ALTER* away your DB, but in a safety net. (Linked QL extends your DB behind the scenes to [automatically version](#introducing-auto-versioning) each edit you make and have them kept as "savepoints" that you can always rollback to.)
@@ -139,11 +141,9 @@ Other APIs are covered right in [The Linked QL API](https://github.com/linked-db
 
 ## Introducing Magic Paths
 
-💥 *Express relationships graphically.*
+💥 *Express relationships graphically! You shouldn't always have to write JOINS!*
 
-JOINS can be good but can be a mess as they almost always obfuscate your entire query! But what if you didn't have to write JOINS to express certain relationships?
-
-Meet Linked QL's magic path operators, a syntax extension to SQL, that lets you connect to columns on other tables without writing a single JOIN. Linked QL uses heuristics on your DB structure to figure out the details and the relevant JOINs behind the scenes.
+Meet Linked QL's magic path operators, a syntax extension to SQL, that lets you connect to columns on other tables without writing a single JOIN clause. Linked QL uses heuristics on your DB structure to figure out the details and the relevant JOINS behind the scenes.
 
 Where you normally would write...
 
@@ -193,9 +193,9 @@ SELECT id, title, content, created_time, author ~> id, author ~> title, author ~
 FROM books
 ```
 
-✨ _Now, that translates to about 50% code, plus whole namespacing exercise, having been eliminated! Yet, no questions asked about your schemas, and no such thing as the usual upfront relationship mapping!_
+✨ _Now, that translates to about 50% code, plus whole namespacing exercise, having been eliminated! Yet, no questions asked about your schema, and none of the usual upfront relationship mapping!_
 
-Taking things further, multi-level relationships also get a corresponding pattern: multi-level paths:
+Taking things further, you can chain these operators to any level:
 
 ```sql
 -- Linked QL
@@ -211,7 +211,7 @@ SELECT * FROM users
 WHERE author <~ books ~> title = 'Beauty and the Beast'
 ```
 
-And it turns out, you can practically have the new magic together with the old craft:
+Plus, with Linked QL being a *superset* of SQL, you can combine the new magic together with the old LEFT JOIN/RIGHT JOIN/etc clauses with zero implications:
 
 ```sql
 -- Linked QL
@@ -220,46 +220,57 @@ LEFT JOIN some_other_table USING some_other_condition
 WHERE author <~ books ~> title = 'Beauty and the Beast'
 ```
 
-with zero implications!
+leaving you with just the right tool for the job in every scenario: the regular JOINS for whatever calls for them; magic paths for whatever wouldn't benefit from them!
 
-This means, game on with the regular JOINs for whatever calls for them; take the "magic path" option for whatever doesn't benefit from tham otherwise!
-
-We think this will make a lot of the tooling and manual work around SQL obsolete and your codebase saner! And notice how this gives you back SQL - while having every other thing as only an extension of that!
+*✨ We think this will make a lot of your tooling and manual work around SQL obsolete and your codebase saner! You essentially get back to SQL - and with it, a dose of magic!*
 
 ## Introducing Auto-Versioning
 
 ⚡️ *Create, Alter, and Drop schemas without needing to worry about versioning.*
 
-Databases have historically lacked the concept of versioning, and that has seen all of the engineering work pushed down to the client application. If you've ever had to adopt a special process for defining and managing your schemas, wherein changes are handled through *serially*-named files within your application, each written as an `UP`/`DOWN` pair of actions, and in all supported by tooling...
+<details><summary><i>You may be doing too much!</i></summary>
+
+Databases have historically lacked the concept of versioning, and that has seen all of the engineering work pushed down to the client application. If you've ever had to adopt a special process for defining and managing your schemas, wherein changes are handled through specially-named, chronologically-ordered files within your application...
 
 ```sql
 app
-  ├─ migrations
-  │ │
-  │ ├─ 20240523_1759_create_users_table_and_drop_accounts_table
-  │ │ │
-  │ │ ├─ up.sql
-  │ │ │    CREATE TABLE users (id INT, first_n...);
-  │ │ │    DROP TABLE accounts;
-  │ │ └─ down.sql
-  │ │      DROP TABLE users;
-  │ │      CREATE TABLE accounts (id INT, first_name VAR...);
-  │ │
-  │ ├─ 20240523_1760_add_last_login_to_users_table_and_rename_order_status_table
-  │ │ │
-  │ │ ├─ up.sql
-  │ │ │    ALTER TABLE users ADD COLUMN last_lo...;
-  │ │ │    ALTER TABLE order_status RENAME TO o...;
-  │ │ └─ down.sql
-  │ │      ALTER TABLE users DROP COLUMN last_login;
-  │ │      ALTER TABLE order_tracking RENAME TO order_status;
-  │ │
-  │ ├─ +256 more...
+├─migrations
+  ├─20240523_1759_create_users_table_and_drop_accounts_table
+  │  └[UP]:
+  │    CREATE TABLE users (id int, first_name varchar);
+  │    DROP TABLE accounts;
+  │
+  ├─20240523_1760_add_last_login_to_users_table_and_rename_order_status_table
+  │  └[UP]:
+  │    ALTER TABLE users ADD COLUMN last_name varchar;
+  │    ALTER TABLE order_status RENAME TO order_tracking;
+  │
+  ├─ +256 more...
 ```
 
-then you've faced the problem that this defeciency in databases creates! But what if databases magically got to do the heavy lifting?
+with each of those also needing to be paired with the "DOWN", reverse-engineering logic:
 
-Meet Linked QL's little addition to your database that does exactly that and lets you alter your DB carefree, but in the safety net of some behind-the-scenes magic that snapshots the relevant schemas before each alteration! Meet Automatic Schema Savepoints and Rollbacks!
+```sql
+app
+├─migrations
+  ├─20240523_1760_add_last_login_to_users_table_and_rename_order_status_table:
+  │  └[DOWN]:
+  │    ALTER TABLE users DROP COLUMN last_name;
+  │    ALTER TABLE order_tracking RENAME TO order_status;
+  │
+  ├─20240523_1759_create_users_table_and_drop_accounts_table:
+  │  └[DOWN]:
+  │    DROP TABLE users;
+  │    CREATE TABLE accounts (id int, first_name varchar);
+  │
+  ├─ +256 more...
+```
+
+then you've faced the problem that this defeciency in databases creates!
+
+</details>
+
+Meet Linked QL's Automatic Schema Savepoints and Rollbacks - a little addition to your database that does the heavy-lifting of database versiong at the database level!
 
 You alter your schema and get back a reference to the savepoint automatically created for you:
 
@@ -302,9 +313,11 @@ while((savepoint = await client.database('public').savepoint()) && savepoint.ver
 }
 ```
 
-✨ _Now, that translates to all the manaual engineering work you once did now having been moved to the database, plus... your schema histories now having been encoded **as data** (**instead of as files**), making them queryable, analyzable, and even visualizable, as regular data!_
+*✨ That's your go-ahead to alter your DB carefree! You've got a safety net!*
 
-Taking that further, you also get a way to *roll forward* from a rollback state! (Much like hitting "Redo" to reverse a certain "Undo"). This time, on calling `database.savepoint()`, you indicate that you want a "forward" movement from your current point in time:
+Taking that further, you also get a way to *roll forward* from a rollback state! (Much like hitting "Redo" to reverse a certain "Undo").
+
+This time, on calling `database.savepoint()`, you indicate that you want a "forward" movement from your current point in time:
 
 ```js
 // "Undo" the last rollback (Gets the users table re-created)
@@ -312,13 +325,15 @@ let savepoint = await client.database('public').savepoint({ direction: 'forward'
 await savepoint.rollback();
 ```
 
-giving you *time travel* in any direction! You essentially are able to go back in time or forward in time in as seamlessly as you move on a movie track!
+*✨ You essentially get time travel in any direction - and as seamlessly as you move on a movie track!*
+
+Meanwhile, your schema histories are now being encoded **as data** (**instead of as files**), making them queryable, analyzable, and even visualizable, as regular data!
 
 ## Re-Introducing Schema-as-Code with `schema.json`
 
 💥 *Have your entire DB structure live in a single `schema.json` (or `schema.yml`) file that you edit in-place!*
 
-With schema versioning now over to the database, much of the old conventions and formalities should now be irrelevant. We found that you can essentially streamline you whole "database" footprint from spanning dozens of migration files to fitting into a single `schema.json` (or `schema.yml`) file!
+With schema versioning now over to the database, much of the old conventions and formalities should now be irrelevant. We found that you could essentially streamline you whole "database" footprint from spanning dozens of migration files to fitting into a single `schema.json` (or `schema.yml`) file!
 
 ### `schema.json`
 
