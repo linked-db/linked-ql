@@ -23,7 +23,7 @@
 
 Linked QL is a database query client that simplfies how you interact with your database and manage your schemas.
 
-<details><summary><i>What does it do at a high level?</summary>
+<details><summary><i>What does it do at a high level?</i></summary>
 
 💥 Takes the ORM and friends out of the way and let's you just write SQL, but SQL that you will actually enjoy. (Linked QL extends standard SQL with [new syntax sugars](#introducing-magic-paths) that let you write relational queries in less than half the code and without a single JOIN clause in most cases.)
 
