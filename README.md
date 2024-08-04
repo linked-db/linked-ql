@@ -23,7 +23,7 @@
 
 Linked QL is a database query client that simplfies how you interact with your database and manage your schemas.
 
-## What Does It Do?
+<details><summary><i>What does it do at a high level?</summary>
 
 💥 Takes the ORM and friends out of the way and let's you just write SQL, but SQL that you will actually enjoy. (Linked QL extends standard SQL with [new syntax sugars](#introducing-magic-paths) that let you write relational queries in less than half the code and without a single JOIN clause in most cases.)
 
@@ -31,7 +31,9 @@ Linked QL is a database query client that simplfies how you interact with your d
 
 💥 Brings the "schema-as-code" practice to its true meaning and essentially lets you have your entire DB structure go in a single [`schema.json` file](#re-introducing-schema-as-code-with-schemajson) that you edit in-place, as against the "hundreds of migration files" experience. (Linked QL essentially rewrites your "migrations" experience.)
 
-It comes as a small library and is usable over your DB of choice - from the server-side Postgres, mariadb and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), and the in-memory plain JSON object!
+</details>
+
+Linked QL comes as a small library and is usable over your DB of choice - from the server-side Postgres, mariadb and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), and the in-memory plain JSON object!
 
 Jump to sections and features:
 
@@ -272,7 +274,7 @@ then you've faced the problem that this defeciency in databases creates!
 
 Meet Linked QL's Automatic Schema Savepoint and Rollback feature - a little addition to your database that does the heavy-lifting of schema versiong at the database level!
 
-You alter your schema and get back a reference to a "savepoint" automatically created for you:
+Here, you alter your schema and get back a reference to a "savepoint" automatically created for you:
 
 ```js
 // Alter schema
