@@ -356,7 +356,7 @@ With schema versioning now over to the database, and given the freedom to not ne
 ]
 ```
 
-> <details><summary>See a full example</summary>
+> <details><summary>See a complete example</summary>
 > 
 > ```js
 > [
@@ -668,7 +668,7 @@ To run:
 
 *(Details of these commands in the [Linked QL CLI](https://github.com/linked-db/linked-ql/wiki/CLI#linked-ql-cli) section.)*
 
-_✨ That's the goodbye to dozens of migration files and its processes! (You may want to see how that brings us to [true "Schema as Code" in practice](#test-heading).)_
+_✨ Now, that's a "goodbye" to dozens of migration files and their formalities! (You may want to see how that brings us to [true "Schema as Code" in practice](#test-heading).)_
 
 🐣 *And that's a wrap on Linked QL!*
 
