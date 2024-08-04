@@ -248,7 +248,7 @@ app
   ├─ +256 more...
 ```
 
-with each of those also needing to be paired with the "DOWN", reverse-engineering logic:
+with each of those also needing to be paired with a "DOWN" logic (the reverse-engineering logic):
 
 ```sql
 app
@@ -290,7 +290,7 @@ console.log(savepoint.savepointDate); // 2024-07-17T22:40:56.786Z
 console.table(savepoint.toJson());
 ```
 
-And you're able to access the same savepoint on-demand using the [`database.savepoint()`](https://github.com/linked-db/linked-ql/wiki/API#databasesavepoint) API:
+You're able to access the same savepoint on-demand using the [`database.savepoint()`](https://github.com/linked-db/linked-ql/wiki/API#databasesavepoint) API:
 
 ```js
 const savepoint = await client.database('public').savepoint();
@@ -313,7 +313,7 @@ while((savepoint = await client.database('public').savepoint()) && savepoint.ver
 }
 ```
 
-*✨ That's your go-ahead to alter your DB carefree! You've got a safety net!*
+*✨ Now, that's your go-ahead to alter your DB carefree! You've got a safety net!*
 
 Taking that further, you also get a way to *roll forward* from a rollback state! (Much like hitting "Redo" to reverse a certain "Undo").
 
@@ -325,15 +325,15 @@ let savepoint = await client.database('public').savepoint({ direction: 'forward'
 await savepoint.rollback();
 ```
 
-*✨ You essentially get time travel in any direction - and as seamlessly as you move on a movie track!*
+You essentially get time travel in any direction - and as seamlessly as you move on a movie track!
 
-Meanwhile, your schema histories are now being encoded **as data** (**instead of as files**), making them queryable, analyzable, and even visualizable, as regular data!
+_✨ Meanwhile, your schema histories are now being encoded **as data** (**instead of as files**), making them queryable, analyzable, and even visualizable, as regular data! Plus, the DB now essentially becomes the absolute source of truth for both itself and its client applications!_
 
 ## Re-Introducing Schema-as-Code with `schema.json`
 
 💥 *Have your entire DB structure live in a single `schema.json` (or `schema.yml`) file that you edit in-place!*
 
-With schema versioning now over to the database, much of the old conventions and formalities should now be irrelevant. We found that you could essentially streamline you whole "database" footprint from spanning dozens of migration files to fitting into a single `schema.json` (or `schema.yml`) file!
+With schema versioning now over to the database, and given the freedom to not need to keep certain schema histories to manually maintain past states (or risk losing them), we found that you could essentially streamline you whole "database" footprint from spanning multiple files to fitting into a single `schema.json` (or `schema.yml`) file!
 
 ### `schema.json`
 
@@ -616,14 +616,12 @@ With schema versioning now over to the database, much of the old conventions and
 >
 > </details>
 
-Now, if you had that somewhere in your application, say at `./database/schema.json`, Linked QL could help keep it in sync both ways with your database:
+If you had that somewhere in your application, say at `./database/schema.json`, Linked QL could help keep it in sync both ways with your database:
 
 + you add or remove a database object or table object or column object... and it is automatically reflected in your DB structure at the click of a command: `linkedql migrate`
 + your colleague makes new changes from their codebase... and it is automatically reflected in your local copy at your next `git pull`, or at the click of a command: `linkedql refresh`
 
 ⚡️ You also get to see a version number on each database object in your schema essentially incrementing on each migrate operation (whether by you or by colleague), and decrementing on each rollback operation (whether by you or by colleague).
-
-Thanks to a DB-native schema version control system, no need to maintain past states, or risk losing them; the DB now becomes the absolute source of truth for both itself and its client applications, as against the other way around. (You may want to see how that brings us to [true "Schema as Code" in practice](#test-heading).)
 
 To setup:
 
@@ -666,9 +664,11 @@ To run:
 + Use `linkedql rollback` to walk through the latest savepoint at each database and interactively perform a rollback.
 + Use `linkedql leaderboard` to just view the latest savepoint at each database.
 
-*(More details in the [Linked QL CLI](https://github.com/linked-db/linked-ql/wiki/CLI#linked-ql-cli) section.)*
+*(Details of these commands in the [Linked QL CLI](https://github.com/linked-db/linked-ql/wiki/CLI#linked-ql-cli) section.)*
 
-🐣 *And that's a wrap!*
+_✨ That's the goodbye to dozens of migration files and its processes! (You may want to see how that brings us to [true "Schema as Code" in practice](#test-heading).)_
+
+🐣 *And that's a wrap on Linked QL!*
 
 ## DOCS
 
