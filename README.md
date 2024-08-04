@@ -195,7 +195,7 @@ FROM books
 
 ✨ _Now, that translates to about 50% code, plus whole namespacing exercise, having been eliminated! Yet, no questions asked about your schema, and none of the usual upfront relationship mapping!_
 
-Taking things further, you can chain these operators to any level:
+Taking things further, you are able to chain these operators to any level for your multi-level relationships:
 
 ```sql
 -- Linked QL
@@ -220,9 +220,9 @@ LEFT JOIN some_other_table USING some_other_condition
 WHERE author <~ books ~> title = 'Beauty and the Beast'
 ```
 
-leaving you with just the right tool for the job in every scenario: the regular JOINS for whatever calls for them; magic paths for whatever wouldn't benefit from them!
+leaving you with just the right tool for the job in every scenario: the regular JOINS for whatever calls for them; magic paths for whatever wouldn't really benefit from those!
 
-*✨ We think this will make a lot of your tooling and manual work around SQL obsolete and your codebase saner! You essentially get back to SQL - and with it, a dose of magic!*
+*✨ We think this will make a lot of your tooling and manual work around SQL obsolete and your codebase saner! You essentially get back SQL - and with it, a dose of magic!*
 
 ## Introducing Auto-Versioning
 
@@ -270,9 +270,9 @@ then you've faced the problem that this defeciency in databases creates!
 
 </details>
 
-Meet Linked QL's Automatic Schema Savepoints and Rollbacks - a little addition to your database that does the heavy-lifting of database versiong at the database level!
+Meet Linked QL's Automatic Schema Savepoint and Rollback feature - a little addition to your database that does the heavy-lifting of schema versiong at the database level!
 
-You alter your schema and get back a reference to the savepoint automatically created for you:
+You alter your schema and get back a reference to a "savepoint" automatically created for you:
 
 ```js
 // Alter schema
