@@ -1,6 +1,6 @@
 # Linked QL
 
-[![npm version][npm-version-src]][npm-version-href]<!--[![npm downloads][npm-downloads-src]][npm-downloads-href]-->
+[![npm version][npm-version-src]][npm-version-href][![npm downloads][npm-downloads-src]][npm-downloads-href]<!---->
 [![bundle][bundle-src]][bundle-href]
 [![License][license-src]][license-href]
 
@@ -205,7 +205,7 @@ SELECT * FROM books
 WHERE author ~> role ~> codename = 'admin'
 ```
 
-and for when you need to model the different forms of relationships out there (one-to-many, many-to-one, many-to-many), path operators can go in any direction:
+and for the different forms of relationships out there (one-to-many, many-to-one, many-to-many), path operators can go in any direction:
 
 ```sql
 -- Linked QL
@@ -222,7 +222,7 @@ LEFT JOIN some_other_table USING some_other_condition
 WHERE author <~ books ~> title = 'Beauty and the Beast'
 ```
 
-leaving you with just the right tool for the job in every scenario: the regular JOINS for whatever calls for them; magic paths for whatever wouldn't really benefit from those!
+giving you just the right tool for the job in every scenario: the regular JOINS for whatever calls for them; magic paths for when the very JOINS are an overkill!
 
 *✨ We think this will make a lot of your tooling and manual work around SQL obsolete and your codebase saner! You essentially get back SQL - and with it, a dose of magic!*
 
@@ -335,7 +335,7 @@ _✨ Meanwhile, your schema histories now live **as data** (**instead of as file
 
 💥 *Have your entire DB structure live in a single `schema.json` (or `schema.yml`) file that you edit in-place!*
 
-With schema versioning now happening at the database level, the whole concept of database migrations at the application level should also change: no need to keep a growing list of migration files just to maintain past states! We found that you could essentially streamline you whole "database" footprint to fitting into a single `schema.json` (or `schema.yml`) file!
+With schema versioning now happening at the database level, the whole concept of database migrations at the application level should also change: **no need to keep a growing list of migration files just to maintain past states**! We found that you could essentially streamline you whole "database" footprint to fit in a single `schema.json` (or `schema.yml`) file!
 
 ### `schema.json`
 
@@ -651,7 +651,7 @@ To setup:
 
 3. Have your DB structure defined in a `schema.json` (or `schema.yml`) file in that directory. (See [`schema.json`](#schemajson) above for a guide.)
 
-    Now, you can always extend your DB structure with new objects or drop existsing ones or edit them in-place. But note that for an existing database, table, column, constraint, or index, **names may be changed, but not in-place!** A "rename" operation is done with the addition of a temporary `$name` attribute:
+    Now, you can always extend your DB structure with new objects, drop existsing ones, or edit them in-place. Only, for an existing database, table, column, constraint, or index, **names may be changed, but not in-place!** A "rename" operation is done with the addition of a temporary `$name` attribute:
 
     ```js
     {
@@ -668,9 +668,11 @@ To run:
 + Use `linkedql rollback` to walk through the latest savepoint at each database and interactively perform a rollback.
 + Use `linkedql leaderboard` to just view the latest savepoint at each database.
 
-*(Details of these commands in the [Linked QL CLI](https://github.com/linked-db/linked-ql/wiki/CLI#linked-ql-cli) section.)*
+Details of these commands in the [Linked QL CLI](https://github.com/linked-db/linked-ql/wiki/CLI#linked-ql-cli) section.
 
-🐣 *And that's a wrap on Linked QL! (If you're finding this helpful, don't forget to leave us a star.)*
+🐣 *And that's a wrap on Linked QL!*
+
+✨ *Found this exciting? Don't forget to leave us a star.*
 
 ## DOCS
 
