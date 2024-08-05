@@ -329,7 +329,7 @@ await savepoint.rollback();
 
 You essentially get time travel in any direction - and as seamlessly as you move on a movie track!
 
-_✨ Meanwhile, your schema histories are now being encoded **as data** (**instead of as files**), making them queryable, analyzable, and even visualizable, as regular data! Plus, the DB now essentially becomes the absolute source of truth for both itself and its client applications!_
+_✨ Meanwhile, your schema histories now live **as data** (**instead of as files**), making them queryable, analyzable, and even visualizable, just as regular data! Plus, the DB now essentially becomes the absolute source of truth for both itself and its client applications!_
 
 ## Re-Introducing Schema-as-Code with `schema.json`
 
@@ -623,6 +623,8 @@ If you had that somewhere in your application, say at `./database/schema.json`, 
 + you add or remove a database object or table object or column object... and it is automatically reflected in your DB structure at the click of a command: `linkedql migrate`
 + your colleague makes new changes from their codebase... and it is automatically reflected in your local copy at your next `git pull`, or at the click of a command: `linkedql refresh`
 
+(You may want to see how that brings us to [true "Schema as Code" in practice](#test-heading).)
+
 ⚡️ You also get to see a version number on each database object in your schema essentially incrementing on each migrate operation (whether by you or by colleague), and decrementing on each rollback operation (whether by you or by colleague).
 
 To setup:
@@ -667,8 +669,6 @@ To run:
 + Use `linkedql leaderboard` to just view the latest savepoint at each database.
 
 *(Details of these commands in the [Linked QL CLI](https://github.com/linked-db/linked-ql/wiki/CLI#linked-ql-cli) section.)*
-
-_✨ Now, that's a "goodbye" to dozens of migration files and their formalities! (You may want to see how that brings us to [true "Schema as Code" in practice](#test-heading).)_
 
 🐣 *And that's a wrap on Linked QL! (If you're finding this helpful, don't forget to leave us a star.)*
 
