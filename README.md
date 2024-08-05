@@ -292,7 +292,7 @@ console.log(savepoint.savepointDate); // 2024-07-17T22:40:56.786Z
 console.table(savepoint.toJson());
 ```
 
-You're able to access the same savepoint on-demand using the [`database.savepoint()`](https://github.com/linked-db/linked-ql/wiki/API#databasesavepoint) API:
+You're also able to access the same savepoint on-demand using the [`database.savepoint()`](https://github.com/linked-db/linked-ql/wiki/API#databasesavepoint) API:
 
 ```js
 const savepoint = await client.database('public').savepoint();
@@ -315,7 +315,7 @@ while((savepoint = await client.database('public').savepoint()) && savepoint.ver
 }
 ```
 
-*✨ Now, that's your go-ahead to alter your DB carefree! You've got a safety net!*
+*✨ Now, that's a go-ahead to alter your DB carefree! But this time, in a safety net!*
 
 Taking that further, you also get a way to *roll forward* from a rollback state! (Much like hitting "Redo" to reverse a certain "Undo").
 
@@ -335,7 +335,7 @@ _✨ Meanwhile, your schema histories are now being encoded **as data** (**inste
 
 💥 *Have your entire DB structure live in a single `schema.json` (or `schema.yml`) file that you edit in-place!*
 
-With schema versioning now over to the database, and given the freedom to not need to keep certain schema histories to manually maintain past states (or risk losing them), we found that you could essentially streamline you whole "database" footprint from spanning multiple files to fitting into a single `schema.json` (or `schema.yml`) file!
+With schema versioning now happening at the database level, the whole concept of database migrations at the application level should also change: no need to keep a growing list of migration files just to maintain past states! We found that you could essentially streamline you whole "database" footprint from spanning multiple files to fitting into a single `schema.json` (or `schema.yml`) file!
 
 ### `schema.json`
 
@@ -649,7 +649,7 @@ To setup:
 
 3. Have your DB structure defined in a `schema.json` (or `schema.yml`) file in that directory. (See [`schema.json`](#schemajson) above for a guide.)
 
-    Now, you can always extend your DB structure with new objects and always drop existsing objects or edit them in-place. But note that for an existing database, table, column, constraint, or index, **names may be changed, but not in-place!** A "rename" operation is done with the addition of a temporary `$name` attribute:
+    Now, you can always extend your DB structure with new objects or drop existsing ones or edit them in-place. But note that for an existing database, table, column, constraint, or index, **names may be changed, but not in-place!** A "rename" operation is done with the addition of a temporary `$name` attribute:
 
     ```js
     {
@@ -670,7 +670,7 @@ To run:
 
 _✨ Now, that's a "goodbye" to dozens of migration files and their formalities! (You may want to see how that brings us to [true "Schema as Code" in practice](#test-heading).)_
 
-🐣 *And that's a wrap on Linked QL!*
+🐣 *And that's a wrap on Linked QL! (If you're finding this helpful, don't forget to leave us a star.)*
 
 ## DOCS
 
