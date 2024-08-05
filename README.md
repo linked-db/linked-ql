@@ -623,7 +623,7 @@ If you had that somewhere in your application, say at `./database/schema.json`, 
 + you add or remove a database object or table object or column object... and it is automatically reflected in your DB structure at the click of a command: `linkedql migrate`
 + your colleague makes new changes from their codebase... and it is automatically reflected in your local copy at your next `git pull`, or at the click of a command: `linkedql refresh`
 
-(You may want to see how that brings us to [true "Schema as Code" in practice](#test-heading).)
+> You may want to see how that brings us to [true "Schema as Code" in practice](#test-heading).
 
 ⚡️ You also get to see a version number on each database object in your schema essentially incrementing on each migrate operation (whether by you or by colleague), and decrementing on each rollback operation (whether by you or by colleague).
 
