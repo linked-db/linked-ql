@@ -335,7 +335,7 @@ _✨ Meanwhile, your schema histories now live **as data** (**instead of as file
 
 💥 *Have your entire DB structure live in a single `schema.json` (or `schema.yml`) file that you edit in-place!*
 
-With schema versioning now happening at the database level, the whole concept of database migrations at the application level should also change: no need to keep a growing list of migration files just to maintain past states! We found that you could essentially streamline you whole "database" footprint from spanning multiple files to fitting into a single `schema.json` (or `schema.yml`) file!
+With schema versioning now happening at the database level, the whole concept of database migrations at the application level should also change: no need to keep a growing list of migration files just to maintain past states! We found that you could essentially streamline you whole "database" footprint to fitting into a single `schema.json` (or `schema.yml`) file!
 
 ### `schema.json`
 
