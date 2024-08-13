@@ -228,7 +228,7 @@ giving you just the right tool for the job in every scenario: the regular JOINS 
 
 ## Introducing Auto-Versioning
 
-⚡️ *Create, Alter, and Drop schemas without needing to worry about versioning.*
+⚡️ *Create, alter, and drop schemas without needing to worry about versioning.*
 
 <details><summary><i>You may be doing too much!</i></summary>
 
