@@ -21,7 +21,7 @@
 
 </div>
 
-Linked QL is a modern, simplistic database abstraction that ridiculously shortens the SQL you write and the schema management work you do.
+Linked QL is a modern, simplistic database abstraction that ridiculously streamlines the amount of both the SQL you write and the schema management work you do.
 
 <details><summary><i>What does it do at a high level?</i></summary>
 
