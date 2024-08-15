@@ -50,16 +50,16 @@ export default class AbstractTable {
 	 * 
 	 * @param Array 					fields
 	 * 
-	 * @param Number|Object|Function 	clauses
+	 * @param Number|Object|Function 	modifiers
 	 * 
 	 * @param Array 					fields
-	 * @param Object|Function|Number 	clauses
+	 * @param Object|Function|Number 	modifiers
 	 */
 	async count(...args) {
-		const fields = [].concat(Array.isArray(args[0]) || typeof args[0] === 'string' ? args.shift() : '*');
+		const fields = [].concat(Array.isArray(args[0]) ? args.shift() : '*');
 		if (fields.length !== 1) throw new Error(`Count expects exactly one field.`);
 		const result = await this.select([ q => q.fn('COUNT', fields[0]).as('c') ], ...args);
-		return !Array.isArray(result)/*for when clauses.where is an ID*/ ? result.c : result[0].c;
+		return !Array.isArray(result)/*for when modifiers.where is an ID*/ ? result.c : result[0].c;
 	}
 	 
 	/**
@@ -67,10 +67,10 @@ export default class AbstractTable {
 	 * 
 	 * @param Array 					fields
 	 * 
-	 * @param Number|Object|Function 	clauses
+	 * @param Number|Object|Function 	modifiers
 	 * 
 	 * @param Array 					fields
-	 * @param Object|Function|Number 	clauses
+	 * @param Object|Function|Number 	modifiers
 	 */
 	async select(...args) {
 		const query = new SelectStatement(this.database.client);
@@ -78,11 +78,11 @@ export default class AbstractTable {
 		// Where and fields
 		const fields = Array.isArray(args[0]) ? args.shift() : ['*'];
 		query.select(...fields);
-		const clauses = args.shift() || {};
-		await this.$applyClauses(query, clauses);
+		const modifiers = args.shift() || {};
+		await this.$applyModifiers(query, modifiers);
 		// Handle
 		const result = await this.database.client.query(query);
-		if (['string', 'number'].includes(typeof clauses.where)) return result[0];
+		if (['string', 'number'].includes(typeof modifiers.where)) return result[0];
 		return result;
 	}
 
@@ -90,30 +90,30 @@ export default class AbstractTable {
 	 * Inserts record(s).
 	 * 
 	 * @param Object 					payload
-	 * @param Object|Function			clauses
+	 * @param Object|Function			modifiers
 	 * 
 	 * @param Array 					multilinePayload
-	 * @param Object|Function			clauses
+	 * @param Object|Function			modifiers
 	 * 
 	 * @param Array 					columns
 	 * @param Array 					multilineValues
-	 * @param Object|Function			clauses
+	 * @param Object|Function			modifiers
 	 */
 	async insert(...args) {
 		const query = new InsertStatement(this.database.client);
 		query.into([this.database.name, this.name]);
-		const [ columns = [], values = [], clauses ] = await this.$resolvePayload(...args);
+		const [ columns = [], values = [], modifiers ] = await this.$resolvePayload(...args);
 		// Payload
 		if (columns.length) query.columns(...columns);
 		for (const row of values) query.values(...row);
-		if (_isObject(clauses) && clauses.returning) {
-			query.returning(clauses.returning);
-		} else if (_isFunction(clauses)) {
-			clauses(query);
+		if (_isObject(modifiers) && modifiers.returning) {
+			query.returning(modifiers.returning);
+		} else if (_isFunction(modifiers)) {
+			modifiers(query);
 		}
 		// Handle
 		const result = await this.database.client.query(query);
-		if (_isObject(args[0]) && clauses?.returning) return result[0];
+		if (_isObject(args[0]) && modifiers?.returning) return result[0];
 		return result;
 	}
 		
@@ -121,26 +121,26 @@ export default class AbstractTable {
 	 * Upserts record(s); with optional custom onConflict clause.
 	 * 
 	 * @param Object 					payload
-	 * @param Object|Function			clauses
+	 * @param Object|Function			modifiers
 	 * 
 	 * @param Array 					multilinePayload
-	 * @param Object|Function			clauses
+	 * @param Object|Function			modifiers
 	 * 
 	 * @param Array 					columns
 	 * @param Array 					multilineValues
-	 * @param Object|Function			clauses
+	 * @param Object|Function			modifiers
 	 */
 	async upsert(...args) {
 		const query = new InsertStatement(this.database.client);
 		query.into([this.database.name, this.name]);
-		const [ columns = [], values = [], clauses ] = await this.$resolvePayload(...args);
+		const [ columns = [], values = [], modifiers ] = await this.$resolvePayload(...args);
 		// Payload
 		if (columns.length) query.columns(...columns);
 		for (const row of values) query.values(...row);
-		if (_isObject(clauses) && clauses.returning) {
-			query.returning(clauses.returning);
-		} else if (_isFunction(clauses)) {
-			clauses(query);
+		if (_isObject(modifiers) && modifiers.returning) {
+			query.returning(modifiers.returning);
+		} else if (_isFunction(modifiers)) {
+			modifiers(query);
 		}
 		// On-conflict
 		query.onConflict({ entries: columns.map((col, i) => [col, values[0][i]]) });
@@ -154,7 +154,7 @@ export default class AbstractTable {
 		}
 		// Handle
 		const result = await this.database.client.query(query);
-		if (_isObject(args[0]) && clauses?.returning) return result[0];
+		if (_isObject(args[0]) && modifiers?.returning) return result[0];
 		return result;
 	}
 	
@@ -162,33 +162,33 @@ export default class AbstractTable {
 	 * Updates record(s).
 	 * 
 	 * @param Object 					payload
-	 * @param Object|Function|Number 	clauses
+	 * @param Object|Function|Number 	modifiers
 	 */
-	async update(payload, clauses) {
-		if (!clauses) throw new Error(`The "clauses" parameter cannot be ommitted.`);
+	async update(payload, modifiers) {
+		if (!modifiers) throw new Error(`The "modifiers" parameter cannot be ommitted.`);
 		const query = new UpdateStatement(this.database.client);
 		query.table([this.database.name, this.name]);
 		for (const [k, v] of Object.entries(payload)) query.set(k, toVal(v, this.params.autoBindings));
-		await this.$applyClauses(query, clauses);
+		await this.$applyModifiers(query, modifiers);
 		// Handle
 		const result = await this.database.client.query(query);
-		if (['string', 'number'].includes(typeof clauses.where) && clauses.returning) return result[0];
+		if (['string', 'number'].includes(typeof modifiers.where) && modifiers.returning) return result[0];
 		return result;
 	}
 	 
 	/**
 	 * Deletes record(s).
 	 * 
-	 * @param Object|Function|Number 	clauses
+	 * @param Object|Function|Number 	modifiers
 	 */
-	async delete(clauses) {
-		if (!clauses) throw new Error(`The "clauses" parameter cannot be ommitted.`);
+	async delete(modifiers) {
+		if (!modifiers) throw new Error(`The "modifiers" parameter cannot be ommitted.`);
 		const query = new DeleteStatement(this.database.client);
 		query.from([this.database.name, this.name]);
-		await this.$applyClauses(query, clauses);
+		await this.$applyModifiers(query, modifiers);
 		// Handle
 		const result = await this.database.client.query(query);
-		if (['string', 'number'].includes(typeof clauses.where) && clauses.returning) return result[0];
+		if (['string', 'number'].includes(typeof modifiers.where) && modifiers.returning) return result[0];
 		return result;
 	}
 	
@@ -200,25 +200,25 @@ export default class AbstractTable {
 	 * Helps resolve specified where condition for the query.
 	 * 
 	 * @param Query 						query
-	 * @param Object|Function|Number|Bool 	clauses
+	 * @param Object|Function|Number|Bool 	modifiers
 	 */
-	async $applyClauses(query, clauses) {
-		if (clauses === true) return;
-		if (_isObject(clauses)) {
+	async $applyModifiers(query, modifiers) {
+		if (modifiers === true) return;
+		if (_isObject(modifiers)) {
 			const addWheres = wheres => query.where(...Object.entries(wheres).map(([k, v]) => q => q.equals(k, toVal(v, this.params.autoBindings))));
-			if (['string', 'number'].includes(typeof clauses.where)) {
+			if (['string', 'number'].includes(typeof modifiers.where)) {
 				const schema = await this.database.describeTable(this.name);
 				const primaryKey = schema.columns?.find(col => col.primaryKey)?.name || schema.constraints?.find(cons => cons.type === 'PRIMARY_KEY')?.targetColumns[0];
 				if (!primaryKey) throw new Error(`Cannot resolve primary key name for implied record.`);
-				addWheres({ [primaryKey]: clauses.where });
-			} else if (_isObject(clauses.where)) addWheres(clauses.where);
-			else if (clauses.where) query.where(clauses.where);
-			if (clauses.limit) query.limit(clauses.limit);
-			if (clauses.returning) query.returning(clauses.returning);
-		} else if (_isFunction(clauses)) {
-			clauses(query);
-		} else if (/^\d+$/.test(clauses)) {
-			query.limit(clauses);
+				addWheres({ [primaryKey]: modifiers.where });
+			} else if (_isObject(modifiers.where)) addWheres(modifiers.where);
+			else if (modifiers.where) query.where(modifiers.where);
+			if (modifiers.limit) query.limit(modifiers.limit);
+			if (modifiers.returning) query.returning(modifiers.returning);
+		} else if (_isFunction(modifiers)) {
+			modifiers(query);
+		} else if (/^\d+$/.test(modifiers)) {
+			query.limit(modifiers);
 		}
 	}
 		
@@ -226,29 +226,29 @@ export default class AbstractTable {
 	 * Resolves input arguments into columns and values array.
 	 * 
 	 * @param Object 					payload
-	 * @param Object|Function			clauses
+	 * @param Object|Function			modifiers
 	 * 
 	 * @param Array 					multilinePayload
-	 * @param Object|Function			clauses
+	 * @param Object|Function			modifiers
 	 * 
 	 * @param Array 					columns
 	 * @param Array 					multilineValues
-	 * @param Object|Function			clauses
+	 * @param Object|Function			modifiers
 	 */
 	async $resolvePayload(...args) {
-		let columns = [], values = [], clauses;
+		let columns = [], values = [], modifiers;
 		if (Array.isArray(args[0]) && /*important*/args[0].every(s => typeof s === 'string') && Array.isArray(args[1])) {
 			if (!args[1].every(s => Array.isArray(s))) throw new TypeError(`Invalid payload format.`);
-			[ columns, values, clauses ] = args.splice(0, 3);
+			[ columns, values, modifiers ] = args.splice(0, 3);
 		} else {
 			const payload = [].concat(args.shift());
 			if (!_isObject(payload[0])) throw new TypeError(`Invalid payload format.`);
 			columns = Object.keys(payload[0]);
 			values = payload.map(row => Object.values(row));
-			clauses = args.shift();
+			modifiers = args.shift();
 		}
 		values = values.map(row => row.map(v => toVal(v, this.params.autoBindings)));
-		return [columns, values, clauses];
+		return [columns, values, modifiers];
 	}
 }
 
