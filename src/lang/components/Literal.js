@@ -31,12 +31,12 @@ export default class Literal extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() { return this.VALUE; }
+	toJSON() { return this.VALUE; }
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		const instance = new this(context);
 		if (json == true) return instance.true();
 		if (json == false) return instance.false();

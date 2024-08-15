@@ -181,14 +181,14 @@ export default class DeleteStatement extends AbstractStatement {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
-			delete_list: this.DELETE_LIST.map(t => t.toJson()),
-			from_list: this.FROM_LIST.map(t => t.toJson()),
-			using_list: this.USING_LIST.map(t => t.toJson()),
-			join_list: this.JOIN_LIST.map(t => t.toJson()),
-			where_clause: this.WHERE_CLAUSE?.toJson(),
-			order_by_clause: this.ORDER_BY_CLAUSE?.toJson(),
+			delete_list: this.DELETE_LIST.map(t => t.toJSON()),
+			from_list: this.FROM_LIST.map(t => t.toJSON()),
+			using_list: this.USING_LIST.map(t => t.toJSON()),
+			join_list: this.JOIN_LIST.map(t => t.toJSON()),
+			where_clause: this.WHERE_CLAUSE?.toJSON(),
+			order_by_clause: this.ORDER_BY_CLAUSE?.toJSON(),
 			limit_clause: this.LIMIT_CLAUSE,
 			returning_list: this.RETURNING_LIST,
 			flags: this.FLAGS,
@@ -198,7 +198,7 @@ export default class DeleteStatement extends AbstractStatement {
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (!Array.isArray(json?.from_list)) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
 		if (json.delete_list?.length) instance.delete(...json.delete_list);

@@ -18,12 +18,12 @@ export default class StrJoin extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() { return { strings: this.STRINGS.map(str => str.toJson()), flags: this.FLAGS, }; }
+	toJSON() { return { strings: this.STRINGS.map(str => str.toJSON()), flags: this.FLAGS, }; }
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (!Array.isArray(json?.strings)) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
 		instance.join(...json.strings);

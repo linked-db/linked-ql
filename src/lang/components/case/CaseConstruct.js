@@ -53,11 +53,11 @@ export default class CaseConstruct extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
-			base_value: this.BASE_VALUE?.toJson(),
-			when_clauses: this.WHEN_CLAUSES.map(c => c.toJson()),
-			else_clause: this.ELSE_CLAUSE?.toJson(),
+			base_value: this.BASE_VALUE?.toJSON(),
+			when_clauses: this.WHEN_CLAUSES.map(c => c.toJSON()),
+			else_clause: this.ELSE_CLAUSE?.toJSON(),
 			flags: this.FLAGS,
 		};
 	}
@@ -65,7 +65,7 @@ export default class CaseConstruct extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (!Array.isArray(json?.when_clauses)) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
 		if (json.base_value) instance.compare(json.base_value);

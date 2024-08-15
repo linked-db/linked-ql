@@ -32,17 +32,17 @@ export default class WhenClause extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
-			condition: this.CONDITION?.toJson(),
-			consequence: this.CONSEQUENCE?.toJson(),
+			condition: this.CONDITION?.toJSON(),
+			consequence: this.CONSEQUENCE?.toJSON(),
 		};
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		// json could be undefined or null, or json.condition could be set but 9
 		if (!(typeof json === 'object' && json && 'condition' in json)) return;
 		const instance = new this(context);

@@ -27,7 +27,7 @@ export default class Identifier extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		const name = this.BASENAME ? [this.BASENAME,this.NAME] : this.NAME;
 		return this.FLAGS.length ? { name, flags: this.FLAGS } : name;
 	}
@@ -35,7 +35,7 @@ export default class Identifier extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if ((typeof json === 'string') || (Array.isArray(json) && json.every(s => typeof s === 'string'))) json = { name: json };
 		else if (typeof json?.name !== 'string' && !Array.isArray(json?.name)) return;
 		const instance = (new this(context)).withFlag(...(json?.flags || []));

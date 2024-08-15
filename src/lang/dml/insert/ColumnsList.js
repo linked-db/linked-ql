@@ -23,12 +23,12 @@ export default class ColumnsList extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() { return { list: this.LIST.map(col => col.toJson()) }; }
+	toJSON() { return { list: this.LIST.map(col => col.toJSON()) }; }
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (!Array.isArray(json?.list)) return;
 		return (new this(context)).list(...json.list);
 	}

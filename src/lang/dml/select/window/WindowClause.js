@@ -22,12 +22,12 @@ export default class WindowClause extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() { return { window_list: this.WINDOWS_LIST.map(w => w.toJson()) }; }
+	toJSON() { return { window_list: this.WINDOWS_LIST.map(w => w.toJSON()) }; }
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (!Array.isArray(json?.window_list)) return;
 		const instance = new this(context);
 		instance.define(...json.window_list);

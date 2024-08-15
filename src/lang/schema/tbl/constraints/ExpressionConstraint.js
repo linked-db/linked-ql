@@ -39,19 +39,19 @@ export default class ExpressionConstraint extends AbstractExprConstraint(Abstrac
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
             stored: !!this.STORED,
 			...(typeof this.$STORED === 'boolean' ? { $stored: this.$STORED } : {}),
-            ...super.toJson(),
+            ...super.toJSON(),
 		};
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
-		return super.fromJson(context, json, () => {
+	static fromJSON(context, json) {
+		return super.fromJSON(context, json, () => {
 			const instance = (new this(context)).stored(json.stored);
 			instance.hardSet(json.$stored, val => instance.stored(val));
 			return instance;

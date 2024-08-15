@@ -73,12 +73,12 @@ export default class AbstractAliasableExpr extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() { return { expr: this.$EXPR?.toJson(), alias: this.ALIAS?.toJson(), claused: this.CLAUSED, flags: this.FLAGS }; }
+	toJSON() { return { expr: this.$EXPR?.toJSON(), alias: this.ALIAS?.toJSON(), claused: this.CLAUSED, flags: this.FLAGS }; }
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		const instance = (new this(context)).withFlag(...(json.flags || []));
 		if (json?.expr) {
 			instance.expr(json.expr);

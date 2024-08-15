@@ -85,7 +85,7 @@ export default class SQLClient extends AbstractClient {
         const selectList = query.RETURNING_LIST.splice(0);
         const tblName = query.$trace('get:name:table');
 		const dbName = query.$trace('get:name:database');
-        const tableIdent = Identifier.fromJson(this, [dbName,tblName]);
+        const tableIdent = Identifier.fromJSON(this, [dbName,tblName]);
         // ----------------------------------
         // Delete statements are handled ahead of the query
         if (query instanceof DeleteStatement) {
@@ -95,7 +95,7 @@ export default class SQLClient extends AbstractClient {
         // Insert and update statements are post-handled
         // ----------------------------------
 		const colName = 'obj_column_for_returning_clause_support';
-        const columnIdent = Identifier.fromJson(this, colName);
+        const columnIdent = Identifier.fromJSON(this, colName);
 		await this.driver.query(`ALTER TABLE ${ tableIdent } ADD COLUMN ${ columnIdent } char(36) INVISIBLE`);
         const insertUuid = ( 0 | Math.random() * 9e6 ).toString( 36 );
         // ----------------------------------
@@ -136,7 +136,7 @@ export default class SQLClient extends AbstractClient {
      */
     async basenameResolution(resolutionPath = []) {
         if (arguments.length) {
-            resolutionPath = [].concat(resolutionPath).map(name => Identifier.fromJson(this, name));
+            resolutionPath = [].concat(resolutionPath).map(name => Identifier.fromJSON(this, name));
             const sql = this.params.dialect === 'mysql' ? `USE ${ resolutionPath[0] }` : `SET SEARCH_PATH TO ${ resolutionPath.join(',') }`;
             return await this.driver.query(sql);
         }

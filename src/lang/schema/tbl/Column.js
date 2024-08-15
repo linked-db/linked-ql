@@ -119,7 +119,7 @@ export default class Column extends AbstractNode {
             arg1 = { type: arg1, ...(typeof args[0] === 'object' ? args[0] : (typeof args[0] === 'string' ? { expr: args[0] } : {})) };
         } else if (!(arg1 instanceof AbstractNode)) existing = getExisting(arg1.type);
         if (existing) {
-            const instance = this.constructor.CONSTRAINT_TYPES.reduce((prev, Type) => prev || Type.fromJson(this, arg1));
+            const instance = this.constructor.CONSTRAINT_TYPES.reduce((prev, Type) => prev || Type.fromJSON(this, arg1));
             existing.diffWith(instance);
         } else this.build('CONSTRAINTS', [arg1], this.constructor.CONSTRAINT_TYPES);
         return this;
@@ -134,13 +134,13 @@ export default class Column extends AbstractNode {
 	 */
     diffWith(nodeB) {
         super.diffWith(nodeB);
-        const typeA = this.type().toJson(), typeB = nodeB.type().toJson();
+        const typeA = this.type().toJSON(), typeB = nodeB.type().toJSON();
         if (!this.isSame(typeA, typeB)) this.type(typeB);
         for (const type of ['IDENTITY', 'EXPRESSION', 'NOT_NULL', 'NULL', 'DEFAULT', 'AUTO_INCREMENT', 'ON_UPDATE']) {
             const consA = this.constraint(type);
             const consB = nodeB.constraint(type);
             if (consA && (!consB || consB.dropped())) consA.drop();
-            else if (!consA && consB && !consB.dropped()) this.constraint(consB.toJson());
+            else if (!consA && consB && !consB.dropped()) this.constraint(consB.toJSON());
             else if (consA && consB) consA.diffWith(consB);
         }
 		return this;
@@ -149,32 +149,32 @@ export default class Column extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
         let json = {
-            type: this.TYPE.toJson(),
-            ...(this.$TYPE ? { $type: this.$TYPE.toJson() } : {}),
+            type: this.TYPE.toJSON(),
+            ...(this.$TYPE ? { $type: this.$TYPE.toJSON() } : {}),
         };
         for (const cons of this.CONSTRAINTS) {
-            const { type, ...constraintDef } = cons.toJson();
+            const { type, ...constraintDef } = cons.toJSON();
             const propName = type === 'FOREIGN_KEY' ? 'references' : _toCamel(type.toLowerCase().replace('_', ' '));
             const props = Object.keys(constraintDef);
             const lonePropValue = props.length === 1 ? constraintDef[props[0]] : null;
             const propValue = !props.length ? true : (lonePropValue === false && props[0] === 'keep' ? false : (props.length === 1 && props[0] === 'expr' ? lonePropValue : constraintDef));
             json = { ...json, [ propName ]: propValue };
         }
-        return { ...json, ...super.toJson()/** Status */ };
+        return { ...json, ...super.toJSON()/** Status */ };
     }
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
         const { type, $type, name: _, $name: __, keep: ___, ...constraints } = json;
-        if (!DataType.fromJson({}, type)) return;
-        return super.fromJson(context, json, () => {
+        if (!DataType.fromJSON({}, type)) return;
+        return super.fromJSON(context, json, () => {
 			const instance = new this(context);
-            instance.type(DataType.fromJson(instance, type));
-            instance.hardSet($type, val => instance.type(DataType.fromJson(instance, val)));
+            instance.type(DataType.fromJSON(instance, type));
+            instance.hardSet($type, val => instance.type(DataType.fromJSON(instance, val)));
             const constraintsNormalized = Object.entries(constraints).reduce((normalized, [name, value]) => {
                 if ([undefined,null].includes(value)) return normalized;
                 if (!['boolean','number','string'].includes(typeof value) && !(typeof value === 'object' && value)) {

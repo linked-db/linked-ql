@@ -40,14 +40,14 @@ export default class Expr {
 			json(new Proxy({}, { get: (t, name) => router(name) }));
 			return instance;
 		}
-		return this.fromJson(context, json, Types);
+		return this.fromJSON(context, json, Types);
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, arg, Types = this.Types) {
-		const instance = Types.find(t => arg instanceof t) ? arg : Types.reduce((prev, Type) => prev || Type.fromJson(context, arg), null);
+	static fromJSON(context, arg, Types = this.Types) {
+		const instance = Types.find(t => arg instanceof t) ? arg : Types.reduce((prev, Type) => prev || Type.fromJSON(context, arg), null);
 		if (!instance) throw new Error(``);
 		return instance;
 	}

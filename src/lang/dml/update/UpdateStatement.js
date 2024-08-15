@@ -154,13 +154,13 @@ export default class UpdateStatement extends AbstractStatement {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
-			table_list: this.TABLE_LIST.map(t => t.toJson()),
-			join_list: this.JOIN_LIST.map(t => t.toJson()),
-			set_clause: this.SET_CLAUSE?.toJson(),
-			where_clause: this.WHERE_CLAUSE?.toJson(),
-			order_by_clause: this.ORDER_BY_CLAUSE?.toJson(),
+			table_list: this.TABLE_LIST.map(t => t.toJSON()),
+			join_list: this.JOIN_LIST.map(t => t.toJSON()),
+			set_clause: this.SET_CLAUSE?.toJSON(),
+			where_clause: this.WHERE_CLAUSE?.toJSON(),
+			order_by_clause: this.ORDER_BY_CLAUSE?.toJSON(),
 			limit_clause: this.LIMIT_CLAUSE,
 			returning_list: this.RETURNING_LIST,
 			flags: this.FLAGS,
@@ -170,7 +170,7 @@ export default class UpdateStatement extends AbstractStatement {
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (!Array.isArray(json?.table_list)) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
 		instance.table(...json.table_list);

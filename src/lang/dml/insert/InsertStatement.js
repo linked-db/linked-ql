@@ -104,14 +104,14 @@ export default class InsertStatement extends AbstractStatement {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
-			table: this.TABLE.toJson(),
-			columns_clause: this.COLUMNS_CLAUSE?.toJson(),
-			values_list: this.VALUES_LIST.map(valuesList => valuesList.toJson()),
-			set_clause: this.SET_CLAUSE?.toJson(),
-			select_clause: this.SELECT_CLAUSE?.toJson(),
-			on_conflict_clause: this.ON_CONFLICT_CLAUSE?.toJson(),
+			table: this.TABLE.toJSON(),
+			columns_clause: this.COLUMNS_CLAUSE?.toJSON(),
+			values_list: this.VALUES_LIST.map(valuesList => valuesList.toJSON()),
+			set_clause: this.SET_CLAUSE?.toJSON(),
+			select_clause: this.SELECT_CLAUSE?.toJSON(),
+			on_conflict_clause: this.ON_CONFLICT_CLAUSE?.toJSON(),
 			returning_list: this.RETURNING_LIST.slice(0),
 			flags: this.FLAGS,
 		};
@@ -120,7 +120,7 @@ export default class InsertStatement extends AbstractStatement {
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (!json?.table) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
 		instance.into(json.table);

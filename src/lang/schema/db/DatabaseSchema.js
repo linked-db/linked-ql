@@ -60,7 +60,7 @@ export default class DatabaseSchema extends AbstractSchema {
 			if (namesA.has(name) && !namesB.has(name)) {
 				nodeA.drop();
 			} else if (!namesA.has(name)) {
-				this.table(tableB.toJson());
+				this.table(tableB.toJSON());
 			} else {
 				nodeA.diffWith(tableB);
 			}
@@ -91,7 +91,7 @@ export default class DatabaseSchema extends AbstractSchema {
 				node?.drop();
 			} else if (action.CLAUSE === 'ADD') {
 				if (!action.hasFlag('IF_NOT_EXISTS') || !getTable(action.argument().name().NAME, true)) {
-					this.table(action.argument().toJson());
+					this.table(action.argument().toJSON());
 				}
 			} else if (action.CLAUSE === 'MODIFY') {
 				const node = getTable(action.argument().name().NAME, action.hasFlag('IF_EXISTS'));
@@ -106,9 +106,9 @@ export default class DatabaseSchema extends AbstractSchema {
 	 * @inheritdoc
 	 */
 	getAlt() {
-		const instance = AlterStatement.fromJson(this.CONTEXT, {
+		const instance = AlterStatement.fromJSON(this.CONTEXT, {
 			kind: 'SCHEMA',
-			name: this.NAME.toJson(), // Explicit old name important
+			name: this.NAME.toJSON(), // Explicit old name important
 			actions: [],
 		});
 		if (this.$NAME && !this.isSame(this.$NAME.NAME, this.NAME.NAME, 'ci')) {
@@ -116,9 +116,9 @@ export default class DatabaseSchema extends AbstractSchema {
 		}
 		for (const tbl of this.TABLES) {
 			if (typeof tbl.keep() !== 'boolean') {
-				instance.SUBTREE.push(CreateStatement.fromJson(this, { kind: 'TABLE', argument: tbl.clone() }));
+				instance.SUBTREE.push(CreateStatement.fromJSON(this, { kind: 'TABLE', argument: tbl.clone() }));
 			} else if (tbl.keep() === false) {
-				instance.SUBTREE.push(DropStatement.fromJson(this, { kind: 'TABLE', name: tbl.name().toJson() }));
+				instance.SUBTREE.push(DropStatement.fromJSON(this, { kind: 'TABLE', name: tbl.name().toJSON() }));
 			} else {
 				const alt = tbl.getAlt();
 				if (alt.length) instance.SUBTREE.push(alt);
@@ -147,19 +147,19 @@ export default class DatabaseSchema extends AbstractSchema {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
         return {
-			...super.toJson(),
-            tables: this.TABLES.map(table => table.toJson()),
+			...super.toJSON(),
+            tables: this.TABLES.map(table => table.toJSON()),
         }
     }
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (!json || ['tables'].some(key => key in json && !Array.isArray(json[key]))) return;
-		return super.fromJson(context, json, () => {
+		return super.fromJSON(context, json, () => {
 			const instance = new this(context);
 			for (const tbl of json.tables || []) instance.table(tbl);
 			return instance;

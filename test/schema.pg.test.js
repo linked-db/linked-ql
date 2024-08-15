@@ -41,14 +41,14 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
                 UNIQUE (rand2,rand)
             )`;
             const tblCreateInstance1 = await Parser.parse({ name: 'some_database', params: { inputDialect: 'postgres', dialect: 'mysql' } }, createTableSql, null, { log: false });
-            const tblCreateInstance2 = CreateStatement.fromJson(tblCreateInstance1.CONTEXT, tblCreateInstance1.toJson());
+            const tblCreateInstance2 = CreateStatement.fromJSON(tblCreateInstance1.CONTEXT, tblCreateInstance1.toJSON());
             const sql1 = tblCreateInstance1 + '';
             const sql2 = tblCreateInstance2 + '';
             console.log(sql1);
             /*
             console.log(sql2);
-            console.log(JSON.stringify(tblCreateInstance1.toJson(), null, 3));
-            console.log(JSON.stringify(tblCreateInstance2.toJson(), null, 3));
+            console.log(JSON.stringify(tblCreateInstance1.toJSON(), null, 3));
+            console.log(JSON.stringify(tblCreateInstance2.toJSON(), null, 3));
             */
             expect(sql1).to.eq(sql2);
         });
@@ -85,14 +85,14 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
                 ALTER constraint constraint_name8 DEFERRABLE
             `;
             const tblAlterInstance1 = Parser.parse({ name: 'some_database', params: { inputDialect: 'postgres', dialect: 'mysql' } }, alterTableSql);
-            const tblAlterInstance2 = AlterStatement.fromJson(tblAlterInstance1.CONTEXT, tblAlterInstance1.toJson());
+            const tblAlterInstance2 = AlterStatement.fromJSON(tblAlterInstance1.CONTEXT, tblAlterInstance1.toJSON());
             const sql1 = tblAlterInstance1 + '';
             const sql2 = tblAlterInstance2 + '';
             console.log(sql2);
             /*
             console.log(sql2);
-            console.log(JSON.stringify(tblAlterInstance1.toJson(), null, 3));
-            console.log(JSON.stringify(tblAlterInstance2.toJson(), null, 3));
+            console.log(JSON.stringify(tblAlterInstance1.toJSON(), null, 3));
+            console.log(JSON.stringify(tblAlterInstance2.toJSON(), null, 3));
             */
             expect(sql1).to.eq(sql2);
         });
@@ -111,7 +111,7 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
                 ],
                 indexes: []
             };
-            const schemaInstance = TableSchema.fromJson({}, schema);
+            const schemaInstance = TableSchema.fromJSON({}, schema);
             //schemaInstance.keep(true, 'auto');
             schemaInstance.column('author').drop();//.name('author2');
             //schemaInstance.reverseAlt(true);
@@ -119,15 +119,15 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
             const tblAlterInstance1 = schemaInstance.getAlt();
 
             
-            const tblAlterInstance2 = AlterStatement.fromJson(tblAlterInstance1.CONTEXT, tblAlterInstance1.toJson());
+            const tblAlterInstance2 = AlterStatement.fromJSON(tblAlterInstance1.CONTEXT, tblAlterInstance1.toJSON());
             const sql1 = tblAlterInstance1 + '';
             const sql2 = tblAlterInstance2 + '';
             console.log(sql1);
             /*
             console.log(sql2);
-            console.log(JSON.stringify(schemaInstance.toJson(), null, 3));
-            console.log(JSON.stringify(tblAlterInstance1.toJson(), null, 3));
-            console.log(JSON.stringify(tblAlterInstance2.toJson(), null, 3));
+            console.log(JSON.stringify(schemaInstance.toJSON(), null, 3));
+            console.log(JSON.stringify(tblAlterInstance1.toJSON(), null, 3));
+            console.log(JSON.stringify(tblAlterInstance2.toJSON(), null, 3));
             */
             expect(sql1).to.eq(sql2);
         });

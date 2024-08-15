@@ -262,16 +262,16 @@ export default class SelectStatement extends AbstractStatement {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
-			select_list: this.SELECT_LIST.map(s => s.toJson()),
-			from_list: this.FROM_LIST.map(t => t.toJson()),
-			join_list: this.JOIN_LIST.map(t => t.toJson()),
-			where_clause: this.WHERE_CLAUSE?.toJson(),
-			group_by_clause: this.GROUP_BY_CLAUSE?.toJson(),
-			having_clause: this.HAVING_CLAUSE?.toJson(),
-			window_clause: this.WINDOW_CLAUSE?.toJson(),
-			order_by_clause: this.ORDER_BY_CLAUSE?.toJson(),
+			select_list: this.SELECT_LIST.map(s => s.toJSON()),
+			from_list: this.FROM_LIST.map(t => t.toJSON()),
+			join_list: this.JOIN_LIST.map(t => t.toJSON()),
+			where_clause: this.WHERE_CLAUSE?.toJSON(),
+			group_by_clause: this.GROUP_BY_CLAUSE?.toJSON(),
+			having_clause: this.HAVING_CLAUSE?.toJSON(),
+			window_clause: this.WINDOW_CLAUSE?.toJSON(),
+			order_by_clause: this.ORDER_BY_CLAUSE?.toJSON(),
 			offset_clause: this.OFFSET_CLAUSE,
 			limit_clause: this.LIMIT_CLAUSE,
 			union_clause: this.UNION_CLAUSE,
@@ -282,7 +282,7 @@ export default class SelectStatement extends AbstractStatement {
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (!Array.isArray(json?.select_list)) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
 		instance.select(...json.select_list);

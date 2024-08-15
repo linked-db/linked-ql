@@ -22,10 +22,10 @@ export default class Func extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
 			name: this.NAME,
-			args: this.ARGS.map(o => o.toJson()),
+			args: this.ARGS.map(o => o.toJSON()),
 			flags: this.FLAGS,
 		};
 	}
@@ -33,7 +33,7 @@ export default class Func extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (typeof json?.name !== 'string' || !Array.isArray(json.args)) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
 		instance.fn(json.name, ...json.args);

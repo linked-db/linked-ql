@@ -23,12 +23,12 @@ export default class ValuesList extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() { return { list: this.LIST.slice(0) }; }
+	toJSON() { return { list: this.LIST.slice(0) }; }
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (!Array.isArray(json?.list)) return;
 		return (new this(context)).list(...json.list);
 	}

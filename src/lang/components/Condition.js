@@ -49,10 +49,10 @@ export default class Condition extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
 			logic: this.LOGIC,
-			assertions: this.ASSERTIONS.map(o => o.toJson()),
+			assertions: this.ASSERTIONS.map(o => o.toJSON()),
 			flags: this.FLAGS,
 		};
 	}
@@ -60,7 +60,7 @@ export default class Condition extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (typeof json?.logic !== 'string' || !/AND|OR/i.test(json.logic) || !Array.isArray(json.assertions)) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
 		instance[json.logic.toLowerCase()](...json.assertions);

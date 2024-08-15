@@ -38,12 +38,12 @@ export default class Str extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() { return { value: this.VALUE }; }
+	toJSON() { return { value: this.VALUE }; }
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (typeof json?.value !== 'string') return;
 		return new this(context, json.value, json.quote);
 	}

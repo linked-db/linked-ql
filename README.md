@@ -21,15 +21,15 @@
 
 </div>
 
-Linked QL is a database query client that simplfies how you interact with your database and manage your schemas.
+Linked QL is a modern, simplistic database abstraction that ridiculously shortens the SQL you write and the schema management work you do.
 
 <details><summary><i>What does it do at a high level?</i></summary>
 
-💥 Takes the ORM and friends out of the way and let's you just write SQL, but SQL that you will actually enjoy. (Linked QL extends standard SQL with [new syntax sugars](#introducing-magic-paths) that let you write relational queries in less than half the code and without a single JOIN clause in most cases.)
+💥 Takes the ORM and friends out of the way and let's you just write SQL, but SQL that you actually enjoy. (Linked QL extends standard SQL with [new syntax sugars](#introducing-magic-paths) that let you write relational queries in less than half the code.)
 
-⚡️ Takes the process out of schema management and lets you just *ALTER* away your DB, but in a safety net. (Linked QL extends your DB behind the scenes to [automatically version](#introducing-auto-versioning) each edit you make and have them kept as "savepoints" that you can always rollback to.)
+⚡️ Takes the process out of schema management and lets you just *ALTER* away your DB, but with [automatic schema versioning](#introducing-auto-versioning) happening behind the scenes.
 
-💥 Brings the "schema-as-code" practice to its true meaning and essentially lets you have your entire DB structure go in a single [`schema.json` file](#re-introducing-schema-as-code-with-schemajson) that you edit in-place, as against the "hundreds of migration files" experience. (Linked QL essentially rewrites your "migrations" experience.)
+💥 Brings the "schema-as-code" philosophy to its true practice wherein you are able to manage your entire DB structure out of a single [`schema.json` (or `schema.yml`) file](#re-introducing-schema-as-code-with-schemajson).
 
 </details>
 
@@ -139,7 +139,7 @@ const result = await client.query('SELECT fname, lname FROM users WHERE role = $
 console.log(result);
 ```
 
-Other APIs are covered right in [The Linked QL API](https://github.com/linked-db/linked-ql/wiki/API) section. You'll find that, in addition to running pure SQL using `client.query()`, you can also programmatically compose queries if you want; an example being the `client.createDatabase()` API for a `CREATE DATABASE` statement.
+This API and more are covered right in the [API](https://github.com/linked-db/linked-ql/wiki/API) area. Here, you are able to choose between running raw SQL using `client.query()` or running equivalent statements using APIs like `client.createDatabase()`, `client.alterDatabase()`, `client.dropDatabase()`, `database.createTable()`, `database.alterTable()`, `database.dropTable()`, `table.select()`, `table.insert()`, `table.upsert()`, `table.update()`, `table.delete()`, etc.
 
 ## Introducing Magic Paths
 
@@ -298,14 +298,14 @@ You're also able to access the same savepoint on-demand using the [`database.sav
 const savepoint = await client.database('public').savepoint();
 ```
 
-Either way, you get a nifty rollback button, should you want to:
+Either way, you get a nifty rollback button should you want to rollback:
 
 ```js
 // Rollback all associated changes (Gets the users table dropped)
 await savepoint.rollback();
 ```
 
-all the way back to a point in time, should you want to:
+and you can roll all the way back to a point in time, should you want to:
 
 ```js
 // Rollback to public@3
@@ -668,7 +668,7 @@ To run:
 + Use `linkedql rollback` to walk through the latest savepoint at each database and interactively perform a rollback.
 + Use `linkedql leaderboard` to just view the latest savepoint at each database.
 
-Details of these commands in the [Linked QL CLI](https://github.com/linked-db/linked-ql/wiki/CLI#linked-ql-cli) section.
+Details of these commands in the [CLI](https://github.com/linked-db/linked-ql/wiki/CLI#linked-ql-cli) area.
 
 🐣 *And that's a wrap on Linked QL!*
 

@@ -32,16 +32,16 @@ export default class AbstractSchema extends AbstractNode {
 	 */
     diffWith(nodeB) {
 		if (typeof nodeB.keep() === 'boolean') this.keep(nodeB.keep());
-        if (!this.isSame(nodeB.name().toJson(), this.name().toJson())) { this.name(nodeB.name().toJson()); }
+        if (!this.isSame(nodeB.name().toJSON(), this.name().toJSON())) { this.name(nodeB.name().toJSON()); }
     }
 
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
-			name: this.NAME.toJson(),
-			...(this.$NAME ? { $name: this.$NAME.toJson() } : {}),
+			name: this.NAME.toJSON(),
+			...(this.$NAME ? { $name: this.$NAME.toJSON() } : {}),
 			...(typeof this.KEEP === 'boolean' ? { keep: this.KEEP } : {}),
 			...(this.FLAGS.length ? { flags: [ ...this.FLAGS ] } : {}),
 		};
@@ -50,8 +50,8 @@ export default class AbstractSchema extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json, callback = null) {
-		if (!json?.name || !Identifier.fromJson({}, json.name)) return;
+	static fromJSON(context, json, callback = null) {
+		if (!json?.name || !Identifier.fromJSON({}, json.name)) return;
 		const instance = callback ? callback() : new this(context);
         instance.hardSet(() => instance.name(json.name));
 		instance.hardSet(json.$name, val => instance.name(val));

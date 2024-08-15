@@ -123,10 +123,10 @@ export default class TableSchema extends AbstractSchema {
 					// Is the column also a new column? Ignore
 					// (Note that we're asking namesA as that's the originals before fresh additions)
 					if (!namesA.has(columnName)) return;
-					getNode(this, columnName).constraint(subNodeB.toJson());
-				} else this.constraint(subNodeB.toJson());
-			} else if (subNodeB instanceof Index) this.index(subNodeB.toJson());
-			else this.column(subNodeB.toJson());
+					getNode(this, columnName).constraint(subNodeB.toJSON());
+				} else this.constraint(subNodeB.toJSON());
+			} else if (subNodeB instanceof Index) this.index(subNodeB.toJSON());
+			else this.column(subNodeB.toJSON());
 		};
 		for (const name of new Set([...namesA, ...namesB])) {
 			const nodeA = getNode(this, name);
@@ -167,15 +167,15 @@ export default class TableSchema extends AbstractSchema {
 			} else if (action.CLAUSE === 'ADD') {
 				if (action.argument() instanceof AbstractLevel2Constraint) {
 					if (action.argument().columns().length === 1) {
-						getNode({ kind: 'COLUMN', name: action.argument().columns()[0] }).constraint(action.argument().toJson());
-					} else this.constraint(action.argument().toJson());
+						getNode({ kind: 'COLUMN', name: action.argument().columns()[0] }).constraint(action.argument().toJSON());
+					} else this.constraint(action.argument().toJSON());
 				} else if (action.argument() instanceof Index) {
-					this.index(action.argument().toJson());
+					this.index(action.argument().toJSON());
 				} else if (!action.hasFlag('IF_NOT_EXISTS') || !getNode({ kind: 'COLUMN', name: action.argument().name() }, true)) {
-					this.column(action.argument().toJson());
+					this.column(action.argument().toJSON());
 				}
 			} else if (action.CLAUSE === 'DROP') {
-				const node = getNode(action.toJson(), action.hasFlag('IF_EXISTS'));
+				const node = getNode(action.toJSON(), action.hasFlag('IF_EXISTS'));
 				node?.drop();
 			} else if (action.CLAUSE === 'SET') {
 				if (action.KIND === 'SCHEMA') {
@@ -201,7 +201,7 @@ export default class TableSchema extends AbstractSchema {
 					}
 				} else if (subAction.CLAUSE === 'SET') {
 					if (subAction.argument() instanceof DataType) {
-						node.type(subAction.argument().toJson());
+						node.type(subAction.argument().toJSON());
 					} else if (['DEFAULT', 'ON_UPDATE'].includes(subAction.KIND)) {
 						node.constraint(subAction.KIND, subAction.argument());
 					} else if (['NOT_NULL', 'NULL', 'AUTO_INCREMENT'].includes(subAction.KIND)) {
@@ -221,9 +221,9 @@ export default class TableSchema extends AbstractSchema {
 	 * @inheritdoc
 	 */
 	getAlt() {
-		const instance = AlterStatement.fromJson(this.CONTEXT, {
+		const instance = AlterStatement.fromJSON(this.CONTEXT, {
 			kind: 'TABLE',
-			name: this.NAME.toJson(), // Explicit old name important
+			name: this.NAME.toJSON(), // Explicit old name important
 			actions: []
 		});
 		if (this.$NAME && this.NAME) {
@@ -250,7 +250,7 @@ export default class TableSchema extends AbstractSchema {
 			if (col.keep() === true) {
 				if (this.params.dialect === 'mysql') {
 					// // Column name or type changed, or these attrs changed? Use MySQL CHANGE clause?
-					if ((col.$TYPE && !this.isSame(col.$TYPE.toJson(), col.TYPE.toJson(), 'ci'))
+					if ((col.$TYPE && !this.isSame(col.$TYPE.toJSON(), col.TYPE.toJSON(), 'ci'))
 					|| (col.CONSTRAINTS.some(cons => ['EXPRESSION', 'NOT_NULL', 'NULL', 'AUTO_INCREMENT', 'ON_UPDATE'].includes(cons.TYPE) && constraintDirty(cons, true)))) {
 						const columnClone = col.clone();
 						columnClone.CONSTRAINTS = columnClone.CONSTRAINTS.filter(cons => !(cons instanceof AbstractLevel2Constraint));
@@ -271,8 +271,8 @@ export default class TableSchema extends AbstractSchema {
 					}
 				} else {
 					// Column type change?
-					if (col.$TYPE && !this.isSame(col.$TYPE.toJson(), col.TYPE.toJson(), 'ci')) {
-						instance.alter('COLUMN', col.NAME, { clause: 'SET', kind: 'DATA_TYPE', argument: DataType.fromJson(col, col.$TYPE.toJson()) });
+					if (col.$TYPE && !this.isSame(col.$TYPE.toJSON(), col.TYPE.toJSON(), 'ci')) {
+						instance.alter('COLUMN', col.NAME, { clause: 'SET', kind: 'DATA_TYPE', argument: DataType.fromJSON(col, col.$TYPE.toJSON()) });
 					}
 					// Constraints level1 changed?
 					const constraintsLevel1 = col.CONSTRAINTS.filter(cons => !(cons instanceof AbstractLevel2Constraint) && constraintDirty(cons, true));
@@ -297,7 +297,7 @@ export default class TableSchema extends AbstractSchema {
 						if ([true, false].includes(cons.keep())) instance.drop(cons.TYPE, cons.NAME);
 						if (cons.keep() !== false) {
 							const columnName = col.$trace('get:schema:table').altsCascaded ? col.name() : col.NAME;
-							const tableCons = this.constructor.CONSTRAINT_TYPES.find(Type => Type.TYPE === cons.TYPE).fromJson(cons.CONTEXT, { ...cons.toJson(), columns: [columnName] });
+							const tableCons = this.constructor.CONSTRAINT_TYPES.find(Type => Type.TYPE === cons.TYPE).fromJSON(cons.CONTEXT, { ...cons.toJSON(), columns: [columnName] });
 							instance.add(tableCons.TYPE, tableCons);
 						}
 					} else if (cons.keep() === true && cons.$NAME && !this.isSame(cons.$NAME, cons.NAME, 'ci')) {
@@ -399,21 +399,21 @@ export default class TableSchema extends AbstractSchema {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
         return {
-            columns: this.COLUMNS.map(column => column.toJson()),
-            constraints: this.CONSTRAINTS.map(constraint => constraint.toJson()),
-            indexes: this.INDEXES.map(index => index.toJson()),
-			...super.toJson(),
+            columns: this.COLUMNS.map(column => column.toJSON()),
+            constraints: this.CONSTRAINTS.map(constraint => constraint.toJSON()),
+            indexes: this.INDEXES.map(index => index.toJSON()),
+			...super.toJSON(),
         }
     }
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (!Array.isArray(json?.columns) || ['constraints', 'indexes'].some(key => key in json && !Array.isArray(json[key]))) return;
-		return super.fromJson(context, json, () => {
+		return super.fromJSON(context, json, () => {
 			const instance = new this(context);
 			for (const col of json.columns) instance.column(col);
 			for (const cons of (json.constraints || [])) instance.constraint(cons);
@@ -432,7 +432,7 @@ export default class TableSchema extends AbstractSchema {
 		if (this.params.dialect === 'mysql') {
 			constraints.push(...this.COLUMNS.reduce((constraints, col) => {
 				const constraint = col.foreignKey();
-				if (constraint) return constraints.concat(TableForeignKey.fromJson(this, { ...constraint.toJson(), columns: [col.name()] }));
+				if (constraint) return constraints.concat(TableForeignKey.fromJSON(this, { ...constraint.toJSON(), columns: [col.name()] }));
 				return constraints;
 			}, []));
 		}

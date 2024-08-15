@@ -19,7 +19,7 @@ export default class DataType extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		if (this.SPEC.length === 1) return this.SPEC[0];
 		return this.SPEC;
 	}
@@ -27,7 +27,7 @@ export default class DataType extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		const spec = [].concat(json);
 		if (typeof spec[0] !== 'string') return;
 		const [name, precision, flags] = parse.call(this, spec[0]);

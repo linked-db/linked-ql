@@ -56,12 +56,12 @@ export default class Parens extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() { return { expr: this.$EXPR?.toJson(), flags: this.FLAGS, }; }
+	toJSON() { return { expr: this.$EXPR?.toJSON(), flags: this.FLAGS, }; }
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (!json?.expr || Object.keys(json).length !== (json.flags ? 2 : 1)) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
 		instance.expr(json.expr);

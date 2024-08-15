@@ -19,7 +19,7 @@ export default class CreateStatement extends AbstractStatement(Add) {
 		// Handle subtree
 		if (['SCHEMA', 'DATABASE'].includes(this.KIND)) {
 			stmts.push(...this.argument().TABLES.map(tblSchema => {
-				return this.constructor.fromJson(this, { kind: 'TABLE', argument: tblSchema });
+				return this.constructor.fromJSON(this, { kind: 'TABLE', argument: tblSchema });
 			}));
 		}
 		return stmts.join(';\n');

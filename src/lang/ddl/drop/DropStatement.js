@@ -8,14 +8,14 @@ export default class DropStatement extends AbstractStatement(AbstractNode) {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() { return { name: this.NAME.toJson(), ...super.toJson(), }; }
+	toJSON() { return { name: this.NAME.toJSON(), ...super.toJSON(), }; }
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (!json.name) return;
-        return super.fromJson(context, json)?.name(json.name);
+        return super.fromJSON(context, json)?.name(json.name);
 	}
 	
 	/**

@@ -6,7 +6,7 @@ import pg from 'pg';
 import mariadb from 'mariadb';
 import SQLClient from '../src/api/sql/SQLClient.js';
 
-let driver, dialect = 'mysql', dbPublic;
+let driver, dialect = 'postgres', dbPublic;
 // ---------------------------------
 if (dialect === 'mysql') {
     // JSON support: MariaDB 10.2.7, MySQL 5.7.8
@@ -53,7 +53,7 @@ const savepoint1 = await lqlClient.database(dbPublic).savepoint();
 console.log('.....create users.....', await lqlClient.query(`CREATE TABLE users (
     id int primary key generated always as identity,
     title varchar(100) default '...',
-    name varchar(100),
+    name varchar(100) unique,
     role int references roles (id),
     created_time timestamp
 )`, { description: 'Created users' }));
@@ -113,6 +113,9 @@ if (spliceForwardHistories) {
     const ww = await lqlClient.query(`SELECT name, role <~ author <~ books ~> title FROM roles`);
     //const ww = await lqlClient.query(`SELECT users.name, roles.name as role_name FROM users LEFT JOIN roles ON roles.id = users.role where roles.name = ${ dialect === 'mysql' ? '?' : '$1' }`, { values: ['admin'] });
     console.log(ww);
+    console.log(await lqlClient.database('public').table('users').upsert({ title: 'Untitled', name: 'Jude' }, { returning: '*' }));
+    console.log(await lqlClient.database('public').table('users').upsert({ title: 'Untitled', name: 'Jude' }, { returning: '*' }));
+    console.log(await lqlClient.database('public').table('users').select({ where: 2 }));
 }
 
 

@@ -26,14 +26,14 @@ describe(`SELECT QUERIES`, function() {
 
         it(`"parse()" the expression and stringify to compare with original`, async function() {
             const query1 = await Parser.parse({}, expr1, null, { log: false });
-            const query2 = SelectStatement.fromJson(query1.CONTEXT, query1.toJson());
+            const query2 = SelectStatement.fromJSON(query1.CONTEXT, query1.toJSON());
             const sql1 = query1 + '';
             const sql2 = query2 + '';
             console.log(sql1);
             /*
             console.log(sql2);
-            console.log(JSON.stringify(query1.toJson(), null, 3));
-            console.log(JSON.stringify(query2.toJson(), null, 3));
+            console.log(JSON.stringify(query1.toJSON(), null, 3));
+            console.log(JSON.stringify(query2.toJSON(), null, 3));
             */
             expect(sql1).to.eq(sql2);
         });
@@ -114,8 +114,8 @@ describe(`SELECT QUERIES`, function() {
             console.log(sql1);
             /*
             console.log(sql2);
-            console.log(JSON.stringify(query1.toJson(), null, 3));
-            console.log(JSON.stringify(query2.toJson(), null, 3));
+            console.log(JSON.stringify(query1.toJSON(), null, 3));
+            console.log(JSON.stringify(query2.toJSON(), null, 3));
             */
             //expect(sql1).to.eq(sql2);
         });

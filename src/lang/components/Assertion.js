@@ -48,7 +48,7 @@ export default class Assertion extends AbstractNode {
 	/**
 	 * @alias equal
 	 */
-	eq(...operands) { return this.equal(...operands); }
+	eq(...operands) { return this.equals(...operands); }
 
 	/**
 	 * API for "="
@@ -294,10 +294,10 @@ export default class Assertion extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
 			operator: this.OPERATOR,
-			operands: this.OPERANDS.map(o => o.toJson()),
+			operands: this.OPERANDS.map(o => o.toJSON()),
 			flags: this.FLAGS,
 		};
 	}
@@ -305,7 +305,7 @@ export default class Assertion extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (!Array.isArray(json?.operands) || typeof json?.operator !== 'string' || !this.regexes.some(re => (new RegExp(re.regex || re.test || re)).test(` ${ json.operator } `/*intentional space around*/))) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
 		instance.assert(json.operator, ...json.operands);

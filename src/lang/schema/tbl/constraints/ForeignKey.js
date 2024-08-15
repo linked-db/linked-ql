@@ -113,11 +113,11 @@ export default class ForeignKey extends AbstractLevel2Constraint {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
             // Requireds
-            targetTable: this.TARGET_TABLE.toJson(),
-			...(this.$TARGET_TABLE ? { $targetTable: this.$TARGET_TABLE.toJson() } : {}),
+            targetTable: this.TARGET_TABLE.toJSON(),
+			...(this.$TARGET_TABLE ? { $targetTable: this.$TARGET_TABLE.toJSON() } : {}),
             targetColumns: this.TARGET_COLUMNS,
 			...(this.$TARGET_COLUMNS.length ? { $targetColumns: this.$TARGET_COLUMNS } : {}),
             // Optionals
@@ -128,16 +128,16 @@ export default class ForeignKey extends AbstractLevel2Constraint {
             ...(this.DELETE_RULE ? { deleteRule: this.DELETE_RULE } : {}),
 			...(this.$DELETE_RULE ? { $deleteRule: this.$DELETE_RULE } : {}),
             // Name & keep
-            ...super.toJson(),
+            ...super.toJSON(),
 		};
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json, callback = null) {
+	static fromJSON(context, json, callback = null) {
 		if (!json?.targetTable || !json.targetColumns?.length) return;
-		return super.fromJson(context, json, () => {
+		return super.fromJSON(context, json, () => {
 			const instance = callback ? callback() : new this(context);
 			instance.hardSet(() => instance.targetTable(json.targetTable));
 			instance.hardSet(() => instance.targetColumns(json.targetColumns));

@@ -80,15 +80,15 @@ export default class Savepoint {
      * @returns String
      */
     get rollbackQuery() {
-        const schema = DatabaseSchema.fromJson(this.client, this.schema());
+        const schema = DatabaseSchema.fromJSON(this.client, this.schema());
         if (this.direction !== 'forward') {
             schema.reverseAlt(true);
             schema.keep(schema.keep(), 'auto');
         }
         // Execute rollback
-        if (schema.keep() === false) return DropStatement.fromJson(this.client, { kind: 'SCHEMA', name: schema.name() }).withFlag(this.client.params.dialect === 'mysql' ? '' : 'CASCADE');
+        if (schema.keep() === false) return DropStatement.fromJSON(this.client, { kind: 'SCHEMA', name: schema.name() }).withFlag(this.client.params.dialect === 'mysql' ? '' : 'CASCADE');
         if (schema.keep() === true) return schema.getAlt().with({ resultSchema: schema });
-        return CreateStatement.fromJson(this.client, { kind: 'SCHEMA', argument: schema });
+        return CreateStatement.fromJSON(this.client, { kind: 'SCHEMA', argument: schema });
     }
 
     /**
@@ -110,7 +110,7 @@ export default class Savepoint {
     /**
      * @returns Object
      */
-    toJson() {
+    toJSON() {
         const { id, database_tag: databaseTag, version_tag: versionTag, version_max: versionMax, $cursor, savepoint_description: description, savepoint_date: savepointDate, rollback_date: rollbackDate } = this.$.json;
         return { id, name: this.name(), databaseTag, versionTag, versionMax, cursor: $cursor, description, savepointDate, rollbackDate, rollbackEffect: this.rollbackEffect };
     }

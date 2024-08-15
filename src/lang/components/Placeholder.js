@@ -36,12 +36,12 @@ export default class Placeholder extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() { return { offset: this.OFFSET }; }
+	toJSON() { return { offset: this.OFFSET }; }
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (typeof json?.offset !== 'number') return;
 		return new this(context, json.offset);
 	}

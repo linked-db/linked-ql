@@ -68,13 +68,13 @@ export default class Path extends AbstractNode {
 		const getPrimaryKey = schema => schema.primaryKey()?.columns()[0];
 		const getTargetTable = async (schema, foreignKey) => {
 			const targetTable = [...schema.NODES].find(node => node.TYPE === 'FOREIGN_KEY' && node.columns().includes(foreignKey.NAME))?.targetTable();
-			if (targetTable && !targetTable.BASENAME) return Identifier.fromJson(this, [await clientApi.basenameGet(targetTable.NAME),targetTable.NAME]);
+			if (targetTable && !targetTable.BASENAME) return Identifier.fromJSON(this, [await clientApi.basenameGet(targetTable.NAME),targetTable.NAME]);
 			return targetTable;
 		};
 		const getSchema = async (tblName, dbName) => {
 			const dbApi = clientApi.database(dbName);
 			if (!(await dbApi.hasTable(tblName))) return;
-			return TableSchema.fromJson(dbApi, await dbApi.describeTable(tblName));
+			return TableSchema.fromJSON(dbApi, await dbApi.describeTable(tblName));
 		};
 		if (this.isIncoming) {
 			if (!(this.RHS instanceof Path)) throw new Error(`Unterminated path: ${ this.RHS }`);
@@ -89,7 +89,7 @@ export default class Path extends AbstractNode {
 			} else {
 				// === {foreignKey}LHS<-RHS{table->path}
 				({ LHS: foreignKey_rhs/*Identifier*/, RHS/*Path*/: { LHS: table_rhs/*Identifier*/, RHS: path/*Identifier|Path*/ } } = this);
-				if (!table_rhs.BASENAME) { table_rhs = Identifier.fromJson(this, [await clientApi.basenameGet(table_rhs.NAME), table_rhs.NAME]); }
+				if (!table_rhs.BASENAME) { table_rhs = Identifier.fromJSON(this, [await clientApi.basenameGet(table_rhs.NAME), table_rhs.NAME]); }
 				schema_rhs = await getSchema(table_rhs.NAME, table_rhs.BASENAME);
 				if (!schema_rhs) throw new Error(`[${ this }]: The implied table ${ table_rhs } does not exist.`);
 			}
@@ -168,16 +168,16 @@ export default class Path extends AbstractNode {
 		// Now on outer query, that would resolve to selecting "$view:fk_name:tbl_name:db_name:pk_name"."$path:unxnj" as "author"->"name"
 		// For something like: author~>country->name, select "$view:fk_name:tbl_name:db_name:pk_name"."country"->"name" as "$path:unxnj"
 		// Now on outer query, that would resolve to selecting "$view:fk_name:tbl_name:db_name:pk_name"."$path:unxnj" as "author"~>"country"->"name"
-		this.JOINT.EXPR/*Query*/.select( field => field.expr(rhs.path.toJson()).as(this.uuid) );
+		this.JOINT.EXPR/*Query*/.select( field => field.expr(rhs.path.toJSON()).as(this.uuid) );
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
-			lhs: this.LHS?.toJson(),
-			rhs: this.RHS?.toJson(),
+			lhs: this.LHS?.toJSON(),
+			rhs: this.RHS?.toJSON(),
 			operator: this.OPERATOR,
 			flags: this.FLAGS,
 		};
@@ -186,7 +186,7 @@ export default class Path extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (![this.ARR_LEFT, this.ARR_RIGHT].includes(json?.operator)) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
 		instance.path(json.lhs, json.operator, json.rhs);
@@ -221,7 +221,7 @@ async function baseTableIdent() {
 	const tblName = this.$trace('get:name:table');
 	if (tblName) {
 		const dbName = this.$trace('get:name:database');
-		return Identifier.fromJson(this, [
+		return Identifier.fromJSON(this, [
 			dbName || await this.$trace('get:api:client')?.basenameGet(tblName),
 			tblName
 		]);

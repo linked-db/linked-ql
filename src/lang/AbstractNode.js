@@ -188,7 +188,7 @@ export default class AbstractNode {
 		const Types = Array.isArray(Type) ? Type : (Type ? [Type] : []);
 		if (!Types.length) throw new Error(`At least one node type must be defined.`);
 		// ---------
-		const cast = arg => Types.find(t => arg instanceof t) ? arg : Types.reduce((prev, Type) => prev || Type.fromJson(this, arg), null);
+		const cast = arg => Types.find(t => arg instanceof t) ? arg : Types.reduce((prev, Type) => prev || Type.fromJSON(this, arg), null);
 		const set = (...args) => {
 			for (const arg of args) {
 				if (Array.isArray(this[attrName])) this[attrName].push(arg);
@@ -251,7 +251,7 @@ export default class AbstractNode {
 	/**
 	 * Clones the instance.
 	 */
-	clone() { return this.constructor.fromJson(this.CONTEXT, this.toJson()); }
+	clone() { return this.constructor.fromJSON(this.CONTEXT, this.toJSON()); }
 	
 	/**
 	 * -----------
@@ -285,12 +285,12 @@ export default class AbstractNode {
 	 *
 	 * @return AbstractNode
 	 */
-	static fromJson(context, json) {}
+	static fromJSON(context, json) {}
 
 	/**
 	 * Cast the instance to a plain object.
 	 * 
 	 * @returns Object
 	 */
-	toJson() { return { flags: this.FLAGS.slice(0) }; }
+	toJSON() { return { flags: this.FLAGS.slice(0) }; }
 }

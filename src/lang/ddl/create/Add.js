@@ -26,14 +26,14 @@ export default class Add extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() { return { argument: this.ARGUMENT.toJson(), ...super.toJson(), }; }
+	toJSON() { return { argument: this.ARGUMENT.toJSON(), ...super.toJSON(), }; }
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (!json?.argument) return;
-        return super.fromJson(context, json)?.argument(json.argument);
+        return super.fromJSON(context, json)?.argument(json.argument);
 	}
 	
 	/**
@@ -45,7 +45,7 @@ export default class Add extends AbstractNode {
 			if (this.hasFlag('AFTER')) stmts.push(this.getFlag('AFTER')?.replace(':', ' '))
 			else if (this.hasFlag('FIRST')) stmts.push('FIRST');
 			const constraintToHandle = this.params.dialect === 'mysql' && this.argument().foreignKey();
-			if (constraintToHandle) return [stmts.join(' '), `ADD ${ TableForeignKey.fromJson(this, constraint.toJson()).columns([this.argument().name()]) }`].join(';\n');
+			if (constraintToHandle) return [stmts.join(' '), `ADD ${ TableForeignKey.fromJSON(this, constraint.toJSON()).columns([this.argument().name()]) }`].join(';\n');
 		}
 		return stmts.join(' ');
 	}

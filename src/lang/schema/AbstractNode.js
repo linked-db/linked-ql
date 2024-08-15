@@ -172,7 +172,7 @@ export default class AbstractNode extends AbstractNode1 {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
 			...(this.NAME ? { name: this.NAME } : {}),
 			...(this.$NAME ? { $name: this.$NAME } : {}),
@@ -184,7 +184,7 @@ export default class AbstractNode extends AbstractNode1 {
     /**
 	 * @inheritdoc
 	 */
-    static fromJson(context, json, callback = null) {
+    static fromJSON(context, json, callback = null) {
         if ((json?.name && typeof json.name !== 'string') || (json.$name && typeof json.$name !== 'string')) return;
         const instance = callback ? callback() : new this(context);
         instance.hardSet(() => instance.name(json.name));

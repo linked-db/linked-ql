@@ -75,19 +75,19 @@ export default class WindowSpec extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
 			name: this.NAME, 
 			window_ref: this.WINDOW_REF, 
-			partition_by_clause: this.PARTITION_BY_CLAUSE?.toJson(),
-			order_by_clause: this.ORDER_BY_CLAUSE?.toJson(),
+			partition_by_clause: this.PARTITION_BY_CLAUSE?.toJSON(),
+			order_by_clause: this.ORDER_BY_CLAUSE?.toJSON(),
 		};
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (typeof json === 'string') json = { window_ref: json };
 		else if (!(typeof json === 'object' && json) || !['name', 'window_ref', 'partition_by_clause', 'order_by_clause'].some(k => k in json)) return;
 		const instance = new this(context);

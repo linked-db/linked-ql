@@ -20,14 +20,14 @@ export default class Modify extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() { return { argument: this.ARGUMENT.toJson(), ...super.toJson(), }; }
+	toJSON() { return { argument: this.ARGUMENT.toJSON(), ...super.toJSON(), }; }
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (!json?.kind || !json.argument) return;
-        return super.fromJson(context, json)?.argument(json.argument);
+        return super.fromJSON(context, json)?.argument(json.argument);
 	}
 	
 	/**

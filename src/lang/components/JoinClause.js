@@ -94,19 +94,19 @@ export default class JoinClause extends Table {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
 			type: this.TYPE,
-			correlation: this.CORRELATION?.toJson(),
-			...super.toJson(),
+			correlation: this.CORRELATION?.toJSON(),
+			...super.toJSON(),
 		};
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
-		const instance = super.fromJson(context, json);
+	static fromJSON(context, json) {
+		const instance = super.fromJSON(context, json);
 		if (!instance || !json.type) return;
 		if (json?.expr && json.type) instance.TYPE = json.type;
 		if (json?.expr && json.correlation) instance.build('CORRELATION', [json.correlation], [Identifier,Condition]);

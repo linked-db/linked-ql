@@ -19,15 +19,15 @@ export default class Drop extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() { return { name: this.NAME, ...super.toJson(), }; }
+	toJSON() { return { name: this.NAME, ...super.toJSON(), }; }
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		// At least one of them:
 		if (!json?.kind && typeof json?.name !== 'string') return;
-		return super.fromJson(context, json)?.name(json.name);
+		return super.fromJSON(context, json)?.name(json.name);
 	}
 	
 	/**

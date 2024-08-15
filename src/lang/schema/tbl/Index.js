@@ -56,22 +56,22 @@ export default class Index extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
 			type: this.TYPE,
 			...(this.$TYPE ? { $type: this.$TYPE } : {}),
 			columns: this.COLUMNS,
 			...(this.$COLUMNS.length ? { $columns: this.$COLUMNS } : {}),
-			...super.toJson(), // Status
+			...super.toJSON(), // Status
 		};
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (typeof json?.type !== 'string' || !/^(INDEX|KEY|FULLTEXT)$/i.test(json.type) || !json.columns?.length) return;
-		return super.fromJson(context, json, () => {
+		return super.fromJSON(context, json, () => {
 			const instance = (new this(context))
 				.columns(json.columns)
 				.type(json.type);

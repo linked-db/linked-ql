@@ -23,11 +23,11 @@ export default class AssignmentList extends AbstractNode {
 	 */
     set(target_s, value_s) {
 		if (Array.isArray(target_s)) {
-			target_s = ColumnsList.fromJson(this, target_s);
-			if (Array.isArray(value_s)) value_s = ValuesList.fromJson(this, value_s);
+			target_s = ColumnsList.fromJSON(this, target_s);
+			if (Array.isArray(value_s)) value_s = ValuesList.fromJSON(this, value_s);
 			else value_s = Expr.cast(this, value_s);
 		} else {
-			target_s = target_s instanceof AbstractNode ? target_s : Identifier.fromJson(this, target_s);
+			target_s = target_s instanceof AbstractNode ? target_s : Identifier.fromJSON(this, target_s);
 			value_s = value_s instanceof AbstractNode ? value_s : Expr.cast(this, value_s);
 		}
 		this.ENTRIES.push([target_s, value_s]);
@@ -37,12 +37,12 @@ export default class AssignmentList extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() { return { entries: this.ENTRIES.map(([target_s, value_s]) => [target_s.toJson(), value_s.toJson()]), }; }
+	toJSON() { return { entries: this.ENTRIES.map(([target_s, value_s]) => [target_s.toJSON(), value_s.toJSON()]), }; }
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (!Array.isArray(json?.entries)) return;
 		const instance = new this(context);
 		for (let [target_s, value_s] of json.entries) {

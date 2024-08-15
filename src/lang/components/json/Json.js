@@ -45,17 +45,17 @@ export default class Json extends Str {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
 			type: this.TYPE,
-			...super.toJson(),
+			...super.toJSON(),
 		};
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (typeof json?.type !== 'string' || !/OBJECT|ARRAY/i.test(json.type) || !json.value) return;
 		const instance = new this(context);
 		instance[json.type.toLowerCase()](json.value);

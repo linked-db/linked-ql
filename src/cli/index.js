@@ -46,7 +46,7 @@ function writeResultSchemaDoc() {
 // Leaderboard?
 if (command === 'leaderboard') {
     const savepoints = await driver.getSavepoints({ name: flags.db, direction: flags.direction });
-    console.table(savepoints.map(sv => sv.toJson()), ['name', 'databaseTag', 'versionTag', 'versionMax', 'cursor', 'description', 'savepointDate', 'rollbackDate', 'rollbackEffect']);
+    console.table(savepoints.map(sv => sv.toJSON()), ['name', 'databaseTag', 'versionTag', 'versionMax', 'cursor', 'description', 'savepointDate', 'rollbackDate', 'rollbackEffect']);
     process.exit();
 }
 
@@ -89,7 +89,7 @@ if (command === 'forget') {
         message: 'Proceed?'
     })).proceed;
     if (!proceed) process.exit();
-    if (flags.db) await driver.database(driver.constructor.OBJ_INFOSCHEMA_DB).table('database_savepoints').delete({ database_tag: dbSavepoint.databaseTag });
+    if (flags.db) await driver.database(driver.constructor.OBJ_INFOSCHEMA_DB).table('database_savepoints').delete({ where: { database_tag: dbSavepoint.databaseTag } });
     else await driver.dropDatabase(driver.constructor.OBJ_INFOSCHEMA_DB, { ifExists: true, cascade: true, noCreateSavepoint: true });
     console.log(`\nDone.`);
     process.exit();
@@ -113,17 +113,17 @@ if (command === 'migrate') {
             continue;
         }
         const postMigration = { name: dbSchema.name, migrateEffect: null, returnValue: undefined };
-        let schemaApi = DatabaseSchema.fromJson(driver, dbSchema);
+        let schemaApi = DatabaseSchema.fromJSON(driver, dbSchema);
         if (flags.diffing === 'stateful') {
             // Force "keep" to undefined for new?
             if (typeof schemaApi.keep() === 'boolean' && flags['force-new']) schemaApi.keep(undefined, true);
         } else {
             const schemaExisting = await driver.describeDatabase(dbSchema.name);
-            if (schemaExisting) schemaApi = DatabaseSchema.fromJson(driver, schemaExisting).keep(true, true).diffWith(schemaApi);
+            if (schemaExisting) schemaApi = DatabaseSchema.fromJSON(driver, schemaExisting).keep(true, true).diffWith(schemaApi);
         }
         if (schemaApi.keep() === false) {
             console.log(`\nDropping database ${ dbSchema.name }@${ dbSchema.version }`);
-            const dropQuery = DropStatement.fromJson(driver, { kind: 'SCHEMA', name: dbSchema.name });
+            const dropQuery = DropStatement.fromJSON(driver, { kind: 'SCHEMA', name: dbSchema.name });
             if (driver.params.dialect !== 'mysql') dropQuery.withFlag('CASCADE');
             if (!flags.quiet) console.log(`\nSQL preview:\n${ dropQuery }\n`);
             const proceed = flags.auto || (await enquirer.prompt({
@@ -154,7 +154,7 @@ if (command === 'migrate') {
             } else console.log(`\nNo alterations have been made to schema: ${ dbSchema.name }. Skipping.`);
         }
         if (typeof schemaApi.keep() !== 'boolean'){
-            const createQuery = CreateStatement.fromJson(driver, { kind: 'SCHEMA', argument: schemaApi });
+            const createQuery = CreateStatement.fromJSON(driver, { kind: 'SCHEMA', argument: schemaApi });
             console.log(`\nCreating database ${ dbSchema.name }`);
             if (!flags.quiet) console.log(`\nSQL preview:\n${ createQuery }\n`);
             const proceed = flags.auto || (await enquirer.prompt({
@@ -169,9 +169,9 @@ if (command === 'migrate') {
         }
         if (['CREATE', 'ALTER'].includes(postMigration.migrateEffect)) {
             const newSchema = await driver.describeDatabase(postMigration.name);
-            const newSchemaInstance = DatabaseSchema.fromJson(driver, newSchema);
+            const newSchemaInstance = DatabaseSchema.fromJSON(driver, newSchema);
             if (flags.diffing === 'stateful') newSchemaInstance.keep(true, true);
-            const { name, tables, keep } = newSchemaInstance.toJson();
+            const { name, tables, keep } = newSchemaInstance.toJSON();
             resultSchemaDoc.push({ name, version: postMigration.returnValue.versionTag, tables, keep });
         } else if (postMigration.migrateEffect !== 'DROP') resultSchemaDoc.push(dbSchema);
     }
@@ -204,9 +204,9 @@ if (command === 'rollback') {
             if (existing > -1) resultSchemaDoc.splice(existing, 1);
          } else if (proceed) {
             const newSchema = await driver.describeDatabase(savepoint.name(true));
-            const newSchemaInstance = DatabaseSchema.fromJson(driver, newSchema);
+            const newSchemaInstance = DatabaseSchema.fromJSON(driver, newSchema);
             if (flags.diffing === 'stateful') newSchemaInstance.keep(true, true);
-            const { name, tables, keep } = newSchemaInstance.toJson();
+            const { name, tables, keep } = newSchemaInstance.toJSON();
             const $newSchema = { name, version: postRollback.versionTag, tables, keep };
             const existing = resultSchemaDoc.findIndex(sch => sch.name === savepoint.name());
             if (existing > -1) resultSchemaDoc[existing] = $newSchema;

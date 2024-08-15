@@ -27,26 +27,26 @@ export default class Aggr extends Func {
 	 */
 	over(window) {
 		// For expressions like SUM OVER ()
-		if (!window) window = { name: '' }; // At least an empty string to help pass the WindowSpec.fromJson() validation
+		if (!window) window = { name: '' }; // At least an empty string to help pass the WindowSpec.fromJSON() validation
 		return (this.build('OVER_CLAUSE', [window], WindowSpec), this.OVER_CLAUSE);
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
-			...super.toJson(), 
-			order_by_clause: this.ORDER_BY_CLAUSE?.toJson(),
-			over_clause: this.OVER_CLAUSE?.toJson(),
+			...super.toJSON(), 
+			order_by_clause: this.ORDER_BY_CLAUSE?.toJSON(),
+			over_clause: this.OVER_CLAUSE?.toJSON(),
 		};
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
-		const instance = super.fromJson(context, json);
+	static fromJSON(context, json) {
+		const instance = super.fromJSON(context, json);
 		if (!instance) return;
 		if (!this.names.flat().includes(instance.NAME.toUpperCase())) return instance;
 		if (json.order_by_clause) instance.orderBy(json.order_by_clause);

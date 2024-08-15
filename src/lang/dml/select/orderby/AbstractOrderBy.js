@@ -22,12 +22,12 @@ export default class AbstractOrderBy extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() { return { criteria: this.CRITERIA.map(c => c.toJson()), flags: this.FLAGS }; }
+	toJSON() { return { criteria: this.CRITERIA.map(c => c.toJSON()), flags: this.FLAGS }; }
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (!Array.isArray(json?.criteria)) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
 		instance.criterion(...json.criteria);

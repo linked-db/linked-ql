@@ -73,20 +73,20 @@ export default class AlterStatement extends AbstractStatement(AbstractNode) {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
         return {
-            name: this.NAME.toJson(),
-            actions: this.ACTIONS.map(x => x.toJson()),
-			...super.toJson(),
+            name: this.NAME.toJSON(),
+            actions: this.ACTIONS.map(x => x.toJSON()),
+			...super.toJSON(),
         };
     }
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (!json?.kind || !json.name || !Array.isArray(json.actions)) return;
-        const instance = super.fromJson(context, json)?.name(json.name);
+        const instance = super.fromJSON(context, json)?.name(json.name);
 		instance.action(...json.actions);
 		return instance;
 	}
@@ -111,7 +111,7 @@ export default class AlterStatement extends AbstractStatement(AbstractNode) {
 		const name = resolveName(this.name());
 		if (stmts.length) sql.push(`${ baseStmt(name) }\n\t${ stmts.join(',\n\t') }`);
 		for (const stmt of renames.concat(ownRename || [])) sql.push(`${ baseStmt(name) } ${ stmt }`);
-		if (ownMove) sql.push(`${ baseStmt(ownRename && resolveName(Identifier.fromJson(this, ownRename.ARGUMENT)) || name) } ${ ownMove }`);
+		if (ownMove) sql.push(`${ baseStmt(ownRename && resolveName(Identifier.fromJSON(this, ownRename.ARGUMENT)) || name) } ${ ownMove }`);
 		return sql.join(';\n');
 	}
 

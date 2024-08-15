@@ -26,14 +26,14 @@ export default class Set extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() { return { argument: this.ARGUMENT?.toJson?.() || this.ARGUMENT, ...super.toJson(), }; }
+	toJSON() { return { argument: this.ARGUMENT?.toJSON?.() || this.ARGUMENT, ...super.toJSON(), }; }
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (!json?.kind) return;
-        return super.fromJson(context, json)?.argument(json.argument);
+        return super.fromJSON(context, json)?.argument(json.argument);
 	}
 	
 	/**

@@ -24,9 +24,9 @@ export default class TypeCast extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
-			operand: this.OPERAND?.toJson(),
+			operand: this.OPERAND?.toJSON(),
 			type: this.TYPE,
 			syntax2: this.SYNTAX2,
 			flags: this.FLAGS
@@ -36,7 +36,7 @@ export default class TypeCast extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (!json?.operand || !json?.type) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
 		instance.cast(json.operand, json.type, json.syntax2);

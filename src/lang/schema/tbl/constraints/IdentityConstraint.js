@@ -39,19 +39,19 @@ export default class IdentityConstraint extends AbstractLevel1Constraint {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
             always: !!this.ALWAYS,
 			...(typeof this.$ALWAYS === 'boolean' ? { $always: this.$ALWAYS } : {}),
-            ...super.toJson(),
+            ...super.toJSON(),
 		};
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
-		return super.fromJson(context, json, () => {
+	static fromJSON(context, json) {
+		return super.fromJSON(context, json, () => {
 			const instance = (new this(context)).always(json.always);
 			instance.hardSet(json.$always, val => instance.always(val));
 			return instance;

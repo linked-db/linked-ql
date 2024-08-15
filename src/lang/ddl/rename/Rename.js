@@ -28,20 +28,20 @@ export default class Rename extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
         return {
             name: this.NAME,
             argument: this.ARGUMENT,
-			...super.toJson(),
+			...super.toJSON(),
         };
     }
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if ((json?.kind && typeof json.name !== 'string') || typeof json?.argument !== 'string') return;
-        return super.fromJson(context, json)?.name(json.name).argument(json.argument);
+        return super.fromJSON(context, json)?.name(json.name).argument(json.argument);
 	}
 	
 	/**

@@ -89,7 +89,7 @@ export default class AbstractClient {
         if (typeof createSpec === 'string') { createSpec = { name: createSpec }; }
         else if (typeof createSpec?.name !== 'string') throw new Error(`createDatabase() called with invalid arguments.`);
         // -- Compose an query from request
-        const query = CreateStatement.fromJson(this, { kind: 'SCHEMA', argument: createSpec });
+        const query = CreateStatement.fromJSON(this, { kind: 'SCHEMA', argument: createSpec });
         if (params.ifNotExists) query.withFlag('IF_NOT_EXISTS');
         return await this.query(query, params);
     }
@@ -110,7 +110,7 @@ export default class AbstractClient {
         // -- Compose an altInstance from request
         const schemaJson = await this.describeDatabase(alterSpec.name, alterSpec.tables);
         if (!schemaJson) throw new Error(`Database "${ alterSpec.name }" does not exist.`);
-        const schemaApi = DatabaseSchema.fromJson(this, schemaJson)?.keep(true, true);
+        const schemaApi = DatabaseSchema.fromJSON(this, schemaJson)?.keep(true, true);
         await callback(schemaApi);
         const query = schemaApi.getAlt().with({ resultSchema: schemaApi });
         if (!query.length) return;
@@ -128,7 +128,7 @@ export default class AbstractClient {
     async dropDatabase(dbName, params = {}) {
         if (typeof dbName !== 'string') throw new Error(`dropDatabase() called with an invalid name: ${ dbName }.`);
         // -- Compose an dropInstamce from request
-        const query = DropStatement.fromJson(this, { kind: 'SCHEMA', name: dbName });
+        const query = DropStatement.fromJSON(this, { kind: 'SCHEMA', name: dbName });
         if (params.ifExists) query.withFlag('IF_EXISTS');
         if (params.cascade) query.withFlag('CASCADE');
         return await this.query(query, params);
@@ -197,11 +197,11 @@ export default class AbstractClient {
             const basename = query.$trace('get:name:database') || (query.KIND === 'TABLE' && await this.basenameGet(tblName, true));
             if (['DATABASE', 'SCHEMA'].includes(query.KIND) && resultSchemaRequired(basename)) {
                 if (query instanceof DropStatement) {
-                    const schemaApi = DatabaseSchema.fromJson(this, await this.describeDatabase(basename)).drop();
+                    const schemaApi = DatabaseSchema.fromJSON(this, await this.describeDatabase(basename)).drop();
                     query.with({ resultSchema: schemaApi });
                 } else if (query instanceof AlterStatement && !query.resultSchema) {
                     const tablesList = query.ACTIONS.map(x => (x.CLAUSE === 'MODIFY' ? x.ARGUMENT.$trace('get:name:table') : (x.CLAUSE === 'DROP' ? x.name() : null))).filter(x => x);
-                    const schemaApi = DatabaseSchema.fromJson(this, await this.describeDatabase(basename, tablesList)).keep(true, true).alterWith(query); // Simulate edits;
+                    const schemaApi = DatabaseSchema.fromJSON(this, await this.describeDatabase(basename, tablesList)).keep(true, true).alterWith(query); // Simulate edits;
                     query.with({ resultSchema: schemaApi });
                 } else if (query instanceof CreateStatement) query.with({ resultSchema: query.ARGUMENT });
                 // -- And that's what we'll use as snapshot
@@ -209,15 +209,15 @@ export default class AbstractClient {
             } else if (query.KIND === 'TABLE' && resultSchemaRequired(basename)) {
                 const dbApi = this.database(basename);
                 if (query instanceof DropStatement && basename) {
-                    const schemaApi = TableSchema.fromJson(dbApi, await dbApi.describeTable(tblName)).drop();
+                    const schemaApi = TableSchema.fromJSON(dbApi, await dbApi.describeTable(tblName)).drop();
                     query.with({ resultSchema: schemaApi });
                 } else if (query instanceof AlterStatement && !query.resultSchema && basename) {
-                    const schemaApi = TableSchema.fromJson(dbApi, await dbApi.describeTable(tblName)).keep(true, true).alterWith(query); // Simulate edits;
+                    const schemaApi = TableSchema.fromJSON(dbApi, await dbApi.describeTable(tblName)).keep(true, true).alterWith(query); // Simulate edits;
                     query.with({ resultSchema: schemaApi });
                 } else if (query instanceof CreateStatement && basename) query.with({ resultSchema: query.ARGUMENT });
                 // -- But this is what we'll use as snapshot
                 if (!params.noCreateSavepoint && basename) {
-                    scope.savepoint = DatabaseSchema.fromJson(this, {
+                    scope.savepoint = DatabaseSchema.fromJSON(this, {
                         name: dbApi.name,
                         tables: [query.resultSchema]
                     }).keep(true);
@@ -272,14 +272,14 @@ export default class AbstractClient {
         if (!(await this.hasDatabase(OBJ_INFOSCHEMA_DB))) return [];
         const tblName = [OBJ_INFOSCHEMA_DB,'database_savepoints'].join('.');
         const result = await this.query(`
-            SELECT id, database_tag, name, ${ Identifier.fromJson(this, '$name') }, keep, version_tag, version_max, CONCAT(rank_for_cursor, '/', total) AS ${ Identifier.fromJson(this, '$cursor') }, savepoint_description, tables, savepoint_date, rollback_date FROM (
+            SELECT id, database_tag, name, ${ Identifier.fromJSON(this, '$name') }, keep, version_tag, version_max, CONCAT(rank_for_cursor, '/', total) AS ${ Identifier.fromJSON(this, '$cursor') }, savepoint_description, tables, savepoint_date, rollback_date FROM (
                 SELECT *,
                 ROW_NUMBER() OVER (PARTITION BY database_tag ORDER BY rollback_date IS NOT NULL ${ params.direction === 'forward' ? 'DESC' : 'ASC' }, version_tag ${ params.direction === 'forward' ? 'ASC' : 'DESC' }) AS rank_for_target,
                 ROW_NUMBER() OVER (PARTITION BY database_tag ORDER BY version_tag ASC) AS rank_for_cursor,
                 MAX(version_tag) OVER (PARTITION BY database_tag) AS version_max,
                 COUNT(version_tag) OVER (PARTITION BY database_tag) AS total
                 FROM ${ tblName }
-            ) AS savepoint WHERE rollback_date IS ${ params.direction === 'forward' ? 'NOT NULL' : 'NULL' } AND rank_for_target = 1${ params.name ? (params.direction === 'forward' ? ` AND name = '${ params.name }'` : ` AND COALESCE(${ Identifier.fromJson(this, '$name') }, name) = '${ params.name }'`) : '' }
+            ) AS savepoint WHERE rollback_date IS ${ params.direction === 'forward' ? 'NOT NULL' : 'NULL' } AND rank_for_target = 1${ params.name ? (params.direction === 'forward' ? ` AND name = '${ params.name }'` : ` AND COALESCE(${ Identifier.fromJSON(this, '$name') }, name) = '${ params.name }'`) : '' }
         `);
         return result.map(savepoint => new Savepoint(this, savepoint, params.direction))
     }
@@ -318,7 +318,7 @@ export default class AbstractClient {
             }, { noCreateSavepoint: true });
         }
         // -- Savepoint JSON
-        const { name, $name, ...rest } = schemaApi.toJson();
+        const { name, $name, ...rest } = schemaApi.toJSON();
         const savepointJson = {
             name, $name,
             database_tag: null,
@@ -345,7 +345,7 @@ export default class AbstractClient {
             savepointJson.version_tag = 1;
         }
         // -- Create record
-        const insertResult = await this.database(OBJ_INFOSCHEMA_DB).table('database_savepoints').insert(savepointJson, '*');
-        return new Savepoint(this, { ...insertResult[0], version_max: savepointJson.version_tag, $cursor: null });
+        const insertResult = await this.database(OBJ_INFOSCHEMA_DB).table('database_savepoints').insert(savepointJson, { returning: '*' });
+        return new Savepoint(this, { ...insertResult, version_max: savepointJson.version_tag, $cursor: null });
     }
 }

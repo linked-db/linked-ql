@@ -25,7 +25,7 @@ export default class AbstractDatabase {
     /**
      * @property Object
      */
-    get params() { return this.$.params; }
+    get params() { return Object.assign({}, this.client.params, this.$.params); }
     
 	/**
 	 * A generic method for tracing something up the node tree.
@@ -83,7 +83,7 @@ export default class AbstractDatabase {
     async createTable(createSpec, params = {}) {
         if (typeof createSpec?.name !== 'string') throw new Error(`createTable() called with invalid arguments.`);
         // -- Compose an query from request
-        const query = CreateStatement.fromJson(this, { kind: 'TABLE', argument: createSpec });
+        const query = CreateStatement.fromJSON(this, { kind: 'TABLE', argument: createSpec });
         if (params.ifNotExists) query.withFlag('IF_NOT_EXISTS');
         return this.client.query(query, params);
     }
@@ -102,7 +102,7 @@ export default class AbstractDatabase {
         // -- Compose an query from request
         const schemaJson = await this.describeTable(tblName);
         if (!schemaJson) throw new Error(`Table "${ tblName }" does not exist.`);
-        const schemaApi = TableSchema.fromJson(this, schemaJson)?.keep(true, true);
+        const schemaApi = TableSchema.fromJSON(this, schemaJson)?.keep(true, true);
         await callback(schemaApi);
         const query = schemaApi.getAlt().with({ resultSchema: schemaApi });
         if (!query.length) return;
@@ -121,7 +121,7 @@ export default class AbstractDatabase {
     async dropTable(tblName, params = {}) {
         if (typeof tblName !== 'string') throw new Error(`dropTable() called with invalid arguments.`);
         // -- Compose an dropInstamce from request
-        const query = DropStatement.fromJson(this, { kind: 'TABLE', name: tblName });
+        const query = DropStatement.fromJSON(this, { kind: 'TABLE', name: tblName });
         if (params.ifExists) query.withFlag('IF_EXISTS');
         if (params.cascade) query.withFlag('CASCADE');
         return this.client.query(query, params);

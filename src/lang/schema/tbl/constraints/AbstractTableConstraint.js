@@ -38,20 +38,20 @@ export default Class => class extends Class {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
 			columns: this.COLUMNS,
 			...(this.$COLUMNS.length ? { $columns: this.$COLUMNS } : {}),
-            ...super.toJson(),
+            ...super.toJSON(),
 		};
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
         if (!json?.columns?.length) return;
-		return super.fromJson(context, json, () => {
+		return super.fromJSON(context, json, () => {
 			const instance = (new this(context)).columns(json.columns);
 			instance.hardSet(json.$columns, val => instance.columns(val));
 			return instance;

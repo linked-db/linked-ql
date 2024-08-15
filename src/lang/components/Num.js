@@ -26,12 +26,12 @@ export default class Num extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() { return { value: this.VALUE, flags: this.FLAGS, }; }
+	toJSON() { return { value: this.VALUE, flags: this.FLAGS, }; }
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (typeof json === 'number' || (typeof json === 'string' && /^[.\d]+$/.test(json) && (json = parseFloat(json)))) {
 			json = { value: json };
 		} else if (typeof json?.value !== 'number') return;

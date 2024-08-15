@@ -13,8 +13,8 @@ export default class AbstractLevel2Constraint extends AbstractLevel1Constraint {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
-        let json = { type: this.TYPE, ...super.toJson(), };
+	toJSON() {
+        let json = { type: this.TYPE, ...super.toJSON(), };
         if (!('name' in json) && this.params.dialect !== 'mysql') {
             // Key needs to be present
             json = { ...json, name: undefined };
@@ -25,13 +25,13 @@ export default class AbstractLevel2Constraint extends AbstractLevel1Constraint {
     /**
 	 * @inheritdoc
 	 */
-    static fromJson(context, json, callback = null) {
+    static fromJSON(context, json, callback = null) {
         if (json?.type !== this.TYPE) return;
         if (!('name' in json) && context?.params?.dialect !== 'mysql') {
             // Automatically generate a default name for PRIMARY_KEY,FOREIGN_KEY,UNIQUE_KEY,CHECK
             json = { ...json, name: `auto_name_${ ( 0 | Math.random() * 9e6 ).toString( 36 ) }` };
         }
-        return super.fromJson(context, json, callback);
+        return super.fromJSON(context, json, callback);
     }
 
     static parseColumns(context, columnsExpr, asInputDialect = false)  {

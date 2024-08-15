@@ -38,20 +38,20 @@ export default Class => class extends Class {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
             expr: this.EXPR,
 			...(![undefined, null].includes(this.$EXPR) ? { $expr: this.$EXPR } : {}),
-            ...super.toJson(),
+            ...super.toJSON(),
 		};
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
         if ([undefined, null].includes(json?.expr)) return;
-        return super.fromJson(context, json, () => {
+        return super.fromJSON(context, json, () => {
             const instance = (new this(context)).expr(json.expr);
             instance.hardSet(json.$expr, val => instance.expr(val));
             return instance;

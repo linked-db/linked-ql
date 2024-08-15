@@ -20,18 +20,18 @@ export default class AbstractNode extends AbstractNode1 {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
         return {
 			clause: this.CLAUSE,
             ...(this.KIND ? { kind: this.KIND } : {}),
-			...super.toJson(),
+			...super.toJSON(),
         };
     }
 
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (json?.clause && json.clause !== this.CLAUSE || (json?.kind && !this.KINDS.includes(json.kind))) return;
 		return (new this(context, json.kind)).withFlag(...(json.flags || []));
 	}

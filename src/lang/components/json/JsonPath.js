@@ -40,10 +40,10 @@ export default class JsonPath extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
-			lhs: this.LHS?.toJson(),
-			rhs: this.RHS?.toJson(),
+			lhs: this.LHS?.toJSON(),
+			rhs: this.RHS?.toJSON(),
 			operator: this.OPERATOR,
 			flags: this.FLAGS,
 		};
@@ -52,7 +52,7 @@ export default class JsonPath extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (!this.OPERATORS.includes(json?.operator)) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
 		instance.path(json.lhs, json.operator, json.rhs);

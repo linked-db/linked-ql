@@ -75,10 +75,10 @@ export default class Math extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJson() {
+	toJSON() {
 		return {
 			operator: this.OPERATOR,
-			operands: this.OPERANDS.map(o => o.toJson()),
+			operands: this.OPERANDS.map(o => o.toJSON()),
 			flags: this.FLAGS,
 		};
 	}
@@ -86,7 +86,7 @@ export default class Math extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	static fromJson(context, json) {
+	static fromJSON(context, json) {
 		if (typeof json?.operator !== 'string' || !/\+|\-|\*|\//.test(json.operator) || !Array.isArray(json.operands)) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
 		instance.calc(json.operator, ...json.operands);
