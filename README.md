@@ -289,7 +289,7 @@ console.log(savepoint.description);   // Create users table
 console.log(savepoint.versionTag);    // 1
 console.log(savepoint.savepointDate); // 2024-07-17T22:40:56.786Z
 // Or to see everything:
-console.table(savepoint.toJson());
+console.table(savepoint.toJSON());
 ```
 
 You're also able to access the same savepoint on-demand using the [`database.savepoint()`](https://github.com/linked-db/linked-ql/wiki/API#databasesavepoint) API:
