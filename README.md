@@ -139,7 +139,11 @@ const result = await client.query('SELECT fname, lname FROM users WHERE role = $
 console.log(result);
 ```
 
-This API and more are covered right in the [API](https://github.com/linked-db/linked-ql/wiki/API) area. Here, you are able to choose between running raw SQL using `client.query()` or running equivalent statements using APIs like `client.createDatabase()`, `client.alterDatabase()`, `client.dropDatabase()`, `database.createTable()`, `database.alterTable()`, `database.dropTable()`, `table.select()`, `table.insert()`, `table.upsert()`, `table.update()`, `table.delete()`, etc.
+This API and more are covered right in the [API](https://github.com/linked-db/linked-ql/wiki/API) area. 
+
+By design, you are able to choose between running raw SQL using `client.query()` and running equivalent statements using APIs like `client.createDatabase()`, `client.alterDatabase()`, `client.dropDatabase()`, `database.createTable()`, `database.alterTable()`, `database.dropTable()`, `table.select()`, `table.insert()`, `table.upsert()`, `table.update()`, `table.delete()`, etc. (All as covered in the [API](https://github.com/linked-db/linked-ql/wiki/API) area.)
+
+*✨ Now, that's like: whatever your query style or usecase, there's a thing in Linked QL for you!*
 
 ## Introducing Magic Paths
 
