@@ -13,6 +13,7 @@ import DatabaseSchema from '../lang/schema/db/DatabaseSchema.js';
 // Parse argv
 const { command, flags } = parseArgv(process.argv);
 if (flags['with-env']) await import('dotenv/config');
+
 // flags: --desc --direction --db, --dir, --force, --diffing, --force-new
 if (flags.direction && !['forward','backward'].includes(flags.direction)) throw new Error(`Invalid --direction. Expected: forward|backward`);
 const dir = flags.dir || './database/';
