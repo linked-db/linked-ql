@@ -107,6 +107,12 @@ if (command === 'migrate') {
         console.log(`No Linked QL ${ flags.direction === 'forward' ? 'roll-forward' : 'rollback' } records found for${ !flags.db ? ' any' : '' } database${ flags.db ? ` ${ flags.db }` : '' }. Aborting.`);
         process.exit();
     }
+    if (!flags.desc && flags.auto) throw new Error(`Command missing the --desc parameter.`);
+    const description = flags.desc || (await enquirer.prompt({
+        type: 'text',
+        name: 'description',
+        message: 'Enter "migrate description":'
+    })).description;
     for (const dbSchema of originalSchemaDoc) {
         if (flags.db && flags.db !== dbSchema.name) {
             resultSchemaDoc.push(dbSchema);
@@ -132,7 +138,7 @@ if (command === 'migrate') {
                 message: 'Proceed?'
             })).proceed;
             if (proceed) {
-                postMigration.returnValue = await driver.query(dropQuery, { description: flags.desc });
+                postMigration.returnValue = await driver.query(dropQuery, { description });
                 postMigration.migrateEffect = 'DROP';
             }
         }
@@ -147,7 +153,7 @@ if (command === 'migrate') {
                     message: 'Proceed?'
                 })).proceed;
                 if (proceed) {
-                    postMigration.returnValue = await driver.query(altQuery, { description: flags.desc });
+                    postMigration.returnValue = await driver.query(altQuery, { description });
                     postMigration.name = dbSchema.$name || dbSchema.name;
                     postMigration.migrateEffect = 'ALTER';
                 }
@@ -163,7 +169,7 @@ if (command === 'migrate') {
                 message: 'Proceed?'
             })).proceed;
             if (proceed) {
-                postMigration.returnValue = await driver.query(createQuery, { description: flags.desc });
+                postMigration.returnValue = await driver.query(createQuery, { description });
                 postMigration.migrateEffect = 'CREATE';
             }
         }
