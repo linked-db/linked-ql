@@ -84,7 +84,7 @@ export default class SQLDatabase extends AbstractDatabase {
         ORDER BY COLUMNS.ordinal_position
         `;
 
-        const ANY_VALUE = col => this.client.params.dialect === 'mysql' ? col : `ANY_VALUE(${ col })`;
+        const ANY_VALUE = col => this.client.params.dialect === 'mysql' ? col : `MAX(${ col })`;
         const GROUP_CONCAT = (col, orderBy) => this.client.params.dialect === 'mysql' ? `GROUP_CONCAT(${ col }${ orderBy ? ` ORDER BY ${ orderBy }` : `` } SEPARATOR ',')` : `STRING_AGG(${ col }, ','${ orderBy ? ` ORDER BY ${ orderBy }` : `` })`;
 
         const sql1 = `
