@@ -245,20 +245,21 @@ export default class AbstractTable {
 	 * @param String 					action 
 	 */
 	async $resolveInsert(args, schemaMemo, action) {
-		let columns = [], values = [], modifiers;
+		let columns = [], values = [], modifiers, singular;
 		// Is cilumns specified separately from values?
 		if (Array.isArray(args[0]) && /*important*/args[0].every(s => typeof s === 'string') && Array.isArray(args[1])) {
 			if (!args[1].every(s => Array.isArray(s))) throw new TypeError(`Invalid payload format.`);
 			[ columns, values, modifiers ] = args.splice(0, 3);
 		} else {
 			// No. It's a columns/values map
+			const _singular = _isObject(args[0]); // Must come before args.shift()
 			const payload = [].concat(args.shift());
 			if (!_isObject(payload[0])) throw new TypeError(`Invalid payload format.`);
 			columns = Object.keys(payload[0]);
 			values = payload.map(row => Object.values(row));
 			modifiers = args.shift();
+			singular = _singular && modifiers?.returning;
 		}
-		const singular = _isObject(args[0]) && modifiers?.returning
 		if (columns.length && modifiers?.experimentalRecursive) {
 			return { ...(await this.$resolveRelations(columns, values, modifiers || {}, schemaMemo, action)), singular };
 		}
