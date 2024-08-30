@@ -83,6 +83,7 @@ export default class AbstractTable {
 		const modifiers = args.shift() || {};
 		await this.$applyModifiers(query, modifiers, schemaMemo);
 		// Handle
+		console.log('...........', query+'');
 		const result = await this.database.client.query(query);
 		if (['string', 'number'].includes(typeof modifiers.where)) return result[0];
 		return result;
@@ -362,7 +363,10 @@ export default class AbstractTable {
 	async $applyModifiers(query, modifiers, schemaMemo) {
 		if (modifiers === true) return;
 		if (_isObject(modifiers)) {
-			const addWheres = wheres => query.where(...Object.entries(wheres).map(([k, v]) => q => q.equals(k, toVal(v, this.params.autoBindings))));
+			const addWheres = wheres => query.where(...Object.entries(wheres).map(([k, v]) => {
+				if (v === null) return q => q.isNull(k);
+				return q => q.equals(k, toVal(v, this.params.autoBindings));
+			}));
 			if (['string', 'number'].includes(typeof modifiers.where)) {
 				const schema = await schemaMemo.get();
 				addWheres({ [getPrimaryKey(schema)]: modifiers.where });
@@ -386,7 +390,7 @@ const getPrimaryKey = schema => {
 const toVal = (v, autoBindings) => {
 	if (v instanceof Date) return q => q.value(v.toISOString().split('.')[0]);
 	if (autoBindings !== false) return q => q.$bind(0, v);
-	if ([true,false,null].includes(v)) return q => q.literal(v);
+	if ([true,false,null].includes(v)) return q => q.sql(v);
 	if (Array.isArray(v)) return q => q.array(v);
 	if (_isObject(v)) return q => q.object(v);
 	return q => q.value(v);
