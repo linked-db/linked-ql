@@ -367,7 +367,7 @@ export default class AbstractTable {
 				const schema = await schemaMemo.get();
 				addWheres({ [getPrimaryKey(schema)]: modifiers.where });
 			} else if (_isObject(modifiers.where)) addWheres(modifiers.where);
-			else if (modifiers.where) query.where(modifiers.where);
+			else if (modifiers.where && modifiers.where !== true) query.where(modifiers.where);
 			if (modifiers.limit) query.limit(modifiers.limit);
 			if (modifiers.returning) query.returning(...[].concat(modifiers.returning));
 		} else if (_isFunction(modifiers)) {
