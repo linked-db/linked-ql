@@ -83,7 +83,6 @@ export default class AbstractTable {
 		const modifiers = args.shift() || {};
 		await this.$applyModifiers(query, modifiers, schemaMemo);
 		// Handle
-		console.log('...........', query+'');
 		const result = await this.database.client.query(query);
 		if (['string', 'number'].includes(typeof modifiers.where)) return result[0];
 		return result;
