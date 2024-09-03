@@ -430,7 +430,7 @@ With schema versioning now happening at the database level, the whole concept of
 >                             // string[] - required
 >                             "targetColumns": ["id"],
 >                             // string
->                             "matchRull": "full",
+>                             "matchRule": "full",
 >                             // string or object like { rule: "cascade", columns: ["col1"] }
 >                             "updateRule": "cascade",
 >                             // string or object like { rule: "restrict", columns: ["col1"] }
@@ -456,7 +456,7 @@ With schema versioning now happening at the database level, the whole concept of
 >                         // string[] - required
 >                         "targetColumns": ["id"],
 >                         // string
->                         "matchRull": "full",
+>                         "matchRule": "full",
 >                         // string or object like { rule: "cascade", columns: ["col1"] }
 >                         "updateRule": "cascade",
 >                         // string or object like { rule: "restrict", columns: ["col1"] }
