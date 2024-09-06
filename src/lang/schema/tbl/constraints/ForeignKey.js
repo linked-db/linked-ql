@@ -102,7 +102,7 @@ export default class ForeignKey extends AbstractLevel2Constraint {
 	 */
     diffWith(nodeB) {
         super.diffWith(nodeB)
-        if (!this.isSame(nodeB.targetTable(), this.targetTable())) { this.targetTable(nodeB.targetTable()); }
+        if (!this.isSame(nodeB.targetTable().toJSON(), this.targetTable().toJSON())) { this.targetTable(nodeB.targetTable().toJSON()); }
         if (!this.isSame(nodeB.targetColumns(), this.targetColumns())) { this.targetColumns(nodeB.targetColumns()); }
         if (!this.isSame(nodeB.matchRule(), this.matchRule())) { this.matchRule(nodeB.matchRule()); }
         if (!this.isSame(nodeB.updateRule(), this.updateRule())) { this.updateRule(nodeB.updateRule()); }

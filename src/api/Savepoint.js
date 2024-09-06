@@ -69,6 +69,11 @@ export default class Savepoint {
     get rollbackDate() { return this.$.json.rollback_date; }
 
     /**
+     * @returns Bool
+     */
+    get keep() { return this.$.json.keep; }
+
+    /**
      * @returns String
      */
     get rollbackEffect() {

@@ -7,7 +7,6 @@ import RenameStatement from './ddl/rename/RenameStatement.js';
 import DeleteStatement from './dml/delete/DeleteStatement.js';
 import InsertStatement from './dml/insert/InsertStatement.js';
 import SelectStatement from './dml/select/SelectStatement.js';
-//import Union from './select/Union.js';
 import UpdateStatement from './dml/update/UpdateStatement.js';
 // Expressions
 import Expr from './components/Expr.js';
@@ -24,7 +23,6 @@ export default [
 	InsertStatement,
 	UpdateStatement,
 	DeleteStatement,
-	//Union,
 	SelectStatement,
 	// Expressions
 	...

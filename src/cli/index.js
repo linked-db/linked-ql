@@ -45,40 +45,60 @@ function writeResultSchemaDoc() {
 }
 
 // ------
-// Leaderboard?
-if (command === 'leaderboard') {
-    const savepoints = await driver.getSavepoints({ name: flags.db, direction: flags.direction });
-    console.table(savepoints.map(sv => sv.toJSON()), ['name', 'databaseTag', 'versionTag', 'versionMax', 'cursor', 'description', 'savepointDate', 'rollbackDate', 'rollbackEffect']);
+// Generate/refresh?
+if (['generate', 'refresh'].includes(command)) {
+    resultSchemaDoc.push(...originalSchemaDoc);
+    let recordsFound;
+    const removeEntry = async dbName => {
+        const existing = resultSchemaDoc.findIndex(sch => sch.name === dbName);
+        let proceed = !originalSchemaDoc.length || flags.auto;
+        if (existing > -1 && !proceed) {
+            console.log(`The orphaned database entry "${ dbName }" in your local schema file will now be removed!`);
+            proceed = (await enquirer.prompt({
+                type: 'confirm',
+                name: 'proceed',
+                message: 'Proceed?'
+            })).proceed;
+        }
+        if (existing > -1 && proceed) resultSchemaDoc.splice(existing, 1);
+        recordsFound = true;
+    };
+    const addEntry = async dbSchema => {
+        const existing = resultSchemaDoc.findIndex(sch => sch.name === dbSchema.name);
+        let proceed = !originalSchemaDoc.length || flags.auto;
+        if (existing > -1 && !proceed) {
+            console.log(`The database entry "${ dbSchema.name }" in your local schema file will now be overwritten!`);
+            proceed = (await enquirer.prompt({
+                type: 'confirm',
+                name: 'proceed',
+                message: 'Proceed?'
+            })).proceed;
+        }
+        if (existing > -1 && proceed) { resultSchemaDoc[existing] = dbSchema; }
+        else if (existing === -1) { resultSchemaDoc.push(dbSchema); }
+        recordsFound = true;
+    };
+    const svps = await driver.getSavepoints({ name: flags.db, direction: flags.direction });
+    for (const svp of svps) {
+        if (svp.keep !== false) {
+            const { name, ...rest } = await driver.describeDatabase(svp.name());
+            const newSchema = { name, version: svp.versionTag, ...rest, ...(flags.diffing === 'stateful' ? { keep: true } : {}) };
+            await addEntry(newSchema);
+        } else await removeEntry(svp.name());
+    }
+    if (command === 'generate' && !svps.length && flags.db) {
+        const $schema = await driver.describeDatabase(flags.db);
+        if ($schema) await addEntry({ name: $schema.name, version: 0, tables: $schema.tables, ...(flags.diffing === 'stateful' ? { keep: true } : {}) });
+    }
+    if (recordsFound) {
+        writeResultSchemaDoc();
+    } else console.log(`No schemas found for${ !flags.db ? ' any' : '' } database${ flags.db ? ` ${ flags.db }` : '' }. Aborting.`);
     process.exit();
 }
 
 // ------
-// Generate?
-if (command === 'refresh') {
-    resultSchemaDoc = await Promise.all((await driver.getSavepoints({ name: flags.db, direction: flags.direction })).filter(svp => svp.keep !== false).map(async svp => {
-        const { name, ...rest } = await driver.describeDatabase(svp.name());
-        return { name, version: svp.versionTag, ...rest, ...(flags.diffing === 'stateful' ? { keep: true } : {}) };
-    }));
-    if (!resultSchemaDoc.length) {
-        console.log(`No Linked QL records found for${ !flags.db ? ' any' : '' } database${ flags.db ? ` ${ flags.db }` : '' }. Aborting.`);
-        process.exit();
-    }
-    let proceed = !originalSchemaDoc?.length || flags.auto;
-    if (!proceed) {
-        console.log(`Your local schema file is not empty and will be overwritten!`);
-        proceed = (await enquirer.prompt({
-            type: 'confirm',
-            name: 'proceed',
-            message: 'Proceed?'
-        })).proceed;
-    }
-    if (proceed) { writeResultSchemaDoc(); }
-    process.exit();
-}
-
-// ------
-// Erase?
-if (command === 'forget') {
+// Clear histories?
+if (['clear-histories', 'forget'/*depreciated*/].includes(command)) {
     let dbSavepoint;
     if (flags.db && !(dbSavepoint = await driver.database(flags.db).savepoint())) {
         console.log(`No Linked QL records found for database ${ flags.db }. Aborting.`);
@@ -98,8 +118,16 @@ if (command === 'forget') {
 }
 
 // ------
+// State?
+if (['state', 'leaderboard'/*depreciated*/].includes(command)) {
+    const savepoints = await driver.getSavepoints({ name: flags.db, direction: flags.direction });
+    console.table(savepoints.map(sv => sv.toJSON()), ['name', 'databaseTag', 'versionTag', 'versionMax', 'cursor', 'description', 'savepointDate', 'rollbackDate', 'rollbackEffect']);
+    process.exit();
+}
+
+// ------
 // Run migrations or rollbacks
-if (command === 'migrate') {
+if (['commit', 'migrate'/*depreciated*/].includes(command)) {
     if (flags.diffing !== 'stateful' && (!flags.db || !originalSchemaDoc.find(sch => sch.name === flags.db))) {
         const savepoints = await driver.getSavepoints({ name: flags.db, direction: flags.direction });
         originalSchemaDoc.push(...savepoints.filter(savepoint => !originalSchemaDoc.find(sch => sch.name === savepoint.name())).map(savepoint => ({ name: savepoint.name(), version: savepoint.versionTag, keep: false })));
@@ -113,7 +141,7 @@ if (command === 'migrate') {
     const description = flags.desc || (await enquirer.prompt({
         type: 'text',
         name: 'description',
-        message: 'Enter "migrate description":'
+        message: 'Enter commit description:'
     })).description;
     for (const dbSchema of originalSchemaDoc) {
         if (flags.db && flags.db !== dbSchema.name) {
@@ -186,7 +214,7 @@ if (command === 'migrate') {
 }
 
 // Do rollbacks
-if (command === 'rollback') {
+if (['rollback'].includes(command)) {
     const savepoints = await driver.getSavepoints({ direction: flags.direction });
     const dbList = flags.db ? savepoints.filter(svp => svp.name() === flags.db) : savepoints;
     if (!dbList.length) {
@@ -224,5 +252,5 @@ if (command === 'rollback') {
 }
 
 // Updating schema
-if (['migrate', 'rollback'].includes(command)) { writeResultSchemaDoc(); }
+if (['commit', 'migrate'/*depreciated*/, 'rollback'].includes(command)) writeResultSchemaDoc();
 process.exit();
