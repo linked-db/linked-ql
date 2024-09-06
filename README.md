@@ -624,7 +624,7 @@ With schema versioning now happening at the database level, the whole concept of
 
 If you had that somewhere in your application, say at `./database/schema.json`, Linked QL could help keep it in sync both ways with your database:
 
-+ you add or remove a database object or table object or column object... and it is automatically reflected in your DB structure at the click of a command: `linkedql migrate`
++ you add or remove a database object or table object or column object... and it is automatically reflected in your DB structure at the click of a command: `linkedql commit`
 + your colleague makes new changes from their codebase... and it is automatically reflected in your local copy at your next `git pull`, or at the click of a command: `linkedql refresh`
 
 > You may want to see how that brings us to [true "Schema as Code" in practice](#test-heading).
@@ -664,13 +664,13 @@ To setup:
     }
     ```
 
-    The old name being in place is needed to find the target during migration. The temporary `$name` attribute automatically disappears after new name has been picked up by Linked QL at next `linkedql migrate`.
+    The old name being in place is needed to find the target during migration. The temporary `$name` attribute automatically disappears after new name has been picked up by Linked QL at next `linkedql commit`.
 
 To run:
 
-+ Use `linkedql migrate` to walk through your staged local changes and interactively perform a migration against your database.
++ Use `linkedql commit` to walk through your staged local changes and interactively perform a migration against your database.
 + Use `linkedql rollback` to walk through the latest savepoint at each database and interactively perform a rollback.
-+ Use `linkedql leaderboard` to just view the latest savepoint at each database.
++ Use `linkedql state` to just view the state of each database.
 
 Details of these commands in the [CLI](https://github.com/linked-db/linked-ql/wiki/CLI#linked-ql-cli) area.
 
@@ -687,10 +687,14 @@ If you've made it this far, you may want to go here next:
 
 ## Roadmap
 
-+ [`ONGOING`] Improve support for MySQL.
 + [`DONE`] Implement support for a `schema.yml` alternative to `schema.json` file.
++ [`DONE`] Support nested input at `table.insert()`, `table.upsert()`, `table.update()`.
++ [`ONGOING`] Support nested output at `table.select()`.
++ [`ONGOING`] Improve support for MySQL.
 + [`PENDING`] Implement support for IndexedDB.
 + [`PENDING`] Implement the in-memory database.
++ [`PENDING`] Implement LinkedDB Realtime.
++ [`PENDING`] Implement DB-native extensions of LinkedDB.
 
 > Much of that could happen sooner with your support! If you'd like to help out, please consider a [sponsorship](https://github.com/sponsors/ox-harris). PRs are also always welcome.
 
