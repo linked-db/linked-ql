@@ -24,9 +24,9 @@ export default class DropStatement extends AbstractStatement(AbstractNode) {
 	stringify() {
 		const restrictOrCascade = this.getFlag('RESTRICT') || this.getFlag('CASCADE');
 		const resolveName = name => {
-			if (name.BASENAME || ['SCHEMA','DATABASE'].includes(this.KIND)) return name;
-			const basename = this.$trace('get:name:database');
-			return name.clone().name([basename,name.NAME]);
+			if (name.PREFIX || ['SCHEMA','DATABASE'].includes(this.KIND)) return name;
+			const prefix = this.$trace('get:name:database');
+			return name.clone().name([prefix,name.NAME]);
 		};
 		const name = resolveName(this.name());
 		return `${ this.CLAUSE }${ this.getFlag('TEMPORARY') ? ' TEMPORARY' : '' } ${ this.KIND }${ this.hasFlag('IF_EXISTS') ? ' IF EXISTS' : '' } ${ name }${ restrictOrCascade ? ` ${ restrictOrCascade }` : '' }`;

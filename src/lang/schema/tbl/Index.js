@@ -1,4 +1,3 @@
-
 import Lexer from '../../Lexer.js';
 import { _unwrap } from '@webqit/util/str/index.js';
 import AbstractNode from '../AbstractNode.js';
@@ -57,13 +56,12 @@ export default class Index extends AbstractNode {
 	 * @inheritdoc
 	 */
 	toJSON() {
-		return {
+		return super.toJSON({
 			type: this.TYPE,
 			...(this.$TYPE ? { $type: this.$TYPE } : {}),
 			columns: this.COLUMNS,
 			...(this.$COLUMNS.length ? { $columns: this.$COLUMNS } : {}),
-			...super.toJSON(), // Status
-		};
+		});
 	}
 
 	/**

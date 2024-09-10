@@ -1,4 +1,3 @@
-
 import SQL from './api/sql/SQLClient.js';
 
 // As globals

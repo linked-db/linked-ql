@@ -206,8 +206,8 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
             const someDb = sqlClient.database('some_db.new');
             const tables = await someDb.tables();
             expect(tables).to.be.an('array').that.have.members(['users','books','test2']);
-            const users = await someDb.describeTable('users');
-            expect(users.columns.find(col => col.name === 'id').uniqueKey).to.be.an('object');
+            const users = await someDb.table('users').schema();
+            expect(users.column('id').uniqueKey()).to.be.an('object');
 
             //console.log((await pgClient.query(`SELECT * FROM obj_information_schema.database_savepoints ORDER BY savepoint_date ASC`)).rows);
         });

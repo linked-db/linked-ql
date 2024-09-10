@@ -1,4 +1,3 @@
-
 import grammar from './grammar.js';
 		
 export default class Parser {

@@ -1,6 +1,3 @@
-
-import Expr from '../../lang/components/Expr.js';
-import Identifier from '../../lang/components/Identifier.js';
 import AbstractTable from '../AbstractTable.js';
 import SQLCursor from './SQLCursor.js';
 

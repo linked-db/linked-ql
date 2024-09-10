@@ -1,4 +1,3 @@
-
 import { _unwrap, _fromCamel } from '@webqit/util/str/index.js';
 import AbstractNode from '../../AbstractNode.js';
 
@@ -22,7 +21,7 @@ export default class AbstractConstraint extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJSON() { return { type: this.TYPE, ...super.toJSON(), }; }
+	toJSON(json = {}) { return super.toJSON({ type: this.TYPE, ...json }); }
 
     /**
 	 * @inheritdoc

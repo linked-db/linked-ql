@@ -1,4 +1,3 @@
-
 import Lexer from '../../Lexer.js';
 import { _toCamel, _fromCamel } from '@webqit/util/str/index.js';
 import AbstractNode from '../AbstractNode.js';
@@ -115,7 +114,7 @@ export default class Column extends AbstractNode {
         if (typeof arg1 === 'string') {
             existing = getExisting(arg1);
             if (!args.length) return existing;
-            else if (args[0] === false) return existing?.drop();
+            else if (args[0] === false) return existing?.keep(false);
             arg1 = { type: arg1, ...(typeof args[0] === 'object' ? args[0] : (typeof args[0] === 'string' ? { expr: args[0] } : {})) };
         } else if (!(arg1 instanceof AbstractNode)) existing = getExisting(arg1.type);
         if (existing) {
@@ -139,7 +138,7 @@ export default class Column extends AbstractNode {
         for (const type of ['IDENTITY', 'EXPRESSION', 'NOT_NULL', 'NULL', 'DEFAULT', 'AUTO_INCREMENT', 'ON_UPDATE']) {
             const consA = this.constraint(type);
             const consB = nodeB.constraint(type);
-            if (consA && (!consB || consB.dropped())) consA.drop();
+            if (consA && (!consB || consB.dropped())) consA.keep(false);
             else if (!consA && consB && !consB.dropped()) this.constraint(consB.toJSON());
             else if (consA && consB) consA.diffWith(consB);
         }
@@ -162,7 +161,7 @@ export default class Column extends AbstractNode {
             const propValue = !props.length ? true : (lonePropValue === false && props[0] === 'keep' ? false : (props.length === 1 && props[0] === 'expr' ? lonePropValue : constraintDef));
             json = { ...json, [ propName ]: propValue };
         }
-        return { ...json, ...super.toJSON()/** Status */ };
+        return super.toJSON(json);
     }
 
 	/**

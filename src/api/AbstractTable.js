@@ -1,4 +1,3 @@
-
 import { _intersect } from '@webqit/util/arr/index.js';
 import { _isFunction, _isObject } from '@webqit/util/js/index.js';
 import { _beforeLast, _afterLast } from '@webqit/util/str/index.js';
@@ -6,6 +5,7 @@ import InsertStatement from '../lang/dml/insert/InsertStatement.js';
 import UpdateStatement from '../lang/dml/update/UpdateStatement.js';
 import DeleteStatement from '../lang/dml/delete/DeleteStatement.js';
 import SelectStatement from '../lang/dml/select/SelectStatement.js';
+import Identifier from '../lang/components/Identifier.js';
 
 export default class AbstractTable {
 	 
@@ -25,6 +25,11 @@ export default class AbstractTable {
      * @property String
      */
     get name() { return this.$.name; }
+
+	/**
+     * @property Identifier
+     */
+	get ident() { return Identifier.fromJSON(this, [this.database.name, this.name]); }
 
     /**
      * @property Object
@@ -47,6 +52,28 @@ export default class AbstractTable {
 	}
 
 	/**
+	 * Performs any initialization work.
+     */
+	async $init() { await this.database.$init(); }
+
+    /**
+	 * Returns the table's current savepoint.
+	 * 
+	 * @returns Object
+     */
+    async savepoint() { await this.$init(); /* TODO */ }
+
+    /**
+	 * Returns the table's schema.
+	 * 
+	 * @returns TableSchema
+     */
+    async schema() {
+		await this.$init();
+		return (await this.database.schema([ this.name ])).table(this.name);
+	}
+
+	/**
 	 * Counts records.
 	 * 
 	 * @param Array 					fields
@@ -57,6 +84,7 @@ export default class AbstractTable {
 	 * @param Object|Function|Number 	modifiers
 	 */
 	async count(...args) {
+		await this.$init();
 		const fields = [].concat(Array.isArray(args[0]) ? args.shift() : '*');
 		if (fields.length !== 1) throw new Error(`Count expects exactly one field.`);
 		const result = await this.select([ q => q.fn('COUNT', fields[0]).as('c') ], ...args);
@@ -74,14 +102,14 @@ export default class AbstractTable {
 	 * @param Object|Function|Number 	modifiers
 	 */
 	async select(...args) {
+		await this.$init();
 		const query = new SelectStatement(this.database.client);
-		query.from([this.database.name, this.name]);
-		const schemaMemo = this.$schemaMemo();
+		query.from(this.ident.toJSON());
 		// Where and fields
 		const fields = Array.isArray(args[0]) ? args.shift() : ['*'];
 		query.select(...fields);
 		const modifiers = args.shift() || {};
-		await this.$applyModifiers(query, modifiers, schemaMemo);
+		await this.$applyModifiers(query, modifiers);
 		// Handle
 		const result = await this.database.client.query(query);
 		if (['string', 'number'].includes(typeof modifiers.where)) return result[0];
@@ -102,10 +130,10 @@ export default class AbstractTable {
 	 * @param Object|Function			modifiers
 	 */
 	async insert(...args) {
+		await this.$init();
 		const query = new InsertStatement(this.database.client);
-		query.into([this.database.name, this.name]);
-		const schemaMemo = this.$schemaMemo();
-		const { columns = [], values = [], modifiers, singular, preHook, postHook } = await this.$resolveInsert(args, schemaMemo, 'insert');
+		query.into(this.ident.toJSON());
+		const { columns = [], values = [], modifiers, singular, preHook, postHook } = await this.$resolveInsert(query, args, 'insert');
 		if (preHook) await preHook();
 		// Payload
 		if (columns.length) query.columns(...columns);
@@ -136,10 +164,10 @@ export default class AbstractTable {
 	 * @param Object|Function			modifiers
 	 */
 	async upsert(...args) {
+		await this.$init();
 		const query = new InsertStatement(this.database.client);
-		query.into([this.database.name, this.name]);
-		const schemaMemo = this.$schemaMemo();
-		const { columns = [], values = [], modifiers, singular, preHook, postHook } = await this.$resolveInsert(args, schemaMemo, 'upsert');
+		query.into(this.ident.toJSON());
+		const { columns = [], values = [], modifiers, singular, preHook, postHook } = await this.$resolveInsert(query, args, 'upsert');
 		if (preHook) await preHook();
 		// Payload
 		if (columns.length) query.columns(...columns);
@@ -152,8 +180,8 @@ export default class AbstractTable {
 		// On-conflict
 		query.onConflict({ entries: columns.map((col, i) => [col, values[0][i]]) });
 		if (this.params.dialect === 'postgres') {
-			const schema = await schemaMemo.get();
-			const uniqueKeys = schema.columns?.filter(col => col.uniqueKey).map(k => [k.name]).concat(schema.constraints?.filter(cons => cons.type === 'UNIQUE').map(k => k.targetColumns));
+			const schema = await query.$schema(this.database.name, this.name);
+			const uniqueKeys = schema.uniqueKeys().map(uk => uk.columns());
 			if (!uniqueKeys.length) throw new Error(`Table has no unique keys defined. You may want to perform a direct INSERT operation.`);
 			const columns = query.columns()?.toJSON().list || [];
 			const conflictTarget = uniqueKeys.find(keyComp => _intersect(keyComp, columns).length) || uniqueKeys[0];
@@ -173,22 +201,22 @@ export default class AbstractTable {
 	 * @param Object|Function|Number 	modifiers
 	 */
 	async update(payload, modifiers) {
+		await this.$init();
 		if (!modifiers) throw new Error(`The "modifiers" parameter cannot be ommitted.`);
 		const singular = ['string', 'number'].includes(typeof modifiers.where) && modifiers.returning;
 		const query = new UpdateStatement(this.database.client);
-		query.table([this.database.name, this.name]);
-		const schemaMemo = this.$schemaMemo();
+		query.table(this.ident.toJSON());
 		// Resolve payload
 		let columns = Object.keys(payload),
 			values = Object.values(payload),
 			preHook, postHook;
 		if (columns.length && modifiers.experimentalRecursive) {
-			({ columns, values, modifiers, preHook, postHook } = await this.$resolveRelations(columns, values, modifiers, schemaMemo, 'update'));
+			({ columns, values, modifiers, preHook, postHook } = await this.$resolveRelations(query, columns, values, modifiers, 'update'));
 		} else values = values.map(val => toVal(val, this.params.autoBindings));
 		if (preHook) await preHook();
 		// Apply to query
 		columns.forEach((col, i) => query.set(col, values[i]));
-		await this.$applyModifiers(query, modifiers, schemaMemo);
+		await this.$applyModifiers(query, modifiers);
 		// Handle
 		let result = await this.database.client.query(query);
 		if (postHook) result = await postHook(result);
@@ -202,11 +230,11 @@ export default class AbstractTable {
 	 * @param Object|Function|Number 	modifiers
 	 */
 	async delete(modifiers) {
+		await this.$init();
 		if (!modifiers) throw new Error(`The "modifiers" parameter cannot be ommitted.`);
 		const query = new DeleteStatement(this.database.client);
-		query.from([this.database.name, this.name]);
-		const schemaMemo = this.$schemaMemo();
-		await this.$applyModifiers(query, modifiers, schemaMemo);
+		query.from(this.ident.toJSON());
+		await this.$applyModifiers(query, modifiers);
 		// Handle
 		let result = await this.database.client.query(query);
 		if (['string', 'number'].includes(typeof modifiers.where) && modifiers.returning) result = result[0];
@@ -216,21 +244,12 @@ export default class AbstractTable {
 	/**
 	 * -------------------------------
 	 */
-
-	/**
-	 * Returns an object that memoizes schema retreival
-	 */
-	$schemaMemo() {
-		return {
-			db: this.database,
-			name: this.name,
-			async get() { return this.memo || (this.memo = await this.db.describeTable(this.name)); },
-		};
-	}
 		
 	/**
 	 * Resolves input arguments into columns and values array.
 	 * 
+	 * @param Statement 				query 
+	 * ---------
 	 * @param Object 					payload
 	 * @param Object|Function			modifiers
 	 * 
@@ -241,10 +260,9 @@ export default class AbstractTable {
 	 * @param Array 					multilineValues
 	 * @param Object|Function			modifiers
 	 * ---------
-	 * @param Object 					schemaMemo 
 	 * @param String 					action 
 	 */
-	async $resolveInsert(args, schemaMemo, action) {
+	async $resolveInsert(query, args, action) {
 		let columns = [], values = [], modifiers, singular;
 		// Is cilumns specified separately from values?
 		if (Array.isArray(args[0]) && /*important*/args[0].every(s => typeof s === 'string') && Array.isArray(args[1])) {
@@ -261,7 +279,7 @@ export default class AbstractTable {
 			singular = _singular && modifiers?.returning;
 		}
 		if (columns.length && modifiers?.experimentalRecursive) {
-			return { ...(await this.$resolveRelations(columns, values, modifiers || {}, schemaMemo, action)), singular };
+			return { ...(await this.$resolveRelations(query, columns, values, modifiers || {}, action)), singular };
 		}
 		values = values.map(row => row.map(v => toVal(v, this.params.autoBindings)));
 		return { columns, values, modifiers, singular };
@@ -270,26 +288,27 @@ export default class AbstractTable {
 	/**
 	 * Filter out relations
 	 * 
+	 * @param Statement query 
 	 * @param Array columns 
 	 * @param Array values 
 	 * @param Object modifiers 
-	 * @param Object schemaMemo 
 	 * @param String action 
 	 * 
 	 * @returns Object
 	 */
-	async $resolveRelations(columns, values, modifiers, schemaMemo, action) {
-		const schema = await schemaMemo.get();
+	async $resolveRelations(query, columns, values, modifiers, action) {
+		const schema = await query.$schema(this.database.name, this.name);
 		const lhsTablePK = getPrimaryKey(schema);
 		const originalReturning = modifiers.returning;
-		const columnsDef = Object.fromEntries(schema.columns.map(c => [c.name, c]));
+		const columnsDef = Object.fromEntries(schema.columns().map(c => [c.name(), c]));
 		const relations = { dependencies: new Map, dependents: new Map };
 		// Resolve nested rows
 		values = values.map((row, rowOffset) => row.reduce((row, val, colOffset) => {
 			const lhsTableFK = columns[colOffset];
-			if (columnsDef[lhsTableFK]?.references && _isObject(val)) {
-				const rhsTableName = columnsDef[lhsTableFK].references.rhsTable;
-				const rhsTablePK = columnsDef[lhsTableFK].references.targetColumns[0];
+			if (columnsDef[lhsTableFK]?.foreignKey() && _isObject(val)) {
+				const fkDef = columnsDef[lhsTableFK].foreignKey();
+				const rhsTableName = fkDef.targetTable().stringify();
+				const rhsTablePK = fkDef.targetColumns()[0];
 				if (!relations.dependencies.has(rhsTableName)) relations.dependencies.set(rhsTableName, new Map);
 				relations.dependencies.get(rhsTableName).set([rowOffset, lhsTableFK, rhsTablePK], val);
 				return row.concat(undefined);
@@ -355,11 +374,10 @@ export default class AbstractTable {
 	/**
 	 * Helps resolve specified where condition for the query.
 	 * 
-	 * @param Query 						query
+	 * @param Statement 					query
 	 * @param Object|Function|Number|Bool 	modifiers
-	 * @param Object 						schemaMemo
 	 */
-	async $applyModifiers(query, modifiers, schemaMemo) {
+	async $applyModifiers(query, modifiers) {
 		if (modifiers === true) return;
 		if (_isObject(modifiers)) {
 			const addWheres = wheres => query.where(...Object.entries(wheres).map(([k, v]) => {
@@ -367,7 +385,7 @@ export default class AbstractTable {
 				return q => q.equals(k, toVal(v, this.params.autoBindings));
 			}));
 			if (['string', 'number'].includes(typeof modifiers.where)) {
-				const schema = await schemaMemo.get();
+				const schema = await query.$schema(this.database.name, this.name);
 				addWheres({ [getPrimaryKey(schema)]: modifiers.where });
 			} else if (_isObject(modifiers.where)) addWheres(modifiers.where);
 			else if (modifiers.where && modifiers.where !== true) query.where(modifiers.where);
@@ -382,7 +400,7 @@ export default class AbstractTable {
 }
 
 const getPrimaryKey = schema => {
-	const primaryKey = schema.columns?.find(col => col.primaryKey)?.name || schema.constraints?.find(cons => cons.type === 'PRIMARY_KEY')?.targetColumns[0];
+	const primaryKey = schema.primaryKey()?.columns()[0];
 	if (!primaryKey) throw new Error(`Cannot resolve primary key name for implied record.`);
 	return primaryKey;
 };

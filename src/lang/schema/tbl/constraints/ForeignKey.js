@@ -1,4 +1,3 @@
-
 import Lexer from '../../../Lexer.js';
 import { _unwrap } from '@webqit/util/str/index.js';
 import Identifier from '../../../components/Identifier.js';
@@ -113,8 +112,9 @@ export default class ForeignKey extends AbstractLevel2Constraint {
 	/**
 	 * @inheritdoc
 	 */
-	toJSON() {
-		return {
+	toJSON(json = {}) {
+		return super.toJSON({
+			...json,
             // Requireds
             targetTable: this.TARGET_TABLE.toJSON(),
 			...(this.$TARGET_TABLE ? { $targetTable: this.$TARGET_TABLE.toJSON() } : {}),
@@ -127,9 +127,7 @@ export default class ForeignKey extends AbstractLevel2Constraint {
 			...(this.$UPDATE_RULE ? { $updateRule: this.$UPDATE_RULE } : {}),
             ...(this.DELETE_RULE ? { deleteRule: this.DELETE_RULE } : {}),
 			...(this.$DELETE_RULE ? { $deleteRule: this.$DELETE_RULE } : {}),
-            // Name & keep
-            ...super.toJSON(),
-		};
+		});
 	}
 
 	/**
@@ -158,7 +156,7 @@ export default class ForeignKey extends AbstractLevel2Constraint {
      */
     stringify() {
 		let targetTable = this.targetTable();
-		if (!targetTable.BASENAME) {
+		if (!targetTable.PREFIX) {
 			const namespace = this.$trace('get:name:database');
 			targetTable = targetTable.clone().name([namespace,targetTable.NAME]);
 		}
@@ -177,7 +175,7 @@ export default class ForeignKey extends AbstractLevel2Constraint {
         let { name, expr: $expr } = this.parseName(context, expr, true);
         if (!$expr || !($expr = $expr.match(/^REFERENCES\s+([\s\S]+)$/i)?.[1])) return;
         const [ table_maybeQualified, cols, opts = '' ] = Lexer.split($expr, []);
-        const [table, basename] = this.parseIdent(context, table_maybeQualified.trim(), true);
+        const [table, prefix] = this.parseIdent(context, table_maybeQualified.trim(), true);
         const targetColumns = Lexer.split(_unwrap(cols, '(', ')'), [',']).map(col => this.parseIdent(context, col.trim(), true)[0]);
         const matchReferentialRule = (str, type) => {
             if (type === 'MATCH') return str.match(/MATCH\s+(\w+)/i)?.[1];
@@ -187,7 +185,7 @@ export default class ForeignKey extends AbstractLevel2Constraint {
         };
         return (new this(context))
 			.name(name)
-            .targetTable(basename ? [basename, table] : table)
+            .targetTable(prefix ? [prefix,table] : table)
             .targetColumns(targetColumns)
             .matchRule(matchReferentialRule(opts, 'MATCH'))
             .updateRule(matchReferentialRule(opts, 'UPDATE'))

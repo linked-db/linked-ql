@@ -1,26 +1,42 @@
-
-import _isNumeric from '@webqit/util/js/isNumeric.js';
-import _arrFrom from '@webqit/util/arr/from.js';
-import Parser from '../../Parser.js';
 import AbstractClient from '../AbstractClient.js';
 import ODBDatabase from './ODBDatabase.js';
-
-/**
- * ---------------------------
- * ODBClient class
- * ---------------------------
- */				
+import TableSchema from '../../lang/schema/tbl/TableSchema.js';
+import DatabaseSchema from '../../lang/schema/db/DatabaseSchema.js';
+import CreateStatement from '../../lang/ddl/create/CreateStatement.js';
+import AlterStatement from '../../lang/ddl/alter/AlterStatement.js';
+import DropStatement from '../../lang/ddl/drop/DropStatement.js';
  
 export default class ODBClient extends AbstractClient {
 
     /**
      * Instance.
+     * 
+     * @param Object params 
      */
-    constructor(params = {}) {
-        super(params);
-        this.$.data = {};
-        this.kind = 'odb';
+    constructor(storage = null, params = {}) {
+        if (storage && !['set', 'get', 'has', 'delete'].every(m => typeof storage[m] === 'function')) throw new Error(`The options.storage parameter when provided must implement the Map interface.`);
+        super({ storage: storage || new Map, params });
     }
+
+    /**
+     * @property Driver
+     */
+    get storage() { return this.$.storage; }
+
+
+    /**
+	 * Client kind.
+     * 
+     * @property String
+	 */
+    static kind = 'odb';
+
+    /**
+	 * Database class.
+     * 
+     * @property Object
+	 */
+    static Database = ODBDatabase;
 
 	/**
      * Returns a list of databases.
@@ -29,84 +45,56 @@ export default class ODBClient extends AbstractClient {
      * 
      * @return Array
 	 */
-    async databases(params = {}) {
-        const databaseList = Object.keys(this.$.schemas).map(name => ({ name }));
-        return this.applyFilters(databaseList, params, this.systemDBs);
-	}
-
-	/**
-     * Returns a database handle.
-     * 
-     * @param Array args
-     * 
-     * @return SQLDatabase
-	 */
-    async database(...args) {
-        let databaseName, params = {};
-        if (args.length === 2 || (args.length === 1 && _isObject(args[0]))) { params = args.pop(); }
-        if (!(databaseName = args.pop()) && !(databaseName = await this.defaultDB())) {
-            throw new Error(`Could not automatically resolve database name.`);
-        }
-        await this.createDatabaseIfNotExists(databaseName, params);
-        return new ODBDatabase(this, databaseName, {
-            schema: this.getDatabaseSchema(databaseName),
-            data: this.$.data[databaseName],
-        }, params);
-    }
+    async databases() { return [ ...(await this.storage.keys()) ]; }
 
     /**
-     * CREATE/DROP
-     */
-
-    /**
-     * Creates.
+     * Runs a query.
      * 
-     * @param String databaseName
-     * @param Object params
+     * @param String            query
+     * @param Object            params
      * 
-     * @return Object
+     * @return Any
      */
-    async createDatabase(databaseName, params = {}) {
-        if ((await this.databases({ ...params, name: databaseName, version: null })).length) {
-            if (params.ifNotExists) return;
-            throw new Error(`Database ${ databaseName } already exists.`);
-        }
-        // ----------------
-        this.setDatabaseSchema(databaseName, {});
-        this.$.data[databaseName] = {};
-        // ----------------
-        return new ODBDatabase(this, databaseName, {
-            schema: this.getDatabaseSchema(databaseName),
-            data: this.$.data[databaseName],
-        }, params);
-    }
-
-    /**
-     * Drops a database.
-     * 
-     * @param String databaseName
-     * @param Object params
-     * 
-     * @return Bool
-     */
-    async dropDatabase(databaseName, params = {}) {
-        if (!(await this.databases({ ...params, name: databaseName, version: null })).length) {
-            if (params.ifExists) return;
-            throw new Error(`Database ${ databaseName } does not exist.`);
-        }
-        this.unsetDatabaseSchema(databaseName);
-    }
-
-    /**
-     * ---------
-     * QUERY
-     * ---------
-     */
-    
-    /**
-     * @inheritdoc
-     */
-    async query(query, vars = [], params = {}) {
-        return Parser.parse(query, null, { ...params, vars, dbClient: this }).eval(this);
+    async query(query, params = {}) {
+        return await this.queryCallback(async (target, query, params) => {
+            let schemas = await this.schemas();
+            const [ dbName, tblName ] = target.toJSON();
+            const existingDB = schemas.find(db => db.isSame(db.name().NAME, dbName, 'ci'));
+            const existingTBL = tblName && existingDB.table(tblName);
+            // -- DDL?
+            if ([CreateStatement,AlterStatement,DropStatement].some(x => query instanceof x)) {
+                if (query instanceof DropStatement) {
+                    if (!existingDB) { if (query.hasFlag('IF_EXISTS')) return; else throw new Error(`Database ${ dbName } does not exists.`); }
+                    if (query.KIND === 'TABLE' && !existingTBL) { if (query.hasFlag('IF_EXISTS')) return; else throw new Error(`Table ${ tblName } does not exists.`); }
+                    if (query.KIND === 'TABLE') existingTBL.keep(false).commitAlt(schemas);
+                    else schemas = schemas.filter(db => db !== existingDB);
+                    // Check with all tables and call updateDatabaseReferences() on them
+                    for (const tbl of schemas.reduce((tbls, db) => tbls.concat(db.TABLES))) {
+                        tbl.updateDatabaseReferences(this, altType);
+                    }
+                }
+                if (query instanceof AlterStatement) {
+                    if (!existingDB) throw new Error(`Database ${ dbName } does not exists.`);
+                    if (query.KIND === 'TABLE' && !existingTBL) throw new Error(`Table ${ tblName } does not exists.`);
+                    (query.KIND === 'TABLE' ? existingTBL : existingDB).alterWith(query);
+                    // Check with all tables and call updateDatabaseReferences() on them
+                    for (const tbl of schemas.reduce((tbls, db) => tbls.concat(db.TABLES))) {
+                        if (query.KIND === 'TABLE') {
+                            tbl.updateDatabaseReferences(this, altType);
+                        } else {
+                            tbl.updateDatabaseReferences(this, altType);
+                        }
+                    }
+                }
+                if (query instanceof CreateStatement) {
+                    if (existingDB) { if (query.hasFlag('IF_NOT_EXISTS')) return; else throw new Error(`Database ${ dbName } already exists.`); }
+                    if (query.KIND === 'TABLE' && existingTBL) { if (query.hasFlag('IF_NOT_EXISTS')) return; else throw new Error(`Table ${ tblName } already exists.`); }
+                    if (query.KIND === 'TABLE') existingDB.table(query.ARGUMENT);
+                    else schemas.push(query.ARGUMENT);
+                }
+            }
+            // -- DML!
+            if (query.expandable) await query.expand(true);
+        }, ...arguments);
     }
 }

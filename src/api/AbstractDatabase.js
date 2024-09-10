@@ -1,7 +1,7 @@
 
 import CreateStatement from '../lang/ddl/create/CreateStatement.js';
 import DropStatement from '../lang/ddl/drop/DropStatement.js';
-import TableSchema from '../lang/schema/tbl/TableSchema.js';
+import Identifier from '../lang/components/Identifier.js';
 
 export default class AbstractDatabase {
 	
@@ -21,6 +21,11 @@ export default class AbstractDatabase {
      * @property String
      */
     get name() { return this.$.name; }
+
+	/**
+     * @property Identifier
+     */
+	get ident() { return Identifier.fromJSON(this, this.name); }
 
     /**
      * @property Object
@@ -42,6 +47,36 @@ export default class AbstractDatabase {
         return this.client.$trace(request, ...args);
 	}
 
+	/**
+	 * Performs any initialization work.
+     */
+	async $init() { await this.client.$init(); }
+
+    /**
+	 * Returns the database's current savepoint.
+	 * 
+     * @param Object params
+	 * 
+	 * @returns Object
+     */
+    async savepoint(selector = {}) { return (await this.client.savepoints({ ...selector, name: this.name }))[0]; }
+
+    /**
+	 * Returns the database's schema.
+	 * 
+     * @param Array     tblSelector
+	 * 
+	 * @returns DatabaseSchema
+     */
+    async schema(tblSelector = ['*']) { return (await this.client.schemas({ [ this.name ]: tblSelector })).database(this.name); }
+	
+    /**
+     * Returns list of tables.
+     * 
+     * @return Array
+     */
+    async tables() { return await this.tablesCallback(() => []); }
+
     /**
      * Returns a table instance.
      * 
@@ -53,13 +88,6 @@ export default class AbstractDatabase {
     table(name, params = {}) {
         return new this.constructor.Table(this, ...arguments);
     }
-	
-    /**
-     * Returns list of tables.
-     * 
-     * @return Array
-     */
-    async tables() { return []; }
 
     /**
      * Tells whether a table exists.
@@ -69,6 +97,7 @@ export default class AbstractDatabase {
      * @return Bool
      */
     async hasTable(name) {
+        await this.$init();
         return (await this.tables()).includes(name);
     }
 
@@ -81,6 +110,7 @@ export default class AbstractDatabase {
      * @return Savepoint
      */
     async createTable(createSpec, params = {}) {
+        await this.$init();
         if (typeof createSpec?.name !== 'string') throw new Error(`createTable() called with invalid arguments.`);
         // -- Compose an query from request
         const query = CreateStatement.fromJSON(this, { kind: 'TABLE', argument: createSpec });
@@ -98,11 +128,11 @@ export default class AbstractDatabase {
      * @return Savepoint
      */
     async alterTable(tblName, callback, params = {}) {
+        await this.$init();
         if (typeof callback !== 'function' || typeof tblName !== 'string') throw new Error(`alterTable() called with invalid arguments.`);
         // -- Compose an query from request
-        const schemaJson = await this.describeTable(tblName);
-        if (!schemaJson) throw new Error(`Table "${ tblName }" does not exist.`);
-        const schemaApi = TableSchema.fromJSON(this, schemaJson)?.keep(true, true);
+        const schemaApi = (await this.table(tblName).schema())?.keep(true, true);
+        if (!schemaApi) throw new Error(`Table "${ tblName }" does not exist.`);
         await callback(schemaApi);
         const query = schemaApi.getAlt().with({ resultSchema: schemaApi });
         if (!query.length) return;
@@ -119,6 +149,7 @@ export default class AbstractDatabase {
      * @return Savepoint
      */
     async dropTable(tblName, params = {}) {
+        await this.$init();
         if (typeof tblName !== 'string') throw new Error(`dropTable() called with invalid arguments.`);
         // -- Compose an dropInstamce from request
         const query = DropStatement.fromJSON(this, { kind: 'TABLE', name: tblName });
@@ -126,44 +157,20 @@ export default class AbstractDatabase {
         if (params.cascade) query.withFlag('CASCADE');
         return this.client.query(query, params);
     }
-
-    /**
-	 * Returns the database's current savepoint.
-	 * 
-     * @param Object params
-	 * 
-	 * @returns Object
-     */
-    async savepoint(params = {}) {
-        const savepoints = await this.client.getSavepoints({ ...params, name: this.name });
-        return savepoints[0];
-    }
 	
 	/**
 	 * -------------------------------
 	 */
 
     /**
-     * Base logic for describeTable()
+     * Base logic for tables()
      * 
      * @param Function          callback
-     * @param String|Array      tblName_s
      * 
-     * @return Object
+     * @return Array
      */
-    async describeTableCallback(callback, tblName_s) {
-        const tblNames = [].concat(tblName_s);
-        const isSingle = tblNames.length === 1 && tblNames[0] !== '*';
-        const isAll = tblNames.length === 1 && tblNames[0] === '*';
-        const $schemas = await callback(tblNames, isAll);
-        const allTables = await this.tables();
-        const schemas = (isAll ? allTables : tblNames).reduce((list, tblName) => {
-            let $tblName = tblName.toLowerCase(), $schema = $schemas.find(schema => schema.name === $tblName);
-            if (!$schema && (isAll || allTables.includes($tblName))) {
-                $schema = { name: $tblName, columns: [], constraints: [], indexes: [] };
-            }
-            return list.concat($schema || []);
-        }, []);
-        return isSingle ? schemas[0] : schemas;
+    async tablesCallback(callback) {
+        await this.$init();
+        return await callback();
     }
 }

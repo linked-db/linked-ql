@@ -1,10 +1,8 @@
-
 import Lexer from '../../Lexer.js';
 import { _unwrap, _wrapped } from '@webqit/util/str/index.js';
 import AbstractSchema from '../AbstractSchema.js';
 import Identifier from '../../components/Identifier.js';
 import AlterStatement from '../../ddl/alter/AlterStatement.js';
-import AbstractLevel1Constraint from './constraints/AbstractLevel1Constraint.js'
 import AbstractLevel2Constraint from './constraints/AbstractLevel2Constraint.js';
 import TablePrimaryKey from './constraints/TablePrimaryKey.js';
 import ForeignKey from './constraints/ForeignKey.js';
@@ -32,7 +30,7 @@ export default class TableSchema extends AbstractSchema {
 	/**
 	 * @inheritdoc
 	 */
-	static get WRITABLE_PROPS() { return ['BASENAME'].concat(super.WRITABLE_PROPS); }
+	static get WRITABLE_PROPS() { return ['PREFIX'].concat(super.WRITABLE_PROPS); }
 	static get SUBTREE_PROPS() { return ['COLUMNS', 'CONSTRAINTS', 'INDEXES']; }
 
 	/**
@@ -46,7 +44,7 @@ export default class TableSchema extends AbstractSchema {
     $trace(request, ...args) {
 		if (request === 'get:schema:table') return this;
 		if (request === 'get:name:table') return this.NAME.NAME;
-		if (request === 'get:name:database' && this.NAME.BASENAME) return this.NAME.BASENAME;
+		if (request === 'get:name:database' && this.NAME.PREFIX) return this.NAME.PREFIX;
 		if (request === 'event:connected'
 		&& [Column,AbstractLevel2Constraint,Index].some(x => args[0] instanceof x)) {
 			this.NODES.add(args[0]);
@@ -58,6 +56,21 @@ export default class TableSchema extends AbstractSchema {
      * PRIMARY_KEY
      */
     primaryKey() { return [...this.NODES].find(node => node.TYPE === 'PRIMARY_KEY'); }
+
+    /**
+     * FOREIGN_KEY
+     */
+    foreignKeys() { return [...this.NODES].filter(node => node.TYPE === 'FOREIGN_KEY'); }
+
+    /**
+     * UNIQUE_KEY
+     */
+    uniqueKeys() { return [...this.NODES].filter(node => node.TYPE === 'UNIQUE_KEY'); }
+
+    /**
+     * CHECK
+     */
+    checks() { return [...this.NODES].filter(node => node.TYPE === 'CHECK'); }
 
 	/**
 	 * Returns a column or adds a column to the schema,
@@ -103,7 +116,7 @@ export default class TableSchema extends AbstractSchema {
 	 * @returns this
 	 */
 	diffWith(nodeB) {
-		// NAME and BASENAME
+		// NAME and PREFIX
 		super.diffWith(nodeB);
 		// DIFF STRUCTURE
 		const getNode = (instance, name) => [...instance.NODES].find(node => node.NAME === name);
@@ -132,7 +145,7 @@ export default class TableSchema extends AbstractSchema {
 			const nodeA = getNode(this, name);
 			const subNodeB = getNode(nodeB, name);
 			if (namesA.has(name) && !namesB.has(name)) {
-				nodeA.drop();
+				nodeA.keep(false);
 			} else if (!namesA.has(name)) {
 				addNode(subNodeB);
 			} else {
@@ -163,7 +176,7 @@ export default class TableSchema extends AbstractSchema {
 			if (action.CLAUSE === 'RENAME') {
 				if (action.KIND) {
 					getNode({ kind: action.KIND, name: action.name() }).name(action.argument());
-				} else this.name([this.name().BASENAME,action.argument()]);
+				} else this.name([this.name().PREFIX,action.argument()]);
 			} else if (action.CLAUSE === 'ADD') {
 				if (action.argument() instanceof AbstractLevel2Constraint) {
 					if (action.argument().columns().length === 1) {
@@ -176,7 +189,7 @@ export default class TableSchema extends AbstractSchema {
 				}
 			} else if (action.CLAUSE === 'DROP') {
 				const node = getNode(action.toJSON(), action.hasFlag('IF_EXISTS'));
-				node?.drop();
+				node?.keep(false);
 			} else if (action.CLAUSE === 'SET') {
 				if (action.KIND === 'SCHEMA') {
 					this.name([action.argument(),this.name().NAME]);
@@ -195,7 +208,7 @@ export default class TableSchema extends AbstractSchema {
 					node.constraint(subAction.argument());
 				} else if (subAction.CLAUSE === 'DROP') {
 					const existing = node.constraint(subAction.KIND);
-					if (existing) existing.drop();
+					if (existing) existing.keep(false);
 					else if (['IDENTITY','EXPRESSION'].includes(subAction.KIND) && !subAction.hasFlag('IF_EXISTS')) {
 						throw new Error(`Cannot drop ${ subAction.KIND }; does not exist.`);
 					}
@@ -230,8 +243,8 @@ export default class TableSchema extends AbstractSchema {
 			if (!this.isSame(this.$NAME.NAME, this.NAME.NAME, 'ci')) {
 				instance.rename(null, null, this.$NAME.NAME);
 			}
-			if (this.$NAME.BASENAME && !this.isSame(this.$NAME.BASENAME, this.NAME.BASENAME, 'ci')) {
-				instance.set('SCHEMA', this.$NAME.BASENAME);
+			if (this.$NAME.PREFIX && !this.isSame(this.$NAME.PREFIX, this.NAME.PREFIX, 'ci')) {
+				instance.set('SCHEMA', this.$NAME.PREFIX);
 			}
 		}
 		const constraintDirty = (cons, includingName = false) => (cons.keep() !== true || ['$EXPR','$ALWAYS','$TARGET_TABLE','$TARGET_COLUMNS','$MATCH_RULE','$UPDATE_RULE','$DELETE_RULE'].concat(includingName ? '$NAME' : []).some(k => /*exists*/k in cons && /*not empty*/(Array.isArray(cons[k]) ? cons[k].length : ![undefined, null].includes(cons[k])) && /*different*/!this.isSame(cons[k.slice(1)], cons[k], 'ci')));
@@ -355,11 +368,11 @@ export default class TableSchema extends AbstractSchema {
 	 */
 	updateDatabaseReferences(db, altType) {
 		// A database was dropped or renamed. We check with our own references to databases
-		for (const node of this.NODES) {
-			if (!(node instanceof ForeignKey)) continue;
-			if (node.targetTable().basename() !== db.NAME) continue;
-			if (altType === 'DOWN') node.drop();
-			else if (altType === 'RENAME') node.targetTable().basename(db.$NAME);
+		for (const fk of this.foreignKeys()) {
+			// Where referencing the old name
+			if (fk.targetTable().PREFIX !== db.NAME) continue;
+			if (altType === 'DOWN') fk.keep(false);
+			else if (altType === 'RENAME') fk.targetTable().name([db.$NAME,fk.targetTable().NAME]);
 		}
 	}
 
@@ -368,11 +381,10 @@ export default class TableSchema extends AbstractSchema {
 	 */
 	updateTableReferences(tbl, altType) {
 		// A table was dropped or renamed. We check with our own references to tables
-		for (const node of this.NODES) {
-			if (!(node instanceof ForeignKey)) continue;
-			if (node.targetTable().basename() && tbl.basename() && node.targetTable().basename() !== tbl.basename()) continue;
+		for (const fk of this.foreignKeys()) {
+			if (fk.targetTable().PREFIX && tbl.PREFIX && node.targetTable().prefix() !== tbl.prefix()) continue;
 			if (node.targetTable().name() === tbl.NAME) {
-				if (altType === 'DOWN') node.drop();
+				if (altType === 'DOWN') node.keep(false);
 				else if (altType === 'RENAME') node.targetTable().name(tbl.$NAME);
 			};
 		}
@@ -385,7 +397,7 @@ export default class TableSchema extends AbstractSchema {
 		// A column somewhere was dropped or renamed. We check with our own references to columns
 		for (const node of this.NODES) {
 			if (!(node instanceof ForeignKey)) continue;
-			if (node.targetTable().basename() && col.$trace('get:name:database') && node.targetTable().basename() !== col.$trace('get:name:database')) continue;
+			if (node.targetTable().prefix() && col.$trace('get:name:database') && node.targetTable().prefix() !== col.$trace('get:name:database')) continue;
 			if (node.targetTable().name() !== col.$trace('get:table:name')) continue;
 			const targetList = cons.$TARGET_COLUMNS.length ? cons.$TARGET_COLUMNS : cons.TARGET_COLUMNS;
 			const index = targetList.indexOf(col.NAME);
@@ -400,12 +412,11 @@ export default class TableSchema extends AbstractSchema {
 	 * @inheritdoc
 	 */
 	toJSON() {
-        return {
+		return super.toJSON({
             columns: this.COLUMNS.map(column => column.toJSON()),
             constraints: this.CONSTRAINTS.map(constraint => constraint.toJSON()),
             indexes: this.INDEXES.map(index => index.toJSON()),
-			...super.toJSON(),
-        }
+        });
     }
 
 	/**
@@ -439,7 +450,7 @@ export default class TableSchema extends AbstractSchema {
 		if (constraints.length) { defs.push(constraints.map(cnst => cnst.stringify()).join(',\n\t')); }
 		if (indexes.length) { defs.push(indexes.map(ndx => ndx.stringify()).join(',\n\t')); }
 		let name = this.name();
-		if (!name.BASENAME) {
+		if (!name.PREFIX) {
 			const namespace = this.$trace('get:name:database');
 			name = name.clone().name([namespace,name.NAME]);
 		}

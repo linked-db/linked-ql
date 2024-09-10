@@ -136,9 +136,10 @@ export default class Savepoint {
     async rollback() {
         if (!(await this.isNextPointInTime())) throw new Error(`Invalid rollback order.`);
         await this.client.query(this.rollbackQuery, { noCreateSavepoint: true });
+        const linkedDB = await this.client.linkedDB();
+        const savepointsTable = await linkedDB.savepointsTable();
         // Update record
-        const tblName = [this.client.constructor.OBJ_INFOSCHEMA_DB, 'database_savepoints'].join('.');
-        const updatedRecord = await this.client.query(`UPDATE ${ tblName } SET rollback_date = ${ this.direction === 'forward' ? 'NULL' : 'now()' } WHERE id = '${ this.$.json.id }' RETURNING rollback_date`);
+        const updatedRecord = await this.client.query(`UPDATE ${ savepointsTable.ident } SET rollback_date = ${ this.direction === 'forward' ? 'NULL' : 'now()' } WHERE id = '${ this.$.json.id }' RETURNING rollback_date`);
         this.$.json.rollback_date = updatedRecord[0].rollback_date;
         return true;
     }

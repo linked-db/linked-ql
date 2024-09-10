@@ -1,4 +1,3 @@
-
 import Lexer from '../../../Lexer.js';
 import ForeignKey from './ForeignKey.js';
 import AbstractTableConstraint from './AbstractTableConstraint.js';

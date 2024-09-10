@@ -1,4 +1,3 @@
-
 import AbstractNode from '../../AbstractNode.js';	
 
 export default class DataType extends AbstractNode {
@@ -31,7 +30,8 @@ export default class DataType extends AbstractNode {
 		const spec = [].concat(json);
 		if (typeof spec[0] !== 'string') return;
 		const [name, precision, flags] = parse.call(this, spec[0]);
-		if (!name) return;
+        // Note that some columns associated with system tables in information schema don't have standard types. e.g. "oid" on postgres
+		if (!name) return new this(context, nornalizeSpec( ...[].concat(json)) );
         return new this(context, nornalizeSpec(name, ...precision.split(','), ...flags, ...spec.slice(1)));
 	}
 	

@@ -25,15 +25,18 @@ export default class AbstractStatement extends AbstractNode {
 		if (request === 'get:node:statement') return this;
 		if (request === 'get:node:statement.bindings') return this._BINDINGS;
         if (request.startsWith('get:name:')) {
-            const tbl = this.$trace('get:node:table');
-            if (tbl && !(tbl.EXPR instanceof Identifier) && !this._ongoingNameTrace) {
-                this._ongoingNameTrace = true;
-                const result = tbl.EXPR/*Parens*/.$trace(request, ...args);
-                delete this._ongoingNameTrace;
-                return result;
+            let tbl = this.$trace('get:node:table');
+            if (!(tbl instanceof Identifier)) {
+                tbl = tbl.EXPR; // Must be instance Table
+                if (!(tbl instanceof Identifier) && !this._ongoingNameTrace) {
+                    this._ongoingNameTrace = true;
+                    const result = tbl/*Parens*/.$trace(request, ...args);
+                    delete this._ongoingNameTrace;
+                    return result;
+                }
             }
-            if (tbl && request === 'get:name:table') return tbl.EXPR.NAME
-            if (tbl && request === 'get:name:database' && tbl.EXPR.BASENAME) return tbl.EXPR.BASENAME;
+            if (tbl && request === 'get:name:table') return tbl.NAME
+            if (tbl && request === 'get:name:database' && tbl.PREFIX) return tbl.PREFIX;
         }
         return super.$trace?.(request, ...args);
 	}
@@ -41,9 +44,19 @@ export default class AbstractStatement extends AbstractNode {
     /**
 	 * @inheritdoc
 	 */
+	async $schema(dbName, tblName) {
+        if (!this._SCHEMAS) { this._SCHEMAS = await this.$trace('get:api:client').schemas(); }
+		const dbSchema = this._SCHEMAS.database(dbName);
+		return !tblName ? dbSchema?.clone() : dbSchema?.table(tblName).clone();
+	}
+
+    /**
+	 * @inheritdoc
+	 */
     clone() {
         const clone = super.clone();
-        if (this._BINDINGS.length) clone._BINDINGS = this._BINDINGS.slice(0);
+        clone._BINDINGS = this._BINDINGS.slice(0);
+        clone._SCHEMAS = this._SCHEMAS;
         return clone;
     }
 

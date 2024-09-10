@@ -1,4 +1,3 @@
-
 import AbstractLevel2Constraint from './AbstractLevel2Constraint.js';
 import AbstractExprConstraint from './AbstractExprConstraint.js';
 

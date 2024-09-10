@@ -1,4 +1,3 @@
-
 import $Lexer from '@webqit/util/str/Lexer.js';
 
 export default class Lexer extends $Lexer {

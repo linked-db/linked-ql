@@ -1,4 +1,3 @@
-
 import AbstractCursor from '../AbstractCursor.js';
 
 export default class SQLCursor extends AbstractCursor {
@@ -12,7 +11,7 @@ export default class SQLCursor extends AbstractCursor {
 		this._store = store;
 		// ---------------
 		this._storeFetch = new Promise(async resolve => {
-			this.cache = await this._store.getAll();
+			this.cache = await this._store.select();
 			resolve();
 		});
 	}

@@ -1,4 +1,3 @@
-
 import AbstractLevel1Constraint from './AbstractLevel1Constraint.js';
 import AutoIncrementConstraint from './AutoIncrementConstraint.js';
 
@@ -40,11 +39,10 @@ export default class IdentityConstraint extends AbstractLevel1Constraint {
 	 * @inheritdoc
 	 */
 	toJSON() {
-		return {
+		return super.toJSON({
             always: !!this.ALWAYS,
 			...(typeof this.$ALWAYS === 'boolean' ? { $always: this.$ALWAYS } : {}),
-            ...super.toJSON(),
-		};
+		});
 	}
 
 	/**

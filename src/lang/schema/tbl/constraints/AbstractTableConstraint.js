@@ -1,4 +1,3 @@
-
 import Lexer from '../../../Lexer.js';
 
 export default Class => class extends Class {
@@ -39,11 +38,10 @@ export default Class => class extends Class {
 	 * @inheritdoc
 	 */
 	toJSON() {
-		return {
+		return super.toJSON({
 			columns: this.COLUMNS,
 			...(this.$COLUMNS.length ? { $columns: this.$COLUMNS } : {}),
-            ...super.toJSON(),
-		};
+		});
 	}
 
 	/**

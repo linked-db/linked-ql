@@ -1,4 +1,3 @@
-
 import AbstractTableConstraint from './AbstractTableConstraint.js';
 import UniqueKey from "./UniqueKey.js";
 

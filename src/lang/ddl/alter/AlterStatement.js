@@ -97,9 +97,9 @@ export default class AlterStatement extends AbstractStatement(AbstractNode) {
 	stringify() {
 		if (!this.length) return '';
 		const resolveName = name => {
-			if (name.BASENAME || ['SCHEMA','DATABASE'].includes(this.KIND)) return name;
-			const basename = this.$trace('get:name:database');
-			return name.clone().name([basename,name.NAME]);
+			if (name.PREFIX || ['SCHEMA','DATABASE'].includes(this.KIND)) return name;
+			const prefix = this.$trace('get:name:database');
+			return name.clone().name([prefix,name.NAME]);
 		};
 		const [ stmts, renames, ownRename, ownMove ] = this.ACTIONS.reduce(([a, b, c, d, ], action) => {
 			if (action instanceof Rename) return action.KIND ? [a, b.concat(action), c, d] : [a, b, action, d];

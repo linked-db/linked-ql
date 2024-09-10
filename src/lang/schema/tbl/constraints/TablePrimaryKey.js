@@ -1,4 +1,3 @@
-
 import PrimaryKey from "./PrimaryKey.js";
 import AbstractTableConstraint from './AbstractTableConstraint.js';
 

@@ -1,6 +1,4 @@
-
 import AbstractNode1 from '../AbstractNode.js';
-import { _fromCamel } from '@webqit/util/str/index.js';
 
 export default class AbstractNode extends AbstractNode1 {
 
@@ -127,7 +125,32 @@ export default class AbstractNode extends AbstractNode1 {
 	dropped() { return this.keep() === false || this.CONTEXT?.dropped?.(); }
 
 	/**
-	 * Reverses alterations and the "keep" flag
+	 * Commits all alterations and resets the "keep" flag
+	 * 
+	 * @param Bool recursively
+	 * 
+	 * @returns Void
+	 */
+	commitAlt(recursively = false) {
+		this.keep(undefined);
+		for (const prop of this.WRITABLE_PROPS) {
+			if (isDirty(this[`$${ prop }`])) {
+				this[prop] = this[`$${ prop }`];
+				this[`$${ prop }`] = Array.isArray(this[`$${ prop }`]) ? [] : undefined;
+			}
+		}
+		if (!recursively) return;
+		for (const node of this.SUBTREE_PROPS.reduce((entries, key) => [...entries, ...this[key]], [])) {
+			node.commitAlt(recursively);
+		}
+	}
+
+	/**
+	 * Reverses all alterations and the "keep" flag
+	 * 
+	 * @param Bool recursively
+	 * 
+	 * @returns Void
 	 */
 	reverseAlt(recursively = false) {
 		if (this.keep() === true) {
@@ -140,10 +163,9 @@ export default class AbstractNode extends AbstractNode1 {
 			}
 		} else if (this.keep() === false) this.keep(undefined);
 		else if (typeof this.keep() !== 'boolean') this.keep(false);
-		if (recursively) {
-			for (const node of this.SUBTREE_PROPS.reduce((entries, key) => [...entries, ...this[key]], [])) {
-				node.reverseAlt(recursively);
-			}
+		if (!recursively) return;
+		for (const node of this.SUBTREE_PROPS.reduce((entries, key) => [...entries, ...this[key]], [])) {
+			node.reverseAlt(recursively);
 		}
 	}
 	
@@ -172,10 +194,11 @@ export default class AbstractNode extends AbstractNode1 {
 	/**
 	 * @inheritdoc
 	 */
-	toJSON() {
+	toJSON(json = {}) {
 		return {
 			...(this.NAME ? { name: this.NAME } : {}),
 			...(this.$NAME ? { $name: this.$NAME } : {}),
+			...json,
 			...(typeof this.KEEP === 'boolean' ? { keep: this.KEEP } : {}),
 			...(this.FLAGS.length ? { flags: [ ...this.FLAGS ] } : {}),
 		};

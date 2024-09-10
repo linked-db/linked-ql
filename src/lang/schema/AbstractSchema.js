@@ -1,4 +1,3 @@
-
 import AbstractNode from './AbstractNode.js';
 import Identifier from '../components/Identifier.js';
 
@@ -38,10 +37,11 @@ export default class AbstractSchema extends AbstractNode {
 	/**
 	 * @inheritdoc
 	 */
-	toJSON() {
+	toJSON(json = {}) {
 		return {
 			name: this.NAME.toJSON(),
 			...(this.$NAME ? { $name: this.$NAME.toJSON() } : {}),
+			...json,
 			...(typeof this.KEEP === 'boolean' ? { keep: this.KEEP } : {}),
 			...(this.FLAGS.length ? { flags: [ ...this.FLAGS ] } : {}),
 		};

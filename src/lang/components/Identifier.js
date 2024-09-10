@@ -6,7 +6,7 @@ export default class Identifier extends AbstractNode {
 	/**
 	 * Instance properties
 	 */
-	BASENAME;
+	PREFIX;
 	NAME;
 
 	/**
@@ -19,8 +19,8 @@ export default class Identifier extends AbstractNode {
 	name(name) {
 		const nameParts = Array.isArray(name) ? [...name] : [name];
 		this.NAME = nameParts.pop();
-		this.BASENAME = nameParts.pop();
-		if (nameParts.length) throw new Error(`Idents can be maximum of two parts. Recieved: ${ nameParts.reverse().join('.') }.${ this.BASENAME }.${ this.NAME }`);
+		this.PREFIX = nameParts.pop();
+		if (nameParts.length) throw new Error(`Idents can be maximum of two parts. Recieved: ${ nameParts.join('.') }.${ this.PREFIX }.${ this.NAME }`);
 		return this;
 	}
 
@@ -28,7 +28,7 @@ export default class Identifier extends AbstractNode {
 	 * @inheritdoc
 	 */
 	toJSON() {
-		const name = this.BASENAME ? [this.BASENAME,this.NAME] : this.NAME;
+		const name = this.PREFIX ? [this.PREFIX,this.NAME] : this.NAME;
 		return this.FLAGS.length ? { name, flags: this.FLAGS } : name;
 	}
 
@@ -47,7 +47,7 @@ export default class Identifier extends AbstractNode {
 	 * @inheritdoc
 	 */
 	stringify() {
-		return this.autoEsc([this.BASENAME, this.NAME].filter(s => s)).join('.') + (
+		return this.autoEsc([this.PREFIX, this.NAME].filter(s => s)).join('.') + (
 			''//this.FLAGS.length ? ` ${ this.FLAGS.map(s => s.replace(/_/g, ' ')).join(' ') }` : ''
 		);
 	}
@@ -57,10 +57,10 @@ export default class Identifier extends AbstractNode {
 	 */
 	static parse(context, expr) {
 		if (/^(TRUE|FALSE|NULL)$/i.test(expr)) return;
-		const [name, basename] = this.parseIdent(context, expr, true) || [];
+		const [name, prefix] = this.parseIdent(context, expr, true) || [];
 		if (!name) return;
 		const instance = new this(context);
-		instance.name(basename ? [basename,name] : name);
+		instance.name(prefix ? [prefix,name] : name);
 		return instance;
 	}
 }

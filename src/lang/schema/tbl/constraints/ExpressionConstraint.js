@@ -1,4 +1,3 @@
-
 import AbstractLevel1Constraint from './AbstractLevel1Constraint.js';
 import AbstractExprConstraint from './AbstractExprConstraint.js';
 
@@ -40,11 +39,10 @@ export default class ExpressionConstraint extends AbstractExprConstraint(Abstrac
 	 * @inheritdoc
 	 */
 	toJSON() {
-		return {
+		return super.toJSON({
             stored: !!this.STORED,
 			...(typeof this.$STORED === 'boolean' ? { $stored: this.$STORED } : {}),
-            ...super.toJSON(),
-		};
+		});
 	}
 
 	/**

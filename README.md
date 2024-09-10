@@ -688,8 +688,8 @@ If you've made it this far, you may want to go here next:
 ## Roadmap
 
 + [`DONE`] Implement support for a `schema.yml` alternative to `schema.json` file.
-+ [`DONE`] Support nested structures as payload at `table.insert()`, `table.upsert()`, `table.update()`.
-+ [`ONGOING`] Support nested structures as output at `table.select()`.
++ [`DONE`] Support dimensional payloads at `table.insert()`, `table.upsert()`, `table.update()`.
++ [`ONGOING`] Support dimensional fields at `table.select()` and in the `returning` clause at `table.insert()`, `table.upsert()`, `table.update()`.
 + [`ONGOING`] Improve support for MySQL.
 + [`PENDING`] Implement support for IndexedDB.
 + [`PENDING`] Implement the in-memory database.

@@ -1,4 +1,3 @@
-
 import AbstractSchema from '../AbstractSchema.js';
 import CreateStatement from '../../ddl/create/CreateStatement.js';
 import AlterStatement from '../../ddl/alter/AlterStatement.js';
@@ -39,6 +38,11 @@ export default class DatabaseSchema extends AbstractSchema {
 		return (this.build('TABLES', [table], TableSchema), this.TABLES[this.TABLES.length - 1]);
 	}
 
+    /**
+     * FOREIGN_KEY
+     */
+    foreignKeys() { return this.TABLES.reduce((fks, tbl) => fks.concat(tbl.foreignKeys()), []); }
+
 	/**
 	 * Apply changes to this schema.
 	 * 
@@ -47,7 +51,7 @@ export default class DatabaseSchema extends AbstractSchema {
 	 * @returns this
 	 */
 	diffWith(nodeB) {
-		// NAME and BASENAME
+		// NAME and PREFIX
 		super.diffWith(nodeB);
 		// DIFF STRUCTURE
 		const getTable = (instance, name) => instance.TABLES.find(node => this.isSame(node.NAME.NAME, name, 'ci'));
@@ -58,7 +62,7 @@ export default class DatabaseSchema extends AbstractSchema {
 			const nodeA = getTable(this, name);
 			const tableB = getTable(nodeB, name);
 			if (namesA.has(name) && !namesB.has(name)) {
-				nodeA.drop();
+				nodeA.keep(false);
 			} else if (!namesA.has(name)) {
 				this.table(tableB.toJSON());
 			} else {
@@ -88,7 +92,7 @@ export default class DatabaseSchema extends AbstractSchema {
 				} else this.name(action.argument());
 			} else if (action.CLAUSE === 'DROP') {
 				const node = getTable(action.name(), action.hasFlag('IF_EXISTS'));
-				node?.drop();
+				node?.keep(false);
 			} else if (action.CLAUSE === 'ADD') {
 				if (!action.hasFlag('IF_NOT_EXISTS') || !getTable(action.argument().name().NAME, true)) {
 					this.table(action.argument().toJSON());
@@ -126,33 +130,11 @@ export default class DatabaseSchema extends AbstractSchema {
 		}
 		return instance;
 	}
-	
-	/**
-	 * @inheritdoc
-	 */
-	cascadeAlt() {
-		// Normalize subtree "keep" flags
-		this.keep(this.keep(), 'auto');
-		// We've been dropped or renamed?
-		const altType = this.dropped() ? 'DOWN' : (this.$NAME && this.$NAME !== this.NAME ? 'RENAME' : null);
-		if (altType) {
-			// TODO: Check with all tables and call updateDatabaseReferences() on them
-		}
-		// Ask tables to also cascadeAlt()
-		for (const tbl of this.TABLES) tbl.cascadeAlt();
-		this.altsCascaded = true;
-		return this;
-	}
 
 	/**
 	 * @inheritdoc
 	 */
-	toJSON() {
-        return {
-			...super.toJSON(),
-            tables: this.TABLES.map(table => table.toJSON()),
-        }
-    }
+	toJSON() { return super.toJSON({ tables: this.TABLES.map(table => table.toJSON()) }); }
 
 	/**
 	 * @inheritdoc

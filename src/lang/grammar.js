@@ -1,4 +1,3 @@
-
 // Statements
 import CreateStatement from './ddl/create/CreateStatement.js';
 import AlterStatement from './ddl/alter/AlterStatement.js';

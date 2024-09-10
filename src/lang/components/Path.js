@@ -1,7 +1,6 @@
 
 import Lexer from '../Lexer.js';
 import AbstractNode from '../AbstractNode.js';
-import TableSchema from '../schema/tbl/TableSchema.js';
 import Identifier from './Identifier.js';
 import JsonPath from './json/JsonPath.js';
 
@@ -64,17 +63,13 @@ export default class Path extends AbstractNode {
 	 */
 	async eval() {
 		const clientApi = this.$trace('get:api:client');
+		const stmtNode = this.$trace('get:node:statement')
 		if (!clientApi) throw new Error(`No client API in context.`);
 		const getPrimaryKey = schema => schema.primaryKey()?.columns()[0];
 		const getTargetTable = async (schema, foreignKey) => {
-			const targetTable = [...schema.NODES].find(node => node.TYPE === 'FOREIGN_KEY' && node.columns().includes(foreignKey.NAME))?.targetTable();
-			if (targetTable && !targetTable.BASENAME) return Identifier.fromJSON(this, [await clientApi.basenameGet(targetTable.NAME),targetTable.NAME]);
+			const targetTable = schema.foreignKeys().find(fk => fk.columns().includes(foreignKey.NAME))?.targetTable();
+			if (targetTable && !targetTable.PREFIX) return Identifier.fromJSON(this, [await clientApi.resolveName(targetTable.NAME),targetTable.NAME]);
 			return targetTable;
-		};
-		const getSchema = async (tblName, dbName) => {
-			const dbApi = clientApi.database(dbName);
-			if (!(await dbApi.hasTable(tblName))) return;
-			return TableSchema.fromJSON(dbApi, await dbApi.describeTable(tblName));
 		};
 		if (this.isIncoming) {
 			if (!(this.RHS instanceof Path)) throw new Error(`Unterminated path: ${ this.RHS }`);
@@ -89,8 +84,8 @@ export default class Path extends AbstractNode {
 			} else {
 				// === {foreignKey}LHS<-RHS{table->path}
 				({ LHS: foreignKey_rhs/*Identifier*/, RHS/*Path*/: { LHS: table_rhs/*Identifier*/, RHS: path/*Identifier|Path*/ } } = this);
-				if (!table_rhs.BASENAME) { table_rhs = Identifier.fromJSON(this, [await clientApi.basenameGet(table_rhs.NAME), table_rhs.NAME]); }
-				schema_rhs = await getSchema(table_rhs.NAME, table_rhs.BASENAME);
+				if (!table_rhs.PREFIX) { table_rhs = Identifier.fromJSON(this, [await clientApi.resolveName(table_rhs.NAME), table_rhs.NAME]); }
+				schema_rhs = await stmtNode.$schema(table_rhs.PREFIX, table_rhs.NAME);
 				if (!schema_rhs) throw new Error(`[${ this }]: The implied table ${ table_rhs } does not exist.`);
 			}
 			const table_lhs = await getTargetTable(schema_rhs, foreignKey_rhs);
@@ -98,7 +93,7 @@ export default class Path extends AbstractNode {
 			if (!table_lhs) throw new Error(`[${ this }]: Table ${ table_rhs } does not define the implied foreign key: ${ foreignKey_rhs }.`);
 			// -------------
 			// Get schema_lhs from keyDef
-			const schema_lhs = await getSchema(table_lhs.NAME, table_lhs.BASENAME);
+			const schema_lhs = await stmtNode.$schema(table_lhs.PREFIX, table_lhs.NAME);
 			if (!schema_lhs) throw new Error(`[${ this }]: The implied table ${ table_lhs } does not exist.`);
 			// Get shcema_lhs's acting key (primary key) and validate
 			const primaryKey_lhs = getPrimaryKey(schema_lhs);
@@ -115,7 +110,7 @@ export default class Path extends AbstractNode {
 		const table_lhs = await baseTableIdent.call(this);
 		if (!table_lhs) throw new Error(`No tables in query.`);
 		// Get lhs schema
-		const schema_lhs = await getSchema(table_lhs.NAME, table_lhs.BASENAME);
+		const schema_lhs = await stmtNode.$schema(table_lhs.PREFIX, table_lhs.NAME);
 		if (!schema_lhs) throw new Error(`[${ this }]: The implied table ${ table_lhs } does not exist.`);
 		const { LHS: foreignKey_lhs/*Identifier*/, RHS: path/*Identifier|Path*/ } = this;
 		// We get schema2 from schema_lhs
@@ -124,7 +119,7 @@ export default class Path extends AbstractNode {
 		if (!table_rhs) throw new Error(`[${ this }]: Table ${ table_lhs } does not define the implied foreign key: ${ foreignKey_lhs }.`);
 		// -------------
 		// Get schema_rhs from keyDef!
-		const schema_rhs = await getSchema(table_rhs.NAME, table_rhs.BASENAME);
+		const schema_rhs = await stmtNode.$schema(table_rhs.PREFIX, table_rhs.NAME);
 		if (!schema_rhs) throw new Error(`[${ this }]: The implied table ${ table_rhs } does not exist.`);
 		// Get shcema_lhs's acting key (primary key) and validate
 		const primaryKey_rhs = getPrimaryKey(schema_rhs);
@@ -144,7 +139,7 @@ export default class Path extends AbstractNode {
 	 */
 	async plot() {
 		if (this.JOINT) return;
-		const stmt = this.$trace('get:node:statement');
+		const stmtNode = this.$trace('get:node:statement');
 		// Resolve relation and validate
 		const baseTable = await baseTableIdent.call(this);
 		if (!baseTable) throw new Error(`No tables in query.`);
@@ -152,14 +147,14 @@ export default class Path extends AbstractNode {
 		const { lhs, rhs } = await this.eval();
 		const baseKey = lhs.foreignKey?.NAME || lhs.primaryKey;
 		const joinKey = rhs.primaryKey || rhs.foreignKey.NAME;
-		if (lhs.primaryKey/*then incoming reference*/ && (lhs.table.NAME.toLowerCase() !== baseTable.NAME.toLowerCase() || lhs.table.BASENAME.toLowerCase() !== baseTable.BASENAME.toLowerCase())) throw new Error(`[${ this }]: Cannot resolve incoming path to base table ${ baseTable.EXPR }.`);
-		const joinAlias = `_view:${ [baseKey, rhs.table.BASENAME, rhs.table.NAME, joinKey].join(':') }`;
-		const joint = () => this.JOINT = stmt.JOIN_LIST.find(joint => joint.ALIAS.NAME.toLowerCase() === joinAlias.toLowerCase());
+		if (lhs.primaryKey/*then incoming reference*/ && (lhs.table.NAME.toLowerCase() !== baseTable.NAME.toLowerCase() || lhs.table.PREFIX.toLowerCase() !== baseTable.PREFIX.toLowerCase())) throw new Error(`[${ this }]: Cannot resolve incoming path to base table ${ baseTable.EXPR }.`);
+		const joinAlias = `_view:${ [baseKey, rhs.table.PREFIX, rhs.table.NAME, joinKey].join(':') }`;
+		const joint = () => this.JOINT = stmtNode.JOIN_LIST.find(joint => joint.ALIAS.NAME.toLowerCase() === joinAlias.toLowerCase());
 		if (!joint()) {
 			// Implement the join for the first time
 			const baseAlias = this.$trace('get:node:table').ALIAS?.NAME || baseTable.NAME;
 			const joinKeyAlias = `${ joinKey }:${ ( 0 | Math.random() * 9e6 ).toString( 36 ) }`;
-			stmt.leftJoin( j => j.query( q => q.select( field => field.name( joinKey ).as( joinKeyAlias ) ), q => q.from([rhs.table.BASENAME,rhs.table.NAME].filter(s => s)) ) )
+			stmtNode.leftJoin( j => j.query( q => q.select( field => field.name( joinKey ).as( joinKeyAlias ) ), q => q.from([rhs.table.PREFIX,rhs.table.NAME].filter(s => s)) ) )
 				.with({ IS_SMART_JOIN: true }).as(joinAlias)
 				.on( on => on.equals([joinAlias,joinKeyAlias], [baseAlias,baseKey]) );
 			joint();
@@ -222,7 +217,7 @@ async function baseTableIdent() {
 	if (tblName) {
 		const dbName = this.$trace('get:name:database');
 		return Identifier.fromJSON(this, [
-			dbName || await this.$trace('get:api:client')?.basenameGet(tblName),
+			dbName || await this.$trace('get:api:client')?.resolveName(tblName),
 			tblName
 		]);
 	}

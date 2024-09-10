@@ -1,4 +1,3 @@
-
 import { _unwrap, _wrapped } from '@webqit/util/str/index.js';
 
 export default Class => class extends Class {
@@ -39,11 +38,10 @@ export default Class => class extends Class {
 	 * @inheritdoc
 	 */
 	toJSON() {
-		return {
+		return super.toJSON({
             expr: this.EXPR,
 			...(![undefined, null].includes(this.$EXPR) ? { $expr: this.$EXPR } : {}),
-            ...super.toJSON(),
-		};
+		});
 	}
 
 	/**

@@ -23,7 +23,7 @@ export default class AbstractAliasableExpr extends AbstractNode {
 	/**
 	 * @property String
 	 */
-	get BASENAME() { return this.$EXPR?.BASENAME; }
+	get PREFIX() { return this.$EXPR?.PREFIX; }
 
 	/**
 	 * @property Node
