@@ -318,6 +318,7 @@ export default class SQLClient extends AbstractClient {
                     // -----
                     const columnNames = tbl.columns.map(col => col.column_name);
                     const normalizeCheckConstraint = key => {
+                        if (!key.check_clause) key.check_clause = ''; // Some wired stuff at Supabase
                         // Which columns are referenced in the check expr? We first eliminate all quoted strings, obtain all literals, and intersect with columnNames
                         const literals = (key.check_clause.replace(/(["'])(?:(?=(\\?))\2.)*?\1/g, '').match( /\w+/g ) || []).map(s => s.toLowerCase());
                         key.columns = _intersect(columnNames, literals);

@@ -1,3 +1,4 @@
+import { _isObject } from '@webqit/util/js/index.js';
 import Parser from '../lang/Parser.js';
 import AbstractNode from '../lang/AbstractNode.js';
 import Identifier from '../lang/components/Identifier.js';
@@ -5,9 +6,8 @@ import DatabaseSchema from '../lang/schema/db/DatabaseSchema.js';
 import CreateStatement from '../lang/ddl/create/CreateStatement.js';
 import AlterStatement from '../lang/ddl/alter/AlterStatement.js';
 import DropStatement from '../lang/ddl/drop/DropStatement.js';
-import Savepoint from './Savepoint.js';
-import { _isObject } from '@webqit/util/js/index.js';
 import RootSchema from '../lang/schema/RootSchema.js';
+import Savepoint from './Savepoint.js';
 
 export default class AbstractClient {
 
@@ -267,7 +267,7 @@ export default class AbstractClient {
         await this.$init();
         // -- Let's be clear from the start the target objects
         const tblName = query.$trace('get:name:table');
-        const dbName = query.$trace('get:name:database') || (tblName && await this.resolveName(tblName, true));
+        const dbName = query.$trace('get:name:database') || (tblName && await this.resolveName(tblName, query instanceof CreateStatement));
         const target = Identifier.fromJSON(this, tblName ? [ dbName, tblName ] : [ dbName ]);
         // -- Generate resultSchema for Alter Database and Drop Database? We'll need it for savepoint creation or per driver's request for it (params.$resultSchema === 'always')
         const scope = {};
@@ -277,7 +277,7 @@ export default class AbstractClient {
             // -- Database DDL
             if (['DATABASE', 'SCHEMA'].includes(query.KIND)) {
                 if (query instanceof DropStatement) {
-                    const dbSchema = (await query.$schema(dbName)).keep(false);
+                    const dbSchema = (await query.$schema(dbName))?.keep(false); // May be an "IF EXISTS" operation and may actually not exists
                     query.with({ resultSchema: dbSchema });
                 } else if (query instanceof AlterStatement && !query.resultSchema) {
                     const tablesList = query.ACTIONS.map(x => (x.CLAUSE === 'MODIFY' ? x.ARGUMENT.$trace('get:name:table') : (x.CLAUSE === 'DROP' ? x.name() : null))).filter(x => x);
@@ -291,14 +291,14 @@ export default class AbstractClient {
             } else if (query.KIND === 'TABLE') {
                 const dbApi = this.database(dbName);
                 if (query instanceof DropStatement) {
-                    const dbSchema = (await query.$schema(dbName, tblName)).keep(false);
+                    const dbSchema = (await query.$schema(dbName, tblName))?.keep(false); // May be an "IF EXISTS" operation and may actually not exists
                     query.with({ resultSchema: dbSchema });
                 } else if (query instanceof AlterStatement && !query.resultSchema) {
                     const dbSchema = (await query.$schema(dbName, tblName)).keep(true, true).alterWith(query); // Simulate edits;
                     query.with({ resultSchema: dbSchema });
                 } else if (query instanceof CreateStatement) query.with({ resultSchema: query.ARGUMENT });
                 // -- But this is what we'll use as snapshot
-                scope.savepoint = DatabaseSchema.fromJSON(this, {
+                scope.savepoint = query.resultSchema && DatabaseSchema.fromJSON(this, {
                     name: dbApi.name,
                     tables: [ query.resultSchema ]
                 }).keep(true);
@@ -327,8 +327,8 @@ export default class AbstractClient {
      * @returns String
      */
     async resolveName(tblName, withDefaultBasename = false) {
-        const resolutionPath = await this.resolutionPath();
-        return (await resolutionPath.reduce(async (prev, dbName) => (await prev) || (await this.database(dbName).hasTable(tblName)) ? dbName : null, null))
+        const resolutionPath = (await this.resolutionPath()).map(s => s.replace('\\', ''));
+        return (await resolutionPath.reduce(async (prev, dbName) => (await prev) || ((await this.database(dbName).hasTable(tblName)) ? dbName : null), null))
         || (withDefaultBasename ? resolutionPath.find(s => !s.startsWith('$')) || resolutionPath[0] : null);
     }
 

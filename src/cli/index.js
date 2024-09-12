@@ -30,11 +30,13 @@ if (!fs.existsSync(driverFile = path.resolve(dir, 'driver.js')) || !(driver = aw
 
 // ------
 // Load schema file
-let schemaDoc, schemaFile;
-if (((!fs.existsSync(schemaFile = path.resolve(dir, 'schema.json')) || !(schemaDoc = JSON.parse(fs.readFileSync(schemaFile).toString().trim() || 'null')))
-&& (!fs.existsSync(schemaFile = path.resolve(dir, 'schema.yml')) || !(schemaDoc = YAML.parse(fs.readFileSync(schemaFile).toString().trim())))) && command !== 'refresh') {
-    console.log(`\nNo schemas have been defined at ${ dir }. Aborting.`);
-    process.exit();
+let schemaDoc, schemaFile, existed = true;
+if ((!fs.existsSync(schemaFile = path.resolve(dir, 'schema.yml')) || !(schemaDoc = YAML.parse(fs.readFileSync(schemaFile).toString().trim())))
+&& (!fs.existsSync(schemaFile = path.resolve(dir, 'schema.json')) || !(schemaDoc = JSON.parse(fs.readFileSync(schemaFile).toString().trim() || 'null')))) {
+    console.log(`\nNo schemas have been defined at ${ dir }, but this may be automatically created for you.`);
+    schemaFile = path.resolve(dir, 'schema.yml');
+    schemaDoc = [];
+    existed = false;
 }
 
 // ------
@@ -43,7 +45,7 @@ let originalSchemaDoc = [].concat(schemaDoc), resultSchemaDoc = [];
 function writeResultSchemaDoc() {
     fs.writeFileSync(schemaFile, (schemaFile.endsWith('.yml') ? YAML : JSON).stringify(resultSchemaDoc, null, 3));
     console.log(`\nDone.`);
-    console.log(`\nLocal schema updated: ${ schemaFile }`);
+    console.log(`\nLocal schema ${ existed ? 'updated' : 'generated' }: ${ schemaFile }`);
 }
 
 // ------
@@ -80,7 +82,9 @@ if (['generate', 'refresh'].includes(command)) {
     const svps = await driver.savepoints({ name: flags.db, direction: flags.direction });
     for (const svp of svps) {
         if (svp.keep !== false) {
-            const { name, ...rest } = (await driver.database(svp.name()).schema()).toJSON();
+            const schema = await driver.database(svp.name()).schema();
+            if (!schema) continue; // Savepoint record orphaned as DB may have been droped outside of Linked QL
+            const { name, ...rest } = schema.toJSON();
             const newSchema = { name, version: svp.versionTag, ...rest, ...(flags.diffing === 'stateful' ? { keep: true } : {}) };
             await addEntry(newSchema);
         } else await removeEntry(svp.name());
