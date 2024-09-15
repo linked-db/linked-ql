@@ -25,18 +25,12 @@ export default Class => class extends Class {
 		return (this[this.smartKey('COLUMNS', true)] = [].concat(columns), this);
     }
 
-    /**
-	 * @inheritdoc
-	 */
     diffWith(consB) {
         super.diffWith(consB)
         if (!this.isSame(consB.columns(), this.columns())) { this.columns(consB.columns()); }
 		return this;
     }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
 		return super.toJSON({
 			columns: this.COLUMNS,
@@ -44,9 +38,6 @@ export default Class => class extends Class {
 		});
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
         if (!json?.columns?.length) return;
 		return super.fromJSON(context, json, () => {

@@ -4,14 +4,8 @@ import AbstractLevel1Constraint from './AbstractLevel1Constraint.js';
 
 export default class AbstractLevel2Constraint extends AbstractLevel1Constraint {
 
-    /**
-	 * @inheritdoc
-	 */
     columns() { return !('COLUMNS' in this) ? [this.CONTEXT.name()] : []; }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON(json = {}) {
         let $json = super.toJSON(json);
         if (!('name' in $json) && this.params.dialect !== 'mysql') {
@@ -21,9 +15,6 @@ export default class AbstractLevel2Constraint extends AbstractLevel1Constraint {
 		return $json;
 	}
 
-    /**
-	 * @inheritdoc
-	 */
     static fromJSON(context, json, callback = null) {
         if (json?.type !== this.TYPE) return;
         if (!('name' in json) && context?.params?.dialect !== 'mysql') {

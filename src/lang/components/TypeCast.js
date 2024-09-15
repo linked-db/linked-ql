@@ -1,4 +1,3 @@
-
 import Lexer from '../Lexer.js';
 import AbstractNode from '../AbstractNode.js';
 import Expr from './Expr.js';
@@ -12,18 +11,12 @@ export default class TypeCast extends AbstractNode {
 	TYPE = '';
 	SYNTAX2 = false;
 
-	/**
-	 * @inheritdoc
-	 */
 	cast(operand, type, syntax2 = false) {
 		this.TYPE = type;
 		this.SYNTAX2 = syntax2;
 		return this.build('OPERAND', [operand], Expr.Types);
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
 		return {
 			operand: this.OPERAND?.toJSON(),
@@ -33,9 +26,6 @@ export default class TypeCast extends AbstractNode {
 		};
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (!json?.operand || !json?.type) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
@@ -43,17 +33,11 @@ export default class TypeCast extends AbstractNode {
 		return instance;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() {
 		if (this.SYNTAX2) return `${ this.OPERAND }::${ this.TYPE }`;
 		return `CAST(${ this.OPERAND } AS ${ this.TYPE })`;
 	}
 	 
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		let operand, type, syntax2 = false;
 		if (/^CAST(?:\s+)?\([\s\S]+\)$/i.test(expr)) {

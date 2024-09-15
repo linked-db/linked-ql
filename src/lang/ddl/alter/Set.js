@@ -1,4 +1,3 @@
-
 import AbstractNode from '../AbstractNode.js';
 import DataType from '../../schema/tbl/DataType.js';
 import Identifier from '../../components/Identifier.js';
@@ -10,9 +9,6 @@ export default class Set extends AbstractNode {
 	 */
 	ARGUMENT;
 
-	/**
-	 * @inheritdoc
-	 */
 	argument(value = undefined) {
 		if (!arguments.length) return this.ARGUMENT;
 		if (['DATA_TYPE','TYPE'].includes(this.KIND)) {
@@ -23,30 +19,18 @@ export default class Set extends AbstractNode {
 		return this;
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() { return { argument: this.ARGUMENT?.toJSON?.() || this.ARGUMENT, ...super.toJSON(), }; }
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (!json?.kind) return;
         return super.fromJSON(context, json)?.argument(json.argument);
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() {
 		if (this.KIND === 'IDENTITY') return `SET GENERATED ${ /^ALWAYS$/i.test(this.ARGUMENT) ? 'AS ALWAYS' : 'BY DEFAULT' }`;
 		return `${ this.CLAUSE } ${ this.KIND.replace(/_/g, ' ') }${ this.ARGUMENT ? ` ${ this.ARGUMENT }` : '' }`;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		const [ match, kind, argument ] = (new RegExp(`^${ this.CLAUSE }\\s+(${ this.KINDS.map(s => s === 'IDENTITY' ? 'GENERATED' : s.replace(/_/g, '\\s+')).join('|') })(?:\\s+([\\s\\S]+))?$`, 'i')).exec(expr.trim()) || [];
 		if (!match) return;

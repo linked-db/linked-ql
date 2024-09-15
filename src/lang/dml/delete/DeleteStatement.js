@@ -39,11 +39,8 @@ export default class DeleteStatement extends AbstractStatement {
 	LIMIT_CLAUSE = null;
 	RETURNING_LIST = [];
 
-    /**
-	 * @inheritdoc
-	 */
     $trace(request, ...args) {
-		if (request === 'get:node:table') return this.USING_LIST[0] || this.FROM_LIST[0];
+		if (request === 'get:TABLE_NODE') return this.USING_LIST[0] || this.FROM_LIST[0];
 		return super.$trace(request, ...args);
 	}
 
@@ -178,9 +175,6 @@ export default class DeleteStatement extends AbstractStatement {
 	*/
 	returning(...fields) { return this.build('RETURNING_LIST', fields, Field); }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
 		return {
 			delete_list: this.DELETE_LIST.map(t => t.toJSON()),
@@ -195,9 +189,6 @@ export default class DeleteStatement extends AbstractStatement {
 		};
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (!Array.isArray(json?.from_list)) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
@@ -212,9 +203,6 @@ export default class DeleteStatement extends AbstractStatement {
 		return instance;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() {
 		const sql = ['DELETE'];
 		if (this.FLAGS.length) sql.push(this.FLAGS.map(s => s.replace(/_/g, ' ')));
@@ -229,9 +217,6 @@ export default class DeleteStatement extends AbstractStatement {
 		return sql.join(' ');
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		const [ match, withUac, mysqlIgnore, body ] = /^DELETE(\s+WITH\s+UAC)?(?:\s+(IGNORE))?([\s\S]+)$/i.exec(expr.trim()) || [];
 		if (!match) return;

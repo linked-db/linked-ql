@@ -19,19 +19,10 @@ export default class AbstractGroupBy extends AbstractNode {
 	 */
 	criterion(...args) { return this.build('CRITERIA', args, Expr.Types); }
 
-	/**
-	 * @inheritdoc
-	 */
 	stringify() { return this.CRITERIA.map(criterion => criterion.stringify()).join(','); }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() { return { criteria: this.CRITERIA.map(c => c.toJSON()), flags: this.FLAGS }; }
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (!Array.isArray(json?.criteria)) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
@@ -39,9 +30,6 @@ export default class AbstractGroupBy extends AbstractNode {
 		return instance;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		const [ groupByMatch, criteriaExpr ] = expr.match(new RegExp(`^${ this.regex }([\\s\\S]*)$`, 'i')) || [];
 		if (!groupByMatch) return;

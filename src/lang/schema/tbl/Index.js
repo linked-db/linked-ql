@@ -9,9 +9,6 @@ export default class Index extends AbstractNode {
 	COLUMNS = [];
 	$COLUMNS = [];
 
-	/**
-	 * @inheritdoc
-	 */
 	static get WRITABLE_PROPS() { return ['TYPE', 'COLUMNS'].concat(super.WRITABLE_PROPS); }
 
 	/**
@@ -52,9 +49,6 @@ export default class Index extends AbstractNode {
 		return this;
     }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
 		return super.toJSON({
 			type: this.TYPE,
@@ -64,9 +58,6 @@ export default class Index extends AbstractNode {
 		});
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (typeof json?.type !== 'string' || !/^(INDEX|KEY|FULLTEXT)$/i.test(json.type) || !json.columns?.length) return;
 		return super.fromJSON(context, json, () => {
@@ -79,14 +70,8 @@ export default class Index extends AbstractNode {
 		});
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() { return `${ this.type() }${ this.name() ? ` ${ this.name() }` : '' } (${ this.columns().join(', ') })`; }
 
-    /**
-	 * @inheritdoc
-	 */
 	static parse(context, expr) {
 		const [ match, type, rest ] = /^((?:(?:FULLTEXT|SPATIAL)(?:\s+INDEX|\s+KEY)?)|(?:INDEX|KEY))([\s\S]+)$/i.exec(expr) || [];
         if (!match) return;

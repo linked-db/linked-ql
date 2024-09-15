@@ -1,4 +1,3 @@
-
 import Lexer from '../Lexer.js';
 import AbstractNode from '../AbstractNode.js';
 import Expr from './Expr.js';
@@ -72,9 +71,6 @@ export default class Math extends AbstractNode {
 	 */
 	times(...operands) { return this.calc('*', ...operands); }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
 		return {
 			operator: this.OPERATOR,
@@ -83,9 +79,6 @@ export default class Math extends AbstractNode {
 		};
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (typeof json?.operator !== 'string' || !/\+|\-|\*|\//.test(json.operator) || !Array.isArray(json.operands)) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
@@ -93,14 +86,8 @@ export default class Math extends AbstractNode {
 		return instance;
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	stringify() { return this.OPERANDS.join(` ${ this.OPERATOR } `); }
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		for (const operator of ['\\*', '\\/','\\+', '\\-']) {
 			let { tokens, matches } = Lexer.lex(expr, [`(\\s+)?${ operator }(\\s+)?`], { useRegex: 'i' });

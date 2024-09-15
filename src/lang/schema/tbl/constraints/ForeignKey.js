@@ -1,5 +1,5 @@
-import Lexer from '../../../Lexer.js';
 import { _unwrap } from '@webqit/util/str/index.js';
+import Lexer from '../../../Lexer.js';
 import Identifier from '../../../components/Identifier.js';
 import AbstractLevel2Constraint from './AbstractLevel2Constraint.js';
 
@@ -8,6 +8,8 @@ export default class ForeignKey extends AbstractLevel2Constraint {
     /**
 	 * Instance properties
 	 */
+	TARGET_SCHEMA;
+	$TARGET_SCHEMA;
 	TARGET_TABLE;
 	$TARGET_TABLE;
     TARGET_COLUMNS = [];
@@ -24,6 +26,7 @@ export default class ForeignKey extends AbstractLevel2Constraint {
      */
     static get WRITABLE_PROPS() {
 		return [
+			'TARGET_SCHEMA',
 			'TARGET_TABLE',
 			'TARGET_COLUMNS',
 			'MATCH_RULE',
@@ -33,19 +36,27 @@ export default class ForeignKey extends AbstractLevel2Constraint {
 	}
     
 	/**
-	 * Builds the statement's FROM_LIST
-     * 
-	 * .targetTable('tbl');
-	 * .targetTable(['base', 'tbl']);
+	 * Sets the key's TARGET_SCHEMA
 	 * 
-	 * .targetTable( t => t.name('tbl') );
-	 * .targetTable( t => t.name(['base', 'tbl']) );
+	 * @param String schema
 	 * 
 	 * @return this
 	 */
-	targetTable(table) {
+	targetSchema(schema) {
+		if (!arguments.length) return this[this.smartKey('TARGET_SCHEMA')];
+		return (this[this.smartKey('TARGET_SCHEMA', true)] = schema, this);
+    }
+    
+	/**
+	 * Sets the key's TARGET_TABLE
+	 * 
+	 * @param String name
+	 * 
+	 * @return this
+	 */
+	targetTable(name) {
 		if (!arguments.length) return this[this.smartKey('TARGET_TABLE')];
-        return (this.build(this.smartKey('TARGET_TABLE', true), [table], Identifier, 'name'), this);
+		return (this[this.smartKey('TARGET_TABLE', true)] = name, this);
     }
 
 	/**
@@ -96,12 +107,10 @@ export default class ForeignKey extends AbstractLevel2Constraint {
         return (this[this.smartKey('DELETE_RULE', true)] = rule, this);
 	}
 
-    /**
-	 * @inheritdoc
-	 */
     diffWith(nodeB) {
         super.diffWith(nodeB)
-        if (!this.isSame(nodeB.targetTable().toJSON(), this.targetTable().toJSON())) { this.targetTable(nodeB.targetTable().toJSON()); }
+        if (!this.isSame(nodeB.targetSchema(), this.targetSchema(), 'ci')) { this.targetSchema(nodeB.targetSchema()); }
+        if (!this.isSame(nodeB.targetTable(), this.targetTable(), 'ci')) { this.targetTable(nodeB.targetTable()); }
         if (!this.isSame(nodeB.targetColumns(), this.targetColumns())) { this.targetColumns(nodeB.targetColumns()); }
         if (!this.isSame(nodeB.matchRule(), this.matchRule())) { this.matchRule(nodeB.matchRule()); }
         if (!this.isSame(nodeB.updateRule(), this.updateRule())) { this.updateRule(nodeB.updateRule()); }
@@ -109,15 +118,14 @@ export default class ForeignKey extends AbstractLevel2Constraint {
 		return this;
     }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON(json = {}) {
 		return super.toJSON({
 			...json,
             // Requireds
-            targetTable: this.TARGET_TABLE.toJSON(),
-			...(this.$TARGET_TABLE ? { $targetTable: this.$TARGET_TABLE.toJSON() } : {}),
+			...(this.TARGET_SCHEMA ? { targetSchema: this.TARGET_SCHEMA } : {}),
+			...(this.$TARGET_SCHEMA ? { $targetSchema: this.$TARGET_SCHEMA } : {}),
+            targetTable: this.TARGET_TABLE,
+			...(this.$TARGET_TABLE ? { $targetTable: this.$TARGET_TABLE } : {}),
             targetColumns: this.TARGET_COLUMNS,
 			...(this.$TARGET_COLUMNS.length ? { $targetColumns: this.$TARGET_COLUMNS } : {}),
             // Optionals
@@ -130,18 +138,17 @@ export default class ForeignKey extends AbstractLevel2Constraint {
 		});
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json, callback = null) {
 		if (!json?.targetTable || !json.targetColumns?.length) return;
 		return super.fromJSON(context, json, () => {
 			const instance = callback ? callback() : new this(context);
+			instance.hardSet(() => instance.targetSchema(json.targetSchema));
 			instance.hardSet(() => instance.targetTable(json.targetTable));
 			instance.hardSet(() => instance.targetColumns(json.targetColumns));
 			instance.hardSet(() => instance.matchRule(json.matchRule));
 			instance.hardSet(() => instance.updateRule(json.updateRule));
 			instance.hardSet(() => instance.deleteRule(json.deleteRule));
+			instance.hardSet(json.$targetSchema, val => instance.targetSchema(val));
 			instance.hardSet(json.$targetTable, val => instance.targetTable(val));
 			instance.hardSet(json.$targetColumns, val => instance.targetColumns(val));
 			instance.hardSet(json.$matchRule, val => instance.matchRule(val));
@@ -155,12 +162,9 @@ export default class ForeignKey extends AbstractLevel2Constraint {
      * @returns String
      */
     stringify() {
-		let targetTable = this.targetTable();
-		if (!targetTable.PREFIX) {
-			const namespace = this.$trace('get:name:database');
-			targetTable = targetTable.clone().name([namespace,targetTable.NAME]);
-		}
-        let sql = `${ this.stringifyName() }REFERENCES ${ targetTable } (${ this.autoEsc(this.targetColumns()).join(', ') })`;
+		const targetIdent = Identifier.fromJSON(this, [this.targetSchema(), this.targetTable()]);
+		if (!targetIdent.prefix()) targetIdent.prefix(this.$trace('get:DATABASE_NAME'));
+        let sql = `${ this.stringifyName() }REFERENCES ${ targetIdent } (${ this.autoEsc(this.targetColumns()).join(', ') })`;
         const serializeReferentialRule = rule => typeof rule === 'object' && rule ? `${ rule.rule } (${ rule.columns.join(', ') })` : rule;
         if (this.matchRule()) { sql += ` MATCH ${ this.matchRule() }`; }
         if (this.updateRule()) { sql += ` ON UPDATE ${ serializeReferentialRule(this.updateRule()) }`; }
@@ -175,7 +179,7 @@ export default class ForeignKey extends AbstractLevel2Constraint {
         let { name, expr: $expr } = this.parseName(context, expr, true);
         if (!$expr || !($expr = $expr.match(/^REFERENCES\s+([\s\S]+)$/i)?.[1])) return;
         const [ table_maybeQualified, cols, opts = '' ] = Lexer.split($expr, []);
-        const [table, prefix] = this.parseIdent(context, table_maybeQualified.trim(), true);
+        const [table, schema] = this.parseIdent(context, table_maybeQualified.trim(), true);
         const targetColumns = Lexer.split(_unwrap(cols, '(', ')'), [',']).map(col => this.parseIdent(context, col.trim(), true)[0]);
         const matchReferentialRule = (str, type) => {
             if (type === 'MATCH') return str.match(/MATCH\s+(\w+)/i)?.[1];
@@ -185,7 +189,8 @@ export default class ForeignKey extends AbstractLevel2Constraint {
         };
         return (new this(context))
 			.name(name)
-            .targetTable(prefix ? [prefix,table] : table)
+			.targetSchema(schema)
+            .targetTable(table)
             .targetColumns(targetColumns)
             .matchRule(matchReferentialRule(opts, 'MATCH'))
             .updateRule(matchReferentialRule(opts, 'UPDATE'))

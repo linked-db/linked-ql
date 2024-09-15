@@ -1,5 +1,3 @@
-
-
 import AbstractCursor from '../../engine/AbstractCursor.js';
 
 /**

@@ -1,4 +1,3 @@
-
 import Lexer from '../../Lexer.js';
 import AbstractNode from '../../AbstractNode.js';
 import Expr from '../Expr.js';
@@ -29,9 +28,6 @@ export default class WhenClause extends AbstractNode {
 	 */
 	then_(consequence) { return this.build('CONSEQUENCE', [consequence], Expr.Types); }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
 		return {
 			condition: this.CONDITION?.toJSON(),
@@ -39,9 +35,6 @@ export default class WhenClause extends AbstractNode {
 		};
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		// json could be undefined or null, or json.condition could be set but 9
 		if (!(typeof json === 'object' && json && 'condition' in json)) return;
@@ -51,14 +44,8 @@ export default class WhenClause extends AbstractNode {
 		return instance;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() { return `${ this.CONDITION } THEN ${ this.CONSEQUENCE }`; }
 
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		const tokens = Lexer.split(expr, [`\\s+THEN\\s+`], { useRegex: 'i' });
 		if (tokens.length !== 2) return;

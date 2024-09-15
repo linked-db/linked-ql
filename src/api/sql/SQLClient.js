@@ -1,5 +1,5 @@
-import { _intersect } from '@webqit/util/arr/index.js';
 import Lexer from '../../lang/Lexer.js';
+import { _intersect } from '@webqit/util/arr/index.js';
 import Identifier from '../../lang/components/Identifier.js';
 import InsertStatement from '../../lang/dml/insert/InsertStatement.js';
 import UpdateStatement from '../../lang/dml/update/UpdateStatement.js';
@@ -27,12 +27,6 @@ export default class SQLClient extends AbstractClient {
     get driver() { return this.$.driver; }
 
     /**
-     * @property Array
-	 */
-    get systemDatabases() { return this.params.dialect === 'mysql' ? [] : ['information_schema', 'pg_catalog', 'pg_toast']; }
-
-
-    /**
 	 * Client kind.
      * 
      * @property String
@@ -45,37 +39,6 @@ export default class SQLClient extends AbstractClient {
      * @property Object
 	 */
     static Database = SQLDatabase;
-
-    /**
-    * Describe databases.
-    * 
-    * @param Object            selector
-    * 
-    * @return Array
-    */
-    async schemas(selector = {}) {
-        return await this.schemasCallback(async selector => {
-            const [ sql0, sql1 ] = this.$getSchemasPrompt(selector);
-            const columns = await this.driver.query(sql0);
-            const constraints = await this.driver.query(sql1);
-            return this.$formatSchemasResult((columns.rows || columns), (constraints.rows || constraints), []);
-        }, ...arguments);
-    }
-
-	/**
-     * Returns a list of databases.
-     * 
-     * @param Object params
-     * 
-     * @return Array
-	 */
-    async databases() {
-        return await this.databasesCallback(async () => {
-            const sql = `SELECT schema_name FROM information_schema.schemata`;
-            const result = await this.driver.query(sql);
-            return (result.rows || result).map(row => row.schema_name);
-        });
-	}
 
     /**
      * Runs a query.
@@ -103,22 +66,61 @@ export default class SQLClient extends AbstractClient {
             return 'rowCount' in result ? result.rowCount : result.affectedRows;
         }, ...arguments);
     }
-	
-	/**
-	 * -------------------------------
+
+    /**
+     * Returns the application schema structure with specified level if detail.
+     * 
+     * @param Object|Array selector
+     * 
+     * @return Array
 	 */
+    async structure(selector = {}) {
+        const getLevel2Details = async structure => {
+            const [ sql0, sql1 ] = this.$composeSchemasSQL(structure);
+            const columns = await this.driver.query(sql0);
+            const constraints = await this.driver.query(sql1);
+            return this.$formatSchemasResult(structure, (columns.rows || columns), (constraints.rows || constraints), []);
+        };
+        return await this.structureCallback(async selector => {
+            // Structure provided?
+            if (Array.isArray(selector)) return await getLevel2Details(selector);
+            // Query structure
+            const CONST = this.constructor.CONST;
+            const exclusions = 'excluding' in selector ? selector.excluding : [ 'information_schema' ].concat(!selector.includeLinkedDB ? CONST.LINKED_DB.name : []);
+            if (!Array.isArray(exclusions)) throw new Error(`If present, selector.excluding must be an array.`);
+            // Compose the SQL
+            const sql = `SELECT schema_name${ selector.depth ? ', table_name' : '' }
+                FROM information_schema.schemata
+                ${ selector.depth ? `LEFT JOIN information_schema.tables ON table_schema = schema_name AND table_type = 'BASE TABLE'` : '' }
+                WHERE
+                    ${ exclusions.length ? `schema_name NOT IN ('${ exclusions.join(`', '`) }')` : '' }
+                    AND schema_name NOT LIKE 'pg_%'
+                ${ selector.inSearchPathOrder ? `ORDER BY array_position(current_schemas(false), schema_name)` : '' };`;
+            const result = await this.driver.query(sql);
+            // Return bare db list?
+            if (!selector.depth) return [...new Set((result.rows || result).map(row => ({ name: row.schema_name })))];
+            // Add table details
+            const structure = Object.values((result.rows || result).reduce((structure, row) => {
+                if (!(row.schema_name in structure)) structure[row.schema_name] = { name: row.schema_name, tables: [] };
+                if (row.table_name) structure[row.schema_name].tables.push(row.table_name);
+                return structure;
+            }, {}));
+            if (selector.depth < 2) return structure;
+            return await getLevel2Details(structure);
+        }, ...arguments);
+    }
  
     /**
      * Sets or returns the search path for resolving unqualified table references.
      * 
-     * @param Array|String resolutionPath
+     * @param Array|String searchPath
      * 
      * @return Array
      */
-    async resolutionPath(resolutionPath = []) {
+    async searchPath(searchPath = []) {
         if (arguments.length) {
-            resolutionPath = [].concat(resolutionPath).map(name => Identifier.fromJSON(this, name));
-            const sql = this.params.dialect === 'mysql' ? `USE ${ resolutionPath[0] }` : `SET SEARCH_PATH TO ${ resolutionPath.join(',') }`;
+            searchPath = [].concat(searchPath).map(name => Identifier.fromJSON(this, name));
+            const sql = this.params.dialect === 'mysql' ? `USE ${ searchPath[0] }` : `SET SEARCH_PATH TO ${ searchPath.join(',') }`;
             return await this.driver.query(sql);
         }
         let sql, key;
@@ -132,6 +134,10 @@ export default class SQLClient extends AbstractClient {
         const value = ((result.rows || result)[0] || {})[key];
         return Lexer.split(value, [',']).map(s => Identifier.parseIdent(this, s.trim())[0]);
     }
+	
+	/**
+	 * -------------------------------
+	 */
 
 	/**
 	 * Initialise the logic for supporting the "RETURNING" clause in MySQL
@@ -149,7 +155,7 @@ export default class SQLClient extends AbstractClient {
         // -----------
 		const colName = 'obj_column_for_returning_clause_support';
         const columnIdent = Identifier.fromJSON(this, colName);
-        const schema = await query.$schema(target.PREFIX, target.NAME);
+        const schema = (await query.$structure()).database(target.prefix()).table(target.name());
 		if (!schema.column(colName)) await this.driver.query(`ALTER TABLE ${ target } ADD COLUMN ${ columnIdent } char(36) INVISIBLE`);
         const insertUuid = ( 0 | Math.random() * 9e6 ).toString( 36 );
         // -----------
@@ -184,20 +190,18 @@ export default class SQLClient extends AbstractClient {
     /**
      * Composes the SQL for a SHOW TABLE operation.
      * 
-     * @param Object selector
+     * @param Array structure
      * 
      * @returns Array
      */
-    $getSchemasPrompt(selector = {}) {
+    $composeSchemasSQL(structure = []) {
         let dbWhere = '', tblWhere = '';
-        const $keys = Object.keys(selector), $values = Object.values(selector);
         const getWhere = (dbIdent, tblIdent) => {
-            if ($values.every(v => v === false)) dbWhere = `${ dbIdent } NOT IN ('${ $keys.join(`', '`) }')`;
-            else if ($keys.length) dbWhere = `${ dbIdent } IN ('${ $keys.join(`', '`) }')`;
-            const tblWhereCases = $keys.reduce((list, key) => {
-                const tbls = [].concat(selector[key]);
-                if (typeof tbls[0] !== 'string' || tbls[0] === '*') return list;
-                return list.concat(`WHEN '${ key }' THEN ${ tblIdent } IN ('${ tbls.join(`', '`) }')`);
+            if (structure.length) dbWhere = `${ dbIdent } IN ('${ structure.map(x => x.name).join(`', '`) }')`;
+            const tblWhereCases = structure.reduce((list, x) => {
+                const tbls = [].concat(x.tables);
+                if (tbls[0] === '*') return list;
+                return list.concat(`WHEN '${ x.name }' THEN ${ tblIdent } IN ('${ tbls.join(`', '`) }')`);
             }, []);
             if (tblWhereCases.length) tblWhere = `CASE ${ dbIdent } ${ tblWhereCases.join(' ') } END`;
             const $where = tblWhere ? `${ dbWhere } AND ${ tblWhere }` : dbWhere;
@@ -283,35 +287,37 @@ export default class SQLClient extends AbstractClient {
     /**
      * Builds a schema object from the results of querying the information schema.
      * 
+     * @param Array     structure
      * @param Array     columns
      * @param Array     constraints
      * @param Array     indexes
      * 
      * @returns Array
      */
-    $formatSchemasResult(columns, constraints, indexes) {
+    $formatSchemasResult(structure, columns, constraints, indexes) {
         // PG likes using verbose data types
         const dataType = val => val === 'character varying' ? 'varchar' : (val === 'integer' ? 'int' : val);
         const formatRelation = (key, tableScope = false) => ({
             ...(!tableScope ? { name: key.constraint_name } : {}),
-            targetTable: [key.referenced_table_schema,key.referenced_table_name],
+            targetSchema: key.referenced_table_schema,
+            targetTable: key.referenced_table_name,
             targetColumns: key.referenced_column_name.split(',').map(s => s.trim()),
             ...(key.match_rule !== 'NONE' ? { matchRule: key.match_rule } : {}),
             updateRule: key.update_rule,
             deleteRule: key.delete_rule,
         });
-        const structure = columns.reduce((dbs, col) => {
-            if (!dbs.has(col.table_schema)) dbs.set(col.table_schema, new Map);
-            if (!dbs.get(col.table_schema).has(col.table_name)) {
-                dbs.get(col.table_schema).set(col.table_name, {
+        const $structure = new Map((structure || []).map(x => [ x.name, new Map([].concat(x.tables || []).map(y => [ y, null ])) ]));
+        for (const col of columns) {
+            if (!$structure.has(col.table_schema)) $structure.set(col.table_schema, new Map);
+            if (!$structure.get(col.table_schema).get(col.table_name)) {
+                $structure.get(col.table_schema).set(col.table_name, {
                     columns: [col],
                     constraints: constraints.filter(cons => cons.table_schema === col.table_schema && cons.table_name === col.table_name),
                     indexes: indexes.filter(idx => idx.table_schema === col.table_schema && idx.table_name === col.table_name),
                 });
-            } else dbs.get(col.table_schema).get(col.table_name).columns.push(col);
-            return dbs;
-        }, new Map);
-        return [ ...structure.entries() ].map(([dbName, tables]) => {
+            } else $structure.get(col.table_schema).get(col.table_name).columns.push(col);
+        }
+        return [ ...$structure.entries() ].map(([dbName, tables]) => {
             const databaseSchema = {
                 name: dbName,
                 tables: [ ...tables.entries() ].map(([tblName, tbl]) => {

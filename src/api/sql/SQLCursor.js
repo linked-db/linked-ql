@@ -2,9 +2,6 @@ import AbstractCursor from '../AbstractCursor.js';
 
 export default class SQLCursor extends AbstractCursor {
 	 
-	/**
-	 * @inheritdoc
-	 */
 	constructor(store) {
 		super([]);
 		// ---------------
@@ -16,9 +13,6 @@ export default class SQLCursor extends AbstractCursor {
 		});
 	}
 	 
-	/**
-	 * @inheritdoc
-	 */
 	async fetch() {
 		await this._storeFetch;
 		return super.fetch();

@@ -31,21 +31,6 @@ export default class AbstractDatabase {
      * @property Object
      */
     get params() { return Object.assign({}, this.client.params, this.$.params); }
-    
-	/**
-	 * A generic method for tracing something up the node tree.
-	 * Like a context API.
-	 * 
-	 * @param String request
-	 * @param Array ...args
-     * 
-     * @returns any
-	 */
-	$trace(request, ...args) {
-		if (request === 'get:api:database') return this;
-		if (request === 'get:name:database') return this.name;
-        return this.client.$trace(request, ...args);
-	}
 
 	/**
 	 * Performs any initialization work.
@@ -68,14 +53,10 @@ export default class AbstractDatabase {
 	 * 
 	 * @returns DatabaseSchema
      */
-    async schema(tblSelector = ['*']) { return (await this.client.schemas({ [ this.name ]: tblSelector })).database(this.name); }
-	
-    /**
-     * Returns list of tables.
-     * 
-     * @return Array
-     */
-    async tables() { return await this.tablesCallback(() => []); }
+    async structure(tblSelector = ['*']) {
+        await this.$init();
+        return (await this.client.structure([{ name: this.name, tables: tblSelector }])).database(this.name);
+    }
 
     /**
      * Returns a table instance.
@@ -152,25 +133,24 @@ export default class AbstractDatabase {
         await this.$init();
         if (typeof tblName !== 'string') throw new Error(`dropTable() called with invalid arguments.`);
         // -- Compose an dropInstamce from request
-        const query = DropStatement.fromJSON(this, { kind: 'TABLE', name: tblName });
+        const query = DropStatement.fromJSON(this, { kind: 'TABLE', ident: tblName });
         if (params.ifExists) query.withFlag('IF_EXISTS');
         if (params.cascade) query.withFlag('CASCADE');
         return this.client.query(query, params);
     }
-	
+    
 	/**
-	 * -------------------------------
+	 * A generic method for tracing something up the node tree.
+	 * Like a context API.
+	 * 
+	 * @param String request
+	 * @param Array ...args
+     * 
+     * @returns any
 	 */
-
-    /**
-     * Base logic for tables()
-     * 
-     * @param Function          callback
-     * 
-     * @return Array
-     */
-    async tablesCallback(callback) {
-        await this.$init();
-        return await callback();
-    }
+	$trace(request, ...args) {
+		if (request === 'get:DATABASE_API') return this;
+		if (request === 'get:DATABASE_NAME') return this.name;
+        return this.client.$trace(request, ...args);
+	}
 }

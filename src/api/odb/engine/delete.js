@@ -1,8 +1,5 @@
 
 	
-	/**
-	 * @inheritdoc
-	 */
 	async function delete_(database, params = {}) {
 
 		// --------------------

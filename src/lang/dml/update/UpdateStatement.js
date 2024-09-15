@@ -22,11 +22,8 @@ export default class UpdateStatement extends AbstractStatement {
 	LIMIT_CLAUSE = null;
 	RETURNING_LIST = [];
 
-    /**
-	 * @inheritdoc
-	 */
     $trace(request, ...args) {
-		if (request === 'get:node:table') return this.TABLE_LIST[0];
+		if (request === 'get:TABLE_NODE') return this.TABLE_LIST[0];
 		return super.$trace(request, ...args);
 	}
 
@@ -151,9 +148,6 @@ export default class UpdateStatement extends AbstractStatement {
 	*/
 	returning(...fields) { return this.build('RETURNING_LIST', fields, Field); }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
 		return {
 			table_list: this.TABLE_LIST.map(t => t.toJSON()),
@@ -167,9 +161,6 @@ export default class UpdateStatement extends AbstractStatement {
 		};
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (!Array.isArray(json?.table_list)) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
@@ -183,9 +174,6 @@ export default class UpdateStatement extends AbstractStatement {
 		return instance;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() {
 		const sql = ['UPDATE'];
 		if (this.FLAGS.length) sql.push(this.FLAGS.map(s => s.replace(/_/g, ' ')));
@@ -199,9 +187,6 @@ export default class UpdateStatement extends AbstractStatement {
 		return sql.join(' ');
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		const [ match, withUac, mysqlIgnore, body ] = /^UPDATE(\s+WITH\s+UAC)?(?:\s+(IGNORE))?([\s\S]+)$/i.exec(expr.trim()) || [];
 		if (!match) return;

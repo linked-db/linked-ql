@@ -1,12 +1,11 @@
-
 import AbstractNode from '../AbstractNode.js';
 import IdentityConstraint from '../../schema/tbl/constraints/IdentityConstraint.js';
 import TablePrimaryKey from '../../schema/tbl/constraints/TablePrimaryKey.js';
 import TableForeignKey from '../../schema/tbl/constraints/TableForeignKey.js';
 import TableUniqueKey from '../../schema/tbl/constraints/TableUniqueKey.js';
 import CheckConstraint from '../../schema/tbl/constraints/CheckConstraint.js';
-import Index from '../../schema/tbl/Index.js';
 import Column from '../../schema/tbl/Column.js';
+import Index from '../../schema/tbl/Index.js';
 
 export default class Add extends AbstractNode {
 
@@ -15,30 +14,18 @@ export default class Add extends AbstractNode {
 	 */
 	ARGUMENT;
 
-	/**
-	 * @inheritdoc
-	 */
 	argument(argument = undefined) {
 		if (!arguments.length) return this.ARGUMENT;
 		return (this.build('ARGUMENT', [argument], this.constructor.NODE_TYPES), this);
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() { return { argument: this.ARGUMENT.toJSON(), ...super.toJSON(), }; }
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (!json?.argument) return;
         return super.fromJSON(context, json)?.argument(json.argument);
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() {
 		const stmts = [`${ this.CLAUSE }${ this.KIND && /^(COLUMN|TABLE|SCHEMA|DATABASE)$/i.test(this.KIND) ? ` ${ this.KIND.replace(/_/g, ' ') }${ this.hasFlag('IF_NOT_EXISTS') ? ' IF NOT EXISTS' : '' }` : '' } ${ this.argument() }`];
 		if (this.argument() instanceof Column) {
@@ -50,9 +37,6 @@ export default class Add extends AbstractNode {
 		return stmts.join(' ');
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		const [ match, kind = '', ifNotExists, argumentExpr ] = (new RegExp(`^${ this.CLAUSE }\\s+(?:(${ this.KINDS.map(s => s.replace(/_/g, '\\s+')).join('|') })\\s+)?(IF\\s+NOT\\s+EXISTS\\s+)?([\\s\\S]+)$`, 'i')).exec(expr.trim()) || [];
 		if (!match) return;

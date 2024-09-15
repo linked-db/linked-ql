@@ -1,4 +1,3 @@
-
 import CaseConstruct from './case/CaseConstruct.js';
 import Identifier from './Identifier.js';
 import Condition from './Condition.js';
@@ -43,18 +42,12 @@ export default class Expr {
 		return this.fromJSON(context, json, Types);
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, arg, Types = this.Types) {
 		const instance = Types.find(t => arg instanceof t) ? arg : Types.reduce((prev, Type) => prev || Type.fromJSON(context, arg), null);
 		if (!instance) throw new Error(``);
 		return instance;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) { return parseCallback(context, expr, this.Types); }
 
 	/**

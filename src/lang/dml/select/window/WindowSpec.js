@@ -72,9 +72,6 @@ export default class WindowSpec extends AbstractNode {
 	 */
 	orderBy(...orderBys) { return this.build('ORDER_BY_CLAUSE', orderBys, OrderByClause, 'criterion'); }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
 		return {
 			name: this.NAME, 
@@ -84,9 +81,6 @@ export default class WindowSpec extends AbstractNode {
 		};
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (typeof json === 'string') json = { window_ref: json };
 		else if (!(typeof json === 'object' && json) || !['name', 'window_ref', 'partition_by_clause', 'order_by_clause'].some(k => k in json)) return;
@@ -98,9 +92,6 @@ export default class WindowSpec extends AbstractNode {
 		return instance;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() {
 		const sql = [];
 		if (!this.NAME && this.WINDOW_REF && !this.PARTITION_BY_CLAUSE && !this.ORDER_BY_CLAUSE) {
@@ -119,9 +110,6 @@ export default class WindowSpec extends AbstractNode {
 		return sql.join('');
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		const instance = new this(context);
 		const parseEnclosure = async enclosure => {

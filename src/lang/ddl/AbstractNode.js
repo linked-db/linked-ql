@@ -17,9 +17,6 @@ export default class AbstractNode extends AbstractNode1 {
         this.KIND = kind;
     }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
         return {
 			clause: this.CLAUSE,
@@ -28,9 +25,6 @@ export default class AbstractNode extends AbstractNode1 {
         };
     }
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (json?.clause && json.clause !== this.CLAUSE || (json?.kind && !this.KINDS.includes(json.kind))) return;
 		return (new this(context, json.kind)).withFlag(...(json.flags || []));

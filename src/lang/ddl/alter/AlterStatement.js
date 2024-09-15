@@ -1,4 +1,3 @@
-
 import Lexer from '../../Lexer.js';
 import AbstractNode from '../AbstractNode.js';
 import AbstractStatement from '../AbstractStatement.js';
@@ -16,116 +15,80 @@ export default class AlterStatement extends AbstractStatement(AbstractNode) {
 	/**
 	 * Instance props.
 	 */
-	NAME;
+	IDENT;
 	ACTIONS = [];
 	SUBTREE = [];
 
 	get length() { return this.ACTIONS.length + this.SUBTREE.length; }
 
-	/**
-	 * @inheritdoc
-	 */
+	ident(value) {
+		if (!arguments.length) return this.IDENT;
+		return (this.build('IDENT', [value], Identifier), this);
+	}
+
 	action(...actions) {
 		if (!arguments.length) return this.ACTIONS[this.ACTIONS.length - 1];
 		return (this.build('ACTIONS', actions, this.constructor.NODE_TYPES), this);
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	create(kind, argument) { return this.action({ clause: 'CREATE', kind, argument }); }
 
-	/**
-	 * @inheritdoc
-	 */
-	rename(kind, name, argument) { return this.action({ clause: 'RENAME', kind, name, argument }); }
+	rename(kind, ident, argument) { return this.action({ clause: 'RENAME', kind, ident, argument }); }
 
-	/**
-	 * @inheritdoc
-	 */
 	modify(kind, argument) { return this.action({ clause: 'MODIFY', kind, argument }); }
 
-	/**
-	 * @inheritdoc
-	 */
-	change(kind, name, argument) { return this.action({ clause: 'CHANGE', kind, name, argument }); }
+	change(kind, ident, argument) { return this.action({ clause: 'CHANGE', kind, ident, argument }); }
 
-	/**
-	 * @inheritdoc
-	 */
-	alter(kind, name, argument) { return this.action({ clause: 'ALTER', kind, name, argument }); }
+	alter(kind, ident, argument) { return this.action({ clause: 'ALTER', kind, ident, argument }); }
 
-	/**
-	 * @inheritdoc
-	 */
 	add(kind, argument) { return this.action({ clause: 'ADD', kind, argument }); }
 
-	/**
-	 * @inheritdoc
-	 */
-	drop(kind, name) { return this.action({ clause: 'DROP', kind, name }); }
+	drop(kind, ident) { return this.action({ clause: 'DROP', kind, ident }); }
 
-	/**
-	 * @inheritdoc
-	 */
 	set(kind, argument) { return this.action({ clause: 'SET', kind, argument }); }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
-        return {
-            name: this.NAME.toJSON(),
+		return {
+			ident: this.IDENT.toJSON(),
             actions: this.ACTIONS.map(x => x.toJSON()),
 			...super.toJSON(),
-        };
-    }
+		};
+	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
-		if (!json?.kind || !json.name || !Array.isArray(json.actions)) return;
-        const instance = super.fromJSON(context, json)?.name(json.name);
-		instance.action(...json.actions);
+		if (!json?.kind || !Array.isArray(json.actions) || !Identifier.fromJSON(context, json?.ident)) return;
+		const instance = super.fromJSON(context, json);
+		instance?.ident(json.ident).action(...json.actions);
 		return instance;
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	stringify() {
 		if (!this.length) return '';
-		const resolveName = name => {
-			if (name.PREFIX || ['SCHEMA','DATABASE'].includes(this.KIND)) return name;
-			const prefix = this.$trace('get:name:database');
-			return name.clone().name([prefix,name.NAME]);
+		const resolveIdent = ident => {
+			if (ident.prefix() || ['SCHEMA','DATABASE'].includes(this.KIND)) return ident;
+			return ident.clone().prefix(this.$trace('get:DATABASE_NAME'));
 		};
 		const [ stmts, renames, ownRename, ownMove ] = this.ACTIONS.reduce(([a, b, c, d, ], action) => {
 			if (action instanceof Rename) return action.KIND ? [a, b.concat(action), c, d] : [a, b, action, d];
 			if (action instanceof Set && action.KIND === 'SCHEMA') return [a, b, c, action];
 			return [a.concat(action), b, c, d];
 		}, [[], [], ]);
-		const baseStmt = name => `${ this.CLAUSE } ${ this.KIND }${ this.hasFlag('IF_EXISTS') ? ' IF EXISTS' : '' } ${ name }`;
+		const writeBaseStmt = ident => `${ this.CLAUSE } ${ this.KIND }${ this.hasFlag('IF_EXISTS') ? ' IF EXISTS' : '' } ${ ident }`;
 		const sql = [...this.SUBTREE];
-		const name = resolveName(this.name());
-		if (stmts.length) sql.push(`${ baseStmt(name) }\n\t${ stmts.join(',\n\t') }`);
-		for (const stmt of renames.concat(ownRename || [])) sql.push(`${ baseStmt(name) } ${ stmt }`);
-		if (ownMove) sql.push(`${ baseStmt(ownRename && resolveName(Identifier.fromJSON(this, ownRename.ARGUMENT)) || name) } ${ ownMove }`);
+		const ident = resolveIdent(this.ident());
+		if (stmts.length) sql.push(`${ writeBaseStmt(ident) }\n\t${ stmts.join(',\n\t') }`);
+		for (const stmt of renames.concat(ownRename || [])) sql.push(`${ writeBaseStmt(ident) } ${ stmt }`);
+		if (ownMove) sql.push(`${ writeBaseStmt(ownRename && resolveIdent(ownRename.ARGUMENT) || ident) } ${ ownMove }`);
 		return sql.join(';\n');
 	}
-
-	/**
-	 * @inheritdoc
-	 */
+	
 	static parse(context, expr, parseCallback) {
-		const [ match, kind, ifExists, rest ] = (new RegExp(`^${ this.CLAUSE }\\s+(${ this.KINDS.map(s => s).join('|') })\\s+(?:(IF\\s+EXISTS)\\s+)?([\\s\\S]+)$`, 'i')).exec(expr.trim()) || [];
+		const [ match, kind, $expr ] = (new RegExp(`^${ this.CLAUSE }\\s+(${ this.KINDS.map(s => s).join('|') })\\s+([\\s\\S]+)$`, 'i')).exec(expr.trim()) || [];
 		if (!match) return;
 		const instance = new this(context, kind.toUpperCase());
-		const [ namePart, bodyPart ] = Lexer.split(rest, ['\\s+'], { useRegex: true, limit: 1 });
-		instance.name(parseCallback(instance, namePart, [Identifier]));
-		instance.action(...Lexer.split(bodyPart, [',']).map(s => parseCallback(instance, s, this.NODE_TYPES)));
-		if (ifExists) instance.withFlag('IF_EXISTS');
+		const [ ident, $$expr ] = Lexer.split($expr, ['\\s+'], { useRegex: 'i', limit: 1 });
+		instance.ident(parseCallback(instance, ident, [Identifier]));
+		instance.action(...Lexer.split($$expr, [',']).map(s => parseCallback(instance, s, this.NODE_TYPES)));
 		return instance;
 	}
 

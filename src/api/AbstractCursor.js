@@ -13,19 +13,10 @@ export default class AbstractCursor {
 		this._cache = rows;
 	}
 		 
-	/**
-	 * @inheritdoc
-	 */
 	get eof() { return !this._cache.length || this._pos === this._cache.length - 1; }
 	 
-	/**
-	 * @inheritdoc
-	 */
 	onfinish(callback) { this._onfinish.push(callback); }
 	 
-	/**
-	 * @inheritdoc
-	 */
 	next() {
 		if (this.eof) {
 			this._onfinish.forEach(callback => callback());
@@ -35,9 +26,6 @@ export default class AbstractCursor {
         this._pos ++;
 	}
 	 
-	/**
-	 * @inheritdoc
-	 */
 	async fetch() {
 		if (this.eof) return;
 		return this._cache[this._pos];

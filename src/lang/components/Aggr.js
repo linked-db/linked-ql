@@ -12,9 +12,6 @@ export default class Aggr extends Func {
 	ORDER_BY_CLAUSE;
 	OVER_CLAUSE;
 
-	/**
-	 * @inheritdoc
-	 */
 	fn(...args) { return (super.fn(...args), this); }
 	
 	/**
@@ -31,9 +28,6 @@ export default class Aggr extends Func {
 		return (this.build('OVER_CLAUSE', [window], WindowSpec), this.OVER_CLAUSE);
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
 		return {
 			...super.toJSON(), 
@@ -42,9 +36,6 @@ export default class Aggr extends Func {
 		};
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		const instance = super.fromJSON(context, json);
 		if (!instance) return;
@@ -54,17 +45,11 @@ export default class Aggr extends Func {
 		return instance;
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	stringify() {
 		const sql = `${ this.NAME.toUpperCase() }(${ [...this.FLAGS, this.ARGS.join(','), this.ORDER_BY_CLAUSE].filter(s => s).join(' ') })`;
 		return sql + (this.OVER_CLAUSE ? ` OVER ${ this.OVER_CLAUSE }` : '');
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		// Break off any OVER clause, then assert that it's a function
 		const [ func, over ] = Lexer.split(expr, ['OVER\\s+'], { useRegex: 'i' }).map(s => s.trim());

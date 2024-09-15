@@ -1,5 +1,3 @@
-
-
 import _isObject from '@webqit/util/js/isObject.js';
 import _isFunction from '@webqit/util/js/isFunction.js';
 import _each from '@webqit/util/obj/each.js';
@@ -14,16 +12,10 @@ import ODBStore from './ODBStore.js';
 
 export default class ODBDatabase extends AbstractDatabase {
     
-    /**
-     * @inheritdoc
-     */
     async tables(params = {}) {
         return this.client.applyFilters(Object.keys(this.def.schemas), params);
     }
 
-    /**
-     * @inheritdoc
-     */
     table(tableName, params = {}) {
         return new ODBStore(this, tableName, {
             data: this.def.data[tableName],
@@ -34,9 +26,6 @@ export default class ODBDatabase extends AbstractDatabase {
      * CREATE/ALTER/DROP
      */
 
-    /**
-     * @inheritdoc
-     */
     async createTable(tableName, tableSchema, params = {}) {
         if ((await this.tables()).includes(tableName)) {
             if (params.ifNotExists) return;
@@ -49,9 +38,6 @@ export default class ODBDatabase extends AbstractDatabase {
         });
     }
 
-    /**
-     * @inheritdoc
-     */
     async alterTable(tableName, newTableSchemaOrCallback, params = {}) {
 
         var tableSchema = await this.describeTable(tableName),

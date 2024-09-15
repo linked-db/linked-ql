@@ -7,9 +7,6 @@ export default class Parser {
 	 */
 	static grammar = grammar;
 
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, grammar, params = {}) {
 		if (!expr?.length) return;
 		const $grammar = grammar?.length ? grammar : this.grammar;
@@ -23,9 +20,6 @@ export default class Parser {
 		throw new SyntaxError(expr);
 	}
 	 
-	/**
-	 * @inheritdoc
-	 */
 	static parseOne(context, expr, Node, params = {}) {
 		return Node.parse(context, expr, ($context, $expr, $grammar, $params = {}) => {
 			return this.parse($context, $expr, $grammar, { ...params, ...$params });

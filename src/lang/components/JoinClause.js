@@ -91,9 +91,6 @@ export default class JoinClause extends Table {
 	 */
 	using(correlation) { return this.build('CORRELATION', [correlation], Identifier); }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
 		return {
 			type: this.TYPE,
@@ -102,9 +99,6 @@ export default class JoinClause extends Table {
 		};
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		const instance = super.fromJSON(context, json);
 		if (!instance || !json.type) return;
@@ -113,9 +107,6 @@ export default class JoinClause extends Table {
 		return instance;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() {
 		return [
 			this.TYPE?.replace(/_/, ' ').toUpperCase() || 'JOIN',
@@ -124,9 +115,6 @@ export default class JoinClause extends Table {
 		].filter(s => s).join(' ');
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		const [ joinMatch, type, joinSpec ] = expr.match(new RegExp(`^${ this.regex }([\\s\\S]*)$`, 'i')) || [];
 		if (!joinMatch) return;

@@ -23,11 +23,8 @@ export default class InsertStatement extends AbstractStatement {
 	ON_CONFLICT_CLAUSE = null;
 	RETURNING_LIST = [];
 
-    /**
-	 * @inheritdoc
-	 */
     $trace(request, ...args) {
-		if (request === 'get:node:table') return this.TABLE;
+		if (request === 'get:TABLE_NODE') return this.TABLE;
 		return super.$trace(request, ...args);
 	}
 
@@ -101,9 +98,6 @@ export default class InsertStatement extends AbstractStatement {
 	*/
    returning(...fields) { return this.build('RETURNING_LIST', fields, Field); }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
 		return {
 			table: this.TABLE.toJSON(),
@@ -117,9 +111,6 @@ export default class InsertStatement extends AbstractStatement {
 		};
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (!json?.table) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
@@ -133,9 +124,6 @@ export default class InsertStatement extends AbstractStatement {
 		return instance;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() {
 		const sql = ['INSERT'];
 		if (this.FLAGS.length) sql.push(this.FLAGS.map(s => s.replace(/_/g, ' ')));
@@ -151,9 +139,6 @@ export default class InsertStatement extends AbstractStatement {
 		return sql.join(' ');
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		const [ match, withUac, mysqlIgnore, body ] = /^INSERT(\s+WITH\s+UAC)?(?:\s+(IGNORE))?(?:\s+INTO)?([\s\S]+)$/i.exec(expr.trim()) || [];
 		if (!match ) return;

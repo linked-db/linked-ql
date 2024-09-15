@@ -35,21 +35,6 @@ export default class AbstractTable {
      * @property Object
      */
     get params() { return Object.assign({}, this.database.params, this.$.params); }
-    
-	/**
-	 * A generic method for tracing something up the node tree.
-	 * Like a context API.
-	 * 
-	 * @param String request
-	 * @param Array ...args
-     * 
-     * @returns any
-	 */
-	$trace(request, ...args) {
-		if (request === 'get:api:table') return this;
-		if (request === 'get:table:name') return this.name;
-        return this.database.$trace(request, ...args);
-	}
 
 	/**
 	 * Performs any initialization work.
@@ -68,9 +53,9 @@ export default class AbstractTable {
 	 * 
 	 * @returns TableSchema
      */
-    async schema() {
+    async structure() {
 		await this.$init();
-		return (await this.database.schema([ this.name ])).table(this.name);
+		return (await this.database.structure(this.name)).table(this.name);
 	}
 
 	/**
@@ -180,7 +165,7 @@ export default class AbstractTable {
 		// On-conflict
 		query.onConflict({ entries: columns.map((col, i) => [col, values[0][i]]) });
 		if (this.params.dialect === 'postgres') {
-			const schema = await query.$schema(this.database.name, this.name);
+			const schema = (await query.$trace('get:ROOT_SCHEMA')).database(this.database.name).table(this.name);
 			const uniqueKeys = schema.uniqueKeys().map(uk => uk.columns());
 			if (!uniqueKeys.length) throw new Error(`Table has no unique keys defined. You may want to perform a direct INSERT operation.`);
 			const columns = query.columns()?.toJSON().list || [];
@@ -297,7 +282,7 @@ export default class AbstractTable {
 	 * @returns Object
 	 */
 	async $resolveRelations(query, columns, values, modifiers, action) {
-		const schema = await query.$schema(this.database.name, this.name);
+		const schema = (await query.$trace('get:ROOT_SCHEMA')).database(this.database.name).table(this.name);
 		const lhsTablePK = getPrimaryKey(schema);
 		const originalReturning = modifiers.returning;
 		const columnsDef = Object.fromEntries(schema.columns().map(c => [c.name(), c]));
@@ -307,7 +292,7 @@ export default class AbstractTable {
 			const lhsTableFK = columns[colOffset];
 			if (columnsDef[lhsTableFK]?.foreignKey() && _isObject(val)) {
 				const fkDef = columnsDef[lhsTableFK].foreignKey();
-				const rhsTableName = fkDef.targetTable().stringify();
+				const rhsTableName = fkDef.targetTable();
 				const rhsTablePK = fkDef.targetColumns()[0];
 				if (!relations.dependencies.has(rhsTableName)) relations.dependencies.set(rhsTableName, new Map);
 				relations.dependencies.get(rhsTableName).set([rowOffset, lhsTableFK, rhsTablePK], val);
@@ -385,7 +370,7 @@ export default class AbstractTable {
 				return q => q.equals(k, toVal(v, this.params.autoBindings));
 			}));
 			if (['string', 'number'].includes(typeof modifiers.where)) {
-				const schema = await query.$schema(this.database.name, this.name);
+				const schema = (await query.$trace('get:ROOT_SCHEMA')).database(this.database.name).table(this.name);
 				addWheres({ [getPrimaryKey(schema)]: modifiers.where });
 			} else if (_isObject(modifiers.where)) addWheres(modifiers.where);
 			else if (modifiers.where && modifiers.where !== true) query.where(modifiers.where);
@@ -397,6 +382,21 @@ export default class AbstractTable {
 			query.limit(modifiers);
 		}
 	}
+    
+	/**
+	 * A generic method for tracing something up the node tree.
+	 * Like a context API.
+	 * 
+	 * @param String request
+	 * @param Array ...args
+     * 
+     * @returns any
+	 */
+	$trace(request, ...args) {
+		if (request === 'get:TABLE_API') return this;
+		if (request === 'get:TABLE_NAME') return this.name;
+        return this.database.$trace(request, ...args);
+	}
 }
 
 const getPrimaryKey = schema => {
@@ -405,6 +405,7 @@ const getPrimaryKey = schema => {
 	return primaryKey;
 };
 const toVal = (v, autoBindings) => {
+	if (typeof v === 'function') return v;
 	if (v instanceof Date) return q => q.value(v.toISOString().split('.')[0]);
 	if (autoBindings !== false) return q => q.$bind(0, v);
 	if ([true,false,null].includes(v)) return q => q.sql(v);

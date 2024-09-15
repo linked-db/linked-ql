@@ -1,62 +1,54 @@
 import AbstractNode from './AbstractNode.js';
-import Identifier from '../components/Identifier.js';
 
 export default class AbstractSchema extends AbstractNode {
 
 	/**
 	 * Instance properties
 	 */
-	NAME;
-	$NAME;
-	KEEP;
+	PREFIX;
+	$PREFIX;
+	
+	/**
+     * @var Array
+     */
+    static get WRITABLE_PROPS() { return ['PREFIX']; }
 
 	/**
-	 * @inheritdoc
+	 * Returns prefix or sets prefix
+	 * 
+	 * @param Void|String prefix
+	 * 
+	 * @returns String
 	 */
+	prefix(prefix) {
+		if (!arguments.length) return this[this.smartKey('PREFIX')];
+        return (this[this.smartKey('PREFIX', true)] = prefix, this);
+	}
+
+    diffWith(nodeB) {
+		super.diffWith(nodeB);
+        if (!this.isSame(nodeB.prefix(), this.prefix())) { this.prefix(nodeB.prefix()); }
+    }
+
+	toJSON(json = {}) {
+		return super.toJSON({
+			...(this.PREFIX ? { prefix: this.PREFIX } : {}),
+			...(this.$PREFIX ? { $prefix: this.$PREFIX } : {}),
+			...json
+		});
+	}
+
+	static fromJSON(context, json, callback = null) {
+		return super.fromJSON(context, json, () => {
+			const instance = callback ? callback() : new this(context);
+			instance.hardSet(() => instance.prefix(json.prefix));
+			instance.hardSet(json.$prefix, val => instance.prefix(val));
+			return instance;
+		});
+	}
+
 	$trace(request, ...args) {
 		if (request === 'get:node:schema') return this;
         return super.$trace(request, ...args);
-	}
-    
-	/**
-	 * NAME
-	 */
-	name(name) {
-		if (!arguments.length) return this[this.smartKey('NAME')];
-        return (this.build(this.smartKey('NAME', true), [name], Identifier, 'name'), this);
-    }
-
-    /**
-	 * @inheritdoc
-	 */
-    diffWith(nodeB) {
-		if (typeof nodeB.keep() === 'boolean') this.keep(nodeB.keep());
-        if (!this.isSame(nodeB.name().toJSON(), this.name().toJSON())) { this.name(nodeB.name().toJSON()); }
-    }
-
-	/**
-	 * @inheritdoc
-	 */
-	toJSON(json = {}) {
-		return {
-			name: this.NAME.toJSON(),
-			...(this.$NAME ? { $name: this.$NAME.toJSON() } : {}),
-			...json,
-			...(typeof this.KEEP === 'boolean' ? { keep: this.KEEP } : {}),
-			...(this.FLAGS.length ? { flags: [ ...this.FLAGS ] } : {}),
-		};
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	static fromJSON(context, json, callback = null) {
-		if (!json?.name || !Identifier.fromJSON({}, json.name)) return;
-		const instance = callback ? callback() : new this(context);
-        instance.hardSet(() => instance.name(json.name));
-		instance.hardSet(json.$name, val => instance.name(val));
-        if (typeof json.keep === 'boolean') instance.keep(json.keep);
-        if (json.flags) instance.withFlag(...json.flags);
-        return instance;
 	}
 }

@@ -26,18 +26,12 @@ export default class IdentityConstraint extends AbstractLevel1Constraint {
 		return (this[this.smartKey('ALWAYS', true)] = !!val, this);
     }
 
-    /**
-	 * @inheritdoc
-	 */
     diffWith(nodeB) {
         super.diffWith(nodeB)
         if (nodeB.always() !== this.always()) { this.always(nodeB.always()); }
 		return this;
     }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
 		return super.toJSON({
             always: !!this.ALWAYS,
@@ -45,9 +39,6 @@ export default class IdentityConstraint extends AbstractLevel1Constraint {
 		});
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		return super.fromJSON(context, json, () => {
 			const instance = (new this(context)).always(json.always);

@@ -15,17 +15,11 @@ export default class DataType extends AbstractNode {
         this.SPEC = spec;
     }
 	
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
 		if (this.SPEC.length === 1) return this.SPEC[0];
 		return this.SPEC;
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		const spec = [].concat(json);
 		if (typeof spec[0] !== 'string') return;
@@ -35,17 +29,11 @@ export default class DataType extends AbstractNode {
         return new this(context, nornalizeSpec(name, ...precision.split(','), ...flags, ...spec.slice(1)));
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() {
 		const [precision, flags] = this.SPEC.slice(1).reduce(([d, f], x) => /^\d+$/.test(x) ? [d.concat(x), f] : [d, f.concat(x)], [[], []]);
 		return `${ this.SPEC[0] }${ precision.length ? `(${ precision.join(',') })` : `` }${ flags.length ? ` ${ flags.join(' ') }` : '' }`;
 	}
     
-    /**
-	 * @inheritdoc
-	 */
 	static parse(context, expr) {
 		const [name, precision, flags] = parse.call(this, expr);
 		if (!name) return;

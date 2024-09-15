@@ -5,58 +5,43 @@ import Identifier from "../components/Identifier.js";
 
 export default class AbstractStatement extends AbstractNode {
 
-    /**
-     * @constructor
-     */
     constructor(context) {
         super(context);
-        this._BINDINGS = [];
+        this._QUERY_BINDINGS = [];
+        this._ROOT_SCHEMA = null;
     }
 
-    /**
-	 * @inheritdoc
-	 */
-	get BINDINGS() { return this._BINDINGS; }
+	get BINDINGS() { return this._QUERY_BINDINGS; }
 
-	/**
-	 * @inheritdoc
-	 */
 	$trace(request, ...args) {
-		if (request === 'get:node:statement') return this;
-		if (request === 'get:node:statement.bindings') return this._BINDINGS;
-        if (request.startsWith('get:name:')) {
-            let tbl = this.$trace('get:node:table');
+		if (request === 'get:STATEMENT_NODE') return this;
+		if (request === 'get:QUERY_BINDINGS') return this._QUERY_BINDINGS;
+        if (['get:TABLE_NAME', 'get:DATABASE_NAME'].includes(request) && !this._ongoingNameTrace) {
+            let tbl = this.$trace('get:TABLE_NODE');
+            // SELECT statements has a different structure:
             if (!(tbl instanceof Identifier)) {
-                tbl = tbl.EXPR; // Must be instance Table
-                if (!(tbl instanceof Identifier) && !this._ongoingNameTrace) {
+                tbl = tbl.EXPR; // Table.EXPR:
+                if (!(tbl instanceof Identifier)) {
                     this._ongoingNameTrace = true;
-                    const result = tbl/*Parens*/.$trace(request, ...args);
+                    const result = tbl/*Parens*/.expr()/*Select*/.$trace(request, ...args);
                     delete this._ongoingNameTrace;
                     return result;
                 }
             }
-            if (tbl && request === 'get:name:table') return tbl.NAME
-            if (tbl && request === 'get:name:database' && tbl.PREFIX) return tbl.PREFIX;
+            if (tbl && request === 'get:TABLE_NAME') return tbl.name()
+            if (tbl && request === 'get:DATABASE_NAME' && tbl.prefix()) return tbl.prefix();
         }
-        return super.$trace?.(request, ...args);
+		if (request === 'get:ROOT_SCHEMA') {
+			if (!this._ROOT_SCHEMA) this._ROOT_SCHEMA = this.CONTEXT?.$trace?.(request);
+			return this._ROOT_SCHEMA;
+		}
+        return this.CONTEXT?.$trace?.(request, ...args);
 	}
 
-    /**
-	 * @inheritdoc
-	 */
-	async $schema(dbName, tblName) {
-        if (!this._SCHEMAS) { this._SCHEMAS = await this.$trace('get:api:client').schemas(); }
-		const dbSchema = this._SCHEMAS.database(dbName);
-		return !tblName ? dbSchema?.clone() : dbSchema?.table(tblName).clone();
-	}
-
-    /**
-	 * @inheritdoc
-	 */
     clone() {
         const clone = super.clone();
-        clone._BINDINGS = this._BINDINGS.slice(0);
-        clone._SCHEMAS = this._SCHEMAS;
+        clone._QUERY_BINDINGS = this._QUERY_BINDINGS.slice(0);
+        clone._ROOT_SCHEMA = this._ROOT_SCHEMA;
         return clone;
     }
 

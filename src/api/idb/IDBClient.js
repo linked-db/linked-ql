@@ -1,5 +1,3 @@
-
-
 import _isNumeric from '@webqit/util/js/isNumeric.js';
 import _arrFrom from '@webqit/util/arr/from.js';
 import Parser from '../../Parser.js';
@@ -14,9 +12,6 @@ import IDBDatabase from './IDBDatabase.js';
 
 export default class IDBClient extends AbstractClient {
 
-    /**
-     * @inheritdoc
-	 */
     constructor(params = {}) {
         if (typeof indexedDB === 'undefined') { throw new Error('IndexedDB is not in scope.'); }
         super(params);
@@ -147,9 +142,6 @@ export default class IDBClient extends AbstractClient {
      * ---------
      */
 	 
-	/**
-     * @inheritdoc
-	 */
 	async query(query, vars = [], params = {}) {
         return Parser.parse(query, null, { ...params, vars, dbClient: this }).eval(this);
     }

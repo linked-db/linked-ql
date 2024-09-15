@@ -1,4 +1,5 @@
 
+import { _isObject } from '@webqit/util/js/index.js';
 import AbstractNode from '../AbstractNode.js';
 
 export default class Identifier extends AbstractNode {
@@ -6,61 +7,62 @@ export default class Identifier extends AbstractNode {
 	/**
 	 * Instance properties
 	 */
-	PREFIX;
 	NAME;
+	PREFIX;
 
 	/**
-	 * Sets the name.
+	 * Sets or gets the name.
 	 * 
-	 * @param Array|String name
+	 * @param String name
 	 * 
 	 * @returns this
 	 */
 	name(name) {
-		const nameParts = Array.isArray(name) ? [...name] : [name];
-		this.NAME = nameParts.pop();
-		this.PREFIX = nameParts.pop();
-		if (nameParts.length) throw new Error(`Idents can be maximum of two parts. Recieved: ${ nameParts.join('.') }.${ this.PREFIX }.${ this.NAME }`);
-		return this;
+		if (!arguments.length) return this.NAME;
+		if (_isObject(name) || Array.isArray(name)) throw new TypeError(`Invalid object or array.`);
+		return (this.NAME = name, this);
 	}
 
 	/**
-	 * @inheritdoc
+	 * Sets or gets the prefix.
+	 * 
+	 * @param String prefix
+	 * 
+	 * @returns this
 	 */
+	prefix(prefix) {
+		if (!arguments.length) return this.PREFIX;
+		return (this.PREFIX = prefix, this);
+	}
+
 	toJSON() {
-		const name = this.PREFIX ? [this.PREFIX,this.NAME] : this.NAME;
-		return this.FLAGS.length ? { name, flags: this.FLAGS } : name;
+		return {
+			name: this.NAME,
+			prefix: this.PREFIX,
+			...(this.FLAGS.length ? { flags: this.FLAGS.slice() } : {} )
+		};
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
-		if ((typeof json === 'string') || (Array.isArray(json) && json.every(s => typeof s === 'string'))) json = { name: json };
-		else if (typeof json?.name !== 'string' && !Array.isArray(json?.name)) return;
+		if (typeof json === 'string') json = { name: json };
+		else if (Array.isArray(json) && json.some(s => typeof s === 'string') && (json = json.slice())) {
+			json = { name: json.pop(), prefix: json.pop() };
+		} else if (typeof json?.name !== 'string') return;
 		const instance = (new this(context)).withFlag(...(json?.flags || []));
-		instance.name(json.name);
+		instance.name(json.name).prefix(json.prefix);
 		return instance;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() {
 		return this.autoEsc([this.PREFIX, this.NAME].filter(s => s)).join('.') + (
 			''//this.FLAGS.length ? ` ${ this.FLAGS.map(s => s.replace(/_/g, ' ')).join(' ') }` : ''
 		);
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr) {
 		if (/^(TRUE|FALSE|NULL)$/i.test(expr)) return;
 		const [name, prefix] = this.parseIdent(context, expr, true) || [];
 		if (!name) return;
-		const instance = new this(context);
-		instance.name(prefix ? [prefix,name] : name);
-		return instance;
+		return (new this(context)).name(name).prefix(prefix);
 	}
 }

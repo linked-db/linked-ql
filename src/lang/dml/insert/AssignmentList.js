@@ -1,4 +1,3 @@
-
 import Lexer from '../../Lexer.js';
 import { _wrapped } from '@webqit/util/str/index.js';
 import AbstractNode from '../../AbstractNode.js';
@@ -34,14 +33,8 @@ export default class AssignmentList extends AbstractNode {
 		return this;
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() { return { entries: this.ENTRIES.map(([target_s, value_s]) => [target_s.toJSON(), value_s.toJSON()]), }; }
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (!Array.isArray(json?.entries)) return;
 		const instance = new this(context);
@@ -51,16 +44,10 @@ export default class AssignmentList extends AbstractNode {
 		return instance;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() {
 		return `\n\t${ this.ENTRIES.map(([target_s, value_s]) => `${ target_s } = ${ value_s }`).join(',\n\t') }`;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		const instance = new this(context);
 		for (const assignmentExpr of Lexer.split(expr, [','])) {

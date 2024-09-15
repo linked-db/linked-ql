@@ -38,16 +38,16 @@ export default class SelectStatement extends AbstractStatement {
 	VARS = [];
 	SUBQUERIES = [];
 
-    /**
-	 * @inheritdoc
-	 */
     $trace(request, ...args) {
-		if (request === 'get:node:table') return this.FROM_LIST[0];
-		if (request === 'event:connected') {
-			if (args[0] instanceof Aggr) this.AGGRS.push(args[0]);
-			if (args[0] instanceof Path && !(args[0].CONTEXT instanceof Path)) this.PATHS.push(args[0]);
-			if (args[0] instanceof Placeholder) this.VARS.push(args[0]);
-			if (args[0] instanceof SelectStatement) this.SUBQUERIES.push(args[0]);
+		if (request === 'get:TABLE_NODE') return this.FROM_LIST[0];
+		if (['event:CONNECTED', 'event:DISCONNECTED'].includes(request)) {
+			let list;
+			if (args[0] instanceof Aggr) list = this.AGGRS;
+			if (args[0] instanceof Path && !(args[0].CONTEXT instanceof Path)) list = this.PATHS;
+			if (args[0] instanceof Placeholder) list = this.VARS;
+			if (args[0] instanceof SelectStatement) list = this.SUBQUERIES;
+			if (request === 'event:DISCONNECTED' && list) list.splice(list.indexOf(args[0]), 1);
+			else if (request === 'event:CONNECTED' && list) list.push(args[0]);
 		}
 		return super.$trace(request, ...args);
 	}
@@ -243,14 +243,8 @@ export default class SelectStatement extends AbstractStatement {
 	 */
 	union(...union) { return (this.build('UNION_CLAUSE', union, this.constructor, 'select'), this.UNION_CLAUSE/* for: chaining purposes */); }
 
-	/**
-	 * @inheritdoc
-	 */
 	get expandable() { return this.PATHS.length > 0 || this.SUBQUERIES.some(q => q.expandable); }
 
-	/**
-	 * @inheritdoc
-	 */
 	async expand(inPlace = false) {
 		const instance = !inPlace ? this.clone() : this;
 		if (!instance.expandable) return instance;
@@ -259,9 +253,6 @@ export default class SelectStatement extends AbstractStatement {
 		return instance;
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
 		return {
 			select_list: this.SELECT_LIST.map(s => s.toJSON()),
@@ -279,9 +270,6 @@ export default class SelectStatement extends AbstractStatement {
 		};
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (!Array.isArray(json?.select_list)) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
@@ -299,9 +287,6 @@ export default class SelectStatement extends AbstractStatement {
 		return instance;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify(params = {}) {
 		const sql = ['SELECT'];
 		if (this.FLAGS.length) sql.push(this.FLAGS.map(s => s.replace(/_/g, ' ')));
@@ -319,9 +304,6 @@ export default class SelectStatement extends AbstractStatement {
 		return sql.join(' ');
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		const [ match, withUac, allOrDistinct, body ] = /^SELECT\s+(?:(WITH\s+UAC)\s+)?(ALL|DISTINCT)?([\s\S]+)$/i.exec(expr.trim()) || [];
 		if (!match) return;

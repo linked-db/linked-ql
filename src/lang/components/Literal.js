@@ -1,4 +1,3 @@
-
 import AbstractNode from '../AbstractNode.js';
 
 export default class Literal extends AbstractNode {
@@ -28,14 +27,8 @@ export default class Literal extends AbstractNode {
 	 */
 	sql(value) { return (this.VALUE = value, this); }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() { return this.VALUE; }
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		const instance = new this(context);
 		if (json == true) return instance.true();
@@ -44,14 +37,8 @@ export default class Literal extends AbstractNode {
 		return instance.sql(json);
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() { return `${ this.VALUE }`; }
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr) {
 		const instance = new this(context);
 		if (/^TRUE$/i.test(expr)) return instance.true();

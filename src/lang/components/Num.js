@@ -1,4 +1,3 @@
-
 import AbstractNode from "../AbstractNode.js";
 
 export default class Num extends AbstractNode {
@@ -23,14 +22,8 @@ export default class Num extends AbstractNode {
 	 */
 	value(value) { this.VALUE = value; }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() { return { value: this.VALUE, flags: this.FLAGS, }; }
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (typeof json === 'number' || (typeof json === 'string' && /^[.\d]+$/.test(json) && (json = parseFloat(json)))) {
 			json = { value: json };
@@ -38,14 +31,8 @@ export default class Num extends AbstractNode {
 		return (new this(context, json.value)).withFlag(...(json.flags || []));
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() { return `${ this.VALUE }`; }
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr) {
 		if (/^\d+$/.test(expr)) return new this(context, parseFloat(expr));
 	}

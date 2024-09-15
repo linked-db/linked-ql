@@ -19,14 +19,8 @@ export default class AbstractOrderBy extends AbstractNode {
 	 */
 	criterion(...args) { return this.build('CRITERIA', args, Expr.Types); }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() { return { criteria: this.CRITERIA.map(c => c.toJSON()), flags: this.FLAGS }; }
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (!Array.isArray(json?.criteria)) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
@@ -34,14 +28,8 @@ export default class AbstractOrderBy extends AbstractNode {
 		return instance;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() { return this.CRITERIA.map(criterion => [criterion, ...criterion.FLAGS].join(' ')).join(', '); }
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		const [ orderByMatch, criteriaExpr ] = expr.match(new RegExp(`^${ this.regex }([\\s\\S]*)$`, 'i')) || [];
 		if (!orderByMatch) return;

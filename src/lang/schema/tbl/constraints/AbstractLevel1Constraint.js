@@ -18,14 +18,8 @@ export default class AbstractConstraint extends AbstractNode {
 	 */
 	get TYPE() { return this.constructor.TYPE; }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON(json = {}) { return super.toJSON({ type: this.TYPE, ...json }); }
 
-    /**
-	 * @inheritdoc
-	 */
     static fromJSON(context, json, callback = null) {
         if (json?.type !== this.TYPE) return;
         return super.fromJSON(context, json, callback);

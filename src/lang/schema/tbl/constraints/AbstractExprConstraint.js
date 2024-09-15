@@ -6,7 +6,6 @@ export default Class => class extends Class {
 	 * Instance properties
 	 */
 	EXPR;
-	$EXPR;
 
     /**
      * @var Array
@@ -25,28 +24,18 @@ export default Class => class extends Class {
         return (this[this.smartKey('EXPR', true)] = expr, this);
     }
 
-    /**
-	 * @inheritdoc
-	 */
     diffWith(nodeB) {
         super.diffWith(nodeB)
         if (nodeB.expr() !== this.expr()) { this.expr(nodeB.expr()); }
 		return this;
     }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
 		return super.toJSON({
             expr: this.EXPR,
-			...(![undefined, null].includes(this.$EXPR) ? { $expr: this.$EXPR } : {}),
 		});
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
         if ([undefined, null].includes(json?.expr)) return;
         return super.fromJSON(context, json, () => {

@@ -16,44 +16,26 @@ export default class Placeholder extends AbstractNode {
 		this.OFFSET = parseInt(offset);
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	$var(offset) { this.OFFSET = offset; }
 
-	/**
-	 * @inheritdoc
-	 */
 	$bind(offset, value) {
 		this.OFFSET = offset;
-		const bindings = this.$trace('get:node:statement.bindings');
+		const bindings = this.$trace('get:QUERY_BINDINGS');
 		bindings?.push(value);
 		if (this.OFFSET === 0) {
 			this.OFFSET = bindings?.length;
 		}
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() { return { offset: this.OFFSET }; }
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (typeof json?.offset !== 'number') return;
 		return new this(context, json.offset);
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() { return this.params.dialect === 'mysql' ? '?' : '$' + this.OFFSET; }
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr) {
 		const notation = (context?.params?.inputDialect || context?.params?.dialect) === 'mysql' ? '?' : '$';
 		const [ match, offset ] = (new RegExp(`^\\${ notation }(\\d)$`)).exec(expr) || [];

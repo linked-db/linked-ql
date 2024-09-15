@@ -1,4 +1,3 @@
-
 import Lexer from '../Lexer.js';
 import { _unwrap } from '@webqit/util/str/index.js';
 import AbstractNode from '../AbstractNode.js';
@@ -291,9 +290,6 @@ export default class Assertion extends AbstractNode {
 	 */
 	or(...args) { return (new Condition(this, 'OR')).or(this, ...args); }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
 		return {
 			operator: this.OPERATOR,
@@ -302,9 +298,6 @@ export default class Assertion extends AbstractNode {
 		};
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (!Array.isArray(json?.operands) || typeof json?.operator !== 'string' || !this.regexes.some(re => (new RegExp(re.regex || re.test || re)).test(` ${ json.operator } `/*intentional space around*/))) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
@@ -312,9 +305,6 @@ export default class Assertion extends AbstractNode {
 		return instance;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() {
 		const operands = this.OPERANDS.slice(0);
 		const sql = [
@@ -328,9 +318,6 @@ export default class Assertion extends AbstractNode {
 		return sql.filter(s => s).join(' ');
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		const { tokens: [lhs, rhs = ''], matches: [operator] } = Lexer.lex(expr, this.regexes, { useRegex: 'i' });
 		if (!operator) return;

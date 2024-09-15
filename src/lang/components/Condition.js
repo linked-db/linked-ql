@@ -1,4 +1,3 @@
-
 import Lexer from '../Lexer.js';
 import AbstractNode from '../AbstractNode.js';
 import Assertion from './Assertion.js';
@@ -46,9 +45,6 @@ export default class Condition extends AbstractNode {
 		return (this.build('ASSERTIONS', assertions, [Condition,Assertion,Parens]), this);
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
 		return {
 			logic: this.LOGIC,
@@ -57,9 +53,6 @@ export default class Condition extends AbstractNode {
 		};
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (typeof json?.logic !== 'string' || !/AND|OR/i.test(json.logic) || !Array.isArray(json.assertions)) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
@@ -67,14 +60,8 @@ export default class Condition extends AbstractNode {
 		return instance;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() { return this.ASSERTIONS.map(expr => expr instanceof Condition ? `(${ expr.stringify() })` : expr.stringify()).join(' ' + this.LOGIC + ' '); }
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		for (const logic of ['AND', 'OR']) {
 			const tokens = Lexer.split(expr, [`\\s+${ logic }\\s+`], { useRegex: 'i' });

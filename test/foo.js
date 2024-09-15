@@ -31,13 +31,18 @@ if (dialect === 'mysql') {
     dbPublic = 'public';
 }
 // ---------------------------------
-const lqlClient = new SQLClient(driver, { dialect });
+const lqlClient = new SQLClient({
+    query(...args) {
+        return driver.query(...args)
+    }
+}, { dialect });
 
 /*
 */
 const linkedDB = await lqlClient.linkedDB(true);
-console.log('---DATABSES BEFORE:', await lqlClient.databases());
-console.log('---PUBLIC TABLES BEFORE:', await lqlClient.database(dbPublic).tables());
+await linkedDB.savepointsTable().delete(true);
+console.log('---DATABSES BEFORE:', (await lqlClient.structure()).databases());
+console.log('---PUBLIC TABLES BEFORE:', (await lqlClient.structure({ depth: 1 })).database(dbPublic).tables());
 console.log('DROP 5', await lqlClient.query(`DROP SCHEMA if exists test_db${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
 console.log('DROP 3', await lqlClient.query(`DROP TABLE if exists ${ dbPublic }.books${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
 console.log('DROP 2', await lqlClient.query(`DROP TABLE if exists ${ dbPublic }.users${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
@@ -77,13 +82,13 @@ console.log('.....create books.....', await lqlClient.query(`CREATE TABLE books 
     created_timeeee timestamp (3)
 )`, { description: 'Created books' }));
 const savepoint3 = await lqlClient.database(dbPublic).savepoint();
-console.log('\n\n\n\n\n\ntables---------', await lqlClient.database(dbPublic).tables());
+console.log('\n\n\n\n\n\ntables---------', (await lqlClient.structure({ depth: 1 })).database(dbPublic).tables());
 
 console.log('rollback 3', await savepoint3.rollback());
 console.log('rollback 2', await savepoint2.rollback());
 console.log('rollback 1', await savepoint1.rollback());
 
-console.log('\n\n\n\n\n\nAll savepoints now-----', ...(await (await linkedDB.savepointsTable()).select()));
+console.log('\n\n\n\n\n\nAll savepoints now-----', ...(await linkedDB.savepointsTable().select()));
 
 let spliceForwardHistories = false;
 if (spliceForwardHistories) {
@@ -95,14 +100,14 @@ if (spliceForwardHistories) {
     )`, { description: 'Created publications' }));
     const savepoint4 = await lqlClient.database(dbPublic).savepoint();
     // Should see: 1,2,3,7
-    console.log('\n\n\n\n\n\nall savepoints-----', ...(await (await linkedDB.savepointsTable()).select()));
+    console.log('\n\n\n\n\n\nall savepoints-----', ...(await linkedDB.savepointsTable().select()));
 } else {
     // Roll forward
     for (let i = 0; i < 3; i ++) {
         await (await lqlClient.database(dbPublic).savepoint({ direction: 'forward' })).rollback();
     }
     // Should see: 1,2,3
-    console.log('\n\n\n\n\n\nAll savepoints-----', ...(await (await linkedDB.savepointsTable()).select()));
+    console.log('\n\n\n\n\n\nAll savepoints-----', ...(await linkedDB.savepointsTable().select()));
 
     await lqlClient.query(`INSERT INTO roles (name, created_time) VALUES ('admin', now()), ('guest', now())`);
     await lqlClient.query(`INSERT INTO users (title, name, role, created_time) VALUES ('Mr.', 'Ox-Harris', 1, now()), ('Mrs.', 'Jane', 2, now())`);
@@ -124,8 +129,8 @@ console.log('DROP 3', await lqlClient.query(`DROP TABLE if exists ${ dbPublic }.
 console.log('DROP 2', await lqlClient.query(`DROP TABLE if exists ${ dbPublic }.users${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
 console.log('DROP 1', await lqlClient.query(`DROP TABLE if exists ${ dbPublic }.roles${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
 console.log('DROP 5', await lqlClient.query(`DROP SCHEMA if exists test_db${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
-console.log('---PUBLIC TABLES AFTER:', await lqlClient.database(dbPublic).tables());
-console.log('---DATABSES AFTER:', await lqlClient.databases());
+console.log('---PUBLIC TABLES AFTER:', (await lqlClient.structure({ depth: 1 })).database(dbPublic).tables());
+console.log('---DATABSES AFTER:', (await lqlClient.structure()).databases());
 
 
 console.log('the end.');

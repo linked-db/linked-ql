@@ -1,5 +1,3 @@
-
-
 import _isObject from '@webqit/util/js/isObject.js';
 import _isFunction from '@webqit/util/js/isFunction.js';
 import _arrFrom from '@webqit/util/arr/from.js';
@@ -15,9 +13,6 @@ import IDBStore from './IDBStore.js';
 
 export default class IDBDatabase extends AbstractDatabase {
 	
-    /**
-     * @inheritdoc
-     */
     constructor(client, databaseName, $api, params = {}) {
         super(client, databaseName, params);
         this.$api = $api;
@@ -29,16 +24,10 @@ export default class IDBDatabase extends AbstractDatabase {
         };
     }
 
-    /**
-     * @inheritdoc
-     */
      async tables(params = {}) {
         return this.client.applyFilters(_arrFrom(this.$api.objectStoreNames), params);
     }
 
-    /**
-     * @inheritdoc
-     */
     table(tableName, params = {}) {
         const getStore = _mode => {
             const transaction = this.$api.transaction([tableName], _mode || params.mode);
@@ -54,9 +43,6 @@ export default class IDBDatabase extends AbstractDatabase {
      * CREATE/ALTER/DROP
      */
 
-    /**
-     * @inheritdoc
-     */
     async createTable(tableName, tableSchema, params = {}) {
         if (_arrFrom(this.$api.objectStoreNames).includes(tableName)) {
             if (params.ifNotExists) return;
@@ -85,9 +71,6 @@ export default class IDBDatabase extends AbstractDatabase {
         }, params);
     }
 
-    /**
-     * @inheritdoc
-     */
     async alterTable(tableName, newTableSchemaOrCallback, params = {}) {
         const tableSchema = await this.describeTable(tableName);
         let newTableSchema;

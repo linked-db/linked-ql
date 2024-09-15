@@ -35,14 +35,8 @@ export default class OnConflictClause extends AssignmentList {
 	 */
 	where(...wheres) { return (this.build('WHERE_CLAUSE', wheres, Condition, 'and'), this); }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() { return { ...super.toJSON(), conflict_target: this.CONFLICT_TARGET.map(c => c.toJSON()), where_clause: this.WHERE_CLAUSE?.toJSON(), }; }
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		const instance = super.fromJSON(context, json);
 		if (!instance) return;
@@ -51,9 +45,6 @@ export default class OnConflictClause extends AssignmentList {
 		return instance;
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	stringify() {
 		const sql = [];
         if (this.params.dialect === 'mysql') sql.push('ON DUPLICATE KEY UPDATE');
@@ -63,9 +54,6 @@ export default class OnConflictClause extends AssignmentList {
 		return sql.join(' ');
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		const [ onConflictMatch, conflictTarget, action, updateSpec ] = expr.match(new RegExp(`^${ this.regex }([\\s\\S]*)$`, 'i')) || [];
 		if (!onConflictMatch) return;

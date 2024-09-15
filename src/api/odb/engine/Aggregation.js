@@ -1,5 +1,3 @@
-
-
 import { _after } from '@webqit/util/str/index.js';
 import { _avg, _unique, _max, _min, _sum, _first, _last, _rand } from '@webqit/util/arr/index.js';
 import AggrFunction from '../parser/select/Aggr.js';
@@ -7,9 +5,6 @@ import DataRow2D from './DataRow2D.js';
 
 export default class Aggregation extends Array {
 
-	/**
-	 * @inheritdoc
-	 */
 	push(...entries) {
 		for (const entry of entries) {
 			if (!(entry instanceof DataRow2D)) throw new Error(`Entries must be of type DataRow2D.`);
@@ -42,62 +37,29 @@ export default class Aggregation extends Array {
 		}
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	_COUNT(flag, column) {
 		if (column.stringify() === '*') { return this.length; } // NULLs accepted
 		return this._COLUMN(flag, column).length;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	_GROUP_CONCAT(flag, column) { return this._COLUMN(flag, column).join(''); }
 	
-	/**
-	 * @inheritdoc
-	 */
 	_GROUP_CONCAT_WS(flag, separator, column) { return this._COLUMN(flag, column).join(separator); }
 	
-	/**
-	 * @inheritdoc
-	 */
 	_AVG(flag, column) { return _avg(this._COLUMN(flag, column)); }
 	
-	/**
-	 * @inheritdoc
-	 */
 	_MAX(flag, column) { return _max(this._COLUMN(flag, column)); }
 	
-	/**
-	 * @inheritdoc
-	 */
 	_MIN(flag, column) { return _min(this._COLUMN(flag, column)); }
 	
-	/**
-	 * @inheritdoc
-	 */
 	_SUM(flag, column) { return _sum(this._COLUMN(flag, column)); }
 	
-	/**
-	 * @inheritdoc
-	 */
 	_FIRST(flag, column) { return _first(this)?.eval(column); } // NULLs accepted
 	
-	/**
-	 * @inheritdoc
-	 */
 	_LAST(flag, column) { return _last(this)?.eval(column); } // NULLs accepted
 	
-	/**
-	 * @inheritdoc
-	 */
 	_ANY_VALUE(flag, column) { return _rand(this._COLUMN(flag, column)); }
 	
-	/**
-	 * @inheritdoc
-	 */
 	_GROUPING(flag, ...onColumns) {
 		if (!this.AGGR || !this.AGGR.isRollup) { return 0; }
 		return onColumns.reduce((cum, column, i) => {
@@ -113,9 +75,6 @@ export default class Aggregation extends Array {
 		}, 0);
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	_COLUMN(flag, arg) {
 		let result = this.map(row => row.eval(arg));
 		// COALESCE?
@@ -137,8 +96,5 @@ export default class Aggregation extends Array {
 		return result;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	_COLUMNS(flag, args) { return args.map(arg => this._COLUMN(flag, arg)); }
 }

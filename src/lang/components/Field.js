@@ -15,7 +15,7 @@ export default class Field extends AbstractAliasableExpr {
 	 * 
 	 * @returns this
 	 */
-	path(lhs, operator, rhs) { return (this.build('$EXPR', [lhs, operator, rhs], JsonPath.OPERATORS.includes(operator) ? JsonPath : Path, 'path'), this); }
+	path(lhs, operator, rhs) { return (this.build('EXPR', [lhs, operator, rhs], JsonPath.OPERATORS.includes(operator) ? JsonPath : Path, 'path'), this); }
 
 	/**
 	 * Function call
@@ -25,7 +25,7 @@ export default class Field extends AbstractAliasableExpr {
 	 * 
 	 * @returns this
 	 */
-	fn(name, ...args) { return (this.build('$EXPR', [name, ...args], Aggr.names.flat().includes(name.toUpperCase()) ? Aggr : Func, 'fn'), this); }
+	fn(name, ...args) { return (this.build('EXPR', [name, ...args], Aggr.names.flat().includes(name.toUpperCase()) ? Aggr : Func, 'fn'), this); }
 
 	/**
 	 * Case construct
@@ -34,6 +34,6 @@ export default class Field extends AbstractAliasableExpr {
 	 * 
 	 * @returns this
 	 */
-	case(...fns) { return (this.build('$EXPR', fns, CaseConstruct), this); }
+	case(...fns) { return (this.build('EXPR', fns, CaseConstruct), this); }
 
 }

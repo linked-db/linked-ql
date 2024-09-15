@@ -42,9 +42,6 @@ export default class Json extends Str {
 		this.TYPE = 'OBJECT';
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
 		return {
 			type: this.TYPE,
@@ -52,9 +49,6 @@ export default class Json extends Str {
 		};
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (typeof json?.type !== 'string' || !/OBJECT|ARRAY/i.test(json.type) || !json.value) return;
 		const instance = new this(context);
@@ -62,14 +56,8 @@ export default class Json extends Str {
 		return instance;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() { return `${ super.stringify() }`; }
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr) {
 		const braces = [['{','}'], ['[',']']], $ = {};
 		const [text, quote] = this.parseText(context, expr) || [];

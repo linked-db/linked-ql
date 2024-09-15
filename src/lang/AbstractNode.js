@@ -13,7 +13,7 @@ export default class AbstractNode {
 	 */
 	constructor(context) {
 		this.CONTEXT = context;
-		this.CONTEXT?.$trace?.('event:connected', this);
+		this.CONTEXT?.$trace?.('event:CONNECTED', this);
 	}
     
 	/**
@@ -26,7 +26,7 @@ export default class AbstractNode {
      * @returns any
 	 */
 	$trace(request, ...args) {
-		if (request === 'get:node:root' && !(this.CONTEXT instanceof AbstractNode)) return this;
+		if (request === 'get:ROOT_NODE' && !(this.CONTEXT instanceof AbstractNode)) return this;
 		return this.CONTEXT?.$trace?.(request, ...args);
 	}
 	
@@ -77,9 +77,6 @@ export default class AbstractNode {
 		return Array.isArray(string_s) ? $strings : $strings[0];
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static autoUnesc(context, expr, asInputDialect = false) {
 		const escChar = this.getEscChar(context, asInputDialect);
 		return (expr || '').replace(new RegExp(escChar + escChar, 'g'), escChar);
@@ -97,9 +94,6 @@ export default class AbstractNode {
 		return dialect === 'mysql' && !context.params.ansiQuotes ? '`' : '"';
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parseIdent(context, expr, asInputDialect = false) {
 		const escChar = this.getEscChar(context, asInputDialect);
 		const parts = Lexer.split(expr, ['.']);

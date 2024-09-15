@@ -44,7 +44,7 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
             const tblCreateInstance2 = CreateStatement.fromJSON(tblCreateInstance1.CONTEXT, tblCreateInstance1.toJSON());
             const sql1 = tblCreateInstance1 + '';
             const sql2 = tblCreateInstance2 + '';
-            console.log(sql1);
+            console.log(tblCreateInstance1, sql1);
             /*
             console.log(sql2);
             console.log(JSON.stringify(tblCreateInstance1.toJSON(), null, 3));
@@ -58,7 +58,7 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
 
         it(`DO: Parses an Alter Table statement`, async function() {
             const alterTableSql = `
-            ALTER TABLE IF EXISTS public.test
+            ALTER TABLE public.test
                 RENAME AS "new_tbl_n """"$ ame",
                 SET SCHEMA "newDDDDD Dbbbbbb",
                 RENAME constraint "constrai_""_nt_name1" TO "new_cons""traint_name",
@@ -88,7 +88,7 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
             const tblAlterInstance2 = AlterStatement.fromJSON(tblAlterInstance1.CONTEXT, tblAlterInstance1.toJSON());
             const sql1 = tblAlterInstance1 + '';
             const sql2 = tblAlterInstance2 + '';
-            console.log(sql2);
+            console.log(tblAlterInstance1, sql2);
             /*
             console.log(sql2);
             console.log(JSON.stringify(tblAlterInstance1.toJSON(), null, 3));
@@ -99,7 +99,8 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
         
         it(`DO: Diffs 2 schemas into an Alter Table statement`, async function() {
             const schema = {
-                name: ['public','testt'],
+                prefix: 'public',
+                name: 'testt',
                 $name: 'testtttt',
                 columns: [
                     { name: 'id', $name: 'iddd', type: ['VARCHAR', 30], $type: 'int', default: 20, $default: 9, notNull: true },
@@ -115,7 +116,6 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
             //schemaInstance.keep(true, 'auto');
             schemaInstance.column('author').drop();//.name('author2');
             //schemaInstance.reverseAlt(true);
-            schemaInstance.cascadeAlt();
             const tblAlterInstance1 = schemaInstance.getAlt();
 
             

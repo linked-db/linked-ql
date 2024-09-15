@@ -1,4 +1,3 @@
-
 import { _wrapped, _unwrap } from '@webqit/util/str/index.js';
 import Lexer from '../../Lexer.js';
 import AbstractNode from '../../AbstractNode.js';
@@ -27,30 +26,18 @@ export default class Str extends AbstractNode {
 	 */
 	value(expr) { this.VALUE = expr; }
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() {
 		const quote = this.QUOTE || this.quoteChars[0];
 		return `${ quote }${ (this.VALUE + '').replace(new RegExp(quote, 'g'), quote.repeat(2)) }${ quote }`;
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() { return { value: this.VALUE }; }
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (typeof json?.value !== 'string') return;
 		return new this(context, json.value, json.quote);
 	}
 	 
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr) {
 		const [text, quote] = this.parseText(context, expr, true) || [];
 		if (!quote) return;

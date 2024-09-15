@@ -26,18 +26,12 @@ export default class ExpressionConstraint extends AbstractExprConstraint(Abstrac
 		return (this[this.smartKey('STORED', true)] = !!val, this);
     }
 
-    /**
-	 * @inheritdoc
-	 */
     diffWith(nodeB) {
         super.diffWith(nodeB)
         if (nodeB.stored() !== this.stored()) { this.stored(nodeB.stored()); }
 		return this;
     }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
 		return super.toJSON({
             stored: !!this.STORED,
@@ -45,9 +39,6 @@ export default class ExpressionConstraint extends AbstractExprConstraint(Abstrac
 		});
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		return super.fromJSON(context, json, () => {
 			const instance = (new this(context)).stored(json.stored);

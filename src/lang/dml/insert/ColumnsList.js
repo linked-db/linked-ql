@@ -1,4 +1,3 @@
-
 import Lexer from '../../Lexer.js';
 import { _wrapped, _unwrap } from '@webqit/util/str/index.js';
 import Identifier from '../../components/Identifier.js';
@@ -20,27 +19,15 @@ export default class ColumnsList extends AbstractNode {
 	 */
 	list(...args) { return (this.build('LIST', args, Identifier), this); }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() { return { list: this.LIST.map(col => col.toJSON()) }; }
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (!Array.isArray(json?.list)) return;
 		return (new this(context)).list(...json.list);
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() { return `(${ this.LIST.join(', ') })`; }
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		if (!_wrapped(expr, '(', ')')) return;
 		const instance = new this(context);

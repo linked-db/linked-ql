@@ -145,9 +145,6 @@ export default class Column extends AbstractNode {
 		return this;
     }
 	
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
         let json = {
             type: this.TYPE.toJSON(),
@@ -164,9 +161,6 @@ export default class Column extends AbstractNode {
         return super.toJSON(json);
     }
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
         const { type, $type, name: _, $name: __, keep: ___, ...constraints } = json;
         if (!DataType.fromJSON({}, type)) return;
@@ -197,18 +191,12 @@ export default class Column extends AbstractNode {
 		});
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() {
         let constraints = this.CONSTRAINTS;
         if (this.params.dialect === 'mysql') { constraints = constraints.filter(c => c.TYPE !== 'FOREIGN_KEY'); }
         return `${ this.autoEsc(this.name()) } ${ this.type() }${ constraints.length ? ` ${ constraints.join(' ') }` : '' }`;
     }
     
-    /**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		const [ namePart, bodyPart ] = Lexer.split(expr, ['\\s+'], { useRegex: true, limit: 1 });
         const [name] = this.parseIdent(context, namePart.trim(), true) || [];

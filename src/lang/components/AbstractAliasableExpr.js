@@ -11,42 +11,33 @@ export default class AbstractAliasableExpr extends AbstractNode {
 	/**
 	 * Instance properties
 	 */
-	$EXPR;
+	EXPR;
 	ALIAS;
 	CLAUSED;
-	
-	/**
-	 * @property String
-	 */
-	get NAME() { return this.$EXPR?.NAME; }
 
 	/**
-	 * @property String
-	 */
-	get PREFIX() { return this.$EXPR?.PREFIX; }
-
-	/**
-	 * @property Node
-	 */
-	get EXPR() { return this.$EXPR?.EXPR || this.$EXPR; }
-
-	/**
-	 * Sets the name
+	 * Sets or gets the name
 	 * 
-	 * @param Array|String name
+	 * @param String name
 	 * 
 	 * @returns this
 	 */
-	name(name) { return (this.build('$EXPR', [name], Identifier, 'name'), this); }
+	name(name) {
+		if (!arguments.length) return this.EXPR?.name?.();
+		return (this.build('EXPR', [name], Identifier, 'name'), this);
+	}
 
 	/**
-	 * Sets the expr
+	 * Sets or gets the prefix
 	 * 
-	 * @param Array fns
+	 * @param String name
 	 * 
 	 * @returns this
 	 */
-	query(...fns) { return (this.build('$EXPR', fns, Parens, 'query'), this); }
+	prefix(prefix) {
+		if (!arguments.length) return this.EXPR?.prefix?.();
+		return (this.build('EXPR', [prefix], Identifier, 'prefix'), this);
+	}
 
 	/**
 	 * Sets the expr
@@ -55,7 +46,22 @@ export default class AbstractAliasableExpr extends AbstractNode {
 	 * 
 	 * @returns this
 	 */
-	expr(expr) { return (this.build('$EXPR', [expr], this.constructor.exprTypes), this); }
+	expr(expr) {
+		if (!arguments.length) return this.EXPR;
+		return (this.build('EXPR', [expr], this.constructor.exprTypes), this);
+	}
+
+	/**
+	 * Sets the expr
+	 * 
+	 * @param Array fns
+	 * 
+	 * @returns this
+	 */
+	query(...fns) {
+		if (!arguments.length) return this.EXPR instanceof Parens ? this.EXPR : null;
+		return (this.build('EXPR', fns, Parens, 'query'), this);
+	}
 	
 	/**
 	 * Sets the alias
@@ -70,14 +76,8 @@ export default class AbstractAliasableExpr extends AbstractNode {
 		return this;
 	}
 
-	/**
-	 * @inheritdoc
-	 */
-	toJSON() { return { expr: this.$EXPR?.toJSON(), alias: this.ALIAS?.toJSON(), claused: this.CLAUSED, flags: this.FLAGS }; }
+	toJSON() { return { expr: this.EXPR?.toJSON(), alias: this.ALIAS?.toJSON(), claused: this.CLAUSED, flags: this.FLAGS }; }
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		const instance = (new this(context)).withFlag(...(json.flags || []));
 		if (json?.expr) {
@@ -87,17 +87,11 @@ export default class AbstractAliasableExpr extends AbstractNode {
 		return instance;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() {
-		const alias = this.ALIAS || this.$EXPR instanceof Path && this.$EXPR.JOINT && this.autoEsc(this.$EXPR.clone().stringify());
-		return [this.$EXPR, this.CLAUSED ? 'AS' : '', alias].filter(s => s).join(' ');
+		const alias = this.ALIAS || this.EXPR instanceof Path && this.EXPR.JOINT && this.autoEsc(this.EXPR.clone().stringify());
+		return [this.EXPR, this.CLAUSED ? 'AS' : '', alias].filter(s => s).join(' ');
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		const instance = new this(context);
 		const escChar = this.getEscChar(context, true);

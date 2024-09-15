@@ -1,11 +1,10 @@
-import Lexer from '../../Lexer.js';
 import { _unwrap, _wrapped } from '@webqit/util/str/index.js';
-import AbstractSchema from '../AbstractSchema.js';
+import Lexer from '../../Lexer.js';
+import AbstractNode from '../AbstractNode.js';
 import Identifier from '../../components/Identifier.js';
 import AlterStatement from '../../ddl/alter/AlterStatement.js';
 import AbstractLevel2Constraint from './constraints/AbstractLevel2Constraint.js';
 import TablePrimaryKey from './constraints/TablePrimaryKey.js';
-import ForeignKey from './constraints/ForeignKey.js';
 import TableForeignKey from './constraints/TableForeignKey.js';
 import TableUniqueKey from './constraints/TableUniqueKey.js';
 import CheckConstraint from './constraints/CheckConstraint.js';
@@ -13,11 +12,13 @@ import Column from './Column.js';
 import Index from './Index.js';		
 import DataType from './DataType.js';
 
-export default class TableSchema extends AbstractSchema {
+export default class TableSchema extends AbstractNode {
 
 	/**
 	 * Instance props.
 	 */
+	PREFIX;
+	$PREFIX;
 	COLUMNS = [];
 	CONSTRAINTS = [];
 	INDEXES = [];
@@ -27,9 +28,6 @@ export default class TableSchema extends AbstractSchema {
 	 */
 	NODES = new Set;
 
-	/**
-	 * @inheritdoc
-	 */
 	static get WRITABLE_PROPS() { return ['PREFIX'].concat(super.WRITABLE_PROPS); }
 	static get SUBTREE_PROPS() { return ['COLUMNS', 'CONSTRAINTS', 'INDEXES']; }
 
@@ -37,20 +35,6 @@ export default class TableSchema extends AbstractSchema {
 	 * @var Array
 	 */
 	static CONSTRAINT_TYPES = [TablePrimaryKey,TableForeignKey,TableUniqueKey,CheckConstraint];
-
-    /**
-	 * @inheritdoc
-	 */
-    $trace(request, ...args) {
-		if (request === 'get:schema:table') return this;
-		if (request === 'get:name:table') return this.NAME.NAME;
-		if (request === 'get:name:database' && this.NAME.PREFIX) return this.NAME.PREFIX;
-		if (request === 'event:connected'
-		&& [Column,AbstractLevel2Constraint,Index].some(x => args[0] instanceof x)) {
-			this.NODES.add(args[0]);
-		}
-		return super.$trace(request, ...args);
-	}
 
     /**
      * PRIMARY_KEY
@@ -71,6 +55,18 @@ export default class TableSchema extends AbstractSchema {
      * CHECK
      */
     checks() { return [...this.NODES].filter(node => node.TYPE === 'CHECK'); }
+
+	/**
+	 * Returns prefix or sets prefix
+	 * 
+	 * @param Void|String prefix
+	 * 
+	 * @returns String
+	 */
+	prefix(prefix) {
+		if (!arguments.length) return this[this.smartKey('PREFIX')];
+        return (this[this.smartKey('PREFIX', true)] = prefix, this);
+	}
 
 	/**
 	 * Returns a column or adds a column to the schema,
@@ -116,10 +112,11 @@ export default class TableSchema extends AbstractSchema {
 	 * @returns this
 	 */
 	diffWith(nodeB) {
-		// NAME and PREFIX
+		// DIFF NAME & KEEP
 		super.diffWith(nodeB);
+        if (!this.isSame(nodeB.prefix(), this.prefix(), 'ci')) this.prefix(nodeB.prefix());
 		// DIFF STRUCTURE
-		const getNode = (instance, name) => [...instance.NODES].find(node => node.NAME === name);
+		const getNode = (instance, name) => [...instance.NODES].find(node => this.isSame(node.NAME, name, 'ci'));
 		const getNames = instance => {
 			return [...instance.NODES].reduce(([names, unnamed], node) => {
 				if (![Column,AbstractLevel2Constraint,Index].some(x => node instanceof x)) return [names, unnamed];
@@ -175,8 +172,15 @@ export default class TableSchema extends AbstractSchema {
 		for (const action of altInstance.ACTIONS) {
 			if (action.CLAUSE === 'RENAME') {
 				if (action.KIND) {
-					getNode({ kind: action.KIND, name: action.name() }).name(action.argument());
-				} else this.name([this.name().PREFIX,action.argument()]);
+					getNode({ kind: action.KIND, name: action.ident().name() }).name(action.argument().name());
+				} else {
+					this.name(action.argument().name());
+					this.prefix(action.argument().prefix());
+				}
+			} else if (action.CLAUSE === 'SET') {
+				if (action.KIND === 'SCHEMA') {
+					this.prefix(action.argument());
+				}
 			} else if (action.CLAUSE === 'ADD') {
 				if (action.argument() instanceof AbstractLevel2Constraint) {
 					if (action.argument().columns().length === 1) {
@@ -188,17 +192,13 @@ export default class TableSchema extends AbstractSchema {
 					this.column(action.argument().toJSON());
 				}
 			} else if (action.CLAUSE === 'DROP') {
-				const node = getNode(action.toJSON(), action.hasFlag('IF_EXISTS'));
+				const node = getNode({ kind: action.KIND, name: action.ident().name() }, action.hasFlag('IF_EXISTS'));
 				node?.keep(false);
-			} else if (action.CLAUSE === 'SET') {
-				if (action.KIND === 'SCHEMA') {
-					this.name([action.argument(),this.name().NAME]);
-				}
 			} else if (['CHANGE', 'MODIFY'].includes(action.CLAUSE)) {
-				const node = action.CLAUSE === 'CHANGE' ? getNode({ kind: 'COLUMN', name: action.name() }) : getNode({ kind: 'COLUMN', name: action.argument().name() });
+				const node = action.CLAUSE === 'CHANGE' ? getNode({ kind: 'COLUMN', name: action.ident().name() }) : getNode({ kind: 'COLUMN', name: action.argument().name() });
 				node.diffWith(action.argument());
 			} else if (action.CLAUSE === 'ALTER') {
-				const node = getNode({ kind: action.KIND, name: action.name() }, action.hasFlag('IF_EXISTS'));
+				const node = getNode({ kind: action.KIND, name: action.ident().name() }, action.hasFlag('IF_EXISTS'));
 				if (!node) continue;
 				const subAction = action.argument();
 				if (subAction.CLAUSE === 'ADD') {
@@ -230,21 +230,18 @@ export default class TableSchema extends AbstractSchema {
 		return this;
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	getAlt() {
 		const instance = AlterStatement.fromJSON(this.CONTEXT, {
 			kind: 'TABLE',
-			name: this.NAME.toJSON(), // Explicit old name important
+			ident: [this.PREFIX,this.NAME], // Explicit old name important
 			actions: []
 		});
 		if (this.$NAME && this.NAME) {
-			if (!this.isSame(this.$NAME.NAME, this.NAME.NAME, 'ci')) {
-				instance.rename(null, null, this.$NAME.NAME);
+			if (!this.isSame(this.$NAME, this.NAME, 'ci')) {
+				instance.rename(null, null, this.$NAME);
 			}
-			if (this.$NAME.PREFIX && !this.isSame(this.$NAME.PREFIX, this.NAME.PREFIX, 'ci')) {
-				instance.set('SCHEMA', this.$NAME.PREFIX);
+			if (this.$PREFIX && !this.isSame(this.$PREFIX, this.PREFIX, 'ci')) {
+				instance.set('SCHEMA', this.$PREFIX);
 			}
 		}
 		const constraintDirty = (cons, includingName = false) => (cons.keep() !== true || ['$EXPR','$ALWAYS','$TARGET_TABLE','$TARGET_COLUMNS','$MATCH_RULE','$UPDATE_RULE','$DELETE_RULE'].concat(includingName ? '$NAME' : []).some(k => /*exists*/k in cons && /*not empty*/(Array.isArray(cons[k]) ? cons[k].length : ![undefined, null].includes(cons[k])) && /*different*/!this.isSame(cons[k.slice(1)], cons[k], 'ci')));
@@ -309,7 +306,7 @@ export default class TableSchema extends AbstractSchema {
 					if (constraintDirty(cons)) {
 						if ([true, false].includes(cons.keep())) instance.drop(cons.TYPE, cons.NAME);
 						if (cons.keep() !== false) {
-							const columnName = col.$trace('get:schema:table').altsCascaded ? col.name() : col.NAME;
+							const columnName = col.$trace('get:TABLE_SCHEMA').altsCascaded ? col.name() : col.NAME;
 							const tableCons = this.constructor.CONSTRAINT_TYPES.find(Type => Type.TYPE === cons.TYPE).fromJSON(cons.CONTEXT, { ...cons.toJSON(), columns: [columnName] });
 							instance.add(tableCons.TYPE, tableCons);
 						}
@@ -331,101 +328,22 @@ export default class TableSchema extends AbstractSchema {
 		return instance;
 	}
 
-	/**
-	 * @inheritdoc
-	 */
-	cascadeAlt() {
-		// Normalize subtree "keep" flags
-		this.keep(this.keep(), 'auto');
-		const getAltType = node => node.dropped() ? 'DOWN' : (node.$NAME && !this.isSame(node.$NAME, node.NAME, 'ci') ? 'RENAME' : null);
-		// We've been dropped or renamed?
-		const altType = getAltType(this);
-		if (altType) {
-			// TODO: Check with all tables and call updateTableReferences() on them
-		}
-		// A column in here was dropped or renamed?
-		for (const col of this.COLUMNS) {
-			const altType = getAltType(col);
-			if (!altType) continue;
-			// Check with our own references to columns
-			for (const cons of this.CONSTRAINTS) {
-				if (cons instanceof CheckConstraint) continue;
-				const targetList = cons.$COLUMNS.length ? cons.$COLUMNS : cons.COLUMNS;
-				const index = targetList.indexOf(col.NAME);
-				if (index > -1) {
-					if (altType === 'DOWN') targetList.splice(index, 1);
-					else if (altType === 'RENAME') targetList[index] = col.$NAME;
-				};
-			}
-			// TODO: Check with all tables and call updateColumnReferences() on them
-		}
-		this.altsCascaded = true;
-		return this;
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	updateDatabaseReferences(db, altType) {
-		// A database was dropped or renamed. We check with our own references to databases
-		for (const fk of this.foreignKeys()) {
-			// Where referencing the old name
-			if (fk.targetTable().PREFIX !== db.NAME) continue;
-			if (altType === 'DOWN') fk.keep(false);
-			else if (altType === 'RENAME') fk.targetTable().name([db.$NAME,fk.targetTable().NAME]);
-		}
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	updateTableReferences(tbl, altType) {
-		// A table was dropped or renamed. We check with our own references to tables
-		for (const fk of this.foreignKeys()) {
-			if (fk.targetTable().PREFIX && tbl.PREFIX && node.targetTable().prefix() !== tbl.prefix()) continue;
-			if (node.targetTable().name() === tbl.NAME) {
-				if (altType === 'DOWN') node.keep(false);
-				else if (altType === 'RENAME') node.targetTable().name(tbl.$NAME);
-			};
-		}
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	updateColumnReferences(col, altType) {
-		// A column somewhere was dropped or renamed. We check with our own references to columns
-		for (const node of this.NODES) {
-			if (!(node instanceof ForeignKey)) continue;
-			if (node.targetTable().prefix() && col.$trace('get:name:database') && node.targetTable().prefix() !== col.$trace('get:name:database')) continue;
-			if (node.targetTable().name() !== col.$trace('get:table:name')) continue;
-			const targetList = cons.$TARGET_COLUMNS.length ? cons.$TARGET_COLUMNS : cons.TARGET_COLUMNS;
-			const index = targetList.indexOf(col.NAME);
-			if (index > -1) {
-				if (altType === 'DOWN') targetList.splice(index, 1);
-				else if (altType === 'RENAME') targetList[index] = col.$NAME;
-			};
-		}
-	}
-
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
 		return super.toJSON({
+			...(this.PREFIX ? { prefix: this.PREFIX } : {}),
+			...(this.$PREFIX ? { $prefix: this.$PREFIX } : {}),
             columns: this.COLUMNS.map(column => column.toJSON()),
             constraints: this.CONSTRAINTS.map(constraint => constraint.toJSON()),
             indexes: this.INDEXES.map(index => index.toJSON()),
         });
     }
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (!Array.isArray(json?.columns) || ['constraints', 'indexes'].some(key => key in json && !Array.isArray(json[key]))) return;
 		return super.fromJSON(context, json, () => {
 			const instance = new this(context);
+			instance.hardSet(() => instance.prefix(json.prefix));
+			instance.hardSet(json.$prefix, val => instance.prefix(val));
 			for (const col of json.columns) instance.column(col);
 			for (const cons of (json.constraints || [])) instance.constraint(cons);
 			for (const idx of (json.indexes || [])) instance.index(idx);
@@ -433,9 +351,6 @@ export default class TableSchema extends AbstractSchema {
 		});
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() {
 		const defs = [ this.COLUMNS.map(col => col.stringify()).join(',\n\t') ];
 		const constraints = this.CONSTRAINTS.slice(0);
@@ -449,22 +364,18 @@ export default class TableSchema extends AbstractSchema {
 		}
 		if (constraints.length) { defs.push(constraints.map(cnst => cnst.stringify()).join(',\n\t')); }
 		if (indexes.length) { defs.push(indexes.map(ndx => ndx.stringify()).join(',\n\t')); }
-		let name = this.name();
-		if (!name.PREFIX) {
-			const namespace = this.$trace('get:name:database');
-			name = name.clone().name([namespace,name.NAME]);
-		}
-		return `${ name } (\n\t${ defs.join(',\n\t') }\n)`;
+		const ident = Identifier.fromJSON(this, [this.prefix(), this.name()]);
+		if (!ident.prefix()) ident.prefix(this.$trace('get:DATABASE_NAME'));
+		return `${ ident } (\n\t${ defs.join(',\n\t') }\n)`;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		const [ namePart, bodyPart, ...rest ] = Lexer.split(expr, [], { limit: 2 });
 		if (!namePart || !_wrapped(bodyPart || '', '(', ')')) return;
 		const instance = new this(context);
-		instance.name(parseCallback(instance, namePart.trim(), [Identifier]));
+		const ident = parseCallback(instance, namePart.trim(), [Identifier]);
+		instance.name(ident.name());
+		instance.prefix(ident.prefix());
 		const defs = Lexer.split(_unwrap(bodyPart, '(', ')'), [',']).map(def => {
 			return parseCallback(instance, def.trim(), [TablePrimaryKey,TableForeignKey,TableUniqueKey,CheckConstraint,Index,Column]); // Note that Column must come last
 		});
@@ -474,5 +385,16 @@ export default class TableSchema extends AbstractSchema {
 			else instance.constraint(def);
 		}
 		return instance;
+	}
+
+    $trace(request, ...args) {
+		if (request === 'get:TABLE_SCHEMA') return this;
+		if (request === 'get:TABLE_NAME') return this.NAME/*IMPORTANT: OLD NAME*/;
+		if (request === 'get:DATABASE_NAME' && this.prefix()) return this.PREFIX/*IMPORTANT: OLD NAME*/;
+		if (['event:CONNECTED', 'event:DISCONNECTED'].includes(request) && [Column,AbstractLevel2Constraint,Index].some(x => args[0] instanceof x)) {
+			if (request === 'event:DISCONNECTED') this.NODES.delete(args[0]);
+			else this.NODES.add(args[0]);
+		}
+		return super.$trace(request, ...args);
 	}
 }

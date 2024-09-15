@@ -19,14 +19,8 @@ export default class WindowClause extends AbstractNode {
 	 */
 	define(...windows) { return this.build('WINDOWS_LIST', windows, WindowSpec); }
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() { return { window_list: this.WINDOWS_LIST.map(w => w.toJSON()) }; }
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (!Array.isArray(json?.window_list)) return;
 		const instance = new this(context);
@@ -35,14 +29,8 @@ export default class WindowClause extends AbstractNode {
 	}
 
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() { return `WINDOW ${ this.WINDOWS_LIST.join(',') }`; }
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		const [ windowMatch, windowSpec ] = expr.match(new RegExp(`^${ this.regex }([\\s\\S]*)$`, 'i')) || [];
 		if (!windowMatch) return;

@@ -7,9 +7,6 @@
 
 export default class IDBProgressiveCursor {
 	 
-	/**
-	 * @inheritdoc
-	 */
 	constructor(store) {
 		// ---------------
 		this._store = store;
@@ -20,14 +17,8 @@ export default class IDBProgressiveCursor {
 		this.flags = {};
 	}
 	 
-	/**
-	 * @inheritdoc
-	 */
 	onfinish(callback) {this._onfinish.push(callback);}
 	 
-	/**
-	 * @inheritdoc
-	 */
 	next() {
 		if (!this._eof) {
 			if (!this._cursorRequest) {
@@ -44,17 +35,11 @@ export default class IDBProgressiveCursor {
 		}
 	}
 		 
-	/**
-	 * @inheritdoc
-	 */
 	eof() {
 		// The store must reach eof before we can be correct with this.cache.length
 		return this._eof && (!this.cache.length || this.key === this.cache.length - 1);
 	}
 	 
-	/**
-	 * @inheritdoc
-	 */
 	async fetch() {
 		var store = await this._store;
 		return new Promise(resolve => {

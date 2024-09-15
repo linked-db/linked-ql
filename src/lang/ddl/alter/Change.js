@@ -1,57 +1,40 @@
-
+import Identifier from '../../components/Identifier.js';
 import Lexer from '../../Lexer.js';
 import Modify from './Modify.js';
 
 export default class Change extends Modify {
-	
+
 	/**
 	 * Instance props.
 	 */
-	NAME;
+	IDENT;
 
-	/**
-	 * @inheritdoc
-	 */
-	name(value = undefined) {
-		if (!arguments.length) return this.NAME;
-		return (this.NAME = value, this);
+	ident(value) {
+		if (!arguments.length) return this.IDENT;
+		return (this.build('IDENT', [value], Identifier), this);
 	}
 
-	/**
-	 * @inheritdoc
-	 */
-	toJSON() { return { name: this.NAME, ...super.toJSON(), }; }
+	toJSON() { return { ident: this.IDENT.toJSON(), ...super.toJSON(), }; }
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
-		if (typeof json?.name !== 'string') return;
-		return super.fromJSON(context, json)?.name(json.name);
+		if (!Identifier.fromJSON(context, json?.ident)) return;
+		return super.fromJSON(context, json)?.ident(json.ident);
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	stringify() {
-		const stmts = [`${ this.CLAUSE } ${ this.KIND } ${ this.autoEsc(this.NAME) } ${ this.ARGUMENT }`];
+		const stmts = [`${ this.CLAUSE } ${ this.KIND } ${ this.IDENT } ${ this.ARGUMENT }`];
         if (this.hasFlag('AFTER')) stmts.push(this.getFlag('AFTER')?.replace(':', ' '));
         else if (this.hasFlag('FIRST')) stmts.push('FIRST');
 		return stmts.join(' ');
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
-        const [ match, kind, name_unescaped, /*esc*/, name_escaped, argumentExpr ] = (new RegExp(`^${ this.CLAUSE }\\s+(${ this.KINDS.map(s => s).join('|') })\\s+(?:(\\w+)|([\`"])((?:\\3\\3|[^\\3])+)\\3)?\\s+([\\s\\S]+)$`, 'i')).exec(expr.trim()) || [];
+		const [ match, kind, $expr ] = (new RegExp(`^${ this.CLAUSE }\\s+(${ this.KINDS.map(s => s).join('|') })\\s+([\\s\\S]+)$`, 'i')).exec(expr.trim()) || [];
 		if (!match) return;
 		const instance = new this(context, kind.toUpperCase());
-		instance.name(name_unescaped || this.autoUnesc(instance, name_escaped));
-        const { tokens: [ $argumentExpr, afterRef ], matches } = Lexer.lex(argumentExpr, ['FIRST','AFTER'], { useRegex: 'i' });
-        instance.argument(parseCallback(instance, $argumentExpr, this.NODE_TYPES));
-        if (afterRef) instance.withFlag(`AFTER:${ afterRef }`);
-        else if (matches.length) instance.withFlag('FIRST');
+		const [ ident, $$expr ] = Lexer.split($expr, ['\\s+'], { useRegex: 'i', limit: 1 });
+		instance.ident(parseCallback(instance, ident, [Identifier]));
+		this.handleArgumentExpr(instance, $$expr, parseCallback);
 		return instance;
 	}
 

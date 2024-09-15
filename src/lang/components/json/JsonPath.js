@@ -1,4 +1,3 @@
-
 import Lexer from '../../Lexer.js';
 import AbstractNode from '../../AbstractNode.js';
 import Identifier from '../Identifier.js';
@@ -37,9 +36,6 @@ export default class JsonPath extends AbstractNode {
 		this.OPERATOR = operator;
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
 		return {
 			lhs: this.LHS?.toJSON(),
@@ -49,9 +45,6 @@ export default class JsonPath extends AbstractNode {
 		};
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (!this.OPERATORS.includes(json?.operator)) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
@@ -59,14 +52,8 @@ export default class JsonPath extends AbstractNode {
 		return instance;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() { return `${ this.LHS } ${ this.OPERATOR } ${ this.RHS }`; }
 	 
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		if ((context?.params?.inputDialect || context?.params?.dialect) === 'mysql') return;
 		let { tokens, matches } = Lexer.lex(expr, this.OPERATORS, { limit: 1 });

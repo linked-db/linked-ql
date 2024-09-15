@@ -11,14 +11,8 @@ export default class OrderByClause extends AbstractOrderBy {
 	 */
 	withRollup() { return this.withFlag('WITH_ROLLUP'); }
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() { return ['ORDER BY', super.stringify(), ...this.FLAGS.map(s => s.replace(/_/g, ' '))].join(' '); }
 
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		const { tokens: [$expr], matches } = Lexer.lex(expr, ['\\s+WITH\\s+ROLLUP$'], { useRegex: 'i' });
 		const instance = super.parse(context, $expr.trim(), parseCallback);

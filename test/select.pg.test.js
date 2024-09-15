@@ -43,22 +43,22 @@ describe(`SELECT QUERIES`, function() {
             // JSON forms
             query1.select(
                 // Pass in a fully-qualified identifier object
-                { expr: { name: ['base1','col1'] }, alias: 'alias1' },
+                { expr: { prefix: 'base1', name: 'col1', }, alias: 'alias1' },
                 // Pass in an identifier string
                 { expr: 'col2' },
                 { expr: 'col3', alias: 'alias3' },
                 // Skip the nesting to the identifier part
-                { name: ['base4','col4'] },
+                { prefix: 'base4', name: 'col4' },
                 // Just string
                 'col5',
             );
             // Callback forms
             query1.select(
                 // Pass in a fully-qualified identifier object
-                field => field.expr({ name: ['base6','col-6'] }).as('alias6/1'),
+                field => field.expr({ prefix: 'base6', name: 'col-6' }).as('alias6/1'),
                 // Use a callback there too
                 field => field.expr(
-                    q => q.name(['base6','col-6'])
+                    q => q.prefix('base6').name('col-6')
                 ).as('alias6/2'),
                 // Pass in an identifier string
                 field => field.expr('col7').as('alias7'),
@@ -87,7 +87,7 @@ describe(`SELECT QUERIES`, function() {
                     c => c.when(null).then_('col16'),
                     c => c.when(false).then_('col16'),
                     c => c.else(true)
-                ).as('assertion2'),
+                ).as('assertion3'),
                 field => field.query(
                     q => q.select('id'),
                     q => q.from(['base0','t1'], ['base0','t2']),

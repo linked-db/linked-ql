@@ -54,19 +54,34 @@ export default class Savepoint {
     get cursor() { return this.$.json.$cursor; }
 
     /**
-     * @returns String
-     */
-    get description() { return this.$.json.savepoint_description; }
-
-    /**
      * @returns Date
      */
     get savepointDate() { return this.$.json.savepoint_date; }
 
     /**
+     * @returns String
+     */
+    get savepointDescription() { return this.$.json.savepoint_description; }
+
+    /**
+     * @returns String
+     */
+    get savepointRef() { return this.$.json.savepoint_ref; }
+
+    /**
      * @returns Date
      */
     get rollbackDate() { return this.$.json.rollback_date; }
+
+    /**
+     * @returns String
+     */
+    get rollbackDescription() { return this.$.json.rollback_description; }
+
+    /**
+     * @returns String
+     */
+    get rollbackRef() { return this.$.json.rollback_ref; }
 
     /**
      * @returns Bool
@@ -91,7 +106,7 @@ export default class Savepoint {
             schema.keep(schema.keep(), 'auto');
         }
         // Execute rollback
-        if (schema.keep() === false) return DropStatement.fromJSON(this.client, { kind: 'SCHEMA', name: schema.name() }).withFlag(this.client.params.dialect === 'mysql' ? '' : 'CASCADE');
+        if (schema.keep() === false) return DropStatement.fromJSON(this.client, { kind: 'SCHEMA', ident: schema.name() }).withFlag(this.client.params.dialect === 'mysql' ? '' : 'CASCADE');
         if (schema.keep() === true) return schema.getAlt().with({ resultSchema: schema });
         return CreateStatement.fromJSON(this.client, { kind: 'SCHEMA', argument: schema });
     }
@@ -116,8 +131,8 @@ export default class Savepoint {
      * @returns Object
      */
     toJSON() {
-        const { id, database_tag: databaseTag, version_tag: versionTag, version_max: versionMax, $cursor, savepoint_description: description, savepoint_date: savepointDate, rollback_date: rollbackDate } = this.$.json;
-        return { id, name: this.name(), databaseTag, versionTag, versionMax, cursor: $cursor, description, savepointDate, rollbackDate, rollbackEffect: this.rollbackEffect };
+        const { id, database_tag: databaseTag, version_tag: versionTag, version_max: versionMax, $cursor, savepoint_date: savepointDate, savepoint_description: savepointDescription, savepoint_ref: savepointRef, rollback_date: rollbackDate, rollback_description: rollbackDescription, rollback_ref: rollbackRef } = this.$.json;
+        return { id, name: this.name(), databaseTag, versionTag, versionMax, cursor: $cursor, savepointDate, savepointDescription, savepointRef, rollbackDate, rollbackDescription, rollbackRef, rollbackEffect: this.rollbackEffect };
     }
 
     /**
@@ -133,13 +148,17 @@ export default class Savepoint {
      * 
      * @return Void
      */
-    async rollback() {
+    async rollback(details = {}) {
         if (!(await this.isNextPointInTime())) throw new Error(`Invalid rollback order.`);
         await this.client.query(this.rollbackQuery, { noCreateSavepoint: true });
         const linkedDB = await this.client.linkedDB();
-        const savepointsTable = await linkedDB.savepointsTable();
+        const savepointsTable = linkedDB.savepointsTable();
         // Update record
-        const updatedRecord = await this.client.query(`UPDATE ${ savepointsTable.ident } SET rollback_date = ${ this.direction === 'forward' ? 'NULL' : 'now()' } WHERE id = '${ this.$.json.id }' RETURNING rollback_date`);
+        const updatedRecord = await savepointsTable.update({
+            rollback_date: q => this.direction === 'forward' ? q.null() : q.fn('now'),
+            rollback_description: details.description,
+            rollback_ref: details.reference,
+        }, { where: { id: q => q.value(this.$.json.id) }, returning: ['rollback_date'] });
         this.$.json.rollback_date = updatedRecord[0].rollback_date;
         return true;
     }

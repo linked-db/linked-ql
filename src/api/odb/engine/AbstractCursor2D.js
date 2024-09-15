@@ -28,14 +28,8 @@ export default class AbstractCursor2D {
      */
     get eof() { return this._eof; }
 	 
-	/**
-	 * @inheritdoc
-	 */
 	onfinish(callback) { this._onfinish.push(callback); }
 
-    /**
-	 * @inheritdoc
-	 */
     next() { this.cursors[this.cursors.length - 1].next(); }
 
 	/**

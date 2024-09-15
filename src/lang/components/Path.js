@@ -1,4 +1,3 @@
-
 import Lexer from '../Lexer.js';
 import AbstractNode from '../AbstractNode.js';
 import Identifier from './Identifier.js';
@@ -62,14 +61,15 @@ export default class Path extends AbstractNode {
 	 * @returns Object
 	 */
 	async eval() {
-		const clientApi = this.$trace('get:api:client');
-		const stmtNode = this.$trace('get:node:statement')
-		if (!clientApi) throw new Error(`No client API in context.`);
+		const stmtNode = this.$trace('get:STATEMENT_NODE');
+		const rootSchema = await this.$trace('get:ROOT_SCHEMA');
+		if (!rootSchema) throw new Error(`Root schema not associated with query.`);
 		const getPrimaryKey = schema => schema.primaryKey()?.columns()[0];
 		const getTargetTable = async (schema, foreignKey) => {
-			const targetTable = schema.foreignKeys().find(fk => fk.columns().includes(foreignKey.NAME))?.targetTable();
-			if (targetTable && !targetTable.PREFIX) return Identifier.fromJSON(this, [await clientApi.resolveName(targetTable.NAME),targetTable.NAME]);
-			return targetTable;
+			const fk = schema.foreignKeys().find(fk => fk.columns().includes(foreignKey.name()));
+			const targetIdent = fk ? Identifier.fromJSON(this, [fk.targetSchema(), fk.targetTable()]) : null;
+			if (targetIdent && !targetIdent.prefix()) return targetIdent.prefix((await stmtNode.structure()).findPath(fk.targetTable()));
+			return targetIdent;
 		};
 		if (this.isIncoming) {
 			if (!(this.RHS instanceof Path)) throw new Error(`Unterminated path: ${ this.RHS }`);
@@ -84,8 +84,8 @@ export default class Path extends AbstractNode {
 			} else {
 				// === {foreignKey}LHS<-RHS{table->path}
 				({ LHS: foreignKey_rhs/*Identifier*/, RHS/*Path*/: { LHS: table_rhs/*Identifier*/, RHS: path/*Identifier|Path*/ } } = this);
-				if (!table_rhs.PREFIX) { table_rhs = Identifier.fromJSON(this, [await clientApi.resolveName(table_rhs.NAME), table_rhs.NAME]); }
-				schema_rhs = await stmtNode.$schema(table_rhs.PREFIX, table_rhs.NAME);
+				if (!table_rhs.prefix()) { table_rhs = Identifier.fromJSON(this, [rootSchema.findPath(table_rhs.name()), table_rhs.name()]); }
+				schema_rhs = rootSchema.database(table_rhs.prefix())?.table(table_rhs.name());
 				if (!schema_rhs) throw new Error(`[${ this }]: The implied table ${ table_rhs } does not exist.`);
 			}
 			const table_lhs = await getTargetTable(schema_rhs, foreignKey_rhs);
@@ -93,7 +93,7 @@ export default class Path extends AbstractNode {
 			if (!table_lhs) throw new Error(`[${ this }]: Table ${ table_rhs } does not define the implied foreign key: ${ foreignKey_rhs }.`);
 			// -------------
 			// Get schema_lhs from keyDef
-			const schema_lhs = await stmtNode.$schema(table_lhs.PREFIX, table_lhs.NAME);
+			const schema_lhs = rootSchema.database(table_lhs.prefix())?.table(table_lhs.name());
 			if (!schema_lhs) throw new Error(`[${ this }]: The implied table ${ table_lhs } does not exist.`);
 			// Get shcema_lhs's acting key (primary key) and validate
 			const primaryKey_lhs = getPrimaryKey(schema_lhs);
@@ -110,7 +110,7 @@ export default class Path extends AbstractNode {
 		const table_lhs = await baseTableIdent.call(this);
 		if (!table_lhs) throw new Error(`No tables in query.`);
 		// Get lhs schema
-		const schema_lhs = await stmtNode.$schema(table_lhs.PREFIX, table_lhs.NAME);
+		const schema_lhs = rootSchema.database(table_lhs.prefix())?.table(table_lhs.name());
 		if (!schema_lhs) throw new Error(`[${ this }]: The implied table ${ table_lhs } does not exist.`);
 		const { LHS: foreignKey_lhs/*Identifier*/, RHS: path/*Identifier|Path*/ } = this;
 		// We get schema2 from schema_lhs
@@ -119,7 +119,7 @@ export default class Path extends AbstractNode {
 		if (!table_rhs) throw new Error(`[${ this }]: Table ${ table_lhs } does not define the implied foreign key: ${ foreignKey_lhs }.`);
 		// -------------
 		// Get schema_rhs from keyDef!
-		const schema_rhs = await stmtNode.$schema(table_rhs.PREFIX, table_rhs.NAME);
+		const schema_rhs = rootSchema.database(table_rhs.prefix())?.table(table_rhs.name());
 		if (!schema_rhs) throw new Error(`[${ this }]: The implied table ${ table_rhs } does not exist.`);
 		// Get shcema_lhs's acting key (primary key) and validate
 		const primaryKey_rhs = getPrimaryKey(schema_rhs);
@@ -139,22 +139,22 @@ export default class Path extends AbstractNode {
 	 */
 	async plot() {
 		if (this.JOINT) return;
-		const stmtNode = this.$trace('get:node:statement');
+		const stmtNode = this.$trace('get:STATEMENT_NODE');
 		// Resolve relation and validate
 		const baseTable = await baseTableIdent.call(this);
 		if (!baseTable) throw new Error(`No tables in query.`);
 		// Do plotting
 		const { lhs, rhs } = await this.eval();
-		const baseKey = lhs.foreignKey?.NAME || lhs.primaryKey;
-		const joinKey = rhs.primaryKey || rhs.foreignKey.NAME;
-		if (lhs.primaryKey/*then incoming reference*/ && (lhs.table.NAME.toLowerCase() !== baseTable.NAME.toLowerCase() || lhs.table.PREFIX.toLowerCase() !== baseTable.PREFIX.toLowerCase())) throw new Error(`[${ this }]: Cannot resolve incoming path to base table ${ baseTable.EXPR }.`);
-		const joinAlias = `_view:${ [baseKey, rhs.table.PREFIX, rhs.table.NAME, joinKey].join(':') }`;
-		const joint = () => this.JOINT = stmtNode.JOIN_LIST.find(joint => joint.ALIAS.NAME.toLowerCase() === joinAlias.toLowerCase());
+		const baseKey = lhs.foreignKey?.name() || lhs.primaryKey;
+		const joinKey = rhs.primaryKey || rhs.foreignKey.name();
+		if (lhs.primaryKey/*then incoming reference*/ && (lhs.table.name().toLowerCase() !== baseTable.name().toLowerCase() || lhs.table.prefix().toLowerCase() !== baseTable.prefix().toLowerCase())) throw new Error(`[${ this }]: Cannot resolve incoming path to base table ${ baseTable.EXPR }.`);
+		const joinAlias = `_view:${ [baseKey, rhs.table.prefix(), rhs.table.name(), joinKey].join(':') }`;
+		const joint = () => this.JOINT = stmtNode.JOIN_LIST.find(joint => joint.ALIAS.name().toLowerCase() === joinAlias.toLowerCase());
 		if (!joint()) {
 			// Implement the join for the first time
-			const baseAlias = this.$trace('get:node:table').ALIAS?.NAME || baseTable.NAME;
+			const baseAlias = this.$trace('get:TABLE_NODE').ALIAS?.name() || baseTable.name();
 			const joinKeyAlias = `${ joinKey }:${ ( 0 | Math.random() * 9e6 ).toString( 36 ) }`;
-			stmtNode.leftJoin( j => j.query( q => q.select( field => field.name( joinKey ).as( joinKeyAlias ) ), q => q.from([rhs.table.PREFIX,rhs.table.NAME].filter(s => s)) ) )
+			stmtNode.leftJoin( j => j.query( q => q.select( field => field.name( joinKey ).as( joinKeyAlias ) ), q => q.from([rhs.table.prefix(),rhs.table.name()].filter(s => s)) ) )
 				.with({ IS_SMART_JOIN: true }).as(joinAlias)
 				.on( on => on.equals([joinAlias,joinKeyAlias], [baseAlias,baseKey]) );
 			joint();
@@ -163,12 +163,9 @@ export default class Path extends AbstractNode {
 		// Now on outer query, that would resolve to selecting "$view:fk_name:tbl_name:db_name:pk_name"."$path:unxnj" as "author"->"name"
 		// For something like: author~>country->name, select "$view:fk_name:tbl_name:db_name:pk_name"."country"->"name" as "$path:unxnj"
 		// Now on outer query, that would resolve to selecting "$view:fk_name:tbl_name:db_name:pk_name"."$path:unxnj" as "author"~>"country"->"name"
-		this.JOINT.EXPR/*Query*/.select( field => field.expr(rhs.path.toJSON()).as(this.uuid) );
+		this.JOINT.EXPR/*Parens*/.EXPR/*SELECT*/.select( field => field.expr(rhs.path.toJSON()).as(this.uuid) );
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
 		return {
 			lhs: this.LHS?.toJSON(),
@@ -178,9 +175,6 @@ export default class Path extends AbstractNode {
 		};
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (![this.ARR_LEFT, this.ARR_RIGHT].includes(json?.operator)) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
@@ -188,17 +182,11 @@ export default class Path extends AbstractNode {
 		return instance;
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	stringify() {
-		if (this.JOINT) return this.autoEsc([this.JOINT.ALIAS.NAME,this.uuid]).join('.');
+		if (this.JOINT) return this.autoEsc([this.JOINT.ALIAS.name(),this.uuid]).join('.');
 		return `${ this.LHS } ${ this.OPERATOR } ${ this.RHS }`;
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		const { tokens, matches } = Lexer.lex(expr, [this.ARR_LEFT, this.ARR_RIGHT], { limit: 1 });
 		if (!matches.length) return;
@@ -213,12 +201,11 @@ export default class Path extends AbstractNode {
 }
 
 async function baseTableIdent() {
-	const tblName = this.$trace('get:name:table');
-	if (tblName) {
-		const dbName = this.$trace('get:name:database');
-		return Identifier.fromJSON(this, [
-			dbName || await this.$trace('get:api:client')?.resolveName(tblName),
-			tblName
-		]);
-	}
+	const tblName = this.$trace('get:TABLE_NAME');
+	if (!tblName) return;
+	const dbName = this.$trace('get:DATABASE_NAME');
+	return Identifier.fromJSON(this, [
+		dbName || (await this.$trace('get:ROOT_SCHEMA')).findPath(tblName),
+		tblName
+	]);
 }

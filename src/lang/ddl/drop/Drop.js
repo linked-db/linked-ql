@@ -1,4 +1,4 @@
-
+import Identifier from '../../components/Identifier.js';
 import AbstractNode from '../AbstractNode.js';
 
 export default class Drop extends AbstractNode {
@@ -6,52 +6,45 @@ export default class Drop extends AbstractNode {
 	/**
 	 * Instance props.
 	 */
-	NAME;
+	IDENT;
 
-	/**
-	 * @inheritdoc
-	 */
-	name(value = undefined) {
-		if (!arguments.length) return this.NAME;
-		return (this.NAME = value, this)
+	ident(value) {
+		if (!arguments.length) return this.IDENT;
+		return (this.build('IDENT', [value], Identifier), this);
 	}
 
-	/**
-	 * @inheritdoc
-	 */
-	toJSON() { return { name: this.NAME, ...super.toJSON(), }; }
+	toJSON() {
+		return {
+			...(this.IDENT ? { ident: this.IDENT.toJSON() } : {}),
+			...super.toJSON()
+		};
+	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		// At least one of them:
-		if (!json?.kind && typeof json?.name !== 'string') return;
-		return super.fromJSON(context, json)?.name(json.name);
+		if (!json?.kind && !Identifier.fromJSON(context, json?.ident)) return;
+		const instance = super.fromJSON(context, json);
+		if (json.ident) instance?.ident(json.ident);
+		return instance;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() {
 		const restrictOrCascade = this.getFlag('RESTRICT') || this.getFlag('CASCADE');
-		let kind = this.KIND?.replace(/_/g, ' '), name = this.NAME && this.autoEsc(this.NAME);
+		let kind = this.KIND?.replace(/_/g, ' '), ident = this.IDENT;
 		if (['PRIMARY_KEY', 'FOREIGN_KEY', 'CHECK'].includes(this.KIND)) {
 			if (this.params.dialect === 'mysql') {
-				if (this.KIND === 'PRIMARY_KEY') { name = null; }
+				if (this.KIND === 'PRIMARY_KEY') { ident = null; }
 			} else { kind = 'CONSTRAINT'; }
 		}
-		return `${ this.CLAUSE }${ kind ? ` ${ kind }` : '' }${ this.hasFlag('IF_EXISTS') ? ' IF EXISTS' : '' }${ name ? ` ${ name }` : '' }${ restrictOrCascade ? ` ${ restrictOrCascade }` : '' }`;
+		return `${ this.CLAUSE }${ kind ? ` ${ kind }` : '' }${ this.hasFlag('IF_EXISTS') ? ' IF EXISTS' : '' }${ ident ? ` ${ ident }` : '' }${ restrictOrCascade ? ` ${ restrictOrCascade }` : '' }`;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
-	static parse(context, expr) {
-		const [ match, kind = '', ifExists, name_unescaped, /*esc*/, name_escaped, restrictOrCascade ] = (new RegExp(`^${ this.CLAUSE }(?:\\s+(${ this.KINDS.map(s => s.replace(/_/g, '\\s+')).join('|') }))?(\\s+IF\\s+EXISTS)?(?:\\s+(\\w+)|\\s+([\`"])((?:\\4\\4|[^\\4])+)\\4)?(?:\\s+(RESTRICT|CASCADE))?$`, 'i')).exec(expr.trim()) || [];
+	static parse(context, expr, parseCallback) {
+		const [ match, temporaryTable, kind, ifExists, name, restrictOrCascade ] = (new RegExp(`^${ this.CLAUSE }(\\s+TEMPORARY)?(?:\\s+(${ this.KINDS.map(s => s.replace(/_/g, '\\s+')).join('|') }))?(\\s+IF\\s+EXISTS)?(?:\\s+([\\s\\S]+?)(?:\\s+(RESTRICT|CASCADE|FORCE))?)?$`, 'i')).exec(expr.trim()) || [];
 		if (!match) return;
-		const instance = new this(context, kind.replace(/\s+/g, '_').toUpperCase());
-		if (name_unescaped || name_escaped) instance.name(name_unescaped || this.autoUnesc(instance, name_escaped));
+		const instance = new this(context, kind?.replace(/\s+/g, '_').toUpperCase());
+		if (name) instance.ident(parseCallback(context, name, [Identifier]));
+		if (temporaryTable) instance.withFlag('TEMPORARY');
 		if (ifExists) instance.withFlag('IF_EXISTS');
 		if (restrictOrCascade) instance.withFlag(restrictOrCascade);
 		return instance;

@@ -59,7 +59,7 @@ export default class ODBClient extends AbstractClient {
         return await this.queryCallback(async (target, query, params) => {
             let schemas = await this.schemas();
             const [ dbName, tblName ] = target.toJSON();
-            const existingDB = schemas.find(db => db.isSame(db.name().NAME, dbName, 'ci'));
+            const existingDB = schemas.find(db => db.isSame(db.name(), dbName, 'ci'));
             const existingTBL = tblName && existingDB.table(tblName);
             // -- DDL?
             if ([CreateStatement,AlterStatement,DropStatement].some(x => query instanceof x)) {

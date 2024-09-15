@@ -50,9 +50,6 @@ export default class CaseConstruct extends AbstractNode {
 		return this.build('ELSE_CLAUSE', [elseClause], Expr.Types);
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON() {
 		return {
 			base_value: this.BASE_VALUE?.toJSON(),
@@ -62,9 +59,6 @@ export default class CaseConstruct extends AbstractNode {
 		};
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static fromJSON(context, json) {
 		if (!Array.isArray(json?.when_clauses)) return;
 		const instance = (new this(context)).withFlag(...(json.flags || []));
@@ -74,9 +68,6 @@ export default class CaseConstruct extends AbstractNode {
 		return instance;
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	stringify() {
 		const sql = [];
 		if (this.BASE_VALUE) sql.push(this.BASE_VALUE);
@@ -85,9 +76,6 @@ export default class CaseConstruct extends AbstractNode {
 		return `CASE ${ sql.join(' ') } END${ this.params.dialect === 'mysql' ? ' CASE' : '' }`;
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	static parse(context, expr, parseCallback) {
 		const [caseMatch,caseConstruct] = expr.match(/^CASE\s+([\s\S]*)\s+END(\s+CASE)?$/i) || [];
 		if (!caseMatch) return;
@@ -109,8 +97,5 @@ export default class CaseConstruct extends AbstractNode {
 		return instance;
 	}
 
-	/**
-	 * @inheritdocs
-	 */
 	static factoryMethods = { case: context => new this(context) };
 }

@@ -33,12 +33,9 @@ export default class AbstractNode extends AbstractNode1 {
         return (this[this.smartKey('NAME', true)] = name, this);
 	}
 
-    /**
-	 * @inheritdoc
-	 */
     diffWith(nodeB) {
 		if (typeof nodeB.keep() === 'boolean') this.keep(nodeB.keep());
-        if (nodeB.name() !== this.name()) { this.name(nodeB.name()); }
+        if (!this.isSame(nodeB.name(), this.name(), 'ci')) { this.name(nodeB.name()); }
     }
 
 	/**
@@ -191,9 +188,6 @@ export default class AbstractNode extends AbstractNode1 {
 		return false;
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	toJSON(json = {}) {
 		return {
 			...(this.NAME ? { name: this.NAME } : {}),
@@ -204,9 +198,6 @@ export default class AbstractNode extends AbstractNode1 {
 		};
 	}
 
-    /**
-	 * @inheritdoc
-	 */
     static fromJSON(context, json, callback = null) {
         if ((json?.name && typeof json.name !== 'string') || (json.$name && typeof json.$name !== 'string')) return;
         const instance = callback ? callback() : new this(context);

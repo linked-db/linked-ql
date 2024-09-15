@@ -14,9 +14,6 @@ import ODBCursor from './ODBCursor.js';
 
 export default class ODBStore extends AbstractTable {
 	 
-	/**
-	 * @inheritdoc
-	 */
 	constructor(database, tableName, def, params = {}) {
 		super(...arguments);
 		this.ongoingWrite = null;
@@ -34,17 +31,11 @@ export default class ODBStore extends AbstractTable {
 		);
 	}
 	 
-	/**
-	 * @inheritdoc
-	 */
 	async getAll() {
 		// IMPORTANT: Deep copy... that is... copy each row
 		return (this.def.data || []).reduce((_store, row) => _store.concat(row ? {...row} : undefined), []);
 	}
 	 
-	/**
-	 * @inheritdoc
-	 */
 	async get(rowID) {
 		var primaryKeyColumn = Object.keys(this.def.schema.columns).filter(name => this.def.schema.columns[name].primaryKey)[0];
         var autoIncrementColumn = Object.keys(this.def.schema.columns).filter(name => this.def.schema.columns[name].autoIncrement)[0];
@@ -59,24 +50,15 @@ export default class ODBStore extends AbstractTable {
 		return store[rowID] ? {...store[rowID]} : undefined;
 	}
 		 
-	/**
-	 * @inheritdoc
-	 */
 	async count() {
 		var store = this.def.data;
 		return store.length;
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	shouldMatchInput(rowObj) {
 		return this.def.schema.primaryKey || super.shouldMatchInput(rowObj);
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	async beforeAdd(rowObj, match) {
 		if (match) {
 			throw new DuplicateKeyViolationError('Inserting duplicate values on unique key constraint: ' + match.matchingKey);
@@ -88,9 +70,6 @@ export default class ODBStore extends AbstractTable {
 		await super.beforeAdd(rowObj, match);
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	add(rowObj) {
 		this.ongoingWrite = new Promise(async (resolve, reject) => {
 			try { await this.ongoingWrite; } catch(e) {}
@@ -107,9 +86,6 @@ export default class ODBStore extends AbstractTable {
 		return this.ongoingWrite;
 	}
 		
-	/**
-	 * @inheritdoc
-	 */
 	async beforePut(rowObj, match) {
 		if (match) {
 			_each(match.row, (key, value) => {
@@ -125,9 +101,6 @@ export default class ODBStore extends AbstractTable {
 		await super.beforePut(rowObj, match);
 	}
 	 
-	/**
-	 * @inheritdoc
-	 */
 	put(rowObj) {
 		this.ongoingWrite = new Promise(async resolve => {
 			try { await this.ongoingWrite; } catch(e) {}
@@ -144,9 +117,6 @@ export default class ODBStore extends AbstractTable {
 		return this.ongoingWrite;
 	}
 	 
-	/**
-	 * @inheritdoc
-	 */
 	delete(rowID, assertExisting = true) {
 		this.ongoingWrite = new Promise(async (resolve, reject) => {
 			try { await this.ongoingWrite; } catch(e) {}
@@ -171,9 +141,6 @@ export default class ODBStore extends AbstractTable {
 		return this.ongoingWrite;
 	}
 		 
-	/**
-	 * @inheritdoc
-	 */
 	async clear() {
 		var store = this.def.data;
 		store.splice(0);

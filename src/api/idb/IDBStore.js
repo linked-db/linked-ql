@@ -15,9 +15,6 @@ import IDBProgressiveCursor from './IDBProgressiveCursor.js';
 
 export default class IDBStore extends AbstractTable {
 	
-    /**
-     * @inheritdoc
-     */
     constructor(database, tableName, $api, params = {}) {
         super(database, tableName, params);
         this.$api = $api;
@@ -37,9 +34,6 @@ export default class IDBStore extends AbstractTable {
 	 */
 	getProgressiveCursor() { return new IDBProgressiveCursor(this.$api.getStore()); }
 	 
-	/**
-	 * @inheritdoc
-	 */
 	getAll() {
 		return new Promise(async (resolve, reject) => {
 			const getAllRequest = (this.tx_store || this.$api.getStore('readonly')).getAll();
@@ -48,9 +42,6 @@ export default class IDBStore extends AbstractTable {
 		});
 	}
 	 
-	/**
-	 * @inheritdoc
-	 */
 	get(primaryKey) {
 		return new Promise(async (resolve, reject) => {
 			// Now this is very important
@@ -61,9 +52,6 @@ export default class IDBStore extends AbstractTable {
 		});
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	count(...query) {
 		return new Promise(async (resolve, reject) => {
 			const countRequest = this.$api.getStore().count(...query);
@@ -72,17 +60,11 @@ export default class IDBStore extends AbstractTable {
 		});
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	addAll(multiValues, columns = [], duplicateKeyCallback = null) {
 		this.tx_store = this.$api.getStore();
 		return super.addAll(...arguments);
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	add(rowObj) {
 		return new Promise(async (resolve, reject) => {
 			const addRequest = (this.tx_store || this.$api.getStore()).add(rowObj);
@@ -98,17 +80,11 @@ export default class IDBStore extends AbstractTable {
 		});
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	putAll(rowObj) {
 		this.tx_store = this.$api.getStore();
 		return super.putAll(...arguments);
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	put(rowObj) {
 		return new Promise(async (resolve, reject) => {
 			const putRequest = (this.tx_store || this.$api.getStore()).put(rowObj);
@@ -117,17 +93,11 @@ export default class IDBStore extends AbstractTable {
 		});
 	}
 	
-	/**
-	 * @inheritdoc
-	 */
 	deleteAll(primaryKey) {
 		this.tx_store = this.$api.getStore();
 		return super.deleteAll(...arguments);
 	}
 
-	/**
-	 * @inheritdoc
-	 */
 	delete(primaryKey) {
 		if (_isArray(primaryKey)) {
 			if (primaryKey.length > 1) { throw new Error('IDB does not support Composite Primary Keys'); }

@@ -293,29 +293,14 @@ export default class DataRow2D {
 		return params.vars[this.name];
 	}
 	 
-	/**
-	 * @inheritdoc
-	 */
 	_CONCAT(...args) { return args.join(''); }
 	 
-	/**
-	 * @inheritdoc
-	 */
 	_CONCAT_WS(...args) { return args.join(args.shift()); }
 	 
-	/**
-	 * @inheritdoc
-	 */
 	_COALESCE(...args) { return args.reduce((prev, next) => !(prev === null) ? prev : next, null); }
 		 
-	/**
-	 * @inheritdoc
-	 */
 	_FIND_IN_SET(substr, str) { return str.indexOf(substr); }
 			 
-	/**
-	 * @inheritdoc
-	 */
 	_ISNULL(val) { return val === null; }
 	
 	/**
@@ -324,18 +309,9 @@ export default class DataRow2D {
 	 * ----------------
 	 */
 	
-	/**
-	 * @inheritdoc
-	 */
 	_JSON_EXTRACT(doc, path) { return _get(JSON.parse(doc), path.split('.').slice(1)); }
 	
-	/**
-	 * @inheritdoc
-	 */
 	_JSON_OBJECT(name, value) { return _objFrom(name, value); }
 	
-	/**
-	 * @inheritdoc
-	 */
 	_JSON_MERGE(doc1, doc2) { return _merge(JSON.parse(doc1), JSON.parse(doc2)); }
 }
