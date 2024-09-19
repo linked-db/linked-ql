@@ -50,31 +50,32 @@ export default class SQLClient extends AbstractClient {
      */
     async query(query, params = {}) {
         return await this.queryCallback(async (target, query, params) => {
-            if (query.expandable) await query.expand(true);
             const isDMLStatement = [InsertStatement,UpdateStatement,DeleteStatement].some(x => query instanceof x);
-            let mysqlReturningMagicCallback;
-            if (isDMLStatement && this.params.dialect === 'mysql' && query.RETURNING_LIST.length) {
-                if (!this.params.mysqlReturningClause) throw new Error(`Support for a "RETURNING" clause for mysql has not been enabled via "options.mysqlReturningClause".`);
-                [query, mysqlReturningMagicCallback] = await this.$mysqlReturningMagic(target, query);
-            }
-            const bindings = (query.BINDINGS || []).concat(params.values || []).map(value => Array.isArray(value) || typeof value === 'object' && value ? JSON.stringify(value) : value);
-            // -----------
-            let result = await this.driver.query(query.toString(), bindings);
-            if (mysqlReturningMagicCallback) result = await mysqlReturningMagicCallback();
-            // -----------
-        if (query instanceof SelectStatement || (isDMLStatement && query.RETURNING_LIST.length) || mysqlReturningMagicCallback) return result.rows || result;
-            return 'rowCount' in result ? result.rowCount : result.affectedRows;
+            const mysqlReturningSupport = isDMLStatement && this.params.dialect === 'mysql' && query.RETURNING_LIST.length;
+            if (mysqlReturningSupport && !this.params.mysqlReturningClause) throw new Error(`Support for a "RETURNING" clause for mysql has not been enabled via "options.mysqlReturningClause".`);
+            const willNeedStructure = query.expandable || mysqlReturningSupport;
+            return await this.structure(willNeedStructure && { depth: 2, inSearchPathOrder: true }, async () => {
+                const [ $query, $mysqlReturningMagicCallback ] = mysqlReturningSupport ? await this.$mysqlReturningMagic(target, query) : [ query ];
+                // -----------
+                const bindings = ($query.BINDINGS || []).concat(params.values || []).map(value => Array.isArray(value) || typeof value === 'object' && value ? JSON.stringify(value) : value);
+                let result = await this.driver.query($query.toString(), bindings);
+                if ($mysqlReturningMagicCallback) result = await $mysqlReturningMagicCallback();
+                // -----------
+                if (query instanceof SelectStatement || (isDMLStatement && query/*original*/.RETURNING_LIST.length)) return result.rows || result;
+                return 'rowCount' in result ? result.rowCount : result.affectedRows;
+            });
         }, ...arguments);
     }
 
     /**
      * Returns the application schema structure with specified level if detail.
      * 
-     * @param Object|Array selector
+     * @param Object|Array  selector
+     * @param Array         ...rest
      * 
      * @return Array
 	 */
-    async structure(selector = {}) {
+    async structure(selector = {}, ...rest) {
         const getLevel2Details = async structure => {
             const [ sql0, sql1 ] = this.$composeSchemasSQL(structure);
             const columns = await this.driver.query(sql0);
@@ -85,8 +86,7 @@ export default class SQLClient extends AbstractClient {
             // Structure provided?
             if (Array.isArray(selector)) return await getLevel2Details(selector);
             // Query structure
-            const CONST = this.constructor.CONST;
-            const exclusions = 'excluding' in selector ? selector.excluding : [ 'information_schema' ].concat(!selector.includeLinkedDB ? CONST.LINKED_DB.name : []);
+            const exclusions = 'excluding' in selector ? selector.excluding : [ 'information_schema' ];
             if (!Array.isArray(exclusions)) throw new Error(`If present, selector.excluding must be an array.`);
             // Compose the SQL
             const sql = `SELECT schema_name${ selector.depth ? ', table_name' : '' }
@@ -144,7 +144,7 @@ export default class SQLClient extends AbstractClient {
 	 */
 	async $mysqlReturningMagic(target, query) {
         query = query.clone();
-        const selectList = query.RETURNING_LIST.splice(0);
+        const selectList = query.returning().splice(0);
         // -----------
         // Delete statements are handled ahead of the query
         if (query instanceof DeleteStatement) {
@@ -155,28 +155,28 @@ export default class SQLClient extends AbstractClient {
         // -----------
 		const colName = 'obj_column_for_returning_clause_support';
         const columnIdent = Identifier.fromJSON(this, colName);
-        const schema = (await query.$structure()).database(target.prefix()).table(target.name());
-		if (!schema.column(colName)) await this.driver.query(`ALTER TABLE ${ target } ADD COLUMN ${ columnIdent } char(36) INVISIBLE`);
+        const tblSchema = await this.database(target.prefix()).table(target.name()).structure();
+		if (!tblSchema.column(colName)) await this.driver.query(`ALTER TABLE ${ target } ADD COLUMN ${ columnIdent } char(36) INVISIBLE`);
         const insertUuid = ( 0 | Math.random() * 9e6 ).toString( 36 );
         // -----------
-        if (!query.SET_CLAUSE && query instanceof InsertStatement) {
+        if (query.set())/*Both Insert & Update*/ {
+            query.set(colName, q => q.value(insertUuid));
+		} else if (query instanceof InsertStatement) {
 			// Columns must be explicitly named
-			if (!query.COLUMNS_CLAUSE && (query.SELECT_CLAUSE || query.VALUES_LIST.length)) {
+			if (!query.columns() && (query.select() || query.values().length)) {
 				//query.columns(...columns);
                 throw new Error(`Support for the RETURNING clause currently requires explicit column list in INSERT statements.`);
 			}
 			query.columns(colName);
 			// Add to values list, or select list if that's what's being used
-			if (query.SELECT_CLAUSE) {
-				query.SELECT_CLAUSE.select(q => q.value(insertUuid));
-			} else if (query.VALUES_LIST.length) {
-				for (const values of query.VALUES_LIST) values.list(q => q.value(insertUuid));
+			if (query.select()) {
+				query.select().select(q => q.value(insertUuid));
+			} else if (query.values().length) {
+				for (const values of query.values()) values.entries(q => q.value(insertUuid));
 			} else query.values(insertUuid);
-		} else {
-            query.set(colName, q => q.value(insertUuid));
         }
-        if (query instanceof InsertStatement && query.ON_CONFLICT_CLAUSE) {
-            query.ON_CONFLICT_CLAUSE.set(colName, q => q.value(insertUuid));
+        if (query instanceof InsertStatement && query.onConflict()) {
+            query.onConflict().set(colName, q => q.value(insertUuid));
         }
         return [query, async () => {
             // -----------

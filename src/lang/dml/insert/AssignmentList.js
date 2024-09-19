@@ -1,10 +1,10 @@
 import Lexer from '../../Lexer.js';
 import { _wrapped } from '@webqit/util/str/index.js';
 import AbstractNode from '../../AbstractNode.js';
-import Expr from '../../components/Expr.js';
 import Identifier from '../../components/Identifier.js';
 import ColumnsList from './ColumnsList.js';
 import ValuesList from './ValuesList.js';
+import Expr from '../../components/Expr.js';
 
 export default class AssignmentList extends AbstractNode {
 
@@ -12,14 +12,9 @@ export default class AssignmentList extends AbstractNode {
 	 * Instance properties
 	 */
     ENTRIES = [];
-    
-    /**
-	 * Builds the statement's ENTRIES
-	 * 
-	 * .set(i => i.name('col1'), 3);
-	 * 
-	 * @return this
-	 */
+
+    get length() { return this.ENTRIES.length; }
+	
     set(target_s, value_s) {
 		if (Array.isArray(target_s)) {
 			target_s = ColumnsList.fromJSON(this, target_s);
@@ -33,6 +28,32 @@ export default class AssignmentList extends AbstractNode {
 		return this;
 	}
 
+	entries(...entries) {
+		if (!arguments.length) return this.ENTRIES;
+		for (const [target_s, value_s] of entries) this.set(target_s, value_s);
+		return this;
+	}
+
+	getEntry(ref) {
+		if (typeof ref === 'number') return this.ENTRIES[ref];
+		return this.ENTRIES.find(([target_s]) => target_s instanceof Identifier && target_s.name().toLowerCase() === ref.toLowerCase());
+	}
+
+	removeEntry(ref) {
+		const entry = this.getEntry(ref);
+		if (entry) this.ENTRIES = this.ENTRIES.filter($entry => $entry !== entry);
+		if (entry) entry.forEach(e => e.$trace?.('event:DISCONNECTED', e));
+		return entry;
+	}
+
+	filterInplace(callback) {
+		return this.ENTRIES = this.ENTRIES.filter((entry, i) => {
+			const shouldRetain = callback(entry[0], entry[1], i);
+			if (!shouldRetain) entry.forEach(e => e.$trace?.('event:DISCONNECTED', e));
+			return shouldRetain;
+		});
+	}
+
 	toJSON() { return { entries: this.ENTRIES.map(([target_s, value_s]) => [target_s.toJSON(), value_s.toJSON()]), }; }
 
 	static fromJSON(context, json) {
@@ -44,9 +65,7 @@ export default class AssignmentList extends AbstractNode {
 		return instance;
 	}
 	
-	stringify() {
-		return `\n\t${ this.ENTRIES.map(([target_s, value_s]) => `${ target_s } = ${ value_s }`).join(',\n\t') }`;
-	}
+	stringify() { return `\n\t${ this.ENTRIES.map(([target_s, value_s]) => `${ target_s } = ${ value_s }`).join(',\n\t') }`; }
 	
 	static parse(context, expr, parseCallback) {
 		const instance = new this(context);

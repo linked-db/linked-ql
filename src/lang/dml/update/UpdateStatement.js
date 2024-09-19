@@ -1,5 +1,6 @@
 
 import Lexer from '../../Lexer.js';
+import DimensionsAPI from '../insert/DimensionsAPI.js';
 import AbstractStatement from '../AbstractStatement.js';
 import AssignmentList from '../insert/AssignmentList.js';
 import OrderByClause from '../select/orderby/OrderByClause.js';
@@ -9,7 +10,7 @@ import Assertion from '../../components/Assertion.js';
 import Table from '../../components/Table.js';
 import Field from '../../components/Field.js';
 
-export default class UpdateStatement extends AbstractStatement {
+export default class UpdateStatement extends DimensionsAPI(AbstractStatement) {
 	 
 	/**
 	 * Instance properties
@@ -21,11 +22,6 @@ export default class UpdateStatement extends AbstractStatement {
 	ORDER_BY_CLAUSE = null;
 	LIMIT_CLAUSE = null;
 	RETURNING_LIST = [];
-
-    $trace(request, ...args) {
-		if (request === 'get:TABLE_NODE') return this.TABLE_LIST[0];
-		return super.$trace(request, ...args);
-	}
 
 	/**
 	 * Builds the statement's TABLE_LIST
@@ -101,7 +97,10 @@ export default class UpdateStatement extends AbstractStatement {
 	 * 
 	 * @return Void
 	 */
-	set(...assignments) { return this.build('SET_CLAUSE', assignments, AssignmentList, 'set'); }
+	set(...assignments) {
+		if (!arguments.length) return this.SET_CLAUSE;
+		return this.build('SET_CLAUSE', assignments, AssignmentList, 'set');
+	}
 
 	/**
 	 * Builds the statement's WHERE_CLAUSE
@@ -115,7 +114,10 @@ export default class UpdateStatement extends AbstractStatement {
 	 * 
 	 * @return Object
 	 */
-	where(...wheres) { return this.build('WHERE_CLAUSE', wheres, Condition, 'and'); }
+	where(...wheres) {
+		if (!arguments.length) return this.WHERE_CLAUSE;
+		return this.build('WHERE_CLAUSE', wheres, Condition, 'and');
+	}
 
 	/**
 	 * Builds the statement's ORDER_BY_CLAUSE (MySQL-specific)
@@ -129,7 +131,10 @@ export default class UpdateStatement extends AbstractStatement {
 	 * 
 	 * @return this
 	 */
-	orderBy(...orderBys) { return (this.build('ORDER_BY_CLAUSE', orderBys, OrderByClause, 'criterion'), this.ORDER_BY_CLAUSE/* for: .withRollup() */); }
+	orderBy(...orderBys) {
+		if (!arguments.length) return this.ORDER_BY_CLAUSE;
+		return (this.build('ORDER_BY_CLAUSE', orderBys, OrderByClause, 'criterion'), this.ORDER_BY_CLAUSE/* for: .withRollup() */);
+	}
 
 	/**
 	 * Sets the statement's LIMIT_CLAUSE (MySQL-specific)
@@ -139,6 +144,7 @@ export default class UpdateStatement extends AbstractStatement {
 	 * @return string
 	 */
 	limit(...limit) {
+		if (!arguments.length) return this.LIMIT_CLAUSE;
 		if (!limit.every(l => typeof l === 'number')) throw new Error(`Limits must be of type number.`);
 		this.LIMIT_CLAUSE = limit;
 	}
@@ -146,7 +152,10 @@ export default class UpdateStatement extends AbstractStatement {
 	/** 
 	* @return Void
 	*/
-	returning(...fields) { return this.build('RETURNING_LIST', fields, Field); }
+	returning(...fields) {
+		if (!arguments.length) return this.RETURNING_LIST;
+		return this.build('RETURNING_LIST', fields, Field);
+	}
 
 	toJSON() {
 		return {
@@ -230,5 +239,10 @@ export default class UpdateStatement extends AbstractStatement {
 			}
 		}
 		return instance;
+	}
+
+    $trace(request, ...args) {
+		if (request === 'get:TABLE_NODE') return this.TABLE_LIST[0];
+		return super.$trace(request, ...args);
 	}
 }

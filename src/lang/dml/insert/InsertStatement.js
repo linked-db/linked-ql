@@ -1,6 +1,7 @@
 
 import { _unwrap } from '@webqit/util/str/index.js';
 import Lexer from '../../Lexer.js';
+import DimensionsAPI from './DimensionsAPI.js';
 import AbstractStatement from '../AbstractStatement.js';
 import AssignmentList from './AssignmentList.js';
 import OnConflictClause from './OnConflictClause.js';
@@ -10,7 +11,7 @@ import Field from '../../components/Field.js';
 import ValuesList from './ValuesList.js';
 import ColumnsList from './ColumnsList.js';
 
-export default class InsertStatement extends AbstractStatement {
+export default class InsertStatement extends DimensionsAPI(AbstractStatement) {
 	 
 	/**
 	 * Instance properties
@@ -22,11 +23,6 @@ export default class InsertStatement extends AbstractStatement {
 	SELECT_CLAUSE = null;
 	ON_CONFLICT_CLAUSE = null;
 	RETURNING_LIST = [];
-
-    $trace(request, ...args) {
-		if (request === 'get:TABLE_NODE') return this.TABLE;
-		return super.$trace(request, ...args);
-	}
 
 	/**
 	 * Builds the statement's TABLE
@@ -46,7 +42,10 @@ export default class InsertStatement extends AbstractStatement {
 	 * 
 	 * @return Void
 	 */
-	columns(...columns) { return this.build('COLUMNS_CLAUSE', columns, ColumnsList, 'list'); }
+	columns(...columns) {
+		if (!arguments.length) return this.COLUMNS_CLAUSE;
+		return this.build('COLUMNS_CLAUSE', columns, ColumnsList, 'entries');
+	}
 
 	/**
 	 * Builds the statement's VALUES_LIST
@@ -55,7 +54,10 @@ export default class InsertStatement extends AbstractStatement {
 	 * 
 	 * @return Void
 	 */
-	values(...values) { return this.build('VALUES_LIST', values, ValuesList, 'list'); }
+	values(...values) {
+		if (!arguments.length) return this.VALUES_LIST;
+		return this.build('VALUES_LIST', values, ValuesList, 'entries');
+	}
 
 	/**
 	 * Builds the statement's SET_CLAUSE
@@ -67,7 +69,10 @@ export default class InsertStatement extends AbstractStatement {
 	 * 
 	 * @return Void
 	 */
-	set(...assignments) { return this.build('SET_CLAUSE', assignments, AssignmentList, 'set'); }
+	set(...assignments) {
+		if (!arguments.length) return this.SET_CLAUSE;
+		return this.build('SET_CLAUSE', assignments, AssignmentList, 'set');
+	}
 
 	/**
 	 * Builds the statement's SELECT_CLAUSE
@@ -76,7 +81,10 @@ export default class InsertStatement extends AbstractStatement {
 	 * 
 	 * @return Void
 	 */
-	select(query) { return this.build('SELECT_CLAUSE', [query], Select); }
+	select(query) {
+		if (!arguments.length) return this.SELECT_CLAUSE;
+		return this.build('SELECT_CLAUSE', [query], Select);
+	}
 
 	/**
 	 * Builds the statement's ON_CONFLICT_CLAUSE
@@ -91,12 +99,18 @@ export default class InsertStatement extends AbstractStatement {
 	 * 
 	 * @return Void
 	 */
-	onConflict(...onConflictSpecs) { return this.build('ON_CONFLICT_CLAUSE', onConflictSpecs, OnConflictClause); }
+	onConflict(...onConflictSpecs) {
+		if (!arguments.length) return this.ON_CONFLICT_CLAUSE;
+		return this.build('ON_CONFLICT_CLAUSE', onConflictSpecs, OnConflictClause, 'entries');
+	}
 	
 	/** 
 	* @return Void
 	*/
-   returning(...fields) { return this.build('RETURNING_LIST', fields, Field); }
+   	returning(...fields) {
+		if (!arguments.length) return this.RETURNING_LIST;
+		return this.build('RETURNING_LIST', fields, Field);
+	}
 
 	toJSON() {
 		return {
@@ -116,7 +130,7 @@ export default class InsertStatement extends AbstractStatement {
 		const instance = (new this(context)).withFlag(...(json.flags || []));
 		instance.into(json.table);
 		if (json.columns_clause) instance.columns(json.columns_clause);
-		if (json.values_list?.length) instance.values(...json.values_list);
+		for (const entry of (json.values_list || [])) instance.values(...entry.entries);
 		if (json.set_clause) instance.set(json.set_clause);
 		if (json.select_clause) instance.select(json.select_clause);
 		if (json.on_conflict_clause) instance.onConflict(json.on_conflict_clause);
@@ -132,7 +146,7 @@ export default class InsertStatement extends AbstractStatement {
 		else {
 			if (this.COLUMNS_CLAUSE) sql.push(this.COLUMNS_CLAUSE);
 			if (this.SELECT_CLAUSE) sql.push(this.SELECT_CLAUSE);
-			else sql.push('VALUES', this.VALUES_LIST);
+			else sql.push('VALUES', this.VALUES_LIST.join(', '));
 		}
 		if (this.ON_CONFLICT_CLAUSE) sql.push(this.ON_CONFLICT_CLAUSE);
 		if (this.RETURNING_LIST.length) sql.push('RETURNING', this.RETURNING_LIST.join(', '));
@@ -142,33 +156,48 @@ export default class InsertStatement extends AbstractStatement {
 	static parse(context, expr, parseCallback) {
 		const [ match, withUac, mysqlIgnore, body ] = /^INSERT(\s+WITH\s+UAC)?(?:\s+(IGNORE))?(?:\s+INTO)?([\s\S]+)$/i.exec(expr.trim()) || [];
 		if (!match ) return;
-		const $body = this.mySubstitutePlaceholders(context, body.trim());
-		const { tokens: [ tableSpec, payloadSpec, onConflictSpec, returnList ], matches: [insertType, onConflictClause] } = Lexer.lex($body, ['(VALUES|VALUE|SET|SELECT)', 'ON\\s+(DUPLICATE\\s+KEY|CONFLICT)', 'RETURNING'], { useRegex:'i' });
 		const instance = new this(context);
 		if (withUac) instance.withFlag('WITH_UAC');
 		if (mysqlIgnore) instance.withFlag(mysqlIgnore);
-		if (/^SET$/i.test(insertType)) {
-			// INSERT ... SET
-			instance.into(parseCallback(instance, tableSpec, [Table]));
-			instance.set(parseCallback(instance, payloadSpec.trim(), [AssignmentList]));
-		} else {
-			const tableColumnSplit = Lexer.split(tableSpec, []);
-			instance.into(parseCallback(instance, tableColumnSplit.shift().trim(), [Table]));
-			if (tableColumnSplit.length) {
-				instance.columns(parseCallback(instance, tableColumnSplit.shift().trim(), [ColumnsList]));
-			}
-			if (/^SELECT$/i.test(insertType)) {
-				// INSERT ... SELECT
-				instance.select(parseCallback(instance, `SELECT ${ payloadSpec }`));
-			} else {
-				// INSERT ... VALUES|VALUE
-				for (const rowPayload of Lexer.split(payloadSpec, [','])) {
-					instance.values(parseCallback(instance, rowPayload.trim(), [ValuesList]));
+		const $body = this.mySubstitutePlaceholders(context, body.trim());
+		const clausesMap = { payload:'(VALUES|VALUE|SET|SELECT)', onConflict:'ON\\s+(DUPLICATE\\s+KEY|CONFLICT)', returning:'RETURNING' };
+		const { tokens: [ tableSpec, ...tokens ], matches: clauses } = Lexer.lex($body, Object.values(clausesMap).map(x => x), { useRegex: 'i' });
+		// CLAUSES
+		for (const clause of clauses) {
+			const $clause = clause.replace(/\s+/g, '');
+			const clauseKey = Object.keys(clausesMap).find(key => (new RegExp(clausesMap[key], 'i')).test($clause));
+			if (clauseKey === 'payload') {
+				if (/^SET$/i.test($clause)) {
+					// INSERT ... SET
+					instance.into(parseCallback(instance, tableSpec, [Table]));
+					instance.set(parseCallback(instance, tokens.shift().trim(), [AssignmentList]));
+				} else {
+					const tableColumnSplit = Lexer.split(tableSpec, []);
+					instance.into(parseCallback(instance, tableColumnSplit.shift().trim(), [Table]));
+					if (tableColumnSplit.length) {
+						instance.columns(parseCallback(instance, tableColumnSplit.shift().trim(), [ColumnsList]));
+					}
+					if (/^SELECT$/i.test($clause)) {
+						// INSERT ... SELECT
+						instance.select(parseCallback(instance, `SELECT ${ tokens.shift() }`));
+					} else {
+						// INSERT ... VALUES|VALUE
+						for (const rowPayload of Lexer.split(tokens.shift(), [','])) {
+							instance.values(parseCallback(instance, rowPayload.trim(), [ValuesList]));
+						}
+					}
 				}
+			} else if (clauseKey === 'onConflict') {
+				instance.onConflict(parseCallback(instance, `${ $clause } ${ tokens.shift().trim() }`, [OnConflictClause]));
+			} else if (clauseKey === 'returning') {
+				instance.returning(...Lexer.split(tokens.shift(), [',']).map(field => parseCallback(instance, field.trim(), [Field])));
 			}
 		}
-		if (onConflictClause) { instance.onConflict(parseCallback(instance, `${ onConflictClause } ${ onConflictSpec }`, [OnConflictClause])); }
-		if (returnList) instance.returning(...Lexer.split(returnList, [',']).map(field => parseCallback(instance, field.trim(), [Field])));
 		return instance;
+	}
+
+    $trace(request, ...args) {
+		if (request === 'get:TABLE_NODE') return this.TABLE;
+		return super.$trace(request, ...args);
 	}
 }

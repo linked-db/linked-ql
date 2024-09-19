@@ -29,9 +29,16 @@ export default class AbstractNode {
 		if (request === 'get:ROOT_NODE' && !(this.CONTEXT instanceof AbstractNode)) return this;
 		return this.CONTEXT?.$trace?.(request, ...args);
 	}
+    
+	/**
+	 * Recursively accesses global client.
+	 * 
+	 * @returns AbstractClient
+	 */
+	get client() { return this.CONTEXT?.client || this.CONTEXT; }
 	
 	/**
-	 * Recursively accesses @params.
+	 * Recursively accesses global params.
 	 * 
 	 * @returns String
 	 */

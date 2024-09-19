@@ -154,7 +154,7 @@ export default class Path extends AbstractNode {
 			// Implement the join for the first time
 			const baseAlias = this.$trace('get:TABLE_NODE').ALIAS?.name() || baseTable.name();
 			const joinKeyAlias = `${ joinKey }:${ ( 0 | Math.random() * 9e6 ).toString( 36 ) }`;
-			stmtNode.leftJoin( j => j.query( q => q.select( field => field.name( joinKey ).as( joinKeyAlias ) ), q => q.from([rhs.table.prefix(),rhs.table.name()].filter(s => s)) ) )
+			stmtNode.leftJoin( j => j.query( q => q.select( field => field.expr( joinKey ).as( joinKeyAlias ) ), q => q.from([rhs.table.prefix(),rhs.table.name()].filter(s => s)) ) )
 				.with({ IS_SMART_JOIN: true }).as(joinAlias)
 				.on( on => on.equals([joinAlias,joinKeyAlias], [baseAlias,baseKey]) );
 			joint();

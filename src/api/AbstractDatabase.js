@@ -1,4 +1,3 @@
-
 import CreateStatement from '../lang/ddl/create/CreateStatement.js';
 import DropStatement from '../lang/ddl/drop/DropStatement.js';
 import Identifier from '../lang/components/Identifier.js';
@@ -53,10 +52,7 @@ export default class AbstractDatabase {
 	 * 
 	 * @returns DatabaseSchema
      */
-    async structure(tblSelector = ['*']) {
-        await this.$init();
-        return (await this.client.structure([{ name: this.name, tables: tblSelector }])).database(this.name);
-    }
+    async structure(tblSelector = ['*']) { return (await this.client.structure([{ name: this.name, tables: tblSelector }])).database(this.name); }
 
     /**
      * Returns a table instance.
@@ -66,21 +62,7 @@ export default class AbstractDatabase {
      * 
      * @return Table
      */
-    table(name, params = {}) {
-        return new this.constructor.Table(this, ...arguments);
-    }
-
-    /**
-     * Tells whether a table exists.
-     * 
-     * @param String            name
-     * 
-     * @return Bool
-     */
-    async hasTable(name) {
-        await this.$init();
-        return (await this.tables()).includes(name);
-    }
+    table(name, params = {}) { return new this.constructor.Table(this, ...arguments); }
 
     /**
      * Composes a CREATE TABLE query from descrete inputs
@@ -91,7 +73,6 @@ export default class AbstractDatabase {
      * @return Savepoint
      */
     async createTable(createSpec, params = {}) {
-        await this.$init();
         if (typeof createSpec?.name !== 'string') throw new Error(`createTable() called with invalid arguments.`);
         // -- Compose an query from request
         const query = CreateStatement.fromJSON(this, { kind: 'TABLE', argument: createSpec });
@@ -109,16 +90,17 @@ export default class AbstractDatabase {
      * @return Savepoint
      */
     async alterTable(tblName, callback, params = {}) {
-        await this.$init();
         if (typeof callback !== 'function' || typeof tblName !== 'string') throw new Error(`alterTable() called with invalid arguments.`);
-        // -- Compose an query from request
-        const schemaApi = (await this.table(tblName).schema())?.keep(true, true);
-        if (!schemaApi) throw new Error(`Table "${ tblName }" does not exist.`);
-        await callback(schemaApi);
-        const query = schemaApi.getAlt().with({ resultSchema: schemaApi });
-        if (!query.length) return;
-        if (params.ifExists) query.withFlag('IF_EXISTS');
-        return this.client.query(query, params);
+        return await this.client.structure({ depth: 2, inSearchPathOrder: true }, async () => {
+            // -- Compose an query from request
+            const tblSchema = (await this.table(tblName).structure())?.keep(true, true);
+            if (!tblSchema) throw new Error(`Table "${ tblName }" does not exist.`);
+            await callback(tblSchema);
+            const query = tblSchema.getAlt().with({ resultSchema: tblSchema });
+            if (!query.length) return;
+            if (params.ifExists) query.withFlag('IF_EXISTS');
+            return this.client.query(query, params);
+        });
     }
 
     /**
@@ -130,7 +112,6 @@ export default class AbstractDatabase {
      * @return Savepoint
      */
     async dropTable(tblName, params = {}) {
-        await this.$init();
         if (typeof tblName !== 'string') throw new Error(`dropTable() called with invalid arguments.`);
         // -- Compose an dropInstamce from request
         const query = DropStatement.fromJSON(this, { kind: 'TABLE', ident: tblName });

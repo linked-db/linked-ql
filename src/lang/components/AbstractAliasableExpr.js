@@ -16,30 +16,6 @@ export default class AbstractAliasableExpr extends AbstractNode {
 	CLAUSED;
 
 	/**
-	 * Sets or gets the name
-	 * 
-	 * @param String name
-	 * 
-	 * @returns this
-	 */
-	name(name) {
-		if (!arguments.length) return this.EXPR?.name?.();
-		return (this.build('EXPR', [name], Identifier, 'name'), this);
-	}
-
-	/**
-	 * Sets or gets the prefix
-	 * 
-	 * @param String name
-	 * 
-	 * @returns this
-	 */
-	prefix(prefix) {
-		if (!arguments.length) return this.EXPR?.prefix?.();
-		return (this.build('EXPR', [prefix], Identifier, 'prefix'), this);
-	}
-
-	/**
 	 * Sets the expr
 	 * 
 	 * @param Any expr

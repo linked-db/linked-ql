@@ -19,7 +19,10 @@ export default class OnConflictClause extends AssignmentList {
 	 * 
 	 * @return this
 	 */
-	target(...args) { return (this.build('CONFLICT_TARGET', args, Identifier), this); }
+	target(...args) {
+		if (!arguments.length) return this.CONFLICT_TARGET;
+		return (this.build('CONFLICT_TARGET', args, Identifier), this);
+	}
 
 	/**
 	 * Builds the statement's WHERE_CLAUSE
@@ -33,7 +36,10 @@ export default class OnConflictClause extends AssignmentList {
 	 * 
 	 * @return this
 	 */
-	where(...wheres) { return (this.build('WHERE_CLAUSE', wheres, Condition, 'and'), this); }
+	where(...wheres) {
+		if (!arguments.length) return this.WHERE_CLAUSE;
+		return (this.build('WHERE_CLAUSE', wheres, Condition, 'and'), this);
+	}
 
 	toJSON() { return { ...super.toJSON(), conflict_target: this.CONFLICT_TARGET.map(c => c.toJSON()), where_clause: this.WHERE_CLAUSE?.toJSON(), }; }
 

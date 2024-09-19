@@ -38,20 +38,6 @@ export default class SelectStatement extends AbstractStatement {
 	VARS = [];
 	SUBQUERIES = [];
 
-    $trace(request, ...args) {
-		if (request === 'get:TABLE_NODE') return this.FROM_LIST[0];
-		if (['event:CONNECTED', 'event:DISCONNECTED'].includes(request)) {
-			let list;
-			if (args[0] instanceof Aggr) list = this.AGGRS;
-			if (args[0] instanceof Path && !(args[0].CONTEXT instanceof Path)) list = this.PATHS;
-			if (args[0] instanceof Placeholder) list = this.VARS;
-			if (args[0] instanceof SelectStatement) list = this.SUBQUERIES;
-			if (request === 'event:DISCONNECTED' && list) list.splice(list.indexOf(args[0]), 1);
-			else if (request === 'event:CONNECTED' && list) list.push(args[0]);
-		}
-		return super.$trace(request, ...args);
-	}
-
 	/**
 	 * Builds the statement's SELECT_LIST
 	 * 
@@ -72,7 +58,10 @@ export default class SelectStatement extends AbstractStatement {
 	 * 
 	 * @return Void
 	 */
-	select(...fields) { return this.build('SELECT_LIST', fields, Field); }
+	select(...fields) {
+		if (!arguments.length) return this.SELECT_LIST;
+		return this.build('SELECT_LIST', fields, Field);
+	}
 
 	/**
 	 * Builds the statement's FROM_LIST
@@ -150,7 +139,10 @@ export default class SelectStatement extends AbstractStatement {
 	 * 
 	 * @return Void
 	 */
-	where(...wheres) { return this.build('WHERE_CLAUSE', wheres, Condition, 'and'); }
+	where(...wheres) {
+		if (!arguments.length) return this.WHERE_CLAUSE;
+		return this.build('WHERE_CLAUSE', wheres, Condition, 'and');
+	}
 
 	/**
 	 * Builds the statement's GROUP_BY_CLAUSE
@@ -164,7 +156,10 @@ export default class SelectStatement extends AbstractStatement {
 	 * 
 	 * @return Void
 	 */
-	groupBy(...groupBys) { return (this.build('GROUP_BY_CLAUSE', groupBys, GroupByClause, 'criterion'), this.GROUP_BY_CLAUSE/* for: .withRollup() */); }
+	groupBy(...groupBys) {
+		if (!arguments.length) return this.GROUP_BY_CLAUSE;
+		return (this.build('GROUP_BY_CLAUSE', groupBys, GroupByClause, 'criterion'), this.GROUP_BY_CLAUSE/* for: .withRollup() */);
+	}
 
 	/**
 	 * Builds the statement's HAVING_CLAUSE
@@ -178,7 +173,10 @@ export default class SelectStatement extends AbstractStatement {
 	 * 
 	 * @return Void
 	 */
-	having(...wheres) { return this.build('HAVING_CLAUSE', wheres, Condition, 'and'); }
+	having(...wheres) {
+		if (!arguments.length) return this.HAVING_CLAUSE;
+		return this.build('HAVING_CLAUSE', wheres, Condition, 'and');
+	}
 
 	/**
 	 * Builds the statement's WINDOW_CLAUSE
@@ -194,7 +192,10 @@ export default class SelectStatement extends AbstractStatement {
 	 * 
 	 * @return Void
 	 */
-	window(...windows) { return this.build('WINDOW_CLAUSE', windows, WindowClause, 'define'); }
+	window(...windows) {
+		if (!arguments.length) return this.WINDOW_CLAUSE;
+		return this.build('WINDOW_CLAUSE', windows, WindowClause, 'define');
+	}
 
 	/**
 	 * Builds the statement's ORDER_BY_CLAUSE
@@ -208,7 +209,10 @@ export default class SelectStatement extends AbstractStatement {
 	 * 
 	 * @return this
 	 */
-	orderBy(...orderBys) { return (this.build('ORDER_BY_CLAUSE', orderBys, OrderByClause, 'criterion'), this.ORDER_BY_CLAUSE/* for: .withRollup() */); }
+	orderBy(...orderBys) {
+		if (!arguments.length) return this.ORDER_BY_CLAUSE;
+		return (this.build('ORDER_BY_CLAUSE', orderBys, OrderByClause, 'criterion'), this.ORDER_BY_CLAUSE/* for: .withRollup() */);
+	}
 
 	/**
 	 * Sets the statement's OFFSET_CLAUSE
@@ -218,6 +222,7 @@ export default class SelectStatement extends AbstractStatement {
 	 * @return string
 	 */
 	offset(offset) {
+		if (!arguments.length) return this.OFFSET_CLAUSE;
 		if (typeof offset !== 'number') throw new Error(`Offsets must be of type number.`);
 		this.OFFSET_CLAUSE = offset;
 	}
@@ -230,6 +235,7 @@ export default class SelectStatement extends AbstractStatement {
 	 * @return string
 	 */
 	limit(...limit) {
+		if (!arguments.length) return this.LIMIT_CLAUSE;
 		if (!limit.every(l => typeof l === 'number')) throw new Error(`Limits must be of type number.`);
 		this.LIMIT_CLAUSE = limit;
 	}
@@ -241,7 +247,10 @@ export default class SelectStatement extends AbstractStatement {
 	 * 
 	 * @return string
 	 */
-	union(...union) { return (this.build('UNION_CLAUSE', union, this.constructor, 'select'), this.UNION_CLAUSE/* for: chaining purposes */); }
+	union(...union) {
+		if (!arguments.length) return this.UNION_CLAUSE;
+		return (this.build('UNION_CLAUSE', union, this.constructor, 'select'), this.UNION_CLAUSE/* for: chaining purposes */);
+	}
 
 	get expandable() { return this.PATHS.length > 0 || this.SUBQUERIES.some(q => q.expandable); }
 
@@ -351,5 +360,19 @@ export default class SelectStatement extends AbstractStatement {
 			}
 		}
 		return instance;
+	}
+
+    $trace(request, ...args) {
+		if (request === 'get:TABLE_NODE') return this.FROM_LIST[0];
+		if (['event:CONNECTED', 'event:DISCONNECTED'].includes(request)) {
+			let list;
+			if (args[0] instanceof Aggr) list = this.AGGRS;
+			if (args[0] instanceof Path && !(args[0].CONTEXT instanceof Path)) list = this.PATHS;
+			if (args[0] instanceof Placeholder) list = this.VARS;
+			if (args[0] instanceof SelectStatement) list = this.SUBQUERIES;
+			if (request === 'event:DISCONNECTED' && list) list.splice(list.indexOf(args[0]), 1);
+			else if (request === 'event:CONNECTED' && list) list.push(args[0]);
+		}
+		return super.$trace(request, ...args);
 	}
 }

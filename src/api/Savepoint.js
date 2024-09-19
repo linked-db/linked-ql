@@ -61,7 +61,7 @@ export default class Savepoint {
     /**
      * @returns String
      */
-    get savepointDescription() { return this.$.json.savepoint_description; }
+    get savepointDescription() { return this.$.json.savepoint_desc; }
 
     /**
      * @returns String
@@ -76,7 +76,7 @@ export default class Savepoint {
     /**
      * @returns String
      */
-    get rollbackDescription() { return this.$.json.rollback_description; }
+    get rollbackDescription() { return this.$.json.rollback_desc; }
 
     /**
      * @returns String
@@ -131,7 +131,7 @@ export default class Savepoint {
      * @returns Object
      */
     toJSON() {
-        const { id, database_tag: databaseTag, version_tag: versionTag, version_max: versionMax, $cursor, savepoint_date: savepointDate, savepoint_description: savepointDescription, savepoint_ref: savepointRef, rollback_date: rollbackDate, rollback_description: rollbackDescription, rollback_ref: rollbackRef } = this.$.json;
+        const { id, database_tag: databaseTag, version_tag: versionTag, version_max: versionMax, $cursor, savepoint_date: savepointDate, savepoint_desc: savepointDescription, savepoint_ref: savepointRef, rollback_date: rollbackDate, rollback_desc: rollbackDescription, rollback_ref: rollbackRef } = this.$.json;
         return { id, name: this.name(), databaseTag, versionTag, versionMax, cursor: $cursor, savepointDate, savepointDescription, savepointRef, rollbackDate, rollbackDescription, rollbackRef, rollbackEffect: this.rollbackEffect };
     }
 
@@ -152,12 +152,12 @@ export default class Savepoint {
         if (!(await this.isNextPointInTime())) throw new Error(`Invalid rollback order.`);
         await this.client.query(this.rollbackQuery, { noCreateSavepoint: true });
         const linkedDB = await this.client.linkedDB();
-        const savepointsTable = linkedDB.savepointsTable();
         // Update record
-        const updatedRecord = await savepointsTable.update({
+        const updatedRecord = await linkedDB.table('savepoints').update({
             rollback_date: q => this.direction === 'forward' ? q.null() : q.fn('now'),
-            rollback_description: details.description,
-            rollback_ref: details.reference,
+            rollback_desc: details.desc,
+            rollback_ref: details.ref || this.client.params.commitRef,
+            rollback_pid: q => q.literal(this.client.params.dialect === 'mysql' ? 'connection_id()' : 'pg_backend_pid()'),
         }, { where: { id: q => q.value(this.$.json.id) }, returning: ['rollback_date'] });
         this.$.json.rollback_date = updatedRecord[0].rollback_date;
         return true;

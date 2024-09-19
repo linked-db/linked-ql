@@ -14,11 +14,6 @@ export default class Func extends AbstractNode {
 		this.NAME = name;
 		return this.build('ARGS', args, Expr.Types);
 	}
-	
-	fn(name, ...args) {
-		this.NAME = name;
-		return this.build('ARGS', args, Expr.Types);
-	}
 
 	toJSON() {
 		return {

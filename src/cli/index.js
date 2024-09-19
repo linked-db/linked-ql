@@ -16,7 +16,6 @@ if (flags['with-env']) await import('dotenv/config');
 
 // flags: --desc --direction --db, --dir, --force, --diffing, --force-new
 if (flags.auto) flags.yes = true;
-if (flags.desc) flags.description = flags.desc;
 
 const yesFlagNotice = flags.yes ? ` (--yes!)` : '';
 if (flags.direction && !['forward','backward'].includes(flags.direction)) throw new Error(`Invalid --direction. Expected: forward|backward`);
@@ -24,7 +23,7 @@ const dir = flags.dir || './database/';
 
 // ------
 // Load driver
-let driverFile, driver, remote;
+let driverFile, driver;
 if (!fs.existsSync(driverFile = path.resolve(dir, 'driver.js')) || !(driver = await (await import(url.pathToFileURL(driverFile))).default?.())) {
     console.log(`\nNo driver has been configured at ${ driverFile }. Aborting.`);
     process.exit();
@@ -81,24 +80,36 @@ if (['generate', 'refresh'].includes(command)) {
         } else resultSchemaDoc.push(dbSchema);
         recordsFound = true;
     };
-    const svps = await driver.savepoints({ name: flags.db, direction: flags.direction });
-    for (const svp of svps) {
-        if (svp.keep !== false) {
-            const schema = (await driver.structure()).database(svp.name())?.toJSON();
-            if (!schema) continue; // Savepoint record orphaned as DB may have been droped outside of Linked QL
-            const { name, ...rest } = schema;
-            const newSchema = { name, version: svp.versionTag, ...rest, ...(flags.diffing === 'stateful' ? { keep: true } : {}) };
-            await addEntry(newSchema);
-        } else await removeEntry(svp.name());
-    }
-    if (command === 'generate' && !svps.length && flags.db) {
-        const $schema = (await driver.structure()).database(flags.db)?.toJSON();
-        if ($schema) await addEntry({ name: $schema.name, version: 0, tables: $schema.tables, ...(flags.diffing === 'stateful' ? { keep: true } : {}) });
-    }
-    if (recordsFound) {
-        writeResultSchemaDoc();
-    } else console.log(`No schemas found for${ !flags.db ? ' any' : '' } database${ flags.db ? ` ${ flags.db }` : '' }. Aborting.`);
-    process.exit();
+    const exec = async () => {
+        const svps = await driver.savepoints({ name: flags.db, direction: flags.direction });
+        const rootSchema = await driver.structure({ depth: 2 });
+        for (const svp of svps) {
+            if (svp.keep !== false) {
+                const schema = rootSchema.database(svp.name())?.toJSON();
+                if (!schema) continue; // Savepoint record orphaned as DB may have been droped outside of Linked QL
+                const { name, ...rest } = schema;
+                const newSchema = { name, version: svp.versionTag, ...rest, ...(flags.diffing === 'stateful' ? { keep: true } : {}) };
+                await addEntry(newSchema);
+            } else await removeEntry(svp.name());
+        }
+        if (command === 'generate' && !svps.length && flags.db) {
+            const $schema = rootSchema.database(flags.db)?.toJSON();
+            if ($schema) await addEntry({ name: $schema.name, version: 0, tables: $schema.tables, ...(flags.diffing === 'stateful' ? { keep: true } : {}) });
+        }
+        if (recordsFound) {
+            writeResultSchemaDoc();
+        } else console.log(`No schemas found for${ !flags.db ? ' any' : '' } database${ flags.db ? ` ${ flags.db }` : '' }. Aborting.`);
+    };
+    await exec();
+    if (flags.live) {
+        const ownPid = (await driver.query(`SELECT ${ driver.params.dialect === 'mysql' ? 'connection_id()' : 'pg_backend_pid()' } AS connection_id`))[0]?.connection_id;
+        driver.driver.query('LISTEN savepoints_stream');
+        console.log(`Now on live refresh...`);
+        driver.driver.on('notification', (e) => {
+            if (e.channel !== 'savepoints_stream' || e.processId === ownPid) return;
+            console.log(ownPid, e.processId, JSON.parse(e.payload));
+        });
+    } else process.exit();
 }
 
 // ------
@@ -117,8 +128,7 @@ if (['clear-histories', 'forget'/*depreciated*/].includes(command)) {
     })).proceed;
     if (!proceed) process.exit();
     const linkedDB = await driver.linkedDB();
-    const savepointsTable = await linkedDB.savepointsTable();
-    await savepointsTable.delete({ where: flags.db ? { database_tag: dbSavepoint.databaseTag } : true });
+    await linkedDB.table('savepoints').delete({ where: flags.db ? { database_tag: dbSavepoint.databaseTag } : true });
     console.log(`\nDone.`);
     process.exit();
 }
@@ -143,13 +153,14 @@ if (['commit', 'migrate'/*depreciated*/].includes(command)) {
         console.log(`No Linked QL ${ flags.direction === 'forward' ? 'roll-forward' : 'rollback' } records found for${ !flags.db ? ' any' : '' } database${ flags.db ? ` ${ flags.db }` : '' }. Aborting.`);
         process.exit();
     }
-    if (!flags.description && flags.yes) throw new Error(`Command missing the --desc parameter.`);
-    const description = flags.description || (await enquirer.prompt({
+    if (!flags.desc && flags.yes) throw new Error(`Command missing the --desc parameter.`);
+    const desc = flags.desc || (await enquirer.prompt({
         type: 'text',
-        name: 'description',
+        name: 'desc',
         message: 'Enter commit description:'
-    })).description;
-    const reference = flags.reference || driver.params.reference;
+    })).desc;
+    const ref = flags.ref || driver.params.commitRef;
+    const rootSchema = await driver.structure({ depth: 2 });
     for (const dbSchema of originalSchemaDoc) {
         if (flags.db && flags.db !== dbSchema.name) {
             resultSchemaDoc.push(dbSchema);
@@ -161,7 +172,7 @@ if (['commit', 'migrate'/*depreciated*/].includes(command)) {
             // Force "keep" to undefined for new?
             if (typeof schemaApi.keep() === 'boolean' && flags['force-new']) schemaApi.keep(undefined, true);
         } else {
-            const schemaExisting = (await driver.structure()).database(dbSchema.name).clone();
+            const schemaExisting = rootSchema.database(dbSchema.name).clone();
             if (schemaExisting) schemaApi = schemaExisting.keep(true, true).diffWith(schemaApi);
         }
         if (schemaApi.keep() === false) {
@@ -175,7 +186,7 @@ if (['commit', 'migrate'/*depreciated*/].includes(command)) {
                 message: 'Proceed?'
             })).proceed;
             if (proceed) {
-                postMigration.returnValue = await driver.query(dropQuery, { description, reference });
+                postMigration.returnValue = await driver.query(dropQuery, { desc, ref });
                 postMigration.migrateEffect = 'DROP';
             }
         }
@@ -190,7 +201,7 @@ if (['commit', 'migrate'/*depreciated*/].includes(command)) {
                     message: 'Proceed?'
                 })).proceed;
                 if (proceed) {
-                    postMigration.returnValue = await driver.query(altQuery, { description, reference });
+                    postMigration.returnValue = await driver.query(altQuery, { desc, ref });
                     postMigration.name = dbSchema.$name || dbSchema.name;
                     postMigration.migrateEffect = 'ALTER';
                 }
@@ -206,12 +217,12 @@ if (['commit', 'migrate'/*depreciated*/].includes(command)) {
                 message: 'Proceed?'
             })).proceed;
             if (proceed) {
-                postMigration.returnValue = await driver.query(createQuery, { description, reference });
+                postMigration.returnValue = await driver.query(createQuery, { desc, ref });
                 postMigration.migrateEffect = 'CREATE';
             }
         }
         if (['CREATE', 'ALTER'].includes(postMigration.migrateEffect)) {
-            const newSchemaInstance = (await driver.structure()).database(postMigration.name).clone();
+            const newSchemaInstance = rootSchema.database(postMigration.name).clone();
             if (flags.diffing === 'stateful') newSchemaInstance.keep(true, true);
             const { name, tables, keep } = newSchemaInstance.toJSON();
             resultSchemaDoc.push({ name, version: postMigration.returnValue.versionTag, tables, keep });
@@ -228,6 +239,7 @@ if (['rollback'].includes(command)) {
         process.exit();
     }
     resultSchemaDoc.push(...originalSchemaDoc);
+    const rootSchema = await driver.structure({ depth: 2 });
     for (const savepoint of savepoints) {
         if (flags.db && flags.db !== savepoint.name()) {
             continue;
@@ -240,14 +252,14 @@ if (['rollback'].includes(command)) {
             name: 'proceed',
             message: 'Proceed?'
         })).proceed;
-        const description = flags.description;
-        const reference = flags.reference || driver.params.reference;
-        if (proceed) { postRollback.returnValue = await savepoint.rollback({ description, reference }); }
+        const desc = flags.desc;
+        const ref = flags.ref || driver.params.commitRef;
+        if (proceed) { postRollback.returnValue = await savepoint.rollback({ desc, ref }); }
         if (proceed && savepoint.rollbackEffect === 'DROP') {
             const existing = resultSchemaDoc.findIndex(sch => sch.name === savepoint.name());
             if (existing > -1) resultSchemaDoc.splice(existing, 1);
          } else if (proceed) {
-            const newSchemaInstance = (await driver.structure()).database(savepoint.name(true)).clone();
+            const newSchemaInstance = rootSchema.database(savepoint.name(true)).clone();
             if (flags.diffing === 'stateful') newSchemaInstance.keep(true, true);
             const { name, tables, keep } = newSchemaInstance.toJSON();
             const $newSchema = { name, version: postRollback.versionTag, tables, keep };
@@ -259,5 +271,7 @@ if (['rollback'].includes(command)) {
 }
 
 // Updating schema
-if (['commit', 'migrate'/*depreciated*/, 'rollback'].includes(command)) writeResultSchemaDoc();
-process.exit();
+if (['commit', 'migrate'/*depreciated*/, 'rollback'].includes(command)) {
+    writeResultSchemaDoc();
+    process.exit();
+}

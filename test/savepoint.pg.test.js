@@ -25,7 +25,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
 
     before(async function() {
         const linkedDB = await sqlClient.linkedDB(true);
-        await linkedDB.savepointsTable().delete(true);
+        await linkedDB.table('savepoints').delete(true);
         const struct = await sqlClient.structure({ depth: 1 });
         console.log('---DATABSES BEFORE:', struct.databases()/*, (await sqlClient.driver.query(`ALTER schema private RENAME to public`))*/);
         console.log('---PUBLIC TABLES BEFORE:', struct.database('public')?.tables());

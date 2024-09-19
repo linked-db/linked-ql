@@ -63,11 +63,11 @@ describe(`SELECT QUERIES`, function() {
                 // Pass in an identifier string
                 field => field.expr('col7').as('alias7'),
                 // Skip the nesting to the identifier part
-                field => field.name('col8'),
+                field => field.expr('col8'),
                 // Include a basename
-                field => field.name(['base9','col9']),
+                field => field.expr(['base9','col9']),
                 // Include an alias
-                field => field.name(['base+10','col.10']).as('$alias10'),
+                field => field.expr(['base+10','col.10']).as('$alias10'),
                 // Try more complex expressions
                 field => field.expr(
                     // Use magic method
@@ -84,9 +84,9 @@ describe(`SELECT QUERIES`, function() {
                 field => field.case(
                     // Use magic method
                     c => c.compare('col15'),
-                    c => c.when(null).then_('col16'),
-                    c => c.when(false).then_('col16'),
-                    c => c.else(true)
+                    c => c.when(q => q.null()).then_('col16'),
+                    c => c.when(q => q.false()).then_('col16'),
+                    c => c.else(q => q.true())
                 ).as('assertion3'),
                 field => field.query(
                     q => q.select('id'),
@@ -106,7 +106,7 @@ describe(`SELECT QUERIES`, function() {
                 field => field.path('author1', '<~', q => q.path(['new_db_name','books'], '~>', 'isbn')),//.as('path3'),
                 field => field.path('author1', '<~', q => q.path(['new_db_name','books'], '~>', q => q.path('isbn', '->', 3))),//.as('path3'),
             )
-            query1.union(q => q.name('a'));
+            query1.union(q => q.expr('a'));
             //query1.from(['new_db_name','books']).as('base_alias');
             query1.from(['new_db_name','users']).as('base_alias');
             //await query1.expand();

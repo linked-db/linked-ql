@@ -76,7 +76,10 @@ export default class DeleteStatement extends AbstractStatement {
 	 * 
 	 * @return Void
 	 */
-	using(...tables) { return this.build('USING_LIST', tables, Table); }
+	using(...tables) {
+		if (!arguments.length) return this.USING_LIST;
+		return this.build('USING_LIST', tables, Table);
+	}
 
 	/**
 	 * Builds the statement's JOIN_LIST (MySQL-specific)
@@ -142,7 +145,10 @@ export default class DeleteStatement extends AbstractStatement {
 	 * 
 	 * @return Object
 	 */
-	where(...wheres) { return this.build('WHERE_CLAUSE', wheres, Condition, 'and'); }
+	where(...wheres) {
+		if (!arguments.length) return this.WHERE_CLAUSE;
+		return this.build('WHERE_CLAUSE', wheres, Condition, 'and');
+	}
 
 	/**
 	 * Builds the statement's ORDER_BY_CLAUSE (MySQL-specific)
@@ -156,7 +162,10 @@ export default class DeleteStatement extends AbstractStatement {
 	 * 
 	 * @return this
 	 */
-	orderBy(...orderBys) { return (this.build('ORDER_BY_CLAUSE', orderBys, OrderByClause, 'criterion'), this.ORDER_BY_CLAUSE/* for: .withRollup() */); }
+	orderBy(...orderBys) {
+		if (!arguments.length) return this.ORDER_BY_CLAUSE;
+		return (this.build('ORDER_BY_CLAUSE', orderBys, OrderByClause, 'criterion'), this.ORDER_BY_CLAUSE/* for: .withRollup() */);
+	}
 
 	/**
 	 * Sets the statement's LIMIT_CLAUSE (MySQL-specific)
@@ -166,6 +175,7 @@ export default class DeleteStatement extends AbstractStatement {
 	 * @return string
 	 */
 	limit(...limit) {
+		if (!arguments.length) return this.LIMIT_CLAUSE;
 		if (!limit.every(l => typeof l === 'number')) throw new Error(`Limits must be of type number.`);
 		this.LIMIT_CLAUSE = limit;
 	}
@@ -173,7 +183,10 @@ export default class DeleteStatement extends AbstractStatement {
 	/** 
 	* @return Void
 	*/
-	returning(...fields) { return this.build('RETURNING_LIST', fields, Field); }
+	returning(...fields) {
+		if (!arguments.length) return this.RETURNING_LIST;
+		return this.build('RETURNING_LIST', fields, Field);
+	}
 
 	toJSON() {
 		return {

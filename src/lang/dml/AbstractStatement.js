@@ -19,7 +19,7 @@ export default class AbstractStatement extends AbstractNode {
         if (['get:TABLE_NAME', 'get:DATABASE_NAME'].includes(request) && !this._ongoingNameTrace) {
             let tbl = this.$trace('get:TABLE_NODE');
             // SELECT statements has a different structure:
-            if (!(tbl instanceof Identifier)) {
+            if (tbl && !(tbl instanceof Identifier)) {
                 tbl = tbl.EXPR; // Table.EXPR:
                 if (!(tbl instanceof Identifier)) {
                     this._ongoingNameTrace = true;
