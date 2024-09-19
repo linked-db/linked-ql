@@ -137,7 +137,7 @@ if (['clear-histories', 'forget'/*depreciated*/].includes(command)) {
 // State?
 if (['state', 'leaderboard'/*depreciated*/].includes(command)) {
     const savepoints = await driver.savepoints({ name: flags.db, direction: flags.direction });
-    console.table(savepoints.map(sv => sv.toJSON()), ['name', 'databaseTag', 'versionTag', 'versionMax', 'cursor', 'savepointDate', 'savepointDescription', 'rollbackDate', 'rollbackDescription', 'rollbackEffect']);
+    console.table(savepoints.map(sv => sv.toJSON()), ['name', 'databaseTag', 'versionTag', 'versionMax', 'cursor', 'commitDate', 'commitDesc', 'rollbackDate', 'rollbackDesc', 'rollbackEffect']);
     process.exit();
 }
 

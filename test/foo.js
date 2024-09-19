@@ -33,13 +33,14 @@ if (dialect === 'mysql') {
 // ---------------------------------
 const lqlClient = new SQLClient({
     query(...args) {
-        return driver.query(...args)
+        return .query(...args)
     }
 }, { dialect });
 
 /*
 */
 const linkedDB = await lqlClient.linkedDB(true);
+//await linkedDB.uninstall(true);
 await linkedDB.table('savepoints').delete(true);
 console.log('---DATABSES BEFORE:', (await lqlClient.structure()).databases());
 console.log('---PUBLIC TABLES BEFORE:', (await lqlClient.structure({ depth: 1 })).database(dbPublic).tables());
@@ -136,5 +137,6 @@ console.log('---PUBLIC TABLES AFTER:', (await lqlClient.structure({ depth: 1 }))
 console.log('---DATABSES AFTER:', (await lqlClient.structure()).databases());
 
 
+await linkedDB.table('savepoints').delete(true);
 console.log('the end.');
 process.exit();

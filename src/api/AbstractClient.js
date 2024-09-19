@@ -136,10 +136,10 @@ export default class AbstractClient {
             database_tag: null,
             ...rest,
             version_tag: null,
-            savepoint_date: q => q.fn('now'),
-            savepoint_desc: details.desc,
-            savepoint_ref: details.ref || this.params.commitRef,
-            savepoint_pid: q => q.literal(this.params.dialect === 'mysql' ? 'connection_id()' : 'pg_backend_pid()'),
+            commit_date: q => q.fn('now'),
+            commit_desc: details.desc,
+            commit_ref: details.ref || this.params.commitRef,
+            commit_pid: q => q.literal(this.params.dialect === 'mysql' ? 'connection_id()' : 'pg_backend_pid()'),
         };
         // -- Find a match first. We're doing forward first to be able to restart an entire history that has been rolled all the way back
         const dbName = dbSchema.NAME/* IMPORTANT */;
@@ -175,7 +175,7 @@ export default class AbstractClient {
     async savepoints(selector = {}) {
         const linkedDB = await this.linkedDB();
         const result = await this.query(`
-            SELECT id, database_tag, name, ${ Identifier.fromJSON(this, '$name') }, keep, version_tag, version_max, CONCAT(rank_for_cursor, '/', total) AS ${ Identifier.fromJSON(this, '$cursor') }, tables, savepoint_date, savepoint_desc, savepoint_ref, rollback_date, rollback_desc, rollback_ref FROM (
+            SELECT id, database_tag, name, ${ Identifier.fromJSON(this, '$name') }, keep, version_tag, version_max, CONCAT(rank_for_cursor, '/', total) AS ${ Identifier.fromJSON(this, '$cursor') }, tables, commit_date, commit_desc, commit_ref, rollback_date, rollback_desc, rollback_ref FROM (
                 SELECT *,
                 ROW_NUMBER() OVER (PARTITION BY database_tag ORDER BY rollback_date IS NOT NULL ${ selector.direction === 'forward' ? 'DESC' : 'ASC' }, version_tag ${ selector.direction === 'forward' ? 'ASC' : 'DESC' }) AS rank_for_target,
                 ROW_NUMBER() OVER (PARTITION BY database_tag ORDER BY version_tag ASC) AS rank_for_cursor,
@@ -347,10 +347,10 @@ export default class AbstractClient {
                             // Meta data
                             { name: 'database_tag', type: ['varchar', 12], notNull: true },
                             { name: 'version_tag', type: 'int', notNull: true },
-                            { name: 'savepoint_date', type: ['timestamp',3], notNull: true },
-                            { name: 'savepoint_desc', type: ['varchar', 255] },
-                            { name: 'savepoint_ref', type: ['varchar', 50] },
-                            { name: 'savepoint_pid', type: ['varchar', 50] },
+                            { name: 'commit_date', type: ['timestamp',3], notNull: true },
+                            { name: 'commit_desc', type: ['varchar', 255] },
+                            { name: 'commit_ref', type: ['varchar', 50] },
+                            { name: 'commit_pid', type: ['varchar', 50] },
                             { name: 'rollback_date', type: ['timestamp',3] },
                             { name: 'rollback_desc', type: ['varchar', 255] },
                             { name: 'rollback_ref', type: ['varchar', 50] },

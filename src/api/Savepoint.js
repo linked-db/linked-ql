@@ -56,17 +56,17 @@ export default class Savepoint {
     /**
      * @returns Date
      */
-    get savepointDate() { return this.$.json.savepoint_date; }
+    get commitDate() { return this.$.json.commit_date; }
 
     /**
      * @returns String
      */
-    get savepointDescription() { return this.$.json.savepoint_desc; }
+    get commitDesc() { return this.$.json.commit_desc; }
 
     /**
      * @returns String
      */
-    get savepointRef() { return this.$.json.savepoint_ref; }
+    get commitRef() { return this.$.json.commit_ref; }
 
     /**
      * @returns Date
@@ -76,7 +76,7 @@ export default class Savepoint {
     /**
      * @returns String
      */
-    get rollbackDescription() { return this.$.json.rollback_desc; }
+    get rollbackDesc() { return this.$.json.rollback_desc; }
 
     /**
      * @returns String
@@ -131,8 +131,8 @@ export default class Savepoint {
      * @returns Object
      */
     toJSON() {
-        const { id, database_tag: databaseTag, version_tag: versionTag, version_max: versionMax, $cursor, savepoint_date: savepointDate, savepoint_desc: savepointDescription, savepoint_ref: savepointRef, rollback_date: rollbackDate, rollback_desc: rollbackDescription, rollback_ref: rollbackRef } = this.$.json;
-        return { id, name: this.name(), databaseTag, versionTag, versionMax, cursor: $cursor, savepointDate, savepointDescription, savepointRef, rollbackDate, rollbackDescription, rollbackRef, rollbackEffect: this.rollbackEffect };
+        const { id, database_tag: databaseTag, version_tag: versionTag, version_max: versionMax, $cursor, commit_date: commitDate, commit_desc: commitDesc, commit_ref: commitRef, rollback_date: rollbackDate, rollback_desc: rollbackDesc, rollback_ref: rollbackRef } = this.$.json;
+        return { id, name: this.name(), databaseTag, versionTag, versionMax, cursor: $cursor, commitDate, commitDesc, commitRef, rollbackDate, rollbackDesc, rollbackRef, rollbackEffect: this.rollbackEffect };
     }
 
     /**
