@@ -378,9 +378,6 @@ export default class AbstractClient {
                     `);
                 }
             },
-            // --v2: create triggers for realtime functionality
-            async (dbName) => {
-            }/**/,
         ];
         // -- Initialise
         const peakVersion = migrations.length;
