@@ -1,11 +1,11 @@
 
-import _isArray from '@webqit/util/js/isArray.js';
-import _isNumeric from '@webqit/util/js/isNumeric.js';
-import _arrFrom from '@webqit/util/arr/from.js';
-import DuplicateKeyViolationError from '../DuplicateKeyViolationError.js';
-import AbstractTable from '../AbstractTable.js';
-import IDBCursor from './IDBCursor.js';
-import IDBProgressiveCursor from './IDBProgressiveCursor.js';
+import { _isArray } from '@webqit/util/js/isArray.js';
+import { _isNumeric } from '@webqit/util/js/isNumeric.js';
+import { _arrFrom } from '@webqit/util/arr/from.js';
+import { DuplicateKeyViolationError } from '../DuplicateKeyViolationError.js';
+import { AbstractTable } from '../AbstractTable.js';
+import { IDBCursor } from './IDBCursor.js';
+import { IDBProgressiveCursor } from './IDBProgressiveCursor.js';
 
 /**
  * ---------------------------
@@ -13,7 +13,7 @@ import IDBProgressiveCursor from './IDBProgressiveCursor.js';
  * ---------------------------
  */				
 
-export default class IDBStore extends AbstractTable {
+export class IDBStore extends AbstractTable {
 	
     constructor(database, tableName, $api, params = {}) {
         super(database, tableName, params);

@@ -3,7 +3,7 @@
  * @imports
  */
 import { expect } from 'chai';
-import Parser from '../src/lang/Parser.js';
+import { Parser } from '../src/index.js';
 
 describe(`INSERT QUERIES`, function() {
 
@@ -17,7 +17,7 @@ describe(`INSERT QUERIES`, function() {
     describe(`${expr1}`, function() {
 
         it(`"parse()" the expression and stringify to compare with original`, async function() {
-            ast1 = await Parser.parse({}, expr1);
+            ast1 = Parser.parse({ params: { dialect: 'mysql' } }, expr1);
             //expect(ast1.stringify({interpreted:false}).toLowerCase()).to.be.equal(expr1.toLowerCase());
         });return;
 
@@ -33,7 +33,7 @@ describe(`INSERT QUERIES`, function() {
     describe(`${expr2}`, function() {
 
         it(`"parse()" the expression and stringify to compare with original`, async function() {
-            ast2 = await Parser.parse({}, expr2);
+            ast2 = await Parser.parse({ params: { dialect: 'mysql' } }, expr2);
             //expect(ast2.stringify({interpreted:false}).toLowerCase()).to.be.equal(expr2.toLowerCase());
         });return;
 

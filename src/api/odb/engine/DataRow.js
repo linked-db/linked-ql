@@ -1,5 +1,5 @@
 		
-export default class DataRow {
+export class DataRow {
 	
 	/**
 	 * @constructor

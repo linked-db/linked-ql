@@ -1,6 +1,6 @@
-import DataRow2D from './DataRow2D.js';
+import { DataRow2D } from './DataRow2D.js';
 
-export default class AbstractCursor2D {
+export class AbstractCursor2D {
 
     _eof = false;
     _onfinish = [];

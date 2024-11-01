@@ -3,7 +3,7 @@
  * @imports
  */
 import { expect } from 'chai';
-import Parser from '../src/lang/Parser.js';
+import { Parser } from '../src/index.js';
 
 describe(`DELETE QUERIES`, function() {
 

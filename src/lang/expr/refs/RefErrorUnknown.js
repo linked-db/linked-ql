@@ -1,0 +1,1 @@
+export class RefErrorUnknown extends Error {}

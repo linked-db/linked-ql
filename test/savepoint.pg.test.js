@@ -4,7 +4,7 @@
  */
 import pg from 'pg';
 import { expect } from 'chai';
-import SQLClient from '../src/api/sql/SQLClient.js';
+import { SQLClient } from '../src/index.js';
 
 // --------------------------
 const pgClient = new pg.Client({
@@ -17,28 +17,35 @@ let $pgClient = { query(sql, ...args) {
     //console.log(`\n\n\n\nSQL:`, sql);
     return pgClient.query(sql, ...args);
 } };
-const sqlClient = new SQLClient($pgClient, { dialect: 'postgres' });
+const client = new SQLClient($pgClient, { dialect: 'postgres' });
 // --------------------------
-const $tables = async dbName => (await sqlClient.structure({ depth: 1 })).database(dbName).tables();
+const $tables = async dbName => (await client.rootSchema({ depth: 1 })).database(dbName).tables(false);
 
 describe(`Postgres Savepoints & Rollbacks`, function() {
 
     before(async function() {
-        const linkedDB = await sqlClient.linkedDB(true);
+        const linkedDB = await client.linkedDB(true);
         await linkedDB.table('savepoints').delete(true);
-        const struct = await sqlClient.structure({ depth: 1 });
-        console.log('---DATABSES BEFORE:', struct.databases()/*, (await sqlClient.driver.query(`ALTER schema private RENAME to public`))*/);
+        const struct = await client.rootSchema({ depth: 1 });
+        console.log('---DATABSES BEFORE:', struct.databases()/*, (await client.driver.query(`ALTER schema private RENAME to public`))*/);
         console.log('---PUBLIC TABLES BEFORE:', struct.database('public')?.tables());
+        //console.log('DROP 5', await client.query('ALTER SCHEMA private RENAME TO public', { inspect: true, noCreateSavepoint: true }));
+        console.log('DROP 3', await client.query('DROP TABLE if exists public.test1 CASCADE', { noCreateSavepoint: true }));
+        console.log('DROP 3', await client.query('DROP TABLE if exists public.test2 CASCADE', { noCreateSavepoint: true }));
+        console.log('DROP 5', await client.query('DROP SCHEMA if exists obj_information_schema CASCADE', { noCreateSavepoint: true }));
+        console.log('DROP 5', await client.query('DROP SCHEMA if exists "some_db" CASCADE', { noCreateSavepoint: true }));
+        console.log('DROP 5', await client.query('DROP SCHEMA if exists "some_db.new" CASCADE', { noCreateSavepoint: true }));
     });
 
     after(async function() {
-        const struct = await sqlClient.structure({ depth: 1 });
-        console.log('DROP 3', await sqlClient.query('DROP TABLE if exists public.test2 CASCADE', { noCreateSavepoint: true }));
-        console.log('DROP 5', await sqlClient.query('DROP SCHEMA if exists obj_information_schema CASCADE', { noCreateSavepoint: true }));
-        console.log('DROP 5', await sqlClient.query('DROP SCHEMA if exists "some_db" CASCADE', { noCreateSavepoint: true }));
-        console.log('DROP 5', await sqlClient.query('DROP SCHEMA if exists "some_db.new" CASCADE', { noCreateSavepoint: true }));
-        console.log('---PUBLIC TABLES AFTER:', struct.database('public').tables());
-        console.log('---DATABSES AFTER:', struct.databases());
+        const struct = await client.rootSchema({ depth: 1 });
+        console.log('DROP 3', await client.query('DROP TABLE if exists public.test1 CASCADE', { noCreateSavepoint: true }));
+        console.log('DROP 3', await client.query('DROP TABLE if exists public.test2 CASCADE', { noCreateSavepoint: true }));
+        console.log('DROP 5', await client.query('DROP SCHEMA if exists obj_information_schema CASCADE', { noCreateSavepoint: true }));
+        console.log('DROP 5', await client.query('DROP SCHEMA if exists "some_db" CASCADE', { noCreateSavepoint: true }));
+        console.log('DROP 5', await client.query('DROP SCHEMA if exists "some_db.new" CASCADE', { noCreateSavepoint: true }));
+        console.log('---PUBLIC TABLES AFTER:', struct.database('public')?.tables());
+        console.log('---DATABSES AFTER:', struct.databases(false));
     });
 
     const desc0 = `Re-name DB "public" to "private".`;
@@ -47,12 +54,12 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
         let publicBefore = 'public', publicAfter = 'private', savepoint0;
 
         it(`DO: ${ desc0 }`, async function() {
-            savepoint0 = await sqlClient.alterDatabase(publicBefore, dbSchema => {
+            savepoint0 = await client.alterDatabase(publicBefore, dbSchema => {
                 dbSchema.name(publicAfter);
             }, {
                 description: 'Rename to private',
             });
-            const databases = (await sqlClient.structure()).databases();
+            const databases = (await client.rootSchema()).databases(false);
             expect(databases).to.be.an('array').that.includes(publicAfter).and.not.includes(publicBefore);
         });
 
@@ -60,23 +67,23 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
             //throw new Error();
             const success = await savepoint0.rollback();
             expect(success).to.be.true;
-            const databases = (await sqlClient.structure()).databases();
+            const databases = (await client.rootSchema()).databases(false);
             expect(databases).to.be.an('array').that.includes(publicBefore).and.not.includes(publicAfter);
         });
 
         it(`ROLLFORWARD: ${ desc0 }`, async function() {
-            const savepoint = await sqlClient.database(publicBefore).savepoint({ direction: 'forward' });
+            const savepoint = await client.database(publicBefore).savepoint({ direction: 'forward' });
             const success = await savepoint.rollback();
             expect(success).to.be.true;
-            const databases = (await sqlClient.structure()).databases();
+            const databases = (await client.rootSchema()).databases(false);
             expect(databases).to.be.an('array').that.includes(publicAfter).and.not.includes(publicBefore);
         });
 
         it(`ROLLBACK (2): ${ desc0 }`, async function() {
-            const savepoint = await sqlClient.database(publicAfter).savepoint();
+            const savepoint = await client.database(publicAfter).savepoint();
             const success = await savepoint.rollback();
             expect(success).to.be.true;
-            const databases = (await sqlClient.structure()).databases();
+            const databases = (await client.rootSchema()).databases(false);
             expect(databases).to.be.an('array').that.includes(publicBefore).and.not.includes(publicAfter);
         });
 
@@ -87,7 +94,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
                     { name: 'id', type: 'int', primaryKey: true },
                 ]
             };
-            const tblSavepoint = await sqlClient.database(publicBefore).createTable(tblCreateRequest, { ifNotExists: true });
+            const tblSavepoint = await client.database(publicBefore).createTable(tblCreateRequest, { ifNotExists: true });
             const tables = await $tables(publicBefore);
             expect(tables).to.be.an('array').that.includes('test2');
         });
@@ -106,19 +113,19 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
                     { name: 'fname', type: 'varchar' },
                     { name: 'lname', type: 'varchar' },
                     { name: 'age', type: 'int' },
-                    { name: 'parent', type: 'int', references: { targetTable: 'users', targetColumns: ['id'] } },
+                    { name: 'parent', type: 'int', foreignKey: { targetTable: ['some_db','users'], targetColumns: ['id'] } },
                 ]
             }, {
                 name: 'books',
                 columns: [
                     { name: 'id', type: 'int', primaryKey: true },
-                    { name: 'author1', type: 'int', references: { targetTable: 'users', targetColumns: ['id'] }, },
+                    { name: 'author1', type: 'int', foreignKey: { targetTable: ['some_db','users'], targetColumns: ['id'] }, },
                     { name: 'author2', type: 'int', },
                     { name: 'content', type: ['varchar', 30], default: { expr: '\'Hello world\'' }, },
                     { name: 'isbn', type: 'int', identity: { always: false }, notNull: true },
                 ],
                 constraints: [
-                    { type: 'FOREIGN_KEY', columns: ['author2'], targetTable: 'users', targetColumns: ['id'] },
+                    { type: 'FOREIGN_KEY', columns: ['author2'], targetTable: ['some_db','users'], targetColumns: ['id'] },
                     { type: 'UNIQUE_KEY', columns: ['author2', 'author1'] },
                 ],
                 indexes: []
@@ -128,10 +135,11 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
         let savepoint0, someDb;
 
         it(`DO: ${ desc1 }`, async function() {
-            savepoint0 = await sqlClient.createDatabase(dbCreateRequest);
-            someDb = sqlClient.database(dbCreateRequest.name);
-            const databases = (await sqlClient.structure()).databases();
+            savepoint0 = await client.createDatabase(dbCreateRequest, { inspect: true });
+            someDb = client.database(dbCreateRequest.name);
+            const databases = (await client.rootSchema()).databases(false);
             expect(databases).to.be.an('array').that.includes('some_db');
+            console.log('>>______________', dbCreateRequest.name);
             const tables = await $tables(dbCreateRequest.name);
             expect(tables).to.be.an('array').that.have.members(['books','users']);
         });
@@ -139,7 +147,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
         it(`ROLLBACK: ${ desc1 } (BY DROPPING DB)`, async function() {
             const success = await savepoint0.rollback({ allowMutateDB: true });
             expect(success).to.be.true;
-            const databases = (await sqlClient.structure()).databases();
+            const databases = (await client.rootSchema()).databases(false);
             expect(databases).to.be.an('array').that.not.includes('some_db');
         });
 
@@ -149,7 +157,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
             const savepoint = await someDb.savepoint({ direction: 'forward' });
             const success = await savepoint.rollback({ allowMutateDB: true });
             expect(success).to.be.true;
-            const databases = (await sqlClient.structure()).databases();
+            const databases = (await client.rootSchema()).databases(false);
             expect(databases).to.be.an('array').that.includes('some_db');
             const tables = await $tables(someDb.name);
             expect(tables).to.be.an('array').that.have.members(['users','books']);
@@ -161,7 +169,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
             const savepoint = await someDb.savepoint();
             const success = await savepoint.rollback({ allowMutateDB: true });
             expect(success).to.be.true;
-            const databases = (await sqlClient.structure()).databases();
+            const databases = (await client.rootSchema()).databases(false);
             expect(databases).to.be.an('array').that.not.includes('some_db');
         });
 
@@ -169,7 +177,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
             const savepoint = await someDb.savepoint({ direction: 'forward' });
             const success = await savepoint.rollback({ allowMutateDB: true });
             expect(success).to.be.true;
-            const databases = (await sqlClient.structure()).databases();
+            const databases = (await client.rootSchema()).databases(false);
             expect(databases).to.be.an('array').that.includes('some_db');
             const tables = await $tables(someDb.name);
             expect(tables).to.be.an('array').that.have.members(['users','books']);
@@ -182,7 +190,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
                     { name: 'id', type: 'int', primaryKey: true },
                 ]
             };
-            const tblSavepoint = await someDb.createTable(tblCreateRequest);
+            const tblSavepoint = await someDb.createTable(tblCreateRequest, { inspect: true });
             const tables = await $tables(someDb.name);
             expect(tables).to.be.an('array').that.have.members(['books','test1','users',]);
             //TODO:const tblSavepointDetails = await someDb.table('test1').savepoint();
@@ -194,13 +202,13 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
                 name: 'some_db',
                 tables: ['users', 'books', 'test1'],
             };
-            const savepoint3 = await sqlClient.alterDatabase(dbAlterRequest, dbSchema => {
+            const savepoint3 = await client.alterDatabase(dbAlterRequest, dbSchema => {
                 // Rename DB
                 dbSchema.name('some_db.new');
                 // Modify column
                 dbSchema.table('users').column('id').uniqueKey(true);
                 // Remove test1 table
-                dbSchema.table('test1').drop();
+                dbSchema.table('test1').keep(false);
                 /// Add table test2
                 dbSchema.table({
                     name: 'test2',
@@ -208,11 +216,11 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
                         { name: 'id', type: 'int', primaryKey: true },
                     ]
                 });
-            });
-            const someDb = sqlClient.database('some_db.new');
+            }, { inspect: true });
+            const someDb = client.database('some_db.new');
             const tables = await $tables(someDb.name);
             expect(tables).to.be.an('array').that.have.members(['users','books','test2']);
-            const users = (await sqlClient.structure({ depth: 2 })).database('some_db.new').table('users');
+            const users = (await client.rootSchema({ depth: 2 })).database('some_db.new').table('users');
             expect(users.column('id').uniqueKey()).to.be.an('object');
 
             //console.log((await pgClient.query(`SELECT * FROM obj_information_schema.database_savepoints ORDER BY savepoint_date ASC`)).rows);

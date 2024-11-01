@@ -1,7 +1,7 @@
-import AbstractTable from '../AbstractTable.js';
-import SQLCursor from './SQLCursor.js';
+import { AbstractTable } from '../AbstractTable.js';
+import { SQLCursor } from './SQLCursor.js';
 
-export default class SQLTable extends AbstractTable {
+export class SQLTable extends AbstractTable {
 
 	/**
 	 * Returns a cursor.

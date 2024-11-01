@@ -4,7 +4,7 @@
  */
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import Parser from '../src/lang/Parser.js';
+import { Parser } from '../src/index.js';
 
 chai.use(chaiAsPromised);
 
@@ -21,7 +21,7 @@ describe(`UPDATE QUERIES`, function() {
 
         it(`"parse()" the expression and stringify to compare with original`, async function() {
             ast1 = await Parser.parse({}, expr1);
-            expect(ast1.stringify().replace(/(\s?\n\t|\n+)/g, ' ').toLowerCase()).to.be.equal(expr1.toLowerCase());
+            expect(ast1.stringify().replace(/(\s+?\n\t|\s+?\n+)/g, ' ').toLowerCase()).to.be.equal(expr1.toLowerCase());
         });return;
 
         it(`"eval()" the expression and expect affected rows to be: { table2: [ 1, 2, 3 ] }`, async function() {
@@ -38,7 +38,7 @@ describe(`UPDATE QUERIES`, function() {
 
         it(`"parse()" the expression and stringify to compare with original`, async function() {
             ast2 = await Parser.parse({}, expr2);
-            expect(ast2.stringify().toLowerCase().replace(/(\s?\n\t|\n)/g, ' ')).to.be.equal(expr2.toLowerCase());
+            expect(ast2.stringify().toLowerCase().replace(/(\s?\n\t|\s+?\n)/g, ' ')).to.be.equal(expr2.toLowerCase());
         });return;
 
         it(`"eval()" the expression and expect affected rows to be: { table2: [ 1, 2, 3 ], table3: [ 1, 2, 3 ] }`, async function() {
@@ -55,7 +55,7 @@ describe(`UPDATE QUERIES`, function() {
 
         it(`"parse()" the expression and stringify to compare with original`, async function() {
             ast3 = await Parser.parse({}, expr3);
-            expect(ast3.stringify().toLowerCase().replace(/(\s?\n\t|\n)/g, ' ')).to.be.equal(expr3.toLowerCase());
+            expect(ast3.stringify().toLowerCase().replace(/(\s?\n\t|\s+?\n)/g, ' ')).to.be.equal(expr3.toLowerCase());
         });return;
 
         it(`"eval()" the expression and expect affected rows to be: {tb: [ [ [ 1, 2, 3 ] ] ] }`, async function() {
@@ -71,7 +71,7 @@ describe(`UPDATE QUERIES`, function() {
 
         it(`"parse()" the expression and stringify to compare with original`, async function() {
             ast4 = await Parser.parse({}, expr4);
-            expect(ast4.stringify().toLowerCase().replace(/(\s?\n\t|\n)/g, ' ')).to.be.equal(expr4.toLowerCase());
+            expect(ast4.stringify().toLowerCase().replace(/(\s?\n\t|\s+?\n)/g, ' ')).to.be.equal(expr4.toLowerCase());
         });return;
 
         it(`"eval()" the expression and expect it to throw: "ffnn" cannot be modified; not a reference!`, async function() {

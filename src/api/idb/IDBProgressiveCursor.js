@@ -5,7 +5,7 @@
  * ---------------------------
  */				
 
-export default class IDBProgressiveCursor {
+export class IDBProgressiveCursor {
 	 
 	constructor(store) {
 		// ---------------

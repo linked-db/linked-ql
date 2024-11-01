@@ -1,9 +1,9 @@
-import _isObject from '@webqit/util/js/isObject.js';
-import _isFunction from '@webqit/util/js/isFunction.js';
-import _arrFrom from '@webqit/util/arr/from.js';
-import _each from '@webqit/util/obj/each.js';
-import AbstractDatabase from '../AbstractDatabase.js';
-import IDBStore from './IDBStore.js';
+import { _isObject } from '@webqit/util/js/isObject.js';
+import { _isFunction } from '@webqit/util/js/isFunction.js';
+import { _arrFrom } from '@webqit/util/arr/from.js';
+import { _each } from '@webqit/util/obj/each.js';
+import { AbstractDatabase } from '../AbstractDatabase.js';
+import { IDBStore } from './IDBStore.js';
 
 /**
  * ---------------------------
@@ -11,7 +11,7 @@ import IDBStore from './IDBStore.js';
  * ---------------------------
  */				
 
-export default class IDBDatabase extends AbstractDatabase {
+export class IDBDatabase extends AbstractDatabase {
 	
     constructor(client, databaseName, $api, params = {}) {
         super(client, databaseName, params);

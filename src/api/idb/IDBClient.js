@@ -1,8 +1,8 @@
-import _isNumeric from '@webqit/util/js/isNumeric.js';
-import _arrFrom from '@webqit/util/arr/from.js';
-import Parser from '../../Parser.js';
-import AbstractClient from '../AbstractClient.js';
-import IDBDatabase from './IDBDatabase.js';
+import { _isNumeric } from '@webqit/util/js/isNumeric.js';
+import { _arrFrom } from '@webqit/util/arr/from.js';
+import { Parser } from '../../Parser.js';
+import { AbstractClient } from '../AbstractClient.js';
+import { IDBDatabase } from './IDBDatabase.js';
 
 /**
  * ---------------------------
@@ -10,13 +10,25 @@ import IDBDatabase from './IDBDatabase.js';
  * ---------------------------
  */				
 
-export default class IDBClient extends AbstractClient {
+export class IDBClient extends AbstractClient {
 
     constructor(params = {}) {
         if (typeof indexedDB === 'undefined') { throw new Error('IndexedDB is not in scope.'); }
         super(params);
         this.indexedDB = indexedDB;
         this.kind = 'idb';
+    }
+
+    /**
+     * Sets or returns the search path for resolving unqualified table references.
+     * 
+     * @param Array|String searchPath
+     * 
+     * @return Array
+     */
+    async searchPath(resolutionPath = []) {
+        if (arguments.length) { return (this.$.searchPath = [].concat(searchPath), this); }
+        return this.$.searchPath || [];
     }
 
 	/**

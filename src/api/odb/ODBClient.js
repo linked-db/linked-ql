@@ -1,12 +1,12 @@
-import AbstractClient from '../AbstractClient.js';
-import ODBDatabase from './ODBDatabase.js';
-import TableSchema from '../../lang/schema/tbl/TableSchema.js';
-import DatabaseSchema from '../../lang/schema/db/DatabaseSchema.js';
-import CreateStatement from '../../lang/ddl/create/CreateStatement.js';
-import AlterStatement from '../../lang/ddl/alter/AlterStatement.js';
-import DropStatement from '../../lang/ddl/drop/DropStatement.js';
+import { AbstractClient } from '../AbstractClient.js';
+import { ODBDatabase } from './ODBDatabase.js';
+import { TableSchema } from '../../schema/TableSchema.js';
+import { DatabaseSchema } from '../../schema/DatabaseSchema.js';
+import { CreateStatement } from '../../lang/ddl/create/CreateStatement.js';
+import { AlterStatement } from '../../lang/ddl/alter/AlterStatement.js';
+import { DropStatement } from '../../lang/ddl/drop/DropStatement.js';
  
-export default class ODBClient extends AbstractClient {
+export class ODBClient extends AbstractClient {
 
     /**
      * Instance.
@@ -58,7 +58,7 @@ export default class ODBClient extends AbstractClient {
     async query(query, params = {}) {
         return await this.queryCallback(async (target, query, params) => {
             let schemas = await this.schemas();
-            const [ dbName, tblName ] = target.toJSON();
+            const [ dbName, tblName ] = target.jsonfy();
             const existingDB = schemas.find(db => db.isSame(db.name(), dbName, 'ci'));
             const existingTBL = tblName && existingDB.table(tblName);
             // -- DDL?

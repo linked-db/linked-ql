@@ -1,7 +1,3 @@
-
-/**
- * @imports
- */
 import { _last as _arrLast, _from as _arrFrom } from '@webqit/util/arr/index.js';
 
 /**

@@ -1,9 +1,9 @@
 import { _after } from '@webqit/util/str/index.js';
 import { _avg, _unique, _max, _min, _sum, _first, _last, _rand } from '@webqit/util/arr/index.js';
-import AggrFunction from '../parser/select/Aggr.js';
-import DataRow2D from './DataRow2D.js';
+import { AggrFunction } from '../parser/select/Aggr.js';
+import { DataRow2D } from './DataRow2D.js';
 
-export default class Aggregation extends Array {
+export class Aggregation extends Array {
 
 	push(...entries) {
 		for (const entry of entries) {

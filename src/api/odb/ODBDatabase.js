@@ -1,8 +1,8 @@
-import _isObject from '@webqit/util/js/isObject.js';
-import _isFunction from '@webqit/util/js/isFunction.js';
-import _each from '@webqit/util/obj/each.js';
-import AbstractDatabase from '../AbstractDatabase.js';
-import ODBStore from './ODBStore.js';
+import { _isObject } from '@webqit/util/js/isObject.js';
+import { _isFunction } from '@webqit/util/js/isFunction.js';
+import { _each } from '@webqit/util/obj/each.js';
+import { AbstractDatabase } from '../AbstractDatabase.js';
+import { ODBStore } from './ODBStore.js';
 
 /**
  * ---------------------------
@@ -10,7 +10,7 @@ import ODBStore from './ODBStore.js';
  * ---------------------------
  */				
 
-export default class ODBDatabase extends AbstractDatabase {
+export class ODBDatabase extends AbstractDatabase {
     
     async tables(params = {}) {
         return this.client.applyFilters(Object.keys(this.def.schemas), params);

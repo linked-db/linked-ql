@@ -1,8 +1,8 @@
 
-import AbstractCursor from './AbstractCursor.js';
-import AbstractTable from '../api/AbstractTable.js';
+import { AbstractCursor } from './AbstractCursor.js';
+import { AbstractTable } from '../api/AbstractTable.js';
 
-export default class View extends AbstractTable {
+export class View extends AbstractTable {
 	 
 	/**
 	 * @constructor

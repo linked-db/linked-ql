@@ -1,6 +1,6 @@
 
 
-export default class AbstractCursor {
+export class AbstractCursor {
 	 
 	_pos = 0;
 	_eof = false;

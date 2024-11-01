@@ -1,4 +1,4 @@
-import AbstractCursor from '../../engine/AbstractCursor.js';
+import { AbstractCursor } from '../../engine/AbstractCursor.js';
 
 /**
  * ---------------------------
@@ -6,4 +6,4 @@ import AbstractCursor from '../../engine/AbstractCursor.js';
  * ---------------------------
  */				
 
-export default class ODBCursor extends AbstractCursor {}
+export class ODBCursor extends AbstractCursor {}

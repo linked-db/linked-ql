@@ -1,10 +1,10 @@
 
 import { _even } from '@webqit/util/obj/index.js';
-import Aggregation from './Aggregation.js';
-import AbstractCursor2D from './AbstractCursor2D.js';
-import DataRow2D from './DataRow2D.js';
+import { Aggregation } from './Aggregation.js';
+import { AbstractCursor2D } from './AbstractCursor2D.js';
+import { DataRow2D } from './DataRow2D.js';
 
-export default class Query {
+export class Query {
 
 	/**
 	 * @constructor
