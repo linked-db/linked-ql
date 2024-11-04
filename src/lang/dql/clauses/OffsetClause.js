@@ -12,7 +12,7 @@ export class OffsetClause extends AbstractNode {
     }
 
     static fromJSON(context, json, callback = null) {
-        if (!json?.value) return;
+        if (!json?.value || Object.keys(json).filter((k) => k !== 'nodeName').length > 1) return;
 		return super.fromJSON(context, json, (instance) => {
             instance.value(json.value);
 			callback?.(instance);

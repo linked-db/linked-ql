@@ -14,25 +14,25 @@ export class RootSchema extends AbstractDiffableNode {
 		if (requestName === 'ROOT_SCHEMA') return this;
 		return super.$capture(requestName, requestSource);
 	}
-	
+
 	/* -- SUBTREE I/O */
 
 	database(arg1, ...args) {
-        if (typeof arg1 === 'string') {
-            const existing = this.#databases.find((db) => db.identifiesAs(arg1));
-            if (!args.length) return existing;
-            if (args[0] === false) {
-                this.#databases = this.#databases.filter((d) => d !== existing);
-                existing?.$bubble('DISCONNECTED');
-                return this;
-            }
-            arg1 = { name: arg1, ...(typeof args[0] === 'object' ? args[0] : { tables: args[0] }) };
-        }
-        this.#databases = this.$castInputs([arg1], DatabaseSchema, this.#databases, 'databases', null, (existing) => {
+		if (typeof arg1 === 'string') {
+			const existing = this.#databases.find((db) => db.identifiesAs(arg1));
+			if (!args.length) return existing;
+			if (args[0] === false) {
+				this.#databases = this.#databases.filter((d) => d !== existing);
+				existing?.bubble('DISCONNECTED');
+				return this;
+			}
+			arg1 = { name: arg1, ...(typeof args[0] === 'object' ? args[0] : { tables: args[0] }) };
+		}
+		this.#databases = this.$castInputs([arg1], DatabaseSchema, this.#databases, 'databases', null, (existing) => {
 			return this.#databases.find((db) => db.identifiesAs(existing.name()));
 		});
-        return this;
-    }
+		return this;
+	}
 
 	/* -- TRAVERSALS */
 
@@ -79,8 +79,8 @@ export class RootSchema extends AbstractDiffableNode {
 
 	/* -- TRANSFORMS */
 
-    renderCDL(rootCDL, options) {
-        const $options = options;
+	renderCDL(rootCDL, options) {
+		const $options = options;
 		const $$hasSeenRootCDL = new Set;
 		const $$transforms = new Map;
 		const $$additions = [];
@@ -91,7 +91,7 @@ export class RootSchema extends AbstractDiffableNode {
 			if ((!node || ($$transforms.has(node) && !$$transforms.get(node)/*dropped*/)) && assertExists) {
 				throw new Error(`Database "${name}" does not exist.`);
 			}
-			if (autoRehydrate && $$transforms.has(node)) return [node, node.constructor.fromJSON(node.contextNode, $$transforms.get(node))];
+			if (autoRehydrate && $$transforms.has(node)) return [node, node.constructor.fromJSON(node.contextNode.clone(), $$transforms.get(node))];
 			return [node];
 		};
 		const getOptionsFor = (node) => {
@@ -136,44 +136,10 @@ export class RootSchema extends AbstractDiffableNode {
 				if ($$options.cascade && $$options.rootCDL) {
 					$json = db.constructor.fromJSON(this, $$transforms.get(db)).jsonfy($$options);
 				} else $json = $$transforms.get(db);
-			} else $json = db.jsonfy($$options);			
+			} else $json = db.jsonfy($$options);
 			return $json;
 		};
 		// -- SUBTREE RENDERING
-		const renderSubtree = (dbs) => {
-			const [$$jsons, $$relocatingTables] = dbs.reduce(([$jsons, $relocatingTables], db) => {
-				let $json = renderNode(db);
-				// Physically move tables?
-				if ($json && options.diff === false) {
-					// Exclude tables pointing to other DB
-					$json = {
-						...$json,
-						tables: $json.tables.reduce((tbls, tbl) => {
-							if (tbl.prefix && !db.identifiesAs(tbl.prefix.name || tbl.prefix)) {
-								const targetDB = $jsons.find(dbJson => this.$eq(dbJson.name, tbl.prefix.name || tbl.prefix, 'ci'));
-								if (targetDB) targetDB.tables.push(tbl);
-								else $relocatingTables.push(tbl);
-								return tbls;
-							}
-							return tbls.concat(tbl);
-						}, []),
-					};
-					// Include tables moving from other DBs
-					$relocatingTables = $relocatingTables.reduce(($tbls, $tbl) => {
-						if (db.identifiesAs($tbl.prefix.name || $tbl.prefix)) {
-							$json.tables.push($tbl);
-							return $tbls;
-						}
-						return $tbls.concat($tbl);
-					}, []);
-				}
-				return [$jsons.concat($json || []), $relocatingTables];
-			}, [[], []]);
-			if ($$relocatingTables.length) {
-				throw new Error(`The following tables could not be moved to the implied target database: "${$$relocatingTables.map(t => t.name).join('", "')}"`);
-			}
-			return $$jsons.concat($$additions);
-		};
 		// ------------------------------------
 		// -- MAIN CDL RUNNER
 		for (const cd of rootCDL) {
@@ -187,36 +153,93 @@ export class RootSchema extends AbstractDiffableNode {
 				handleAlterCD(cd);
 			} else throw new Error(`Unsupported operation: ${cd.CLAUSE} ${cd.KIND}`);
 		}
-		return renderSubtree(this.#databases);
-    }
+		return this.renderNormalized(this.#databases, renderNode).concat($$additions);
+	}
 
-    generateCDL(options = {}, kind = 'SCHEMA'/*or: DATABASE*/) {
-        const rootCDL = RootCDL.fromJSON(this, { actions: [] });
-        for (const db of this.#databases) {
-            if (db.status() === 'new') {
-                rootCDL.add('CREATE', kind, (cd) => {
+	renderNormalized(dbs, renderCallback, forceNormalize = false) {
+		const $matches = (dbName, prefix) => this.$eq(dbName, prefix?.name || prefix, 'ci');
+		const [$$jsons, $$relocatingTables] = dbs.reduce(([$jsons, $relocatingTables], db) => {
+			let $json = renderCallback(db);
+			// Physically move tables?
+			if ($json) {
+				let _;
+				// Exclude tables pointing to other DB
+				$json = {
+					...$json,
+					tables: $json.tables.reduce((tbls, tbl) => {
+						if (tbl.prefix) {
+							if ($matches(db.name(), tbl.prefix)) {
+								if (!tbl.$prefix) ({ prefix: _, ...tbl } = tbl);
+							} else {
+								const targetDB = $jsons.find(dbJson => $matches(dbJson.name, tbl.prefix));
+								if (targetDB) {
+									if (!tbl.$prefix) ({ prefix: _, ...tbl } = tbl);
+									targetDB.tables.push(tbl);
+								} else $relocatingTables.push({ db, tbl });
+								return tbls;
+							}
+						}
+						return tbls.concat(tbl);
+					}, []),
+				};
+				// Include tables moving from other DBs
+				$relocatingTables = $relocatingTables.reduce(($tbls, entry) => {
+					let $tbl = entry.tbl;
+					if ($matches(db.name(), $tbl.prefix)) {
+						if (!$tbl.$prefix) ({ prefix: _, ...$tbl } = $tbl);
+						$json.tables.push($tbl);
+						return $tbls;
+					}
+					return $tbls.concat(entry);
+				}, []);
+			}
+			return [$jsons.concat($json || []), $relocatingTables];
+		}, [[], []]);
+		if ($$relocatingTables.length) {
+			if (forceNormalize) {
+				for (const { tbl } of $$relocatingTables) {
+					let $tbl = tbl, _;
+					if (!$tbl.$prefix) ({ prefix: _, ...$tbl } = $tbl);
+					const targetDB = $$jsons.find(dbJson => $matches(dbJson.name, tbl.prefix));
+					if (targetDB) {
+						targetDB.tables.push($tbl);
+					} else $$jsons.push({
+						name: tbl.prefix.name || tbl.prefix,
+						tables: [$tbl],
+					});
+				}
+			} else throw new Error(`The following tables could not be moved to the implied target database: ${$$relocatingTables.map((entry) => `"${entry.db.name()}"."${entry.tbl.name}" -> "${entry.tbl.prefix.name || entry.tbl.prefix}"."${entry.tbl.name}"`).join('", "')}`);
+		}
+		return $$jsons;
+	}
+
+	generateCDL(options = {}, kind = 'SCHEMA'/*or: DATABASE*/) {
+		const rootCDL = RootCDL.fromJSON(this, { actions: [] });
+		for (const db of this.#databases) {
+			if (db.status() === 'new') {
+				rootCDL.add('CREATE', kind, (cd) => {
 					cd.argument(db.jsonfy({ ...options, diff: false }));
 					if (options.ifNotExists) cd.withFlag('IF_NOT_EXISTS');
 				});
-            } else if (db.status() === 'obsolete') {
-                rootCDL.add('DROP', kind, (cd) => {
+			} else if (db.status() === 'obsolete') {
+				rootCDL.add('DROP', kind, (cd) => {
 					cd.reference(db.name());
 					if (options.cascade) cd.withFlag('CASCADE');
 				});
-            } else {
+			} else {
 				const dbCDL = db.generateCDL(options);
-                if (dbCDL.length) rootCDL.action('ALTER', kind, (cd) => {
+				if (dbCDL.length) rootCDL.add('ALTER', kind, (cd) => {
 					cd.reference(db.name());
 					cd.argument(dbCDL);
 				});
-            }
-        }
-        return rootCDL;
-    }
+			}
+		}
+		return rootCDL;
+	}
 
 	generateDiff(nodeB, options) {
 		return this.diffMergeTrees(
-			this.#databases, 
+			this.#databases,
 			nodeB.databases(),
 			(a, b) => a.generateDiff(b, options),
 			options
@@ -244,6 +267,6 @@ export class RootSchema extends AbstractDiffableNode {
 	}
 
 	jsonfy(options = {}, jsonIn = {}) {
-		return this.#databases.map(db => db.jsonfy(options));
+		return this.renderNormalized(this.#databases, (db) => db.jsonfy(options), options.forceNormalize);
 	}
 }

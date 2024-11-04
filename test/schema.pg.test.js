@@ -4,9 +4,9 @@
  */
 import pg from 'pg';
 import { expect } from 'chai';
-import { CreateStatement } from '../src/lang/ddl/CreateStatement.js';
-import { AlterStatement } from '../src/lang/ddl/AlterStatement.js';
-import { TableSchema } from '../src/schema/TableSchema.js';
+import { CreateTable } from '../src/lang/ddl/database/actions/CreateTable.js';
+import { AlterTable } from '../src/lang/ddl/database/actions/AlterTable.js';
+import { TableSchema } from '../src/lang/ddl/table/TableSchema.js';
 import { Parser, SQLClient } from '../src/index.js';
 
 // --------------------------
@@ -40,7 +40,7 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
                 UNIQUE (rand2,rand)
             )`;
             const tblCreateInstance1 = await Parser.parse({ name: 'some_database', params: { inputDialect: 'postgres', dialect: 'mysql' } }, createTableSql, null, { log: false });
-            const tblCreateInstance2 = CreateStatement.fromJSON(tblCreateInstance1.CONTEXT, tblCreateInstance1.toJSON());
+            const tblCreateInstance2 = CreateTable.fromJSON(tblCreateInstance1.CONTEXT, tblCreateInstance1.toJSON());
             const sql1 = tblCreateInstance1 + '';
             const sql2 = tblCreateInstance2 + '';
             console.log(tblCreateInstance1, sql1);
@@ -84,7 +84,7 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
                 ALTER constraint constraint_name8 DEFERRABLE
             `;
             const tblAlterInstance1 = Parser.parse({ name: 'some_database', params: { inputDialect: 'postgres', dialect: 'mysql' } }, alterTableSql);
-            const tblAlterInstance2 = AlterStatement.fromJSON(tblAlterInstance1.CONTEXT, tblAlterInstance1.toJSON());
+            const tblAlterInstance2 = AlterTable.fromJSON(tblAlterInstance1.CONTEXT, tblAlterInstance1.toJSON());
             const sql1 = tblAlterInstance1 + '';
             const sql2 = tblAlterInstance2 + '';
             console.log(tblAlterInstance1, sql2);
@@ -94,41 +94,6 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
             console.log(JSON.stringify(tblAlterInstance2.toJSON(), null, 3));
             expect(sql1).to.eq(sql2);
             */
-        });
-        
-        it(`DO: Diffs 2 schemas into an Alter Table statement`, async function() {
-            const schema = {
-                prefix: 'public',
-                name: 'testt',
-                $name: 'testtttt',
-                columns: [
-                    { name: 'id', $name: 'iddd', type: ['VARCHAR', 30], $type: 'int', default: 20, $default: 9, notNull: true },
-                    { name: 'author', type: ['INT'], foreignKey: { name: 'fkk', targetTable: 'table1', targetColumns: ['col3', 'col4']}, keep: true },
-                ],
-                constraints: [
-                    { type: 'FOREIGN_KEY', columns: ['id', 'author'], targetTable: 'testt', targetColumns: ['col5', 'author'] },
-                    { type: 'PRIMARY_KEY', columns: 'col5', $columns: ['uuu', 'lll'], name: 'pk', $name: 'pk2' },
-                ],
-                indexes: []
-            };
-            const schemaInstance = TableSchema.fromJSON({}, schema);
-            //schemaInstance.keep(true, 'auto');
-            schemaInstance.column('author').keep(false);//.name('author2');
-            //schemaInstance.reverseAlt(true);
-            const tblAlterInstance1 = schemaInstance.getAlt();
-
-            
-            const tblAlterInstance2 = AlterStatement.fromJSON(tblAlterInstance1.CONTEXT, tblAlterInstance1.toJSON());
-            const sql1 = tblAlterInstance1 + '';
-            const sql2 = tblAlterInstance2 + '';
-            console.log(sql1);
-            /*
-            console.log(sql2);
-            console.log(JSON.stringify(schemaInstance.toJSON(), null, 3));
-            console.log(JSON.stringify(tblAlterInstance1.toJSON(), null, 3));
-            console.log(JSON.stringify(tblAlterInstance2.toJSON(), null, 3));
-            */
-            expect(sql1).to.eq(sql2);
         });
             
     });

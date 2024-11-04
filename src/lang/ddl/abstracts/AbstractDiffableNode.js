@@ -30,7 +30,12 @@ export class AbstractDiffableNode extends AbstractNode {
 		for (const k of Object.keys(jsonB)) {
 			if (['nodeName', 'flags', 'CDLIgnoreList', 'status'].includes(k)) continue;
 			if (!this.$isDirty(jsonB[k]) || this.$eq(jsonA[k], jsonB[k], 'ci')) continue;
-			jsonA = { ...jsonA, [options.diff === false ? k : `$${k}`]: jsonB[k] };
+			if (options.diff === 'reverse') {
+				if (options.honourCDLIgnoreList && jsonA.CDLIgnoreList?.includes(k)) continue;
+				jsonA = { ...jsonA, [k]: jsonB[k], [`$${k}`]: jsonA[k] };
+			} else {
+				jsonA = { ...jsonA, [options.diff === false ? k : `$${k}`]: jsonB[k] };
+			}
 		}
 		return jsonA;
 	}
@@ -61,35 +66,10 @@ export class AbstractDiffableNode extends AbstractNode {
 	}
 
 	reverseDiff(options = {}) {
-		const json = this.jsonfy(options);
-		const reverseDiff = (json) => {
-			let $json = {};
-			for (const k of Object.keys(json).filter(k => !k.startsWith('$'))) {
-				if (options.honourCDLIgnoreList && json.CDLIgnoreList?.includes(k)) {
-					$json = { ...$json, [k]: json[k] };
-					if (this.$isDirty(json[`$${k}`])) {
-						$json = { ...$json, [`$${k}`]: json[`$${k}`] };
-					}
-					continue;
-				}
-				if (Array.isArray(json[k])) {
-					$json = { ...$json, [k]: json[k].map(item => _isObject(item) ? reverseDiff(item) : item) };
-					if (this.$isDirty(json[`$${k}`])) {
-						$json = { ...$json, [k]: json[`$${k}`], [`$${k}`]: json[k] };
-					}
-					continue;
-				}
-				if (this.$isDirty(json[`$${k}`])) {
-					$json = { ...$json, [k]: json[`$${k}`], [`$${k}`]: json[k] };
-				} else if (_isObject(json[k])) {
-					$json = { ...$json, [k]: reverseDiff(json[k]) };
-				} else {
-					$json = { ...$json, [k]: k === 'status' && ['new', 'obsolete'].includes(json[k]) ? (json[k] === 'new' ? 'obsolete' : 'new') : json[k] };
-				}
-			}
-			return $json;
-		}
-		return this.constructor.fromJSON(this.contextNode, reverseDiff(json));
+		return this.constructor.fromJSON(
+			this.contextNode,
+			this.jsonfy({ ...options, diff: 'reverse' })
+		);
 	}
 
 	/* -- MODES */
@@ -107,23 +87,23 @@ export class AbstractDiffableNode extends AbstractNode {
 	}
 
 	$isDirty(value) { return Array.isArray(value) ? !!value.length : typeof value !== 'undefined'; }
-	
+
 	/* -- I/O */
 
 	static fromJSON(context, json, callback = null) {
-        return super.fromJSON(context, json, (instance) => {
+		return super.fromJSON(context, json, (instance) => {
 			instance.#status = json.status;
 			if (Array.isArray(json.CDLIgnoreList)) {
 				instance.#CDLIgnoreList.push(...json.CDLIgnoreList);
 			}
 			callback?.(instance);
 		});
-    }
+	}
 
 	jsonfy(options = {}, jsonIn = {}) {
 		return super.jsonfy(options, {
 			...jsonIn,
-			...(this.#status && options.diff !== false ? { status: this.#status } : {}),
+			...(this.#status && options.diff !== false ? { status: options.diff === 'reverse' && ['new', 'obsolete'].includes(this.#status) ? (this.#status === 'new' ? 'obsolete' : 'new') : this.#status } : {}),
 			...(this.#CDLIgnoreList.length && options.diff !== false ? { CDLIgnoreList: this.#CDLIgnoreList.slice() } : {}),
 		});
 	}

@@ -94,9 +94,9 @@ export class DatabaseSchema extends AbstractNameableNode {
 		const findTable = (name, assertExists = true, autoRehydrate = true) => {
 			const node = this.table(name);
 			if ((!node || ($$transforms.has(node) && !$$transforms.get(node)/*dropped*/)) && assertExists) {
-				throw new Error(`Table "${name}" does not exist.`);
+				throw new Error(`Table "${this.name()}"."${name}" does not exist.`);
 			}
-			if (autoRehydrate && $$transforms.has(node)) return [node, node.constructor.fromJSON(node.contextNode, $$transforms.get(node))];
+			if (autoRehydrate && $$transforms.has(node)) return [node, node.constructor.fromJSON(node.contextNode.clone(), $$transforms.get(node))];
 			return [node];
 		};
 		const getOptionsFor = (node) => {
@@ -141,7 +141,7 @@ export class DatabaseSchema extends AbstractNameableNode {
 				// Ignore physically dropped
 				if (!$$transforms.get(node)) return;
 				if ($$options.rootCDL) {
-					$json = node.constructor.fromJSON(this, $$transforms.get(node)).jsonfy($$options);
+					$json = node.constructor.fromJSON(this.clone(), $$transforms.get(node)).jsonfy($$options);
 				} else $json = $$transforms.get(node);
 			} else $json = node.jsonfy($$options);
 			return $json;
@@ -194,7 +194,7 @@ export class DatabaseSchema extends AbstractNameableNode {
 			} else {
 				const tblCDL = tbl.generateCDL(options);
 				if (tblCDL.length) databaseCDL.add('ALTER', kind, (cd) => {
-					cd.reference([tbl.prefix()/* IMPORTANT to accomodate for tables born here but moved elsewhere to return home in a rollback */ || this.name(), tbl.name()]);
+					cd.reference([this.name(), tbl.name()]);
 					cd.argument(tblCDL);
 				});
 			}

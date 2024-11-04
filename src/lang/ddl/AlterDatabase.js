@@ -20,7 +20,7 @@ export class AlterDatabase extends AbstractDDLStatement(AbstractAlterAction) {
 
     stringify() {
 		const [ownRename, renames, sets, actions] = this.argument().actions().reduce(([a, b, c, d], action) => {
-			if (action.CLAUSE === 'RENAME' && !action.KIND) return [action, a, c, d];
+			if (action.CLAUSE === 'RENAME' && !action.KIND) return [action, b, c, d];
 			if (action.CLAUSE === 'RENAME') return [a, b.concat(action), c, d];
 			if (action.CLAUSE === 'SET') return [a, b, c.concat(action), d];
 			return [a, b, c, d.concat(action)];

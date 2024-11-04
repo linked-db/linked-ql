@@ -32,7 +32,7 @@ export class Str extends AbstractNode {
 	}
 
 	static fromJSON(context, json, callback = null) {
-		if (typeof json?.value !== 'string' || (json.quote && !['"', "'"].includes(json.quote))) return;
+		if (typeof json?.value !== 'string' || Object.keys(json).filter((k) => !['nodeName', 'quote'].includes(k)).length > 1 || (json.quote && !['"', "'"].includes(json.quote))) return;
 		return super.fromJSON(context, json, (instance) => {
 			instance.value(json.value).quote(json.quote);
 			callback?.(instance);

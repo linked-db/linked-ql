@@ -1,7 +1,7 @@
 import { AbstractLevel1Constraint } from './abstracts/AbstractLevel1Constraint.js';
-import { AbstractExprConstraint } from './abstracts/AbstractExprMixin.js';
+import { AbstractExprMixin } from './abstracts/AbstractExprMixin.js';
 
-export class ExpressionConstraint extends AbstractExprConstraint(AbstractLevel1Constraint) {
+export class ExpressionConstraint extends AbstractExprMixin(AbstractLevel1Constraint) {
 
 	#stored;
 	#$stored;
@@ -53,11 +53,15 @@ export class ExpressionConstraint extends AbstractExprConstraint(AbstractLevel1C
 		}, options));
 	}
 
-    static parse(context, expr) {
+    static parse(context, expr, parseCallback) {
         let stored, { name, expr: $expr } = this.parseName(context, expr, true);
 		[ , $expr, stored = '' ] = $expr.match(new RegExp(`^GENERATED\\s+ALWAYS\\s+AS\\s+\\(` + `([\\s\\S]+)` + `\\)(?:\\s+(VIRTUAL|STORED))?$`, 'i')) || [];
         if (!$expr) return;
-		return (new this(context)).name(name).expr($expr).stored(/^STORED$/i.test(stored));
+		const instance = new this(context);
+		return instance
+			.expr(parseCallback(instance, $expr))
+			.stored(/^STORED$/i.test(stored))
+			.name(name);
     }
 
     stringify() { return `GENERATED ALWAYS AS (${ this.$expr() })${ this.$stored() ? ` STORED` : '' }`; }

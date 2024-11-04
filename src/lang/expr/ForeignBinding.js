@@ -12,7 +12,7 @@ export class ForeignBinding extends Binding {
 	static get expose() { return {}; }
 
 	resolve(sourceQuery, resultData) {
-		if (!['INSERT_STATEMENT', 'UPSERT_STATEMENT'].includes(sourceQuery?.constructor.NODE_NAME)) throw new Error(`Source query must be an INSERT or UPSERT statement`);
+		if (!['INSERT_STATEMENT', 'UPSERT_STATEMENT'].includes(sourceQuery?.NODE_NAME)) throw new Error(`Source query must be an INSERT or UPSERT statement`);
 		if (this.#resolutionPath[0] !== sourceQuery.uuid) return;
 		if (!Array.isArray(resultData)) throw new Error(`Input source must be an array`);
 		if (!_isObject(resultData[this.#resolutionPath[1]])) throw new Error(`Input source does not have an object at: #${this.resolutionPath[1]}`);

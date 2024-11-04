@@ -22,7 +22,7 @@ export class Num extends AbstractNode {
 	static fromJSON(context, json, callback = null) {
 		if (typeof json === 'number') {
 			json = { value: json };
-		} else if (typeof json?.value !== 'number') return;
+		} else if (typeof json?.value !== 'number' || Object.keys(json).filter((k) => k !== 'nodeName').length > 1) return;
 		return super.fromJSON(context, json, (instance) => {
 			instance.value(json.value);
 			callback?.(instance);

@@ -1,19 +1,16 @@
 import { DatabaseSchema } from '../lang/ddl/database/DatabaseSchema.js';
-import { AlterDatabase } from '../lang/ddl/AlterDatabase.js';
-import { CreateDatabase } from '../lang/ddl/CreateDatabase.js';
-import { DropDatabase } from '../lang/ddl/DropDatabase.js';
+import { RootSchema } from '../lang/ddl/RootSchema.js';
 
 export class Savepoint {
 
     /**
      * @constructor
      */
-    constructor(client, json, direction = 'backward') {
+    constructor(client, json) {
         Object.defineProperty(this, '$', {
             value: {
                 client,
                 json,
-                direction,
             }
         });
     }
@@ -22,11 +19,6 @@ export class Savepoint {
      * @returns Driver
      */
     get client() { return this.$.client; }
-
-    /**
-     * @returns String
-     */
-    get direction() { return this.$.direction; }
 
     /**
      * @returns String
@@ -58,7 +50,7 @@ export class Savepoint {
      * @returns Array
      */
     cascades() {
-        this.$._cascades = this.$._cascades || (this.$.json.cascades || []).map(cascade => new Savepoint(this, cascade, this.$.direction));
+        this.$._cascades = this.$._cascades || (this.$.json.cascades || []).map(cascade => new Savepoint(this.client, cascade));
         return this.$._cascades;
     }
 
@@ -120,12 +112,12 @@ export class Savepoint {
     /**
      * @returns Number
      */
-    versionUp() { return this.versionTags().reduce((prev, v) => prev || (v > this.versionTag() ? v : null), null); }
+    versionUp() { return this.versionTags().reduce((prev, v) => prev || (v > this.versionTag() ? v : 0), 0); }
 
     /**
      * @returns Number
      */
-    versionDown() { return [...this.versionTags()].reverse().reduce((prev, v) => prev || (v < this.versionTag() ? v : null), null); }
+    versionDown() { return [...this.versionTags()].reverse().reduce((prev, v) => prev || (v < this.versionTag() ? v : 0), 0); }
 
     /**
      * @returns String
@@ -139,40 +131,43 @@ export class Savepoint {
      * @returns String
      */
     rollbackQuery() {
-        return [
-            this.querify(true),
-            ...this.cascades().map(c => c.rollbackQuery())
-        ].join('\n');
+        if (this.versionState() === 'rollback') return this.querify(true);
+        return [this.querify(true), ...this.cascades().map(c => c.rollbackQuery())].join('\n');
+    }
+
+    /**
+     * @returns this
+     */
+    static fromJSON(context, json) {
+        return new this(context, json);
     }
 
     /**
      * @returns Object
      */
     jsonfy() {
-        const { name, $name, tables = [], status, ...rest } = this.$.json;
-        return { name: this.name(), ...rest, schema: { name, ...($name ? { $name } : {}), tables, status } };
+        return this.$.json;
     }
 
     /**
      * @returns String
      */
     querify(reversed = false) {
-        let schema = this.schema();
+        let rootSchema = RootSchema.fromJSON(this.client, [this.schema()]);
         let $reversed = this.versionState() === 'rollback';
         if (reversed) $reversed = !$reversed;
-        if ($reversed) { schema = schema.reverseDiff({ honourCDLIgnoreList: true }); }
-        // Execute rollback
-        if (schema.status() === 'obsolete') return DropDatabase.fromJSON(this.client, { reference: schema.name() }).withFlag(this.client.params.dialect === 'mysql' ? '' : 'CASCADE');
-        if (schema.status() === 'new') return CreateDatabase.fromJSON(this.client, { argument: schema.jsonfy() });
-        return AlterDatabase.fromJSON(this.client, { reference: schema.name(), argument: schema.generateCDL() });
+        if ($reversed) {
+            rootSchema = rootSchema.reverseDiff({ forceNormalize: true, honourCDLIgnoreList: this.versionState() === 'rollback' });
+        }
+        return rootSchema.generateCDL({ cascade: true }).actions()[0];
     }
 
     /**
      * @returns Bool
      */
     async isNextPointInTime() {
-        const currentSavepoint = (await this.client.database(this.name()).savepoint({ direction: this.direction, withCascades: false })) || {};
-        return currentSavepoint.id() === this.$.json.id;
+        const currentSavepoint = (await this.client.database(this.name()).savepoint({ direction: this.versionState() === 'commit' ? 'backward' : 'forward', withCascades: false })) || {};
+        return currentSavepoint.id?.() === this.$.json.id;
     }
 
     /**
@@ -181,22 +176,29 @@ export class Savepoint {
      * @return Void
      */
     async rollback(details = {}) {
-        if (!this.masterSavepoint() && !(await this.isNextPointInTime())) throw new Error(`Invalid rollback order.`);
-        await this.client.query(this.querify(true), { noCreateSavepoint: true });
+        if (this.masterSavepoint()) {
+            if (this.versionState() === 'commit') {
+                const query = this.querify(true);
+                if (query) await this.client.query(query, { noCreateSavepoint: true });
+            }
+        } else {
+            if (!(await this.isNextPointInTime())) throw new Error(`Invalid rollback order.`);
+            await this.client.query(this.querify(true), { noCreateSavepoint: true });
+        }
         const linkedDB = await this.client.linkedDB();
         // Update record
         const versionState = this.versionState() === 'rollback' ? 'commit' : 'rollback';
         const updatedRecord = await linkedDB.table('savepoints').update({
             ['version_state']: versionState,
             [`${versionState}_date`]: q => q.now(),
-            [`${versionState}_desc`]: details.desc,
-            [`${versionState}_ref`]: details.ref || this.client.params.commitRef,
+            [`${versionState}_desc`]: details.desc || this[`${versionState}Desc`](),
+            [`${versionState}_ref`]: details.ref || this.client.params.commitRef || this[`${versionState}Ref`](),
             [`${versionState}_pid`]: q => q.fn(this.client.params.dialect === 'mysql' ? 'connection_id' : 'pg_backend_pid'),
-        }, { where: q => q.eq('id', q => q.value(this.$.json.id)), returning: ['*'] });
-        this.$.json = updatedRecord[0];
+        }, { where: (q) => q.eq('id', (q) => q.value(this.$.json.id)), returning: ['*'] });
         for (const cascade of this.cascades()) {
             await cascade.rollback(details);
         }
+        this.$.json = updatedRecord[0];
         return true;
     }
 }

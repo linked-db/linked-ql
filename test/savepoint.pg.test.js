@@ -19,17 +19,16 @@ let $pgClient = { query(sql, ...args) {
 } };
 const client = new SQLClient($pgClient, { dialect: 'postgres' });
 // --------------------------
-const $tables = async dbName => (await client.rootSchema({ depth: 1 })).database(dbName).tables(false);
+const $tables = async dbName => await client.database(dbName).tables();
 
 describe(`Postgres Savepoints & Rollbacks`, function() {
 
     before(async function() {
         const linkedDB = await client.linkedDB(true);
         await linkedDB.table('savepoints').delete(true);
-        const struct = await client.rootSchema({ depth: 1 });
-        console.log('---DATABSES BEFORE:', struct.databases()/*, (await client.driver.query(`ALTER schema private RENAME to public`))*/);
-        console.log('---PUBLIC TABLES BEFORE:', struct.database('public')?.tables());
         //console.log('DROP 5', await client.query('ALTER SCHEMA private RENAME TO public', { inspect: true, noCreateSavepoint: true }));
+        console.log('---PUBLIC TABLES BEFORE:', await client.database('public')?.tables());
+        console.log('---DATABSES BEFORE:', await client.databases());
         console.log('DROP 3', await client.query('DROP TABLE if exists public.test1 CASCADE', { noCreateSavepoint: true }));
         console.log('DROP 3', await client.query('DROP TABLE if exists public.test2 CASCADE', { noCreateSavepoint: true }));
         console.log('DROP 5', await client.query('DROP SCHEMA if exists obj_information_schema CASCADE', { noCreateSavepoint: true }));
@@ -38,14 +37,13 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
     });
 
     after(async function() {
-        const struct = await client.rootSchema({ depth: 1 });
         console.log('DROP 3', await client.query('DROP TABLE if exists public.test1 CASCADE', { noCreateSavepoint: true }));
         console.log('DROP 3', await client.query('DROP TABLE if exists public.test2 CASCADE', { noCreateSavepoint: true }));
         console.log('DROP 5', await client.query('DROP SCHEMA if exists obj_information_schema CASCADE', { noCreateSavepoint: true }));
         console.log('DROP 5', await client.query('DROP SCHEMA if exists "some_db" CASCADE', { noCreateSavepoint: true }));
         console.log('DROP 5', await client.query('DROP SCHEMA if exists "some_db.new" CASCADE', { noCreateSavepoint: true }));
-        console.log('---PUBLIC TABLES AFTER:', struct.database('public')?.tables());
-        console.log('---DATABSES AFTER:', struct.databases(false));
+        console.log('---PUBLIC TABLES AFTER:', await client.database('public')?.tables());
+        console.log('---DATABSES AFTER:', await client.databases());
     });
 
     const desc0 = `Re-name DB "public" to "private".`;
@@ -57,9 +55,9 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
             savepoint0 = await client.alterDatabase(publicBefore, dbSchema => {
                 dbSchema.name(publicAfter);
             }, {
-                description: 'Rename to private',
+                desc: 'Rename to private',
             });
-            const databases = (await client.rootSchema()).databases(false);
+            const databases = await client.databases();
             expect(databases).to.be.an('array').that.includes(publicAfter).and.not.includes(publicBefore);
         });
 
@@ -67,7 +65,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
             //throw new Error();
             const success = await savepoint0.rollback();
             expect(success).to.be.true;
-            const databases = (await client.rootSchema()).databases(false);
+            const databases = await client.databases();
             expect(databases).to.be.an('array').that.includes(publicBefore).and.not.includes(publicAfter);
         });
 
@@ -75,7 +73,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
             const savepoint = await client.database(publicBefore).savepoint({ direction: 'forward' });
             const success = await savepoint.rollback();
             expect(success).to.be.true;
-            const databases = (await client.rootSchema()).databases(false);
+            const databases = await client.databases();
             expect(databases).to.be.an('array').that.includes(publicAfter).and.not.includes(publicBefore);
         });
 
@@ -83,7 +81,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
             const savepoint = await client.database(publicAfter).savepoint();
             const success = await savepoint.rollback();
             expect(success).to.be.true;
-            const databases = (await client.rootSchema()).databases(false);
+            const databases = await client.databases();
             expect(databases).to.be.an('array').that.includes(publicBefore).and.not.includes(publicAfter);
         });
 
@@ -121,7 +119,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
                     { name: 'id', type: 'int', primaryKey: true },
                     { name: 'author1', type: 'int', foreignKey: { targetTable: ['some_db','users'], targetColumns: ['id'] }, },
                     { name: 'author2', type: 'int', },
-                    { name: 'content', type: ['varchar', 30], default: { expr: '\'Hello world\'' }, },
+                    { name: 'content', type: ['varchar', 30], default: { expr: (q) => q.value('Hello world') }, },
                     { name: 'isbn', type: 'int', identity: { always: false }, notNull: true },
                 ],
                 constraints: [
@@ -137,7 +135,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
         it(`DO: ${ desc1 }`, async function() {
             savepoint0 = await client.createDatabase(dbCreateRequest, { inspect: true });
             someDb = client.database(dbCreateRequest.name);
-            const databases = (await client.rootSchema()).databases(false);
+            const databases = await client.databases();
             expect(databases).to.be.an('array').that.includes('some_db');
             console.log('>>______________', dbCreateRequest.name);
             const tables = await $tables(dbCreateRequest.name);
@@ -147,29 +145,25 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
         it(`ROLLBACK: ${ desc1 } (BY DROPPING DB)`, async function() {
             const success = await savepoint0.rollback({ allowMutateDB: true });
             expect(success).to.be.true;
-            const databases = (await client.rootSchema()).databases(false);
+            const databases = await client.databases();
             expect(databases).to.be.an('array').that.not.includes('some_db');
         });
 
         it(`ROLLFORWARD: ${ desc1 } (BY RECREATING DB & TABLES)`, async function() {
-            // Remeber savepoint0? Let's assert that we can't rollback (since it's been rolled back)
-            expect(await savepoint0.isNextPointInTime()).to.be.false;
             const savepoint = await someDb.savepoint({ direction: 'forward' });
             const success = await savepoint.rollback({ allowMutateDB: true });
             expect(success).to.be.true;
-            const databases = (await client.rootSchema()).databases(false);
+            const databases = await client.databases();
             expect(databases).to.be.an('array').that.includes('some_db');
             const tables = await $tables(someDb.name);
             expect(tables).to.be.an('array').that.have.members(['users','books']);
-            // Call out savepoint0! Let's assert that now we can rollback (since it's been rolled forward)
-            expect(await savepoint0.isNextPointInTime()).to.be.true;
         });
 
         it(`ROLLBACK: ${ desc1 } (BY DROPPING DB)`, async function() {
             const savepoint = await someDb.savepoint();
             const success = await savepoint.rollback({ allowMutateDB: true });
             expect(success).to.be.true;
-            const databases = (await client.rootSchema()).databases(false);
+            const databases = await client.databases();
             expect(databases).to.be.an('array').that.not.includes('some_db');
         });
 
@@ -177,7 +171,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
             const savepoint = await someDb.savepoint({ direction: 'forward' });
             const success = await savepoint.rollback({ allowMutateDB: true });
             expect(success).to.be.true;
-            const databases = (await client.rootSchema()).databases(false);
+            const databases = await client.databases();
             expect(databases).to.be.an('array').that.includes('some_db');
             const tables = await $tables(someDb.name);
             expect(tables).to.be.an('array').that.have.members(['users','books']);
@@ -206,9 +200,9 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
                 // Rename DB
                 dbSchema.name('some_db.new');
                 // Modify column
-                dbSchema.table('users').column('id').uniqueKey(true);
+                dbSchema.table('users').column('id').check((q) => q.notEq('id', {value: 0}));
                 // Remove test1 table
-                dbSchema.table('test1').keep(false);
+                dbSchema.table('test1', false);
                 /// Add table test2
                 dbSchema.table({
                     name: 'test2',
@@ -220,8 +214,9 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
             const someDb = client.database('some_db.new');
             const tables = await $tables(someDb.name);
             expect(tables).to.be.an('array').that.have.members(['users','books','test2']);
-            const users = (await client.rootSchema({ depth: 2 })).database('some_db.new').table('users');
-            expect(users.column('id').uniqueKey()).to.be.an('object');
+            const users = (await client.schema({ depth: 2 })).database('some_db.new').table('users');
+            console.log('_______________>>', JSON.stringify(await someDb.schema(), null, 3));
+            expect(users.column('id').check()).to.be.an('object');
 
             //console.log((await pgClient.query(`SELECT * FROM obj_information_schema.database_savepoints ORDER BY savepoint_date ASC`)).rows);
         });

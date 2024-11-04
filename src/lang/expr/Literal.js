@@ -19,7 +19,8 @@ export class Literal extends AbstractNode {
 	}
 
 	static fromJSON(context, json, callback = null) {
-		if (typeof json?.value !== 'string' && ![null].includes(json?.value)) return;
+		if ((typeof json?.value !== 'string' && ![null].includes(json?.value))
+		|| Object.keys(json).filter((k) => k !== 'nodeName').length > 1) return;
 		return super.fromJSON(context, json, (instance) => {
 			instance.value(json.value);
 			callback?.(instance);

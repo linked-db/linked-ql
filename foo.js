@@ -25,45 +25,45 @@ console.log((await client.driver.query(`SELECT json_object(array['name', name]) 
 await client.withSchema(async () => {
 
     // Start with basic form
-    const result00 = Parser.parse(client, `UPSERT INTO users (name, email) VALUES ('name1', 'email1'), ('name2', 'email2')`, null, { log: false });
+    const result00 = Parser.parse(client, `UPSERT INTO users (name, email) VALUES ('name1', 'email1'), ('name2', 'email2')`, null, { inspect: false });
     console.log('\n\n\n>>', result00 + '', '\n>>', result00.deSugar() + '\n\n\n');
 
     // Start with basic form
-    const result0 = Parser.parse(client, `SELECT name + name, name, role ~> name FROM users`, null, { log: false });
+    const result0 = Parser.parse(client, `SELECT name + name, name, role ~> name FROM users`, null, { inspect: false });
     console.log('\n\n\n>>', result0 + '', '\n>>', result0.deSugar() + '\n\n\n');
 
     // Alias the base table. Should work whether written as u.role ~> name or role ~> name
-    const result2 = Parser.parse(client, `SELECT name, role ~> name as a FROM users as u`, null, { log: false });
+    const result2 = Parser.parse(client, `SELECT name, role ~> name as a FROM users as u`, null, { inspect: false });
     console.log('\n\n\n>>', result2 + '', '\n>>', result2.deSugar() + '\n\n\n');
 
     // Introduce joins. Should throw an ambiguity error if not written as u.role ~> name
-    const result3 = Parser.parse(client, `SELECT u.name, u.role ~> name as a FROM users as u LEFT JOIN users AS u2 ON u.id = u2.id`, null, { log: false });
+    const result3 = Parser.parse(client, `SELECT u.name, u.role ~> name as a FROM users as u LEFT JOIN users AS u2 ON u.id = u2.id`, null, { inspect: false });
     console.log('\n\n\n>>', result3 + '', '\n>>', result3.deSugar() + '\n\n\n');
 
     // Abstract the base table. Should work provided the relevant fields are present
-    const result4 = Parser.parse(client, `SELECT name, rb ~> name as a FROM (SELECT name, ra AS rb FROM (SELECT name, role AS ra FROM users as u0) as u1) as u`, null, { log: false });
+    const result4 = Parser.parse(client, `SELECT name, rb ~> name as a FROM (SELECT name, ra AS rb FROM (SELECT name, role AS ra FROM users as u0) as u1) as u`, null, { inspect: false });
     console.log('\n\n\n>>', result4 + '', '\n>>', result4.deSugar() + '\n\n\n');
 
 
 
     // Start with basic form
-    const result5 = Parser.parse(client, `SELECT name, role <~ users ~> id FROM roles`, null, { log: false });
+    const result5 = Parser.parse(client, `SELECT name, role <~ users ~> id FROM roles`, null, { inspect: false });
     console.log('\n\n\n>>', result5 + '', '\n>>', result5.deSugar() + '\n\n\n');
 
     // Alias the base table. Should work even with base table now having an alias: roles as r
-    const result6 = Parser.parse(client, `SELECT name, role <~ users ~> id FROM roles as r`, null, { log: false });
+    const result6 = Parser.parse(client, `SELECT name, role <~ users ~> id FROM roles as r`, null, { inspect: false });
     console.log('\n\n\n>>', result6 + '', '\n>>', result6.deSugar() + '\n\n\n');
 
     // Introduce joins. Should throw an ambiguity error if joined with an identical table for the relationship: LEFT JOIN roles AS r2 ON r.id = r2.id
-    const result7 = Parser.parse(client, `SELECT r.name, role <~ users ~> id FROM roles as r`, null, { log: false });
+    const result7 = Parser.parse(client, `SELECT r.name, role <~ users ~> id FROM roles as r`, null, { inspect: false });
     console.log('\n\n\n>>', result7 + '', '\n>>', result7.deSugar() + '\n\n\n');
     
    // Abstract the base table. Should work provided the relevant fields are present
-    const result8 = Parser.parse(client, `SELECT {name}, role <~ users ~> id FROM (SELECT * FROM (SELECT id FROM roles as r0) as r1) as r`, null, { log: false });
+    const result8 = Parser.parse(client, `SELECT {name}, role <~ users ~> id FROM (SELECT * FROM (SELECT id FROM roles as r0) as r1) as r`, null, { inspect: false });
     console.log('\n\n\n>>', result8 + '', '\n>>', result8.deSugar() + '\n\n\n');
     
    // Abstract the base table. Should work provided the relevant fields are present
-   const result9 = Parser.parse(client, `SELECT name, role <~ author <~ books ~> title FROM roles`, null, { log: true });
+   const result9 = Parser.parse(client, `SELECT name, role <~ author <~ books ~> title FROM roles`, null, { inspect: true });
    console.log('\n\n\n>>', result9 + '', '\n>>', result9.deSugar() + '\n\n\n');
    
     return;
@@ -76,7 +76,7 @@ await client.withSchema(async () => {
 
 
 
-const result1 = Parser.parse(client, `SELECT gggg:[d,d] as a, dd<~d~>l, kfk~>ffk, {a,b,c,a+e as d} "ff""f", '' r, sum(all    cols) as cols From a a, b b`, null, { log: false });
+const result1 = Parser.parse(client, `SELECT gggg:[d,d] as a, dd<~d~>l, kfk~>ffk, {a,b,c,a+e as d} "ff""f", '' r, sum(all    cols) as cols From a a, b b`, null, { inspect: false });
 
 
 
@@ -84,7 +84,7 @@ const result1 = Parser.parse(client, `SELECT gggg:[d,d] as a, dd<~d~>l, kfk~>ffk
 
 
 //console.log('\n\n\n', result1.deSugar() + '');
-const result8 = Parser.parse({}, `Grant priv to kk`, null, { log: true });
+const result8 = Parser.parse({}, `Grant priv to kk`, null, { inspect: true });
 console.log('\n\n\n',  result8 + '');
 
 const query = new SelectStatement({});

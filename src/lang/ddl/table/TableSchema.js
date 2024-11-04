@@ -61,15 +61,37 @@ export class TableSchema extends AbstractPrefixableNameableNode {
 		return this;
 	}
 
-	constraint(constraint) {
-		if (typeof constraint === 'string') return this.#constraints.find(cons => cons.identifiesAs(constraint));
-		this.#constraints = this.$castInputs([constraint], this.constructor.CONSTRAINT_TYPES, this.#constraints, 'constraints');
+	constraint(arg1, ...args) {
+		if (typeof arg1 === 'string') {
+			const existing = this.#constraints.find((cons) => cons.identifiesAs(arg1));
+			if (!args.length) return existing;
+			if (args[0] === false) {
+				this.#constraints = this.#constraints.filter((c) => c !== existing);
+				existing?.bubble('DISCONNECTED');
+				return this;
+			}
+			arg1 = { name: arg1, ...(typeof args[0] === 'object' ? args[0] : { type: args[0], columns: args[1] }) };
+		}
+		this.#constraints = this.$castInputs([arg1], this.constructor.CONSTRAINT_TYPES, this.#constraints, 'constraints', null, (existing) => {
+			return this.#constraints.find((cons) => cons.identifiesAs(existing.name()));
+		});
 		return this;
 	}
 
-	index(index) {
-		if (typeof index === 'string') return this.#indexes.find(idx => idx.identifiesAs(index));
-		this.#indexes = this.$castInputs([index], IndexSchema, this.#indexes, 'indexes');
+	index(arg1, ...args) {
+		if (typeof arg1 === 'string') {
+			const existing = this.#indexes.find((idx) => idx.identifiesAs(arg1));
+			if (!args.length) return existing;
+			if (args[0] === false) {
+				this.#indexes = this.#indexes.filter((i) => i !== existing);
+				existing?.bubble('DISCONNECTED');
+				return this;
+			}
+			arg1 = { name: arg1, ...(typeof args[0] === 'object' ? args[0] : { type: args[0], columns: args[1] }) };
+		}
+		this.#indexes = this.$castInputs([arg1], IndexSchema, this.#indexes, 'indexes', null, (existing) => {
+			return this.#indexes.find((idx) => idx.identifiesAs(existing.name()));
+		});
 		return this;
 	}
 
@@ -135,7 +157,7 @@ export class TableSchema extends AbstractPrefixableNameableNode {
 			if ((!node || ($$transforms.has(node) && !$$transforms.get(node)/*dropped*/)) && assertExists) {
 				throw new Error(`${$$kind[0]}${name ? ` "${name}"` : ''} does not exist.`);
 			}
-			if (autoRehydrate && $$transforms.has(node)) return [node, node.constructor.fromJSON(node.contextNode, $$transforms.get(node))];
+			if (autoRehydrate && $$transforms.has(node)) return [node, node.constructor.fromJSON(node.contextNode.clone(), $$transforms.get(node))];
 			return [node];
 		};
 		// -- ADD|MODIFY|CHANGE ACTION
@@ -155,7 +177,7 @@ export class TableSchema extends AbstractPrefixableNameableNode {
 			// Addition...
 			const [existing] = findNode(cd.KIND, cd.argument().name(), false, false);
 			if (existing) {
-				if ($$transforms.has(existing) || (!$$transforms.get(existing) || $$transforms.get(existing).status === 'obsolete')) {
+				if ($$transforms.has(existing) && (!$$transforms.get(existing) || $$transforms.get(existing).status === 'obsolete')) {
 					// This was a drop/re-add event. typically applicable to constraints
 					$$transforms.set(existing, cd.argument().jsonfy($options));
 					return;
@@ -166,10 +188,10 @@ export class TableSchema extends AbstractPrefixableNameableNode {
 			let $argument = cd.argument().jsonfy($options);
 			if ($options.diff !== false) $argument = { ...$argument, status: 'new' };
 			// Move into a column?
-			if (cd.KIND === 'CONSTRAINT' && $argument.columns.length === 1) {
-				const [refNode, $refNode] = findNode('COLUMN', $argument.columns[0], false) || [];
+			if (cd.KIND === 'CONSTRAINT' && cd.argument().$columns().length === 1) {
+				const [refNode, $refNode] = findNode('COLUMN', cd.argument().$columns()[0], false) || [];
 				if (refNode) {
-					const $$refNode = $refNode || ColumnSchema.fromJSON(this, refNode.jsonfy($options));
+					const $$refNode = $refNode || ColumnSchema.fromJSON(this.clone(), refNode.jsonfy($options));
 					const $$argument = $$refNode.constraint($argument).jsonfy($options);
 					$$transforms.set(refNode, $$argument);
 				} else $$additions.get(placement).unshift($argument);
@@ -199,7 +221,7 @@ export class TableSchema extends AbstractPrefixableNameableNode {
 			const rejsonfyColumn = (col) => {
 				// Ignore physically dropped
 				if (!$$transforms.get(col)) return;
-				const $col = col.constructor.fromJSON(col, $$transforms.get(col));
+				const $col = col.constructor.fromJSON(col.contextNode.clone(), $$transforms.get(col));
 				for (const cons of col.constraints()) {
 					if (!$$transforms.has(cons)) continue;
 					if ($$transforms.get(cons)) $col.constraint($$transforms.get(cons));
@@ -210,7 +232,7 @@ export class TableSchema extends AbstractPrefixableNameableNode {
 			const rejsonfyNode = (cons) => {
 				// Ignore physically dropped or no need to rehydrate if not options.rootCDL
 				if (!options.rootCDL || !$$transforms.get(cons)) return $$transforms.get(cons);
-				return cons.constructor.fromJSON(cons.contextNode, $$transforms.get(cons)).jsonfy({ tableCDL, ...options })
+				return cons.constructor.fromJSON(cons.contextNode.clone(), $$transforms.get(cons)).jsonfy({ tableCDL, ...options })
 			};
 			let $json;
 			if ($$transforms.has(node)) {
@@ -310,10 +332,10 @@ export class TableSchema extends AbstractPrefixableNameableNode {
 		// Normalise constraints and process subtree...
 		const modifiedColumns = new Map;
 		const [constraintsA, constraintsB] = [new Map, new Map];
-		for (const [instance, constraints] of [[this, constraintsA], [nodeB, constraintsB]]) {
+		for (const [instance, constraints, instance2] of [[this, constraintsA, nodeB], [nodeB, constraintsB, this]]) {
 			for (const cons of instance.constraints(true, false)) {
 				let refColumn;
-				if (cons.columns().length === 1 && (refColumn = instance.column(cons.columns()[0]))) {
+				if (!instance2.constraint(cons.name()) && cons.columns().length === 1 && (refColumn = instance.column(cons.columns()[0]))) {
 					const $refColumn = modifiedColumns.get(refColumn) || refColumn.clone();
 					$refColumn.constraint(cons.jsonfy(options));
 					modifiedColumns.set(refColumn, $refColumn);
@@ -372,7 +394,7 @@ export class TableSchema extends AbstractPrefixableNameableNode {
 		if (this.params.dialect === 'mysql') {
 			constraints.push(...this.#columns.reduce((constraints, col) => {
 				const constraint = col.foreignKey();
-				if (constraint) return constraints.concat(ForeignKeyConstraint.fromJSON(this, { ...constraint.jsonfy(), columns: [col.name()] }));
+				if (constraint) return constraints.concat(ForeignKeyConstraint.fromJSON(this.clone(), { ...constraint.jsonfy(), columns: [col.name()] }));
 				return constraints;
 			}, []));
 		}

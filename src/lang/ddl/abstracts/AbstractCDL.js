@@ -40,7 +40,7 @@ export class AbstractCDL extends AbstractNode {
 		});
 	}
     
-    parse(context, expr, parseCallback) {
+    static parse(context, expr, parseCallback) {
         const instance = new this(context);
         return instance.add(...Lexer.split(expr, [',']).map(actionExpr => parseCallback(instance, actionExpr.trim(), this.EXPECTED_TYPES)));
     }

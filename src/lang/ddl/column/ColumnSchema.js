@@ -2,6 +2,7 @@ import { Lexer } from '../../Lexer.js';
 import { _toCamel, _fromCamel } from '@webqit/util/str/index.js';
 import { GlobalTableRef } from '../../expr/refs/GlobalTableRef.js';
 import { AbstractNode } from '../../AbstractNode.js';
+import { AbstractConstraint } from '../constraints/abstracts/AbstractConstraint.js';
 import { AbstractPrefixableNameableNode } from '../abstracts/AbstractPrefixableNameableNode.js'
 import { AbstractLevel2Constraint } from '../constraints/abstracts/AbstractLevel2Constraint.js';
 import { AutoIncrementConstraint } from '../constraints/AutoIncrementConstraint.js';
@@ -17,6 +18,7 @@ import { ForeignKeyConstraint } from '../constraints/ForeignKeyConstraint.js';
 import { UniqueKeyConstraint } from '../constraints/UniqueKeyConstraint.js';
 import { ColumnCDL } from './ColumnCDL.js';
 import { DataType } from './DataType.js';
+import { _isObject } from '@webqit/util/js/index.js';
 
 export class ColumnSchema extends AbstractPrefixableNameableNode {
     static get CONSTRAINT_TYPES() { return [AutoIncrementConstraint,IdentityConstraint,ExpressionConstraint,DefaultConstraint,NotNullConstraint,NullConstraint,OnUpdateClause,PrimaryKeyConstraint,ForeignKeyConstraint,UniqueKeyConstraint,CheckConstraint]; }
@@ -69,7 +71,7 @@ export class ColumnSchema extends AbstractPrefixableNameableNode {
                 existing?.bubble('DISCONNECTED');
                 return this;
             }
-            arg1 = { type: arg1, ...(typeof args[0] === 'object' ? args[0] : (typeof args[0] === 'string' ? { expr: args[0] } : {})) };
+            arg1 = { type: arg1, ...(['CHECK', 'DEFAULT', 'EXPRESSION', 'ON_UPDATE'].includes(arg1) && !(_isObject(args[0]) && args[0].expr) ? { expr: args[0] } : (typeof args[0] === 'object' ? args[0] : {})) };
         }
         this.#constraints = this.$castInputs([arg1], this.constructor.CONSTRAINT_TYPES, this.#constraints, 'constraint', null, (existing) => {
 			return this.#constraints.find((cons) => cons.TYPE === existing.TYPE);
@@ -109,9 +111,9 @@ export class ColumnSchema extends AbstractPrefixableNameableNode {
                 } else if (cd.$KIND === 'IDENTITY') {
                     json = this.diffMergeJsons(json, { identity: { always: cd.argument().always() } });
                 } else if (cd.$KIND === 'EXPRESSION') {
-                    json = this.diffMergeJsons(json, { expression: { expr: cd.argument().expr() } });
+                    json = this.diffMergeJsons(json, { expression: { expr: cd.argument().expr().jsonfy(options) } });
                 } else if (cd.$KIND === 'DEFAULT') {
-                    json = this.diffMergeJsons(json, { default: { expr: cd.argument().expr() } });
+                    json = this.diffMergeJsons(json, { default: { expr: cd.argument().expr().jsonfy(options) } });
                 }
             } else if (cd.CLAUSE === 'DROP') {
                 json = options.diff === false ? json : this.diffMergeJsons(json, { [cd.$KIND.toLowerCase()]: { status: 'obsolete' } });
@@ -162,7 +164,7 @@ export class ColumnSchema extends AbstractPrefixableNameableNode {
         for (const cons of constraints) {
             const { type, ...rest } = cons;
             const attrName = _toCamel(type.toLowerCase().replace('_', ' '));
-            json = { ...json, [ attrName ]: !Object.keys(rest).length ? true : rest };
+            json = { ...json, [ attrName ]: !Object.keys(rest).filter((k) => rest[k] !== undefined ).length ? true : rest };
         }
         return json;
     }
@@ -176,14 +178,13 @@ export class ColumnSchema extends AbstractPrefixableNameableNode {
             body = body === true ? {} : (body === false ? { status: 'obsolete' } : body);
             // Validation
             if (['CHECK', 'EXPRESSION', 'DEFAULT', 'ON_UPDATE'].includes(type)) {
-                if (['string', 'number'].includes(typeof body)) body = { expr: body };
-                else if (!['string', 'number'].includes(typeof body?.expr)) $throw('expr');
+                if (!_isObject(body) || !body.expr) body = { expr: body };
             } else if (type === 'FOREIGN_KEY') {
                 if (!GlobalTableRef.fromJSON({}, body?.targetTable)) $throw('targetTable');
                 if (!Array.isArray(body?.targetColumns)) $throw('targetColumns');
             } else if (!['PRIMARY_KEY', 'UNIQUE_KEY', 'IDENTITY', 'NOT_NULL', 'NULL', 'AUTO_INCREMENT'].includes(type)) {
                 throw new Error(`Unknown attribute or constraint: ${type}`);
-            } else if (typeof body !== 'object') $throw();
+            } else if (!_isObject(body)) $throw();
             return { type, ...body };
         });
     }

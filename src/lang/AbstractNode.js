@@ -14,6 +14,7 @@ export class AbstractNode {
 	}
 
 	static get NODE_NAME() { return _fromCamel(this.name, '_').toUpperCase(); }
+	get NODE_NAME() { return this.constructor.NODE_NAME; }
 
 	/**
 	 * -----------
@@ -85,17 +86,20 @@ export class AbstractNode {
 					if (resultPair) {
 						$.result = adoptNode($.result, resultPair[0]);
 						return returnPairs ? resultPair : resultPair[1];
-					} else if (autoThrow) throw new Error(`[${this.constructor.NODE_NAME}::${slotName}]: The ${methodName}() method is undefined in any of ${Types.map(Type => Type.name).join(', ')}.`);
+					} else if (autoThrow) throw new Error(`[${this.NODE_NAME}::${slotName}]: The ${methodName}(${args}) method is undefined in any of ${Types.map(Type => Type.name).join(', ')}.`);
 				},
 			});
 		};
 		const adoptNode = (slot, instance) => {
 			instance?.bubble('CONNECTED');
+			if (instance && typeof this.params.nodeCallback === 'function') {
+				this.params.nodeCallback(instance);
+			}
 			if (Array.isArray(slot) && instance) {
 				const duplicate = dedupeCallback?.(instance);
 				if (duplicate) {
-					slot = slot.filter(node => node !== duplicate);
 					duplicate.bubble('DISCONNECTED');
+					return slot.map((node) => node === duplicate ? instance : node);
 				}
 				return slot.concat(instance);
 			}
@@ -104,7 +108,7 @@ export class AbstractNode {
 		};
 		// --------------
 		if (args.length === 1 && args[0] === undefined) {
-			if (Array.isArray($.result)) throw new Error(`[${this.constructor.NODE_NAME}::${slotName}]: Cannot unset array property.`);
+			if (Array.isArray($.result)) throw new Error(`[${this.NODE_NAME}::${slotName}]: Cannot unset array property.`);
 			return adoptNode($.result, undefined);
 		}
 		// --------------
@@ -132,7 +136,7 @@ export class AbstractNode {
 				if (instance) {
 					while ($nextMethodName = $$.keys.shift()) {
 						const nextMethod = chainTarget?.[$nextMethodName];
-						if (typeof nextMethod !== 'function') throw new Error(`[${this.constructor.NODE_NAME}::${slotName}][${i + 1}/${args.length}]: The implied chaining: ${chainTarget.constructor.NODE_NAME}.${baseMethodName}().${$nextMethodName}() is invalid.`);
+						if (typeof nextMethod !== 'function') throw new Error(`[${this.NODE_NAME}::${slotName}][${i + 1}/${args.length}]: The implied chaining: ${chainTarget.NODE_NAME}.${baseMethodName}().${$nextMethodName}() is invalid.`);
 						chainTarget = nextMethod.call(chainTarget, ...[].concat(arg[$nextMethodName]));
 						baseMethodName = $nextMethodName;
 					}
@@ -147,7 +151,7 @@ export class AbstractNode {
 			let content;
 			if (_isObject(arg)) { try { content = JSON.stringify(arg); } catch (e) { content = arg.constructor.name; } }
 			else content = arg + '';//typeof arg;
-			throw new Error(`[${this.constructor.NODE_NAME}::${slotName}][${i + 1}/${args.length}]: Arguments must be of type ${Types.map(Type => Type.name).join(', ')} or a JSON equivalent. Recieved: ${content}`);
+			throw new Error(`[${this.NODE_NAME}::${slotName}][${i + 1}/${args.length}]: Arguments must be of type ${Types.map(Type => Type.name).join(', ')} or a JSON equivalent. Recieved: ${content}`);
 		}
 		// --------------
 		// Delegate arguments
@@ -258,21 +262,21 @@ export class AbstractNode {
 	}
 
 	$eq(a, b, caseMatch = null) {
-		if (typeof a === 'string' && typeof b === 'string' && caseMatch === 'ci') {
-			return a.toLowerCase() === b.toLowerCase();
-		}
-		if (a === b) return true;
-		if (Array.isArray(a) && Array.isArray(b) && a.length === b.length) {
-			const $b = b.slice(0).sort();
-			return a.slice(0).sort().every((x, i) => this.$eq(x, $b[i], caseMatch));
+		if (Array.isArray(a) && Array.isArray(b)) {
+			return a.length === b.length && (b = b.slice(0).sort())
+			&& a.slice(0).sort().every((x, i) => this.$eq(x, b[i], caseMatch));
 		}
 		if (a instanceof AbstractNode) a = a.jsonfy();
 		if (b instanceof AbstractNode) b = b.jsonfy();
-		const temp = {};
-		if (typeof a === 'object' && a && typeof b === 'object' && b && (temp.keys_a = Object.keys(a)).length === (temp.keys_b = Object.keys(b)).length) {
-			return temp.keys_a.reduce((prev, k) => prev && this.$eq(a[k], b[k], caseMatch), true);
+		if (_isObject(a) && _isObject(b)) {
+			const temp = {};
+			return (temp.keys_a = Object.keys(a)).length === (temp.keys_b = Object.keys(b)).length
+			&& temp.keys_a.reduce((prev, k) => prev && this.$eq(a[k], b[k], caseMatch), true);
 		}
-		return false;
+		if (typeof a === 'string' && typeof b === 'string' && caseMatch === 'ci') {
+			return a.toLowerCase() === b.toLowerCase();
+		}
+		return a === b;
 	}
 
 	identifiesAs(value) {
@@ -286,7 +290,7 @@ export class AbstractNode {
 	}
 
 	static fromJSON(contextNode, json, callback = null) {
-		if (json instanceof AbstractNode) throw new Error(`Illegal instance passed as JSON: ${json.constructor.NODE_NAME}`);
+		if (json instanceof AbstractNode) throw new Error(`Illegal instance passed as JSON: ${json.NODE_NAME}`);
 		if (_isObject(json) && 'nodeName' in json && json.nodeName !== this.NODE_NAME) return;
 		const instance = (new this(contextNode)).withFlag(...(json?.flags || []));
 		if (typeof callback === 'function') callback(instance);
@@ -295,7 +299,7 @@ export class AbstractNode {
 
 	jsonfy(options = {}, jsonIn = {}) {
 		return {
-			...(options.nodeNames !== false ? { nodeName: this.constructor.NODE_NAME } : {}),
+			...(options.nodeNames !== false ? { nodeName: this.NODE_NAME } : {}),
 			...(typeof jsonIn === 'function' ? jsonIn() : jsonIn),
 			...(this.#flags.length ? { flags: this.#flags.slice(0) } : {}),
 		};

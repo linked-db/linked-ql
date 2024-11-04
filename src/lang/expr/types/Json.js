@@ -10,7 +10,8 @@ export class Json extends Str {
 	}
 
 	static fromJSON(context, json, callback = null) {
-		try { typeof json.value === 'string' && JSON.parse(json.value); } catch(e) { return; }
+		if (!_isObject(json) || Object.keys(json).filter((k) => k !== 'nodeName').length > 1) return;
+		try { typeof json?.value === 'string' && JSON.parse(json.value); } catch(e) { return; }
 		return super.fromJSON(context, json, (instance) => {
 			callback?.(instance);
 		});

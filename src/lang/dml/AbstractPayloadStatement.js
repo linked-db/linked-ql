@@ -88,7 +88,7 @@ export const AbstractPayloadStatement = Class => class extends Class {
 		// Payload structure must match column spec
 		const resolvePayload = (payload, inMultiRowStructure = false) => {
 			if (payload instanceof Parens) payload = payload.exprUnwrapped();
-			if (!inMultiRowStructure && (payload instanceof ValuesSubClause)) throw new Error(`Single-row payload structure expected for column structure: ${dimensionSpec.rhs()}. Recieved ${payload.constructor.NODE_NAME}.`);
+			if (!inMultiRowStructure && (payload instanceof ValuesSubClause)) throw new Error(`Single-row payload structure expected for column structure: ${dimensionSpec.rhs()}. Recieved ${payload.NODE_NAME}.`);
 			if (inMultiRowStructure && !(payload instanceof ValuesSubClause)) {
 				payload = [payload];
 			}

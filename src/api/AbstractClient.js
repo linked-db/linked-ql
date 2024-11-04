@@ -1,5 +1,6 @@
 import { _from as _arrFrom, _difference, _intersect } from '@webqit/util/arr/index.js';
 import { _isObject } from '@webqit/util/js/index.js';
+import { Str } from '../lang/expr/types/Str.js';
 import { Identifier } from '../lang/expr/Identifier.js';
 import { AbstractNode } from '../lang/AbstractNode.js';
 import { AlterDatabase } from '../lang/ddl/AlterDatabase.js';
@@ -10,7 +11,6 @@ import { RootSchema } from '../lang/ddl/RootSchema.js';
 import { RootCDL } from '../lang/ddl/RootCDL.js';
 import { Savepoint } from './Savepoint.js';
 import { Parser } from '../lang/Parser.js';
-import { Str } from '../lang/expr/types/Str.js';
 
 export class AbstractClient {
 
@@ -22,7 +22,7 @@ export class AbstractClient {
             value: {
                 params: {
                     schemaCacheInvalidation: 1,
-                    schemaSelector: ['!information_schema', ...(params.dialect === 'postgres' ? ['!pg_%'] : [])],
+                    schemaSelector: ['!information_schema', '!linked_db%', ...(params.dialect === 'postgres' ? ['!pg_%'] : [])],
                     ...params,
                 }
             }
@@ -70,11 +70,11 @@ export class AbstractClient {
     async schema($execFetchSchema, params = {}, ...rest) {
         const exactMatching = typeof rest[0] === 'boolean' ? rest.shift() : true;
         const callback = typeof rest[0] === 'function' ? rest.shift() : ((result) => result);
-        const cacheable = _isObject(params) && params.depth === 2 && !params.selector;
+        const cacheable = _isObject(params) && params.depth === 2 && !(params.selector || []).length;
         const cacheInvalidation = cacheable ? this.params.schemaCacheInvalidation : 2;
         let isNew, entry = this.#matchSchemaRequest(params, exactMatching);
         if (!entry) {
-            const schemaPromise = Promise.resolve($execFetchSchema(_isObject(params) ? { selector: this.params.schemaSelector, ...params } : params)).then((schemaJson) => {
+            const schemaPromise = Promise.resolve($execFetchSchema(_isObject(params) ? { ...params, selector: (params.selector || []).length ? params.selector : this.params.schemaSelector } : params)).then((schemaJson) => {
                 if (Array.isArray(params)) {
                     schemaJson = schemaJson.reduce((dbs, db) => {
                         const ss = params.find(ss => ss.name === db.name);
@@ -246,7 +246,9 @@ export class AbstractClient {
      * @return Any
      */
     async execQuery(query, params = {}) {
-        if (!(query instanceof AbstractNode)) throw new Error(`execQuery() called with invalid arguments.`);
+        if (!(query instanceof AbstractNode)) {
+            throw new Error(`execQuery() called with invalid arguments.`);
+        }
         const willNeedSchema = query.statementType === 'DDL' || query.hasPaths;
         return await this.withSchema(willNeedSchema, async (rootSchema) => {
             if (query.statementType === 'DDL') {
@@ -317,7 +319,8 @@ export class AbstractClient {
             }, [null, []]);
         }
         if (params.inspect) console.log({ guery: query.stringify() });
-        vars.returnValue = await $execDDL(query, rootSchema, params);
+        await $execDDL(query, rootSchema, params);
+        vars.returnValue = true;
         if (vars.mainSavepointData) {
             vars.returnValue = await this.createSavepoint(vars.mainSavepointData, { ...params, masterSavepoint: null });
             vars.returnValue.$._cascades = [];
@@ -342,7 +345,7 @@ export class AbstractClient {
         const linkedDB = await this.linkedDB();
         const savepointsTable = linkedDB.table('savepoints');
         // -- Savepoint JSON
-        const { name, $name, ...rest } = dbSchema.jsonfy({ nodeNames: false });
+        const { name, $name, version: _, ...rest } = dbSchema.jsonfy({ nodeNames: false });
         const savepointJson = {
             master_savepoint: details.masterSavepoint,
             name,
@@ -372,7 +375,7 @@ export class AbstractClient {
             }
         } else {
             // -- Generate tag and version as fresh
-            savepointJson.database_tag = `db:${(0 | Math.random() * 9e6).toString(36)}`;
+            savepointJson.database_tag = `db.${Date.now()}`;
             savepointJson.version_tag = details.masterSavepoint ? 0 : 1;
         }
         // -- Create record
@@ -391,26 +394,38 @@ export class AbstractClient {
         const linkedDB = await this.linkedDB();
         const tableIdent = linkedDB.table('savepoints').ident;
         const utils = this.createCommonSQLUtils();
-        const fields = ['master_savepoint', 'id', 'database_tag', 'name', utils.ident('$name'), 'status', 'version_tag', 'tables', 'version_state', 'commit_date', 'commit_desc', 'commit_ref', 'rollback_date', 'rollback_desc', 'rollback_ref'];
-        const $fields = fields.concat('version_tags');
-        if (params.withCascades !== false && !params.lite) {
-            $fields.push(`(SELECT ${utils.jsonAgg('cascade')} FROM (
-                SELECT ${utils.jsonBuildObject(fields.reduce(($fields, f) => $fields.concat(`'${f}'`, f), []))} AS cascade
-                FROM ${tableIdent}
-                WHERE master_savepoint = main_savepoint.id AND version_state = ${params.direction === 'forward' ? `'rollback'` : `'commit'`}
-            )) AS cascades`);
+        const fieldsLite = [`COALESCE(${utils.ident('$name')}, name) AS name`, 'database_tag', 'version_tag'];
+        const fieldsStd = ['master_savepoint', 'id', 'database_tag', 'name', utils.ident('$name'), 'status', 'version_tag', 'tables', 'version_state', 'commit_date', 'commit_desc', 'commit_ref', 'rollback_date', 'rollback_desc', 'rollback_ref'];
+        const versionTagsField = `(SELECT ${utils.jsonAgg('version_tag')} FROM ${tableIdent}
+            WHERE database_tag = main_savepoint.database_tag
+        ) AS version_tags`;
+        const cascadesFields = `(SELECT ${utils.jsonAgg('cascade')} FROM (
+            SELECT ${utils.jsonBuildObject(fieldsStd.reduce(($fields, f) => $fields.concat(`'${f}'`, f), []))} AS cascade
+            FROM ${tableIdent}
+            WHERE master_savepoint = main_savepoint.id
+        )) AS cascades`;
+        const normalizeJson = (savepointJson) => ({ ...savepointJson, version_tags: savepointJson.version_tags.filter(c => c !== 0).sort(), cascades: savepointJson.cascades || [] });
+        if (params.histories) {
+            return (await this.query(`
+                SELECT ${[...fieldsStd, versionTagsField, cascadesFields].join(', ')} 
+                FROM ${tableIdent} AS main_savepoint 
+                WHERE master_savepoint IS NULL
+            `)).map(normalizeJson);
         }
+        const fields = params.lite
+            ? [...fieldsLite, versionTagsField]
+            : [...fieldsStd, versionTagsField, ...(params.withCascades !== false ? [cascadesFields] : [])];
         const schemaSelector = [].concat(params.selector || []);
         const result = await this.query(`
-            SELECT ${(params.lite ? [`COALESCE(${utils.ident('$name')}, name) AS name`, 'database_tag', 'version_tag', 'version_tags'] : $fields).join(', ')} FROM (
+            SELECT ${fields.join(', ')} FROM (
                 SELECT *,
                 ROW_NUMBER() OVER (PARTITION BY database_tag ORDER BY version_state = ${params.direction === 'forward' ? `'rollback'` : `'commit'`} DESC, version_tag ${params.direction === 'forward' ? 'ASC' : 'DESC'}) AS rank_for_target,
-                ${utils.jsonAgg('version_tag')} OVER (PARTITION BY database_tag ORDER BY version_tag ASC) AS version_tags,
                 FROM ${tableIdent}
-            ) AS main_savepoint WHERE master_savepoint IS NULL AND version_state = ${params.direction === 'forward' ? `'rollback'` : `'commit'`} AND rank_for_target = 1${params.selector ? (params.direction === 'forward' ? ` AND ${utils.matchSelector('name', schemaSelector)}` : ` AND ${utils.matchSelector(`COALESCE(${utils.ident('$name')}, name)`, schemaSelector)}`) : ''}
+                WHERE master_savepoint IS NULL
+            ) AS main_savepoint WHERE version_state = ${params.direction === 'forward' ? `'rollback'` : `'commit'`} AND rank_for_target = 1${params.selector ? (params.direction === 'forward' ? ` AND ${utils.matchSelector('name', schemaSelector)}` : ` AND ${utils.matchSelector(`COALESCE(${utils.ident('$name')}, name)`, schemaSelector)}`) : ''}
         `);
         if (params.lite) return result;
-        return result.map(savepoint => new Savepoint(this, { ...savepoint, version_tags: savepoint.version_tags.filter(c => c !== 0), cascades: savepoint.cascades || [] }, params.direction));
+        return result.map((savepointJson) => new Savepoint(this, normalizeJson(savepointJson)));
     }
 
     /**
@@ -532,7 +547,7 @@ export class AbstractClient {
                 }, [[], [], []]);
                 const $names = names.length ? `${ident} IN (${names.map(utils.str).join(', ')})` : null;
                 const $_names = _names.length ? `${ident} NOT IN (${_names.map(utils.str).join(', ')})` : null;
-                const $patterns = patterns.length ? patterns.map((p) => /^!/.test(p) ? `${ident} NOT LIKE ${utils.str(p.slice(1))}` : `${ident} LIKE ${utils.str(p)}`) : null;
+                const $patterns = patterns.length ? patterns.map((p) => /^!/.test(p) ? `${ident} NOT LIKE ${utils.str(p.slice(1))}` : `${ident} LIKE ${utils.str(p)}`).join(' AND ') : null;
                 return [$names, $_names, $patterns].filter(s => s).join(' AND ');
             }
         };
@@ -553,7 +568,7 @@ export class AbstractClient {
                     tables: [{
                         name: 'savepoints',
                         columns: [
-                            { name: 'id', ...(this.params.dialect === 'mysql' ? { type: 'char(36)', default: { expr: 'uuid()' } } : { type: 'uuid', default: { expr: 'gen_random_uuid()' } }), primaryKey: true },
+                            { name: 'id', ...(this.params.dialect === 'mysql' ? { type: 'char(36)', default: { expr: (q) => q.fn('uuid') } } : { type: 'uuid', default: { expr: (q) => q.fn('gen_random_uuid') } }), primaryKey: true },
                             { name: 'master_savepoint', ...(this.params.dialect === 'mysql' ? { type: 'char(36)' } : { type: 'uuid' }), foreignKey: { targetTable: [dbName, 'savepoints'], targetColumns: ['id'], deleteRule: 'CASCADE' } },
                             // Actual snapshot
                             { name: 'name', type: ['varchar', 255], notNull: true },
@@ -561,7 +576,7 @@ export class AbstractClient {
                             { name: 'tables', type: 'json' },
                             { name: 'status', type: ['varchar', 8], check: `status IN (null, 'new', 'obsolete')` },
                             // Meta data
-                            { name: 'database_tag', type: ['varchar', 12], notNull: true },
+                            { name: 'database_tag', type: ['varchar', 30], notNull: true },
                             { name: 'version_tag', type: 'int', notNull: true },
                             // Revision data
                             { name: 'version_state', type: ['varchar', 8], notNull: true, check: `version_state IN ('commit', 'rollback')` },
@@ -611,7 +626,7 @@ export class AbstractClient {
         if (this.installed) return instance;
         this.installed = true;
         // -- Install or upgrade
-        const rootSchema = await this.schema({ depth: 1 });
+        const rootSchema = await this.schema({ depth: 1, selector: 'linked_db%' });
         const foundName = rootSchema.databases(false).find(dbName => dbName.startsWith(baseName()) || dbName === 'obj_information_schema');
         const foundVersion = foundName && /^.+?([\d]+)$/.exec(foundName)?.[1] || -1;
         if (foundName && foundVersion === -1) console.warn(`Your database has a old version of Linked DB that is no longer supported. Any savepoint record in there will be retained but won't be migrated to the new Linked DB version you have now. You may file an issue on github for any assistance.`);

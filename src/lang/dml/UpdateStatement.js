@@ -57,7 +57,7 @@ export class UpdateStatement extends AbstractPayloadStatement(
 		const $body = this.mySubstitutePlaceholders(instance, body.trim());
 		// Tokenize
 		const dialect = context?.params?.dialect || 'postgres';
-		const clauses = { ...(dialect === 'postgres' ? { set: SetClause, from: { backtest: '^(?!.*\\s+DISTINCT\\s+$)', test: 'FROM' } } : {}), join: JoinClause, ...(dialect === 'mysql' ? { set: SetClause } : {}), where: WhereClause, ...(dialect === 'mysql' ? { limit: LimitClause } : {}), returning: ReturningClause };
+		const clauses = { ...(dialect === 'postgres' ? { set:SetClause, from: { backtest: '^(?!.*\\s+DISTINCT\\s+$)', test: 'FROM' } } : {}), join:JoinClause, ...(dialect === 'mysql' ? { set:SetClause } : {}), where:WhereClause, ...(dialect === 'mysql' ? { limit:LimitClause } : {}), returning:ReturningClause };
 		const [tableSpec, ...tokens] = Lexer.split($body, Object.values(clauses).map(x => x.REGEX || x.CLAUSE || x), { useRegex: 'i', preserveDelims: true });
 		// Parse
 		instance.table(...Lexer.split(tableSpec, [',']).map(t => parseCallback(instance, t.trim(), [Table])));
