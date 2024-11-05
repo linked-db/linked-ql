@@ -27,17 +27,23 @@ _**Get insanely productive with SQL!** Take a break from tooling overheads!_
 
 Linked QL is a small JS-based library that is usable over your DB of choice - from the server-side Postgres, mariadb and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), and the in-memory plain JSON object!
 
-</div>
-
 See what we're doing differently:
 
-<details><summary>SQL-native experience</summary>
+</div>
+
+<table>
+<tr><td>
+        
+<details name="features" open><summary>SQL-native experience</summary>
 
 Where other tools have it as the exception, and literally gets in the way, Linked QL has SQL as <ins>the default</ins>! This time, you get additional new syntax sugars that make hand-authored SQL all the more powerful, delightful, and... just compelling! 
 
 </details>
 
-<details><summary>Powerful new syntax sugars</summary>
+</td></tr>
+<tr><td>
+
+<details name="features"><summary>Powerful new syntax sugars</summary>
 
 Meet beautiful, streamlined SQL that you will actually enjoy. Linked QL extends standard SQL with [new syntax sugars](#introducing-magic-paths) that let you write relational queries in less than half the code.
 
@@ -45,13 +51,19 @@ Meet beautiful, streamlined SQL that you will actually enjoy. Linked QL extends 
 
 </details>
 
-<details><summary>Automatic schema inference</summary>
+</td></tr>
+<tr><td>
+
+<details name="features"><summary>Automatic schema inference</summary>
 
 Where other tools need to be fed manually (e.g. [Drizzle](https://orm.drizzle.team/)), Linked QL automatically <ins>infers</ins> your schema, and intelligently stays 100% schema-aware! You save the overhead!
 
 </details>
 
-<details><summary>Diff-based schema migrations</summary>
+</td></tr>
+<tr><td>
+
+<details name="features"><summary>Diff-based schema migrations</summary>
 
 Takes the process out of schema management and lets you just *ALTER* away your DB, but with [automatic schema versioning](#introducing-auto-versioning) happening behind the scenes.
 
@@ -59,16 +71,34 @@ Takes the process out of schema management and lets you just *ALTER* away your D
 
 </details>
 
-<details><summary>Automatic Schema Versioning</summary>
+</td></tr>
+<tr><td>
 
+<details name="features"><summary>Automatic Schema Versioning</summary>
 
 </details>
 
-<details><summary>Progressive enhancement</summary>
+</td></tr>
+<tr><td>
+
+<details name="features"><summary>Progressive enhancement</summary>
 
 Where other tools set you off at a predetermined level of abstraction—often making the simple things harder—Linked QL sets you off at the raw SQL level and lets you progressively introduce the right abstractions! Yet, you get the same Linked QL magic at every level!
 
 </details>
+
+</td></tr>
+</table>
+
+
+
+
+
+
+
+
+
+
 
 Jump to sections and features:
 
