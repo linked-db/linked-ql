@@ -31,7 +31,7 @@ Linked QL is a small JS-based library that is usable over your DB of choice - fr
 
 </div>
 
--------------------
+<h2></h2>
 
 See what we're doing differently:
 
