@@ -13,13 +13,7 @@
 <br>
 <br>
 
-> **_Get insanely productive with SQL!_** Take a break from everything!
->
-> <span align="right">
->    
-> [Follow](https://x.com/LinkedQL) • [Sponsor](https://github.com/sponsors/ox-harris)
->
-> </span>
+> **_Get insanely productive with SQL!_** Take a break from everything! <span align="right">[Follow](https://x.com/LinkedQL) • [Sponsor](https://github.com/sponsors/ox-harris)</span>
 
 LinkedQL is a next generation database abstraction tool that makes database interactions and schema management <ins>magical</ins>. It uniquely overcomes important known limitations in SQL databases and traditional database tooling to get you <ins>really productive</ins>!
 
