@@ -2,7 +2,7 @@
     
 # Linked QL
 
-_**Get insanely productive with SQL!** Take a break from everything!_
+_**Get insanely productive with SQL!** Take a break from tooling overheads!_
 
 [![npm version][npm-version-src]][npm-version-href]<!--[![npm downloads][npm-downloads-src]][npm-downloads-href]-->
 [![bundle][bundle-src]][bundle-href]
@@ -19,7 +19,7 @@ _**Get insanely productive with SQL!** Take a break from everything!_
 <br>
 <br>
 
-> Think a next generation database abstraction tool that makes your database interactions and schema management <ins>magical</ins>. Linked QL uniquely overcomes known limitations in SQL databases and traditional database tooling to get you <ins>insanely productive</ins>!
+> Think a next generation database tooling that makes your database interactions and schema management <ins>magical</ins>. Linked QL uniquely overcomes known limitations in typical SQL databases and their tooling ecosystem to get you <ins>insanely productive</ins>!
 
 <div align="center">
 
