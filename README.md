@@ -38,23 +38,21 @@ See what we're doing differently:
 
 <table width="100">
 <tr><td>
-        
 <details name="features" open><summary>A SQL-native experience</summary>
 
-It's surprisingly hard to find a tool that doesn't get in the way or, at least, treat hand-written SQL as the exception! Linked QL, by contrast, is <ins>SQL by default</ins>! And this time, SQL that's all the more powerful, delightful, and... just compelling! 
+It's surprisingly hard to find a tool that doesn't get in the way or, at least, treat hand-written SQL as the exception! By contrast, Linked QL has this going the opposite way: <ins>SQL by default</ins>! And this time, SQL that's all the more powerful, delightful, and... just compelling! 
 
 </details>
-
 </td></tr>
-<tr><td>
 
+<tr><td>
 <details name="features"><summary>Powerful new syntax sugars</summary>
 
 Meet the SQL that you will actually enjoy! Linked QL extends standard SQL with [new syntax sugars](#introducing-magic-paths) that let you write relational queries in less than half the code.
 
 </details>
-
 </td></tr>
+
 <tr><td>
 
 <details name="features"><summary>Automatic schema inference</summary>
