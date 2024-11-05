@@ -19,7 +19,6 @@ _**Get insanely productive with SQL!** Take a break from tooling overheads!_
 </picture>
 
 <br>
-<br>
 
 > Think a next generation database tooling that makes your database interactions and schema management <ins>magical</ins>. Linked QL uniquely overcomes known limitations in typical SQL databases and their tooling ecosystems to get you <ins>insanely productive</ins>!
 
