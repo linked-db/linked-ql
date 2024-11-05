@@ -41,7 +41,7 @@ See what we're doing differently:
         
 <details name="features" open><summary>A SQL-native experience</summary>
 
-Where other tools have it as the exception (and literally gets in the way), Linked QL has SQL as <ins>the default</ins>! This time, you get additional new syntax sugars that make hand-authored SQL all the more powerful, delightful, and... just compelling! 
+It's surprisingly hard to find a tool that doesn't get in the way or, at least, treat hand-written SQL as the exception! Linked QL, by contrast, is <ins>SQL by default</ins>! And this time, SQL that's all the more powerful, delightful, and... just compelling! 
 
 </details>
 
@@ -50,9 +50,7 @@ Where other tools have it as the exception (and literally gets in the way), Link
 
 <details name="features"><summary>Powerful new syntax sugars</summary>
 
-Meet beautiful, streamlined SQL that you will actually enjoy. Linked QL extends standard SQL with [new syntax sugars](#introducing-magic-paths) that let you write relational queries in less than half the code.
-
-+ Relationships? Just use the language!
+Meet the SQL that you will actually enjoy! Linked QL extends standard SQL with [new syntax sugars](#introducing-magic-paths) that let you write relational queries in less than half the code.
 
 </details>
 
