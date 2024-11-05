@@ -32,7 +32,6 @@ Linked QL is a small JS-based library that is usable over your DB of choice - fr
 </div>
 
 <br>
-<br>
 <h2></h2>
 
 See what we're doing differently:
@@ -96,6 +95,7 @@ Where other tools set you off at a predetermined level of abstraction—often ma
 </td></tr>
 </table>
 
+<br>
 
 
 
