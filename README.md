@@ -13,11 +13,15 @@
 <br>
 <br>
 
-> **_Get insanely productive with SQL!_** Take a break from everything! <span align="right">[Follow](https://x.com/LinkedQL) • [Sponsor](https://github.com/sponsors/ox-harris)</span>
+> A next generation database abstraction tool that makes DB interactions and schema management <ins>magical</ins>. It uniquely overcomes known limitations in SQL databases and traditional database tooling to get you <ins>insanely productive</ins>!
 
-LinkedQL is a next generation database abstraction tool that makes database interactions and schema management <ins>magical</ins>. It uniquely overcomes important known limitations in SQL databases and traditional database tooling to get you <ins>really productive</ins>!
+<span align="right">
+    
+[Follow](https://x.com/LinkedQL) • [Sponsor](https://github.com/sponsors/ox-harris)
 
-Here's what we're doing differently:
+</span>
+
+Take a break from everything! Here's what we're doing differently:
 
 <details><summary>SQL-native experience</summary>
 
@@ -41,7 +45,6 @@ Where other tools need to be fed manually (e.g. [Drizzle](https://orm.drizzle.te
 
 <details><summary>Diff-based schema migrations</summary>
 
-schema management is a drag
 Takes the process out of schema management and lets you just *ALTER* away your DB, but with [automatic schema versioning](#introducing-auto-versioning) happening behind the scenes.
 
 💥 Brings the "schema-as-code" philosophy to its true practice wherein you are able to manage your entire DB structure out of a single [`schema.json` (or `schema.yml`) file](#re-introducing-schema-as-code-with-schemajson).
