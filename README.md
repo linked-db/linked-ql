@@ -1,4 +1,4 @@
-# Linked QL
+# Linked QL—Get <ins>insanely productive</ins> with SQL
 
 [![npm version][npm-version-src]][npm-version-href][![npm downloads][npm-downloads-src]]<!--[npm-downloads-href]-->
 [![bundle][bundle-src]][bundle-href]
@@ -15,13 +15,15 @@
 
 > A next generation database abstraction tool that makes DB interactions and schema management <ins>magical</ins>. It uniquely overcomes known limitations in SQL databases and traditional database tooling to get you <ins>insanely productive</ins>!
 
-<span align="right">
+<span align="center">
     
 [Follow](https://x.com/LinkedQL) • [Sponsor](https://github.com/sponsors/ox-harris)
 
 </span>
 
-Take a break from everything! Here's what we're doing differently:
+Linked QL is a small JS-based library that is usable over your DB of choice - from the server-side Postgres, mariadb and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), and the in-memory plain JSON object!
+
+See what we're doing differently:
 
 <details><summary>SQL-native experience</summary>
 
@@ -61,8 +63,6 @@ Takes the process out of schema management and lets you just *ALTER* away your D
 Where other tools set you off at a predetermined level of abstraction—often making the simple things harder—Linked QL sets you off at the raw SQL level and lets you progressively introduce the right abstractions! Yet, you get the same Linked QL magic at every level!
 
 </details>
-
-Linked QL comes as a small library and is usable over your DB of choice - from the server-side Postgres, mariadb and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), and the in-memory plain JSON object!
 
 Jump to sections and features:
 
