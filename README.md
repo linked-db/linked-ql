@@ -1,8 +1,4 @@
-# Linked QL—Get <ins>insanely productive</ins> with SQL
-
-[![npm version][npm-version-src]][npm-version-href][![npm downloads][npm-downloads-src]]<!--[npm-downloads-href]-->
-[![bundle][bundle-src]][bundle-href]
-[![License][license-src]][license-href]
+# Linked QL
 
 <picture>
   <source media="(max-width: 799px)" srcset="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-mobile-a.png?raw=true">
@@ -15,11 +11,19 @@
 
 > A next generation database abstraction tool that makes DB interactions and schema management <ins>magical</ins>. It uniquely overcomes known limitations in SQL databases and traditional database tooling to get you <ins>insanely productive</ins>!
 
-<span align="center">
+<div align="center">
+
+[![npm version][npm-version-src]][npm-version-href]<!--[![npm downloads][npm-downloads-src]][npm-downloads-href]-->
+[![bundle][bundle-src]][bundle-href]
+[![License][license-src]][license-href]
+
+</div>
+
+<div align="center">
     
 [Follow](https://x.com/LinkedQL) • [Sponsor](https://github.com/sponsors/ox-harris)
 
-</span>
+</div>
 
 Linked QL is a small JS-based library that is usable over your DB of choice - from the server-side Postgres, mariadb and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), and the in-memory plain JSON object!
 
