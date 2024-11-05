@@ -40,7 +40,7 @@ See what we're doing differently:
 <tr><td>
 <details name="features" open><summary>A SQL-native experience</summary>
 
-It's surprisingly hard to find a tool that doesn't get in the way or, at least, treat hand-written SQL as the exception! By contrast, Linked QL has a <ins>SQL by default</ins> philosophy, and alomg with that, everything that makes it all the more compelling and delightful to just #usethelanguage! 
+It's surprisingly hard to find a tool that doesn't get in the way or, at least, treat hand-written SQL as the exception! By contrast, Linked QL has a <ins>SQL by default philosophy</ins>, and alomg with that, everything that makes it all the more compelling and delightful to just #usethelanguage! 
 
 </details>
 </td></tr>
@@ -56,7 +56,7 @@ Model structures and traverse relationships like they were plain JSON objects—
 <tr><td>
 <details name="features"><summary>Automatic schema inference</summary>
 
-Whereas other tools essentially require you to feed them with your database schema (case in point: [Drizzle](https://orm.drizzle.team/)), Linked QL automatically <ins>infers</ins> it and magically maintains its internal schema-awareness all the way! You get a whole class of manual work entirely out of the equation!
+Whereas other tools essentially require you to feed them with your database schema (case in point: [Drizzle](https://orm.drizzle.team/)), Linked QL <ins>automatically infers it</ins> and magically stays 100% schema-aware all the way! You get a whole class of manual work entirely out of the equation!
 
 </details>
 </td></tr>
