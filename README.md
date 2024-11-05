@@ -10,13 +10,14 @@ _**Get insanely productive with SQL!** Take a break from tooling overheads!_
 
 </div>
 
+<br>
+
 <picture>
   <source media="(max-width: 799px)" srcset="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-mobile-a.png?raw=true">
   <source media="(min-width: 800px)" srcset="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-main-a.png?raw=true">
     <img src="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-main-a.png?raw=true" alt="Linked QL Banner" width="100%">
 </picture>
 
-<br>
 <br>
 
 > Think a next generation database tooling that makes your database interactions and schema management <ins>magical</ins>. Linked QL uniquely overcomes known limitations in typical SQL databases and their tooling ecosystems to get you <ins>insanely productive</ins>!
