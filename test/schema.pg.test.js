@@ -1,26 +1,6 @@
- 
-/**
- * @imports
- */
-import pg from 'pg';
-import { expect } from 'chai';
 import { CreateTable } from '../src/lang/ddl/database/actions/CreateTable.js';
 import { AlterTable } from '../src/lang/ddl/database/actions/AlterTable.js';
-import { TableSchema } from '../src/lang/ddl/table/TableSchema.js';
 import { Parser, SQLClient } from '../src/index.js';
-
-// --------------------------
-const pgClient = new pg.Client({
-    host: 'localhost',
-    port: 5432,
-});
-await pgClient.connect();
-let $pgClient = { query(sql, ...args) {
-    //console.log(`\n\n\n\nSQL:`, sql);
-    return pgClient.query(sql, ...args);
-} };
-const sqlClient = new SQLClient($pgClient, { dialect: 'postgres' });
-// --------------------------
 
 describe(`Postgres Create Table & Alter Table statements`, function() {
 
@@ -39,7 +19,7 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
                 CONSTRAINT "fk .. "" .. 2" FOREIGN    KEY (ref2) REFERENCES pretest2 (id),
                 UNIQUE (rand2,rand)
             )`;
-            const tblCreateInstance1 = await Parser.parse({ name: 'some_database', params: { inputDialect: 'postgres', dialect: 'mysql' } }, createTableSql, null, { log: false });
+            const tblCreateInstance1 = await Parser.parse({ name: 'some_database', params: { inputDialect: 'postgres', dialect: 'mysql' } }, createTableSql, null, { inspect: false });
             const tblCreateInstance2 = CreateTable.fromJSON(tblCreateInstance1.CONTEXT, tblCreateInstance1.toJSON());
             const sql1 = tblCreateInstance1 + '';
             const sql2 = tblCreateInstance2 + '';

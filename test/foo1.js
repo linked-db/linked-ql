@@ -166,7 +166,7 @@ if (spliceForwardHistories) {
         console.log('All users', await client.database('public').table('users').select());
 
         //const ww = await client.query(`SELECT title, content, author ~> name, author ~> role ~> name role_name FROM books as BBBBB where author ~> role ~> name = 'admin'`);
-        const structure = await client.query(`SELECT name, role <~ author <~ books: { title, author: { name, role: { name } } }[] as posts FROM roles as r`, { log: true });
+        const structure = await client.query(`SELECT name, role <~ author <~ books: { title, author: { name, role: { name } } }[] as posts FROM roles as r`, { inspect: true });
         //const ww = await client.query(`SELECT users.name, roles.name as role_name FROM users LEFT JOIN roles ON roles.id = users.role where roles.name = ${ dialect === 'mysql' ? '?' : '$1' }`, { values: ['admin'] });
         console.table(structure);
         console.log(await client.database('public').table('users').upsert({ title: 'Untitled', name: 'Jude' }, { returning: '*' }));

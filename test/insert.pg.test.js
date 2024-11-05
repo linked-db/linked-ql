@@ -1,30 +1,13 @@
-  
-/**
- * @imports
- */
 import { expect } from 'chai';
 import { Parser } from '../src/index.js';
 
 describe(`INSERT QUERIES`, function() {
-
-    before('Import into DB', async function() {
-        return;
-        await dbDriver.dropDatabase('db1', {ifExists: true});
-        await dbDriver.importDatabase('db1', { schema, data });
-    });
 
     var ast1, expr1 = `INSERT INTO table1 SET fname = "New name", age = 9000`;
     describe(`${expr1}`, function() {
 
         it(`"parse()" the expression and stringify to compare with original`, async function() {
             ast1 = Parser.parse({ params: { dialect: 'mysql' } }, expr1);
-            //expect(ast1.stringify({interpreted:false}).toLowerCase()).to.be.equal(expr1.toLowerCase());
-        });return;
-
-        it(`"eval()" the expression and expect affected rows to be: { table1: [4] }`, async function() {
-            var result = await ast1.eval(dbDriver);
-            expect(result).to.be.an('object').that.have.keys('table1');
-            expect(await result.table1.getAffectedRows(true)).to.be.an('array').that.eql([4]);
         });
 
     });
@@ -34,16 +17,6 @@ describe(`INSERT QUERIES`, function() {
 
         it(`"parse()" the expression and stringify to compare with original`, async function() {
             ast2 = await Parser.parse({ params: { dialect: 'mysql' } }, expr2);
-            //expect(ast2.stringify({interpreted:false}).toLowerCase()).to.be.equal(expr2.toLowerCase());
-        });return;
-
-        it(`"eval()" the expression and expect affected rows to be: { table3: [4] }. (See embedded comments for explanation.)`, async function() {
-            var result = await ast2.eval(dbDriver);
-            expect(result).to.be.an('object').that.have.keys('table3');
-            // First insertion at "4",
-            // second insertion fails on duplicate key,
-            // then an update at "4"
-            expect(await result.table3.getAffectedRows(true)).to.be.an('array').that.eql([4]);
         });
 
     });
@@ -53,13 +26,7 @@ describe(`INSERT QUERIES`, function() {
 
         it(`"parse()" the expression and stringify to compare with original`, async function() {
             ast3 = await Parser.parse({}, expr3);
-            //expect(ast3.stringify({interpreted:false}).toLowerCase()).to.be.equal(expr3.toLowerCase());
-        });return;
-
-        it(`"eval()" the expression and expect affected rows to be: { table4: [1, 2, 3, 4] }`, async function() {
-            var result = await ast3.eval(dbDriver);
-            expect(result).to.be.an('object').that.have.keys('table4');
-            expect(await result.table4.getAffectedRows(true)).to.be.an('array').that.eql([ 1, 2, 3, 4 ]);
+            expect(ast3.stringify({interpreted:false}).toLowerCase()).to.be.equal(expr3.toLowerCase());
         });
 
     });

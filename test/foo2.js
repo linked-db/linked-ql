@@ -1,6 +1,6 @@
 import pg from 'pg';
-import { SQLClient, Parser } from './src/index.js';
-import { SelectStatement } from './src/lang/dql/SelectStatement.js';
+import { SQLClient, Parser } from '../src/index.js';
+import { SelectStatement } from '../src/lang/dql/SelectStatement.js';
 
 const driver = new pg.Client({
     host: 'localhost',

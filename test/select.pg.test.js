@@ -1,22 +1,7 @@
-  
-/**
- * @imports
- */
 import pg from 'pg';
 import { expect } from 'chai';
 import { Parser, SQLClient } from '../src/index.js';
 import { SelectStatement } from '../src/lang/dql/SelectStatement.js';
-
-const pgClient = new pg.Client({
-    host: 'localhost',
-    port: 5432,
-});
-await pgClient.connect();
-const sqlClient = new SQLClient(pgClient, { dialect: 'postgres' });
-
-//const dd = `'kk' || "table_schema" || '...' || case WHEN 4=3 THEN '5' ELSE '--...' || 6 END`;
-//console.log('..........', await pgClient.query(`SELECT ${ dd } dd, 'You''re cool' ffff, 4 is distinct from 4, (CASE WHEN 4=3 THEN 5 ELSE 6 END)f_f from information_schema.tables limit 1`));
-
 
 describe(`SELECT QUERIES`, function() {
 
@@ -24,7 +9,7 @@ describe(`SELECT QUERIES`, function() {
     describe(`Parse a complex select statement`, function() {
 
         it(`"parse()" the expression and stringify to compare with original`, async function() {
-            const query1 = await Parser.parse({}, expr1, null, { log: false });
+            const query1 = await Parser.parse({}, expr1, null, { inspect: true });
             const query2 = SelectStatement.fromJSON(query1.CONTEXT, query1.toJSON());
             const sql1 = query1 + '';
             const sql2 = query2 + '';
@@ -127,14 +112,7 @@ describe(`SELECT QUERIES`, function() {
             */
             //expect(sql1).to.eq(sql2);
         });
-
-        it('.......................', async function() {
-            const forward = false;
-            const dbName = ['OBJ_INFOSCHEMA_DB','database_savepoints'];
-            const q = new SelectStatement(sqlClient);
-            console.log('........................', q + '');
-        });
-
+        
     });
 
 });

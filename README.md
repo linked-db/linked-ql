@@ -1,6 +1,6 @@
 # Linked QL
 
-[![npm version][npm-version-src]][npm-version-href][![npm downloads][npm-downloads-src]][npm-downloads-href]<!---->
+[![npm version][npm-version-src]][npm-version-href][![npm downloads][npm-downloads-src]]<!--[npm-downloads-href]-->
 [![bundle][bundle-src]][bundle-href]
 [![License][license-src]][license-href]
 
@@ -13,7 +13,7 @@
 <br>
 <br>
 
-> **_Save the overhead working with SQL and structured data - from the time and effort spent figuring out relational queries to the labour managing schemas!_** Try a modern, simplistic take on SQL and databases in general!
+> **_Get insanely productive with SQL!_** Take a break from everything!
 
 <div align="center">
     
@@ -21,15 +21,51 @@
 
 </div>
 
-Linked QL is a simplistic database abstraction for modern apps that ridiculously streamlines the amount of SQL you write and the schema management work you do.
+overabstract
+at any level of abstraction
+schema management is a drag
+get in the way
 
-<details><summary><i>What does it do at a high level?</i></summary>
+LinkedQL is a next generation database abstraction tool that makes database interactions and schema management <ins>magical</ins>. It uniquely overcomes important known limitations in SQL databases and traditional database tooling to get you <ins>really productive</ins>!
 
-💥 Takes the ORM and friends out of the way and let's you write actual SQL, but this time, beautiful and streamlined SQL that you will actually enjoy. (Linked QL extends standard SQL with [new syntax sugars](#introducing-magic-paths) that let you write relational queries in less than half the code.)
+Here's what we're doing differently:
 
-⚡️ Takes the process out of schema management and lets you just *ALTER* away your DB, but with [automatic schema versioning](#introducing-auto-versioning) happening behind the scenes.
+<details><summary>SQL-native experience</summary>
+
+Where other tools have it as the exception, and literally gets in the way, Linked QL has SQL as <ins>the default</ins>! This time, you get additional new syntax sugars that make hand-authored SQL all the more powerful, delightful, and... just compelling! 
+
+</details>
+
+<details><summary>Powerful new syntax sugars</summary>
+
+Meet beautiful, streamlined SQL that you will actually enjoy. Linked QL extends standard SQL with [new syntax sugars](#introducing-magic-paths) that let you write relational queries in less than half the code.
+
++ Relationships? Just use the language!
+
+</details>
+
+<details><summary>Automatic schema inference</summary>
+
+Where other tools need to be fed manually (e.g. [Drizzle](https://orm.drizzle.team/)), Linked QL automatically <ins>infers</ins> your schema, and intelligently stays 100% schema-aware! You save the overhead!
+
+</details>
+
+<details><summary>Diff-based schema migrations</summary>
+
+Takes the process out of schema management and lets you just *ALTER* away your DB, but with [automatic schema versioning](#introducing-auto-versioning) happening behind the scenes.
 
 💥 Brings the "schema-as-code" philosophy to its true practice wherein you are able to manage your entire DB structure out of a single [`schema.json` (or `schema.yml`) file](#re-introducing-schema-as-code-with-schemajson).
+
+</details>
+
+<details><summary>Automatic Schema Versioning</summary>
+
+
+</details>
+
+<details><summary>Progressive enhancement</summary>
+
+Where other tools set you off at a predetermined level of abstraction—often making the simple things harder—Linked QL sets you off at the raw SQL level and lets you progressively introduce the right abstractions! Yet, you get the same Linked QL magic at every level!
 
 </details>
 
@@ -45,6 +81,8 @@ Jump to sections and features:
 + [The Linked QL CLI](https://github.com/linked-db/linked-ql/wiki/CLI) ✈️
 
 ## Getting Started
+
+Start with near-zero setup!
 
 Install Linked QL:
 
