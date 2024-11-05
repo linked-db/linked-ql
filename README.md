@@ -19,7 +19,7 @@ _**Get insanely productive with SQL!** Take a break from everything!_
 <br>
 <br>
 
-> Think a next generation database abstraction that makes DB interactions and schema management <ins>magical</ins>. Linked QL uniquely overcomes known limitations in SQL databases and traditional database tooling to get you <ins>insanely productive</ins>!
+> Think a next generation database abstraction tool that makes your database interactions and schema management <ins>magical</ins>. Linked QL uniquely overcomes known limitations in SQL databases and traditional database tooling to get you <ins>insanely productive</ins>!
 
 <div align="center">
 
