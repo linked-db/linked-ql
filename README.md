@@ -2,7 +2,7 @@
     
 # Linked QL
 
-A next generation database abstraction tool that makes DB interactions and schema management <ins>magical</ins>. It uniquely overcomes known limitations in SQL databases and traditional database tooling to get you <ins>insanely productive</ins>!
+_**Get insanely productive with SQL!** Take a break from everything!_
 
 [![npm version][npm-version-src]][npm-version-href]<!--[![npm downloads][npm-downloads-src]][npm-downloads-href]-->
 [![bundle][bundle-src]][bundle-href]
@@ -19,7 +19,7 @@ A next generation database abstraction tool that makes DB interactions and schem
 <br>
 <br>
 
-> **Get insanely productive with SQL!** Take a break from everything!
+> A next generation database abstraction tool that makes DB interactions and schema management <ins>magical</ins>. It uniquely overcomes known limitations in SQL databases and traditional database tooling to get you <ins>insanely productive</ins>!
 
 <div align="center">
 
