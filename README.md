@@ -39,9 +39,9 @@ See what we're doing differently:
 <table width="100">
 <tr><td>
         
-<details name="features" open><summary>SQL-native experience</summary>
+<details name="features" open><summary>A SQL-native experience</summary>
 
-Where other tools have it as the exception, and literally gets in the way, Linked QL has SQL as <ins>the default</ins>! This time, you get additional new syntax sugars that make hand-authored SQL all the more powerful, delightful, and... just compelling! 
+Where other tools have it as the exception (and literally gets in the way), Linked QL has SQL as <ins>the default</ins>! This time, you get additional new syntax sugars that make hand-authored SQL all the more powerful, delightful, and... just compelling! 
 
 </details>
 
