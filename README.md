@@ -20,13 +20,13 @@ _**Get insanely productive with SQL!** Take a break from tooling overheads!_
 
 <br>
 
-> Think a next generation database tooling that makes your database interactions and schema management <ins>magical</ins>. Linked QL uniquely overcomes known limitations in typical SQL databases and their tooling ecosystems to get you <ins>insanely productive</ins>!
+> Think a next generation database tool that makes your database interactions and schema management <ins>a breeze</ins>. Linked QL uniquely overcomes known limitations in the typical database system and the SQL language itself to get <ins>insanely productive</ins>!
 
 <div align="center">
 
 [Follow](https://x.com/LinkedQL) • [Sponsor](https://github.com/sponsors/ox-harris)
 
-Linked QL is a small JS-based library that is usable over your DB of choice - from the server-side Postgres, mariadb and MySQL, to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), and the in-memory plain JSON object!
+Linked QL is a small JS-based library that is usable over your DB of choice—from the server-side database system (postgres and MySQL/mariadb) to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API)!
 
 [Getting Started](https://github.com/sponsors/ox-harris) • [Features](https://github.com/sponsors/ox-harris)
 
@@ -36,11 +36,11 @@ Linked QL is a small JS-based library that is usable over your DB of choice - fr
 
 See what we're doing differently:
 
-<table width="100">
+<table>
 <tr><td>
 <details name="features" open><summary>A SQL-native experience</summary>
 
-It's surprisingly hard to find a tool that doesn't get in the way or, at least, treat hand-written SQL as the exception! By contrast, Linked QL has this going the opposite way: <ins>SQL by default</ins>! And this time, SQL that's all the more powerful, delightful, and... just compelling! 
+It's surprisingly hard to find a tool that doesn't get in the way or, at least, treat hand-written SQL as the exception! By contrast, Linked QL has a <ins>SQL by default</ins> philosophy, and alomg with that, everything that makes it all the more compelling and delightful to just #usethelanguage! 
 
 </details>
 </td></tr>
@@ -48,22 +48,20 @@ It's surprisingly hard to find a tool that doesn't get in the way or, at least, 
 <tr><td>
 <details name="features"><summary>Powerful new syntax sugars</summary>
 
-Meet the SQL that you will actually enjoy! Linked QL extends standard SQL with [new syntax sugars](#introducing-magic-paths) that let you write relational queries in less than half the code.
+Model structures and traverse relationships like they were plain JSON objects—all right within the language! Meet Linked QL's set of syntax extensions to SQL that do the hard work, cut your query in half, and even save you multiple round trips! (Think: everything that an ORM was never designed for!)
 
 </details>
 </td></tr>
 
 <tr><td>
-
 <details name="features"><summary>Automatic schema inference</summary>
 
-Where other tools need to be fed manually (e.g. [Drizzle](https://orm.drizzle.team/)), Linked QL automatically <ins>infers</ins> your schema, and intelligently stays 100% schema-aware! You save the overhead!
+Whereas other tools essentially require you to feed them with your database schema (case in point: [Drizzle](https://orm.drizzle.team/)), Linked QL automatically <ins>infers</ins> it and magically maintains its internal schema-awareness all the way! You get a whole class of manual work entirely out of the equation!
 
 </details>
-
 </td></tr>
-<tr><td>
 
+<tr><td>
 <details name="features"><summary>Diff-based schema migrations</summary>
 
 Takes the process out of schema management and lets you just *ALTER* away your DB, but with [automatic schema versioning](#introducing-auto-versioning) happening behind the scenes.
@@ -71,23 +69,20 @@ Takes the process out of schema management and lets you just *ALTER* away your D
 💥 Brings the "schema-as-code" philosophy to its true practice wherein you are able to manage your entire DB structure out of a single [`schema.json` (or `schema.yml`) file](#re-introducing-schema-as-code-with-schemajson).
 
 </details>
-
 </td></tr>
-<tr><td>
 
+<tr><td>
 <details name="features"><summary>Automatic Schema Versioning</summary>
 
 </details>
-
 </td></tr>
-<tr><td>
 
+<tr><td>
 <details name="features"><summary>Progressive enhancement</summary>
 
 Where other tools set you off at a predetermined level of abstraction—often making the simple things harder—Linked QL sets you off at the raw SQL level and lets you progressively introduce the right abstractions! Yet, you get the same Linked QL magic at every level!
 
 </details>
-
 </td></tr>
 </table>
 
