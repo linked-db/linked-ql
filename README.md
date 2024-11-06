@@ -20,7 +20,7 @@ _**Get insanely productive with SQL!** Take a break from tooling overheads!_
 
 <br>
 
-> Think a next generation database tool that makes your database interactions and schema management <ins>a breeze</ins>. Linked QL uniquely overcomes known limitations in the SQL language itself and the typical database system to get you <ins>insanely productive</ins>!
+> Think a next generation database tool that makes your database interactions and schema management <ins>a breeze</ins>. Linked QL uniquely overcomes known limitations in the typical database system and the SQL language itself to get you <ins>insanely productive</ins>!
 
 <div align="center">
 
@@ -84,7 +84,7 @@ Model structures and traverse relationships like they were plain JSON objects—
 <details><summary><i>Example 1:</i></summary>
 
 ```js
-// A basic query with JSON formatters
+// A basic query with JSON formatting
 const result = await client.query(
     `SELECT
         name,
@@ -212,7 +212,7 @@ console.log(result);
 > </details>
 
 ```js
-// Same relational query with formatters
+// Same relational query with formatting
 const result = await client.query(
     `SELECT
         title,
@@ -287,7 +287,7 @@ const result = await client.database('public').table('users').select({
 <details><summary><i>Example 2:</i></summary>
 
 ```js
-// (a): A basic query with JSON formatters
+// (a): A basic query with JSON formatting
 const result = await client.query(
     `SELECT
         name,
@@ -342,7 +342,7 @@ const result = await client.database('public').table('books').select({
 <details><summary><i>Example 4:</i></summary>
 
 ```js
-// (a): Same relational query with formatters
+// (a): Same relational query with formatting
 const result = await client.query(
     `SELECT
         title,
