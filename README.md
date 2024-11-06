@@ -330,7 +330,7 @@ console.log(result);
 >         author: {
 >             id: 1,
 >             name: 'John Doe',
->             email: 'johndoed@example.com'
+>             email: 'johndoed@example.com',
 >             phone: '(555) 123-4567',
 >             role: 'admin',
 >             created_time: '2024-11-06T18:22:46.709Z'
@@ -344,7 +344,7 @@ console.log(result);
 >         author: {
 >             id: 2,
 >             name: 'Alice Blue',
->             email: 'aliceblue@example.com'
+>             email: 'aliceblue@example.com',
 >             phone: '(888) 123-4567',
 >             role: 'admin',
 >             created_time: '2024-11-06T18:22:46.709Z'
