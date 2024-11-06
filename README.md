@@ -118,7 +118,30 @@ console.log(result);
 > 
 > </details>
 
-#### └ *Example 2:*
+<details><summary><b><i>Example 2:</i></b></summary>
+
+> <details><summary>Schema</summary>
+>
+> ```sql
+> -- The users table
+> CREATE TABLE users (
+>     id int primary key generated always as identity,
+>     name varchar,
+>     email varchar,
+>     role varchar,
+>     created_time timestamp
+> );
+> -- The books table
+> CREATE TABLE books (
+>     id int primary key generated always as identity,
+>     title varchar,
+>     content varchar,
+>     author int references users (id),
+>     created_time timestamp
+> );
+> ```
+> 
+> </details>
 
 ```js
 // A relational query with paths
@@ -153,7 +176,11 @@ console.log(result);
 > 
 > </details>
 
-> <details><summary>Schema</summary>
+</details>
+
+<details><summary><b><i>Example 3:</i></b></summary>
+
+> <details><summary>Schema (again)</summary>
 >
 > ```sql
 > -- The users table
@@ -175,8 +202,6 @@ console.log(result);
 > ```
 > 
 > </details>
-
-<details><summary><i>Example 3:</i></summary>
 
 ```js
 // Same relational query with formatters
@@ -217,29 +242,6 @@ console.log(result);
 > 
 > </details>
 
-> <details><summary>Schema (again)</summary>
->
-> ```sql
-> -- The users table
-> CREATE TABLE users (
->     id int primary key generated always as identity,
->     name varchar,
->     email varchar,
->     role varchar,
->     created_time timestamp
-> );
-> -- The books table
-> CREATE TABLE books (
->     id int primary key generated always as identity,
->     title varchar,
->     content varchar,
->     author int references users (id),
->     created_time timestamp
-> );
-> ```
-> 
-> </details>
-
 </details>
 
 </details>
@@ -272,7 +274,7 @@ const result = await client.database('public').table('users').select({
 });
 ```
 
-#### └ *Example 2:*
+<details><summary><b><i>Example 2:</i></b></summary>
 
 ```js
 // (a): A basic query with JSON formatters
@@ -294,7 +296,9 @@ const result = await client.database('public').table('users').select([
 ]);
 ```
 
-<details><summary><i>Example 3:</i></summary>
+</details>
+
+<details><summary><b><i>Example 3:</i></b></summary>
  
 ```js
 // (a): A relational query with paths
@@ -325,7 +329,7 @@ const result = await client.database('public').table('books').select({
 
 </details>
 
-<details><summary><i>Example 4:</i></summary>
+<details><summary><b><i>Example 4:</i></b></summary>
 
 ```js
 // (a): Same relational query with formatters
