@@ -17,7 +17,7 @@ export class Binding extends AbstractNode {
 	}
 
 	static get expose() {
-		return { bind: (context, value) => (new this(context)).value(value), };
+		return { binding: (context, value) => (new this(context)).value(value), };
 	}
 
 	static fromJSON(context, json, callback = null) {

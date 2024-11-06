@@ -45,10 +45,16 @@ _What we're doing differently?_
 
 It's surprisingly hard to find a tool that doesn't get in the way or, at least, treat hand-written SQL as the exception! By contrast, Linked QL has <ins>SQL as the default</ins>, and along with that, everything that makes it all the more compelling and delightful to just #usethelanguage!
 
+<h4>Example 1:</h4>
+
 ```js
-// (1): A basic query with parameters
+// A basic query with parameters
 const result = await client.query(
-    'SELECT name, email FROM users WHERE role = $1',
+    `SELECT
+        name,
+        email
+    FROM users
+    WHERE role = $1`,
     ['admin']
 );
 console.log(result);
@@ -73,10 +79,16 @@ console.log(result);
 
 Model structures and traverse relationships like they were plain JSON objects—all right within the language! Meet Linked QL's set of syntax extensions to SQL that do the hard work, cut your query in half, and even save you multiple round trips! (Think everything that an ORM was never designed to do!)
 
+<h4>Example 1:</h4>
+
 ```js
-// (1): A basic query with JSON formatters
+// A basic query with JSON formatters
 const result = await client.query(
-    `SELECT name, { email, phone } AS contact1, [ email, phone ] AS contact2 FROM users`
+    `SELECT
+        name,
+        { email, phone } AS contact1,
+        [ email, phone ] AS contact2
+    FROM users`
 );
 console.log(result);
 ```
@@ -106,10 +118,16 @@ console.log(result);
 > 
 > </details>
 
+<h4>Example 2:</h4>
+
 ```js
-// (2): A relational query with paths
+// A relational query with paths
 const result = await client.query(
-    `SELECT title, content, author ~> name AS author_name FROM books
+    `SELECT
+        title,
+        content,
+        author ~> name AS author_name
+    FROM books
     WHERE author ~> role = $1`,
     ['admin']
 );
@@ -135,10 +153,39 @@ console.log(result);
 > 
 > </details>
 
+> <details><summary>Schema</summary>
+>
+> ```sql
+> -- The users table
+> CREATE TABLE users (
+>     id int primary key generated always as identity,
+>     name varchar,
+>     email varchar,
+>     role varchar,
+>     created_time timestamp
+> );
+> -- The books table
+> CREATE TABLE books (
+>     id int primary key generated always as identity,
+>     title varchar,
+>     content varchar,
+>     author int references users (id),
+>     created_time timestamp
+> );
+> ```
+> 
+> </details>
+
+<h4>Example 3:</h4>
+
 ```js
-// (3): Same relational query with formatters
+// Same relational query with formatters
 const result = await client.query(
-    `SELECT title, content, author: { name, email } AS author FROM books
+    `SELECT
+        title,
+        content,
+        author: { name, email } AS author
+    FROM books
     WHERE author ~> role = $1`,
     ['admin']
 );
@@ -170,6 +217,29 @@ console.log(result);
 > 
 > </details>
 
+> <details><summary>Schema (again)</summary>
+>
+> ```sql
+> -- The users table
+> CREATE TABLE users (
+>     id int primary key generated always as identity,
+>     name varchar,
+>     email varchar,
+>     role varchar,
+>     created_time timestamp
+> );
+> -- The books table
+> CREATE TABLE books (
+>     id int primary key generated always as identity,
+>     title varchar,
+>     content varchar,
+>     author int references users (id),
+>     created_time timestamp
+> );
+> ```
+> 
+> </details>
+
 </details>
 </td></tr>
 
@@ -178,56 +248,105 @@ console.log(result);
 
 While typical ORMs function as API-only solutions—which can get counterproductive for low-abstraction use cases—Linked QL offers a SQL-by-default, progressive enhancement philosophy that lets you go from the ground up! Meanwhile, you get the same powerful SQL-level features right at the API level, and vice-versa!
 
+<h4>Example 1:</h4>
+
 ```js
-// (1a): A basic query with JSON formatters
+// (a): A basic query with parameters
 const result = await client.query(
-    `SELECT name, { email, phone } AS contact1, [ email, phone ] AS contact2 FROM users`
+    `SELECT
+        name,
+        email
+    FROM users
+    WHERE role = $1`,
+    ['admin']
 );
-// (1b): Dynamic alternative
+```
+
+```js
+// (b): Dynamic alternative
+const result = await client.database('public').table('users').select({
+    fields: [ 'name', 'email' ],
+    where: [{ eq: ['role', { binding: ['admin'] }] }]
+});
+```
+
+<h4>Example 2:</h4>
+
+```js
+// (a): A basic query with JSON formatters
+const result = await client.query(
+    `SELECT
+        name,
+        { email, phone } AS contact1,
+        [ email, phone ] AS contact2
+    FROM users`
+);
+```
+
+```js
+// (b): Dynamic alternative
 const result = await client.database('public').table('users').select([
-    'name',
+    { expr: 'name' },
     { expr: { jsonObject: ['email', 'phone'] }, as: 'contact1' },
     { expr: { jsonArray: ['email', 'phone'] }, as: 'contact2' }
 ]);
 ```
 
+<h4>Example 3:</h4>
+ 
 ```js
-// (2a): A relational query with paths
+// (a): A relational query with paths
 const result = await client.query(
-    `SELECT title, content, author ~> name AS author_name FROM books
+    `SELECT
+        title,
+        content,
+        author ~> name AS author_name
+    FROM books
     WHERE author ~> role = $1`,
     ['admin']
 );
-// (2b): Dynamic alternative
-const result = await client.database('public').table('books').select({
-    fields: [
-        'title',
-        'content',
-        { expr: { path: ['author', '~>', 'name'] }, as: 'author_name' }
-    ],
-    where: {
-        eq: [{ path: ['author', '~>', 'role'] }, { bind: ['admin'] }]
-    }
-});
 ```
 
 ```js
-// (3): Same relational query with formatters
+// (b): Dynamic alternative
+const result = await client.database('public').table('books').select({
+    fields: [
+        { expr: 'title' },
+        { expr: 'content' },
+        { expr: { path: ['author', '~>', 'name'] }, as: 'author_name' }
+    ],
+    where: [
+        { eq: [{ path: ['author', '~>', 'role'] }, { binding: ['admin'] }] }
+    ]
+});
+```
+
+<h4>Example 4:</h4>
+
+```js
+// (a): Same relational query with formatters
 const result = await client.query(
-    `SELECT title, content, author: { name, email } AS author FROM books
+    `SELECT
+        title,
+        content,
+        author: { name, email } AS author
+    FROM books
     WHERE author ~> role = $1`,
     ['admin']
 );
-// (3b): Dynamic alternative
+```
+
+```js
+// (b): Dynamic alternative
 const result = await client.database('public').table('books').select({
     fields: [
-        'title',
-        'content',
+        { expr: 'title' },
+        { expr: 'content' },
         { expr: { path: ['author', '~>', { jsonObject: ['email', 'phone'] }] }, as: 'author' }
     ],
-    where: {
-        eq: [{ path: ['author', '~>', 'role'] }, { bind: ['admin'] }]
-    }
+    where: [
+        { eq: [{ path: ['author', '~>', 'role'] }, { binding: ['admin'] }] }
+    ]
 });
 ```
 
