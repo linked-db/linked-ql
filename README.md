@@ -43,7 +43,7 @@ _What we're doing differently?_
 <tr><td>
 <details name="features" open><summary>A SQL-native experience</summary>
 
-While it is surprisingly hard to find a tool that doesn't get in the way or, at least, treat hand-written SQL as the exception, Linked QL is <ins>SQL by default</ins>, and along with that, it gives you everything that makes it all the more compelling and delightful to just #usethelanguage!
+While it is surprisingly hard to find a tool that doesn't get in the way or, at least, treat hand-written SQL as the exception, Linked QL comes with a <ins>SQL-by-default default</ins>, and along with that, it gives you everything that makes it all the more compelling and delightful to just #usethelanguage!
 
 ##### └ *Example 1:*
 
