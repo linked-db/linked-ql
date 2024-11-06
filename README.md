@@ -37,7 +37,7 @@ Linked QL is a small JS-based database abstraction library that is usable over y
 <table>
 <tr><th>
 
-<br>What we're doing differently?<br>
+_What we're doing differently?_
     
 </th></tr>
 <tr><td>
