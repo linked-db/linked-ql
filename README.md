@@ -71,9 +71,7 @@ console.log(result);
 > 
 > </details>
 
-<table>
-<tr><td>
-<details><summary><i>Example 2:</i></summary>
+<details><summary><h3><i>Example 2:</i></h3></summary>
 
 ```js
 // A basic DDL query
@@ -90,8 +88,6 @@ await client.query(
 ```
 
 </details>
-</td></tr>
-</table>
 
 </details>
 </td></tr>
@@ -140,8 +136,6 @@ console.log(result);
 > 
 > </details>
 
-<table>
-<tr><td>
 <details><summary><i>Example 2:</i></summary>
 
 > <details><summary>Schema</summary>
@@ -202,9 +196,7 @@ console.log(result);
 > </details>
 
 </details>
-</td></tr>
 
-<tr><td>
 <details><summary><i>Example 3:</i></summary>
 
 > <details><summary>Schema (again)</summary>
@@ -271,9 +263,7 @@ console.log(result);
 > </details>
 
 </details>
-</td></tr>
 
-<tr><td>
 <details><summary><i>Example 4:</i></summary>
 
 > <details><summary>Schema (again)</summary>
@@ -367,8 +357,6 @@ console.log(result);
 > </details>
 
 </details>
-</td></tr>
-</table>
 
 </details>
 </td></tr>
