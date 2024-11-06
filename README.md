@@ -40,7 +40,7 @@ See what we're doing differently:
 <tr><td>
 <details name="features" open><summary>A SQL-native experience</summary>
 
-It's surprisingly hard to find a tool that doesn't get in the way or, at least, treat hand-written SQL as the exception! By contrast, Linked QL has <ins>SQL as the default</ins>, and alomg with that, everything that makes it all the more compelling and delightful to just #usethelanguage! 
+It's surprisingly hard to find a tool that doesn't get in the way or, at least, treat hand-written SQL as the exception! By contrast, Linked QL has <ins>SQL as the default</ins>, and along with that, everything that makes it all the more compelling and delightful to just #usethelanguage! 
 
 </details>
 </td></tr>
@@ -80,7 +80,7 @@ The typical database has no concept of versioning, but no problem, Linked QL com
 <tr><td>
 <details name="features"><summary>Progressive enhancement</summary>
 
-While typical ORMs function as API-only solutions—which can get counterproductive for low-abstraction use cases—Linked QL offers a SQL-by-default, progressive enhancement philosophy that lets you go from the ground up. Yet, you’ll find the same powerful SQL-level features available at the API level, and vice-versa!
+While typical ORMs function as API-only solutions—which can get counterproductive for low-abstraction use cases—Linked QL offers a SQL-by-default, progressive enhancement philosophy that lets you go from the ground up. Meanwhile, you find the same powerful SQL-level features available at the API level, and vice-versa!
 
 </details>
 </td></tr>
