@@ -54,12 +54,16 @@ const result = await client.query(
 console.log(result);
 ```
 
-```js
-[
-    { name: 'John Doe', email: 'johndoed@example.com' },
-    { name: 'Alice Blue', email: 'aliceblue@example.com' },
-]
-```
+> <details><summary>Console</summary>
+>
+> ```js
+> [
+>     { name: 'John Doe', email: 'johndoed@example.com' },
+>     { name: 'Alice Blue', email: 'aliceblue@example.com' },
+> ]
+> ```
+
+</details>
 
 </details>
 </td></tr>
@@ -70,13 +74,37 @@ console.log(result);
 Model structures and traverse relationships like they were plain JSON objects—all right within the language! Meet Linked QL's set of syntax extensions to SQL that do the hard work, cut your query in half, and even save you multiple round trips! (Think everything that an ORM was never designed to do!)
 
 ```js
-// A basic query with structural syntax sugars
+// A basic query with JSON-like formatters
 const result = await client.query(
-    'SELECT name, email, { name, email }, [ name, email ] FROM users WHERE role = $1',
-    ['admin']
+    `SELECT name, { email, phone } AS contact1, [ email, phone ] AS contact2`
 );
 console.log(result);
 ```
+
+> <details><summary>Console</summary>
+>
+> ```js
+> [
+>     {
+>         name: 'John Doe',
+>         contact1: {
+>             email: 'johndoed@example.com',
+>             phone: '(555) 123-4567'
+>         },
+>         contact2: [ 'johndoed@example.com', '(555) 123-4567' ]
+>     },
+>     {
+>         name: 'Alice Blue',
+>         contact1: {
+>             email: 'aliceblue@example.com',
+>             phone: '(888) 123-4567'
+>         },
+>         contact2: [ 'aliceblue@example.com', '(888) 123-4567' ]
+>     }
+> ]
+> ```
+
+</details>
 
 </details>
 </td></tr>
