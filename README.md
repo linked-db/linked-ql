@@ -278,7 +278,7 @@ const result = await client.query(
                 email
             )
         )
-    VALUES
+        VALUES
         (
             'Beauty and the Beast',
             '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
@@ -295,9 +295,35 @@ const result = await client.query(
                 'aliceblue@example.com'
             )
         )
-    RETURNING *`
+        RETURNING *`
 );
+console.log(result);
 ```
+
+> <details><summary>Console</summary>
+>
+> ```js
+> [
+>     {
+>         title: 'Beauty and the Beast',
+>         content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
+>         author: {
+>             name: 'John Doe',
+>             email: 'johndoed@example.com'
+>         }
+>     },
+>     {
+>         title: 'The Secrets of Midnight Garden',
+>         content: '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...',
+>         author: {
+>             name: 'Alice Blue',
+>             email: 'aliceblue@example.com'
+>         }
+>     }
+> ]
+> ```
+> 
+> </details>
 
 </details>
 
