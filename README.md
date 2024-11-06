@@ -271,33 +271,28 @@ console.log(result);
 ```js
 // A multi-dimensional INSERT
 const result = await client.query(
-    `INSERT INTO books
-        (
-            title,
-            content,
-            author: (
-                name,
-                email
-            )
+    `INSERT INTO books (
+        title,
+        content,
+        author: (
+            name,
+            email
         )
-        VALUES
+    ) VALUES (
+        'Beauty and the Beast',
+        '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
         (
-            'Beauty and the Beast',
-            '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
-            (
-                'John Doe',
-                'johndoed@example.com'
-            )
-        ),
-        (
-            'The Secrets of Midnight Garden'
-            '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...',
-            (
-                'Alice Blue',
-                'aliceblue@example.com'
-            )
+            'John Doe',
+            'johndoed@example.com'
         )
-        RETURNING *`
+    ), (
+        'The Secrets of Midnight Garden'
+        '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...',
+        (
+            'Alice Blue',
+            'aliceblue@example.com'
+        )
+    ) RETURNING *`
 );
 console.log(result);
 ```
