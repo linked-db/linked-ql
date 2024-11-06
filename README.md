@@ -43,6 +43,8 @@ _What we're doing differently?_
 <tr><td>
 <details name="features" open><summary>A SQL-native experience</summary>
 
+<br>
+
 Whereas the typical database abstraction tool has hand-written SQL as the exception, Linked QL has it as <ins>the default</ins>, and along with that, it comes with everything that makes it all the more delightful to just #usethelanguage!
 
 <h2></h2>
@@ -98,6 +100,8 @@ await client.query(
 
 <tr><td>
 <details name="features"><summary>Powerful new syntax sugars</summary>
+
+<br>
 
 Model structures and traverse relationships like they were plain JSON objects—all right within the language! Meet Linked QL's set of syntax extensions to SQL that <ins>do the hard work</ins>, <ins>cut your query in half</ins>, and even <ins>save you multiple round trips</ins>!
 
@@ -376,6 +380,8 @@ console.log(result);
 <tr><td>
 <details name="features"><summary>Progressive enhancement</summary>
 
+<br>
+
 While the typical ORM imposes a high level of abstraction, even when that's not desired, Linked QL offers a <ins>SQL-by-default, progressive enhancement</ins> workflow that lets you think from the ground up! And at whatever part of that spectrum you find a sweet spot, you also get the same powerful set of features that Linked QL has to offer!
 
 <h2></h2>
@@ -492,6 +498,8 @@ const result = await client.database('public').table('books').select({
 
 <tr><td>
 <details name="features"><summary>Automatic schema inference</summary>
+
+<br>
 
 Whereas the typical ORM requires you to feed them with your database schema (case in point: [Drizzle](https://orm.drizzle.team/)), Linked QL <ins>automatically infers it</ins> and magically maintains 100% schema-awareness throughout (without necessarily looking)! You get a whole class of manual work entirely out of the equation!
 
