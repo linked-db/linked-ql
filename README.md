@@ -272,8 +272,15 @@ console.log(result);
 // A multi-dimensional INSERT
 const result = await client.query(
     `INSERT INTO books
-        ( title, content, author: ( name, email ) )
-    VALUES
+        (
+            title,
+            content,
+            author: (
+                name,
+                email
+            )
+        )
+        VALUES
         (
             'Beauty and the Beast',
             '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
@@ -290,7 +297,7 @@ const result = await client.query(
                 'aliceblue@example.com'
             )
         )
-    RETURNING *`
+        RETURNING *`
 );
 console.log(result);
 ```
