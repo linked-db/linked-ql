@@ -43,7 +43,7 @@ _What we're doing differently?_
 <tr><td>
 <details name="features" open><summary>A SQL-native experience</summary>
 
-Whereas the typical database abstraction tool has hand-written SQL as the exception, Linked QL comes with a <ins>SQL-by-default</ins> philosophy, and along with that, everything that makes it all the more delightful to just #usethelanguage!
+Whereas the typical database abstraction tool has hand-written SQL as the exception, Linked QL has it as <ins>the default</ins>, and along with that, it comes with everything that makes it all the more delightful to just #usethelanguage!
 
 ##### └ *Example 1:*
 
