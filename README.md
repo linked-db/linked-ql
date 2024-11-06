@@ -46,7 +46,7 @@ _What we're doing differently?_
 It's surprisingly hard to find a tool that doesn't get in the way or, at least, treat hand-written SQL as the exception! By contrast, Linked QL has <ins>SQL as the default</ins>, and along with that, everything that makes it all the more compelling and delightful to just #usethelanguage!
 
 ```js
-// A basic query with parameters
+// (1): A basic query with parameters
 const result = await client.query(
     'SELECT name, email FROM users WHERE role = $1',
     ['admin']
@@ -74,7 +74,7 @@ console.log(result);
 Model structures and traverse relationships like they were plain JSON objects—all right within the language! Meet Linked QL's set of syntax extensions to SQL that do the hard work, cut your query in half, and even save you multiple round trips! (Think everything that an ORM was never designed to do!)
 
 ```js
-// A basic query with JSON formatters
+// (1): A basic query with JSON formatters
 const result = await client.query(
     `SELECT name, { email, phone } AS contact1, [ email, phone ] AS contact2 FROM users`
 );
@@ -107,7 +107,7 @@ console.log(result);
 > </details>
 
 ```js
-// A relational query with paths
+// (2): A relational query with paths
 const result = await client.query(
     `SELECT title, content, author ~> name AS author_name FROM books
     WHERE author ~> role = $1`,
@@ -136,7 +136,7 @@ console.log(result);
 > </details>
 
 ```js
-// A relational query with paths
+// (3): Same relational query with formatters
 const result = await client.query(
     `SELECT title, content, author: { name, email } AS author FROM books
     WHERE author ~> role = $1`,
@@ -155,7 +155,7 @@ console.log(result);
 >         author: {
 >             email: 'johndoed@example.com',
 >             phone: '(555) 123-4567'
->         },
+>         }
 >     },
 >     {
 >         title: 'The Secrets of Midnight Garden',
@@ -163,7 +163,7 @@ console.log(result);
 >         author: {
 >             email: 'aliceblue@example.com',
 >             phone: '(888) 123-4567'
->         },
+>         }
 >     }
 > ]
 > ```
@@ -176,7 +176,60 @@ console.log(result);
 <tr><td>
 <details name="features"><summary>Progressive enhancement</summary>
 
-While typical ORMs function as API-only solutions—which can get counterproductive for low-abstraction use cases—Linked QL offers a SQL-by-default, progressive enhancement philosophy that lets you go from the ground up. Meanwhile, you find the same powerful SQL-level features available at the API level, and vice-versa!
+While typical ORMs function as API-only solutions—which can get counterproductive for low-abstraction use cases—Linked QL offers a SQL-by-default, progressive enhancement philosophy that lets you go from the ground up! Meanwhile, you get the same powerful SQL-level features right at the API level, and vice-versa!
+
+```js
+// (1a): A basic query with JSON formatters
+const result = await client.query(
+    `SELECT name, { email, phone } AS contact1, [ email, phone ] AS contact2 FROM users`
+);
+// (1b): Dynamic alternative
+const result = await client.database('public').table('users').select([
+    'name',
+    { expr: { jsonObject: ['email', 'phone'] }, as: 'contact1' },
+    { expr: { jsonArray: ['email', 'phone'] }, as: 'contact2' }
+]);
+```
+
+```js
+// (2a): A relational query with paths
+const result = await client.query(
+    `SELECT title, content, author ~> name AS author_name FROM books
+    WHERE author ~> role = $1`,
+    ['admin']
+);
+// (2b): Dynamic alternative
+const result = await client.database('public').table('books').select({
+    fields: [
+        'title',
+        'content',
+        { expr: { path: ['author', '~>', 'name'] }, as: 'author_name' }
+    ],
+    where: {
+        eq: [{ path: ['author', '~>', 'role'] }, { bind: ['admin'] }]
+    }
+});
+```
+
+```js
+// (3): Same relational query with formatters
+const result = await client.query(
+    `SELECT title, content, author: { name, email } AS author FROM books
+    WHERE author ~> role = $1`,
+    ['admin']
+);
+// (3b): Dynamic alternative
+const result = await client.database('public').table('books').select({
+    fields: [
+        'title',
+        'content',
+        { expr: { path: ['author', '~>', { jsonObject: ['email', 'phone'] }] }, as: 'author' }
+    ],
+    where: {
+        eq: [{ path: ['author', '~>', 'role'] }, { bind: ['admin'] }]
+    }
+});
+```
 
 </details>
 </td></tr>
