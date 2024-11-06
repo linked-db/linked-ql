@@ -128,6 +128,7 @@ console.log(result);
 >     id int primary key generated always as identity,
 >     name varchar,
 >     email varchar,
+>     phone varchar,
 >     role varchar,
 >     created_time timestamp
 > );
@@ -188,6 +189,7 @@ console.log(result);
 >     id int primary key generated always as identity,
 >     name varchar,
 >     email varchar,
+>     phone varchar,
 >     role varchar,
 >     created_time timestamp
 > );
