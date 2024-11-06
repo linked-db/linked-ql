@@ -95,7 +95,7 @@ await client.query(
 <tr><td>
 <details name="features"><summary>Powerful new syntax sugars</summary>
 
-Model structures and traverse relationships like they were plain JSON objects—all right within the language! Meet Linked QL's set of syntax extensions to SQL that do the hard work, cut your query in half, and even save you multiple round trips! (Think everything that an ORM was never designed to do!)
+Model structures and traverse relationships like they were plain JSON objects—all right within the language! Meet Linked QL's set of syntax extensions to SQL that do the hard work, cut your query in half, and even save you multiple round trips! (Think everywhere that an ORM fails!)
 
 ##### └ *Example 1:*
 
