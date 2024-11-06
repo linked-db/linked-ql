@@ -45,7 +45,7 @@ _What we're doing differently?_
 
 It's surprisingly hard to find a tool that doesn't get in the way or, at least, treat hand-written SQL as the exception! By contrast, Linked QL has <ins>SQL as the default</ins>, and along with that, everything that makes it all the more compelling and delightful to just #usethelanguage!
 
-<details><summary><i>Example 1:</i></summary>
+##### └ *Example 1:*
 
 ```js
 // A basic query with parameters
@@ -72,8 +72,6 @@ console.log(result);
 > </details>
 
 </details>
-
-</details>
 </td></tr>
 
 <tr><td>
@@ -81,7 +79,7 @@ console.log(result);
 
 Model structures and traverse relationships like they were plain JSON objects—all right within the language! Meet Linked QL's set of syntax extensions to SQL that do the hard work, cut your query in half, and even save you multiple round trips! (Think everything that an ORM was never designed to do!)
 
-<details><summary><i>Example 1:</i></summary>
+##### └ *Example 1:*
 
 ```js
 // A basic query with JSON formatting
@@ -119,8 +117,6 @@ console.log(result);
 > ```
 > 
 > </details>
-
-</details>
 
 <details><summary><i>Example 2:</i></summary>
 
@@ -260,7 +256,7 @@ console.log(result);
 
 While typical ORMs function as API-only solutions—which can get counterproductive for low-abstraction use cases—Linked QL offers a SQL-by-default, progressive enhancement philosophy that lets you go from the ground up! Meanwhile, you get the same powerful SQL-level features right at the API level, and vice-versa!
 
-<details><summary><i>Example 1:</i></summary>
+##### └ *Example 1:*
 
 ```js
 // (a): A basic query with parameters
@@ -281,8 +277,6 @@ const result = await client.database('public').table('users').select({
     where: [{ eq: ['role', { binding: ['admin'] }] }]
 });
 ```
-
-</details>
 
 <details><summary><i>Example 2:</i></summary>
 
