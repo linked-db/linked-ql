@@ -86,7 +86,7 @@ Model structures and traverse relationships like they were plain JSON objects—
 const result = await client.query(
     `SELECT
         name,
-        { email, phone } AS contact1,
+        { email, phone AS mobile } AS contact1,
         [ email, phone ] AS contact2
     FROM users`
 );
@@ -101,7 +101,7 @@ console.log(result);
 >         name: 'John Doe',
 >         contact1: {
 >             email: 'johndoed@example.com',
->             phone: '(555) 123-4567'
+>             mobile: '(555) 123-4567'
 >         },
 >         contact2: [ 'johndoed@example.com', '(555) 123-4567' ]
 >     },
@@ -109,7 +109,7 @@ console.log(result);
 >         name: 'Alice Blue',
 >         contact1: {
 >             email: 'aliceblue@example.com',
->             phone: '(888) 123-4567'
+>             mobile: '(888) 123-4567'
 >         },
 >         contact2: [ 'aliceblue@example.com', '(888) 123-4567' ]
 >     }
@@ -281,7 +281,7 @@ const result = await client.database('public').table('users').select({
 const result = await client.query(
     `SELECT
         name,
-        { email, phone } AS contact1,
+        { email, phone AS mobile } AS contact1,
         [ email, phone ] AS contact2
     FROM users`
 );
@@ -291,7 +291,7 @@ const result = await client.query(
 // (b): Dynamic alternative
 const result = await client.database('public').table('users').select([
     { expr: 'name' },
-    { expr: { jsonObject: ['email', 'phone'] }, as: 'contact1' },
+    { expr: { jsonObject: ['email', { expr: 'phone', as: 'mobile'}] }, as: 'contact1' },
     { expr: { jsonArray: ['email', 'phone'] }, as: 'contact2' }
 ]);
 ```
@@ -350,7 +350,7 @@ const result = await client.database('public').table('books').select({
     fields: [
         { expr: 'title' },
         { expr: 'content' },
-        { expr: { path: ['author', '~>', { jsonObject: ['email', 'phone'] }] }, as: 'author' }
+        { expr: { path: ['author', '~>', { jsonObject: ['name', 'email'] }] }, as: 'author' }
     ],
     where: [
         { eq: [{ path: ['author', '~>', 'role'] }, { binding: ['admin'] }] }
