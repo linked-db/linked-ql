@@ -71,6 +71,24 @@ console.log(result);
 > 
 > </details>
 
+<details><summary><i>Example 2:</i></summary>
+
+```js
+// A basic DDL query
+await client.query(
+    `CREATE TABLE users (
+        id int primary key generated always as identity,
+        name varchar,
+        email varchar,
+        phone varchar,
+        role varchar,
+        created_time timestamp
+    )`
+);
+```
+
+</details>
+
 </details>
 </td></tr>
 
@@ -227,16 +245,16 @@ console.log(result);
 >         title: 'Beauty and the Beast',
 >         content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
 >         author: {
->             email: 'johndoed@example.com',
->             phone: '(555) 123-4567'
+>             name: 'John Doe',
+>             email: 'johndoed@example.com'
 >         }
 >     },
 >     {
 >         title: 'The Secrets of Midnight Garden',
 >         content: '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...',
 >         author: {
->             email: 'aliceblue@example.com',
->             phone: '(888) 123-4567'
+>             name: 'Alice Blue',
+>             email: 'aliceblue@example.com'
 >         }
 >     }
 > ]
