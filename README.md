@@ -71,6 +71,8 @@ console.log(result);
 > 
 > </details>
 
+<table>
+<tr><td>
 <details><summary><i>Example 2:</i></summary>
 
 ```js
@@ -88,6 +90,8 @@ await client.query(
 ```
 
 </details>
+</td></tr>
+</table>
 
 </details>
 </td></tr>
@@ -136,6 +140,8 @@ console.log(result);
 > 
 > </details>
 
+<table>
+<tr><td>
 <details><summary><i>Example 2:</i></summary>
 
 > <details><summary>Schema</summary>
@@ -196,7 +202,9 @@ console.log(result);
 > </details>
 
 </details>
+</td></tr>
 
+<tr><td>
 <details><summary><i>Example 3:</i></summary>
 
 > <details><summary>Schema (again)</summary>
@@ -263,7 +271,9 @@ console.log(result);
 > </details>
 
 </details>
+</td></tr>
 
+<tr><td>
 <details><summary><i>Example 4:</i></summary>
 
 > <details><summary>Schema (again)</summary>
@@ -357,6 +367,8 @@ console.log(result);
 > </details>
 
 </details>
+</td></tr>
+</table>
 
 </details>
 </td></tr>
@@ -479,11 +491,11 @@ const result = await client.database('public').table('books').select({
 <tr><td>
 <details name="features"><summary>Automatic schema inference</summary>
 
-Whereas other tools essentially require you to feed them with your database schema (case in point: [Drizzle](https://orm.drizzle.team/)), Linked QL <ins>automatically infers it</ins> and magically maintains a 100% schema-awareness all the way! You get a whole class of manual work entirely out of the equation!
+Whereas the typical ORM requires you to feed them with your database schema (case in point: [Drizzle](https://orm.drizzle.team/)), Linked QL <ins>automatically infers it</ins> and magically maintains 100% schema-awareness throughout (without necessarily looking)! You get a whole class of manual work entirely out of the equation!
 
 ##### └ *Example 1:*
 
-> <ins>Plug</ins> to an arbitrary database and <ins>play</ins>...
+> Just <ins>plug</ins> to an arbitrary database and <ins>play</ins>...
 
 ```js
 // Import pg and LinkedQl
