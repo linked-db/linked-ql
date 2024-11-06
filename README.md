@@ -655,7 +655,7 @@ const result = await client.database('public').table('books').select({
 <tr><td>
 <details name="features"><summary>Automatic schema inference</summary>
 
-Whereas the typical ORM requires you to feed them with your database schema (case in point: [Drizzle](https://orm.drizzle.team/)), Linked QL <ins>automatically infers it</ins> and magically maintains 100% schema-awareness throughout (without necessarily looking)! You get a whole class of manual work entirely out of the equation!
+Whereas the typical ORM requires you to feed them with your database schema (case in point: [Drizzle](https://orm.drizzle.team/)), Linked QL <ins>automatically infers it</ins> and magically maintains 100% schema-awareness throughout (without necessarily looking again)! You get a whole class of manual work entirely out of the equation!
 
 ##### └ *Example 1:*
 
