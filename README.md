@@ -52,6 +52,10 @@ const result = await client.query(
     ['admin']
 );
 console.log(result);
+[
+    { name: 'John Doe', email: 'johndoed@example.com' },
+    { name: 'Alice Blue', email: 'aliceblue@example.com' },
+]
 ```
 
 </details>
@@ -61,6 +65,21 @@ console.log(result);
 <details name="features"><summary>Powerful new syntax sugars</summary>
 
 Model structures and traverse relationships like they were plain JSON objects—all right within the language! Meet Linked QL's set of syntax extensions to SQL that do the hard work, cut your query in half, and even save you multiple round trips! (Think everything that an ORM was never designed to do!)
+
+```js
+// A basic query with structural syntax sugars
+const result = await client.query(
+    'SELECT name, email, { name, email }, [ name, email ] FROM users WHERE role = $1',
+    ['admin']
+);
+console.log(result);
+```
+
+</details>
+</td><td>
+<details name="features"><summary>Progressive enhancement</summary>
+
+While typical ORMs function as API-only solutions—which can get counterproductive for low-abstraction use cases—Linked QL offers a SQL-by-default, progressive enhancement philosophy that lets you go from the ground up. Meanwhile, you find the same powerful SQL-level features available at the API level, and vice-versa!
 
 </details>
 </td></tr>
@@ -89,13 +108,7 @@ The typical database has no concept of versioning, but no problem, Linked QL com
 </details>
 </td></tr>
 
-<tr><td>
-<details name="features"><summary>Progressive enhancement</summary>
-
-While typical ORMs function as API-only solutions—which can get counterproductive for low-abstraction use cases—Linked QL offers a SQL-by-default, progressive enhancement philosophy that lets you go from the ground up. Meanwhile, you find the same powerful SQL-level features available at the API level, and vice-versa!
-
-</details>
-</td></tr>
+<tr></tr>
 </table>
 
 <br>
