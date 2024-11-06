@@ -254,8 +254,6 @@ console.log(result);
 <tr><td>
 <details name="features"><summary>Progressive enhancement</summary>
 
-<br>
-
 While typical ORMs function as API-only solutions—which can get counterproductive for low-abstraction use cases—Linked QL offers a SQL-by-default, progressive enhancement philosophy that lets you go from the ground up! Meanwhile, you get the same powerful SQL-level features right at the API level, and vice-versa!
 
 ##### └ *Example 1:*
@@ -372,8 +370,6 @@ const result = await client.database('public').table('books').select({
 <tr><td>
 <details name="features"><summary>Automatic schema inference</summary>
 
-<br>
-
 Whereas other tools essentially require you to feed them with your database schema (case in point: [Drizzle](https://orm.drizzle.team/)), Linked QL <ins>automatically infers it</ins> and magically maintains a 100% schema-awareness all the way! You get a whole class of manual work entirely out of the equation!
 
 </details>
@@ -382,8 +378,6 @@ Whereas other tools essentially require you to feed them with your database sche
 <tr><td>
 <details name="features"><summary>Diff-based migrations</summary>
 
-<br>
-
 Whereas schema evolution remains a drag across the board, it comes as a particularly nifty experience in Linked QL! As against the conventional script-based migrations approach, Linked QL follows a diff-based approach that lets you manage your entire DB structure <ins>declaratively</ins> out of a single `schema.json` (or `schema.yml`) file!
 
 </details>
@@ -391,8 +385,6 @@ Whereas schema evolution remains a drag across the board, it comes as a particul
 
 <tr><td>
 <details name="features"><summary>Automatic Schema Versioning</summary>
-
-<br>
 
 The typical database has no concept of versioning, but no problem, Linked QL comes with it to your database, and along with that, a powerful rollback and rollforward system! On each DDL operation you run against you database (`CREATE`, `ALTER`, `DROP`), you get a savepoint automatically created for you and a seamless rollback path anytime!
 
