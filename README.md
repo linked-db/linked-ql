@@ -71,7 +71,9 @@ console.log(result);
 > 
 > </details>
 
-<details><summary><h3><i>Example 2:</i></h3></summary>
+--------------
+
+<details><summary><i>Example 2:</i></summary>
 
 ```js
 // A basic DDL query
@@ -136,6 +138,8 @@ console.log(result);
 > 
 > </details>
 
+--------------
+
 <details><summary><i>Example 2:</i></summary>
 
 > <details><summary>Schema</summary>
@@ -196,6 +200,8 @@ console.log(result);
 > </details>
 
 </details>
+
+--------------
 
 <details><summary><i>Example 3:</i></summary>
 
@@ -263,6 +269,8 @@ console.log(result);
 > </details>
 
 </details>
+
+--------------
 
 <details><summary><i>Example 4:</i></summary>
 
