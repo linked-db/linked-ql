@@ -47,7 +47,10 @@ It's surprisingly hard to find a tool that doesn't get in the way or, at least, 
 
 ```js
 // A basic query with parameters
-const result = await client.query('SELECT name, email FROM users WHERE role = $1', ['admin']);
+const result = await client.query(
+    'SELECT name, email FROM users WHERE role = $1',
+    ['admin']
+);
 console.log(result);
 ```
 
