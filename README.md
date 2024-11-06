@@ -43,7 +43,7 @@ _What we're doing differently?_
 <tr><td>
 <details name="features" open><summary>A SQL-native experience</summary>
 
-Whereas the typical database abstraction tool has hand-written SQL as the exception, Linked QL has it as <ins>the default</ins>, and along with that, it comes with everything that makes it all the more delightful to just #usethelanguage!
+Whereas the typical database tool has hand-written SQL as the exception, Linked QL has it as <ins>the default</ins>, and along with that, it comes with everything that makes it all the more delightful to just #usethelanguage!
 
 ##### └ *Example 1:*
 
@@ -199,7 +199,7 @@ console.log(result);
 
 <details><summary><i>Example 3:</i></summary>
 
-> <details><summary>Schema (again)</summary>
+> <details><summary>Schema (as before)</summary>
 >
 > ```sql
 > -- The users table
@@ -224,7 +224,7 @@ console.log(result);
 > </details>
 
 ```js
-// Same relational query JSON with formatting
+// Same relational query with JSON formatting
 const result = await client.query(
     `SELECT
         title,
@@ -266,7 +266,85 @@ console.log(result);
 
 <details><summary><i>Example 4:</i></summary>
 
-> <details><summary>Schema (again)</summary>
+> <details><summary>Schema (as before)</summary>
+>
+> ```sql
+> -- The users table
+> CREATE TABLE users (
+>     id int primary key generated always as identity,
+>     name varchar,
+>     email varchar,
+>     phone varchar,
+>     role varchar,
+>     created_time timestamp
+> );
+> -- The books table
+> CREATE TABLE books (
+>     id int primary key generated always as identity,
+>     title varchar,
+>     content varchar,
+>     author int references users (id),
+>     created_time timestamp
+> );
+> ```
+> 
+> </details>
+
+```js
+// Get all books for each user
+const result = await client.query(
+    `SELECT
+        name,
+        email,
+        author <~ books: { title, content }[] AS books
+    FROM books
+    WHERE author <~ books ~> content LIKE '%(C) 2024%'`,
+);
+console.log(result);
+```
+
+> <details><summary>Console</summary>
+>
+> ```js
+> [
+>     {
+>         name: 'John Doe',
+>         email: 'johndoed@example.com',
+>         books: [
+>             {
+>                 title: 'Beauty and the Beast - part 1',
+>                 content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
+>             },
+>             {
+>                 title: 'Beauty and the Beast - part 2',
+>                 content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
+>             }
+>         ],
+>     },
+>     {
+>         name: 'Alice Blue',
+>         email: 'aliceblue@example.com',
+>         books: [
+>             {
+>                 title: 'The Secrets of Midnight Garden - part 1',
+>                 content: '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...',
+>             },
+>             {
+>                 title: 'The Secrets of Midnight Garden - part 2',
+>                 content: '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...',
+>             }
+>         ],
+>     }
+> ]
+> ```
+> 
+> </details>
+
+</details>
+
+<details><summary><i>Example 5:</i></summary>
+
+> <details><summary>Schema (as before)</summary>
 >
 > ```sql
 > -- The users table
@@ -350,6 +428,104 @@ console.log(result);
 >             created_time: '2024-11-06T18:22:46.709Z'
 >         },
 >         created_time: '2024-11-06T18:22:46.709Z'
+>     }
+> ]
+> ```
+> 
+> </details>
+
+</details>
+
+<details><summary><i>Example 6:</i></summary>
+
+> <details><summary>Schema (as before)</summary>
+>
+> ```sql
+> -- The users table
+> CREATE TABLE users (
+>     id int primary key generated always as identity,
+>     name varchar,
+>     email varchar,
+>     phone varchar,
+>     role varchar,
+>     created_time timestamp
+> );
+> -- The books table
+> CREATE TABLE books (
+>     id int primary key generated always as identity,
+>     title varchar,
+>     content varchar,
+>     author int references users (id),
+>     created_time timestamp
+> );
+> ```
+> 
+> </details>
+
+```js
+// A multi-dimensional INSERT
+const result = await client.query(
+    `INSERT INTO users (
+        name,
+        email,
+        author <~ books: (
+            title,
+            content
+        )
+    ) VALUES (
+        'John Doe',
+        'johndoed@example.com',
+        (
+            'Beauty and the Beast',
+            '(C) 2024 johndoed@example.com\nBeauty and the Beast...'
+        )
+    ), (
+        'Alice Blue',
+        'aliceblue@example.com',
+        (
+            'The Secrets of Midnight Garden',
+            '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...'
+        )
+    ) RETURNING *`
+);
+console.log(result);
+```
+
+> <details><summary>Console</summary>
+>
+> ```js
+> [
+>     {
+>         id: 1,
+>         name: 'John Doe',
+>         email: 'johndoed@example.com',
+>         phone: '(555) 123-4567',
+>         role: 'admin',
+>         created_time: '2024-11-06T18:22:46.709Z'
+>         author <~ books: [
+>             {
+>                 id: 1,
+>                 title: 'Beauty and the Beast',
+>                 content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
+>                 created_time: '2024-11-06T18:22:46.709Z'
+>             }
+>         ],
+>     },
+>     {
+>         id: 1,
+>         name: 'Alice Blue',
+>         email: 'aliceblue@example.com',
+>         phone: '(888) 123-4567',
+>         role: 'admin',
+>         created_time: '2024-11-06T18:22:46.709Z'
+>         author <~ books: [
+>             {
+>                 id: 1,
+>                 title: 'The Secrets of Midnight Garden',
+>                 content: '(C) 2024 johndoed@example.com\nThe Secrets of Midnight Garden...',
+>                 created_time: '2024-11-06T18:22:46.709Z'
+>             }
+>         ],
 >     }
 > ]
 > ```
