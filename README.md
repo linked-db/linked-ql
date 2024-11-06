@@ -266,6 +266,8 @@ console.log(result);
 
 <details><summary><i>Example 4:</i></summary>
 
+> <details><summary>Schema (again)</summary>
+
 ```js
 // A multi-dimensional INSERT
 const result = await client.query(
@@ -351,8 +353,7 @@ const result = await client.query(
 
 ```js
 // (b): Dynamic alternative
-const result = await client.database('public').table('users').select({
-    fields: [ 'name', 'email' ],
+const result = await client.database('public').table('users').select(['name', 'email' ], {
     where: [{ eq: ['role', { binding: ['admin'] }] }]
 });
 ```
