@@ -124,6 +124,8 @@ console.log(result);
 
 <details><summary><i>Example 2:</i></summary>
 
+<br>
+
 > <details><summary>Schema</summary>
 >
 > ```sql
@@ -183,6 +185,8 @@ console.log(result);
 </details>
 
 <details><summary><i>Example 3:</i></summary>
+
+<br>
 
 > <details><summary>Schema (again)</summary>
 >
