@@ -183,12 +183,12 @@ console.log(result);
 >     {
 >         title: 'Beauty and the Beast',
 >         content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
->         author_name: 'John Doe',
+>         author_name: 'John Doe'
 >     },
 >     {
 >         title: 'The Secrets of Midnight Garden',
 >         content: '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...',
->         author_name: 'Alice Blue',
+>         author_name: 'Alice Blue'
 >     }
 > ]
 > ```
@@ -261,6 +261,43 @@ console.log(result);
 > ```
 > 
 > </details>
+
+</details>
+
+<details><summary><i>Example 4:</i></summary>
+
+```js
+// A multi-dimensional INSERT
+const result = await client.query(
+    `INSERT INTO books
+        (
+            title,
+            content,
+            author: (
+                name,
+                email
+            )
+        )
+    VALUES
+        (
+            'Beauty and the Beast',
+            '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
+            (
+                'John Doe',
+                'johndoed@example.com'
+            )
+        ),
+        (
+            'The Secrets of Midnight Garden'
+            '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...',
+            (
+                'Alice Blue',
+                'aliceblue@example.com'
+            )
+        )
+    RETURNING *`
+);
+```
 
 </details>
 
@@ -669,7 +706,7 @@ Here, you alter your schema and get back a reference to a "savepoint" automatica
 ```js
 // Alter schema
 const savepoint = await client.query('CREATE TABLE public.users (id int, name varchar)', {
-    description: 'Create users table',
+    description: 'Create users table'
 });
 ```
 
