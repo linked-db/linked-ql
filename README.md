@@ -224,7 +224,7 @@ console.log(result);
 > </details>
 
 ```js
-// Same relational query with formatting
+// Same relational query JSON with formatting
 const result = await client.query(
     `SELECT
         title,
@@ -364,7 +364,7 @@ console.log(result);
 <tr><td>
 <details name="features"><summary>Progressive enhancement</summary>
 
-While typical ORMs function as API-only solutions—which can get counterproductive for low-abstraction use cases—Linked QL offers a SQL-by-default, progressive enhancement philosophy that lets you go from the ground up! Meanwhile, you get the same powerful SQL-level features right at the API level, and vice-versa!
+While the typical ORM imposes a high level of abstraction, even when that's not desired, Linked QL offers a SQL-by-default, progressive enhancement workflow that lets you think from the ground up! And wherever you find your sweet spot on that spectrum, you get the same powerful set of features that Linked QL has to offer!
 
 ##### └ *Example 1:*
 
