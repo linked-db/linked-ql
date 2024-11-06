@@ -62,8 +62,8 @@ console.log(result);
 >     { name: 'Alice Blue', email: 'aliceblue@example.com' },
 > ]
 > ```
-
-</details>
+> 
+> </details>
 
 </details>
 </td></tr>
@@ -74,9 +74,9 @@ console.log(result);
 Model structures and traverse relationships like they were plain JSON objects—all right within the language! Meet Linked QL's set of syntax extensions to SQL that do the hard work, cut your query in half, and even save you multiple round trips! (Think everything that an ORM was never designed to do!)
 
 ```js
-// A basic query with JSON-like formatters
+// A basic query with JSON formatters
 const result = await client.query(
-    `SELECT name, { email, phone } AS contact1, [ email, phone ] AS contact2`
+    `SELECT name, { email, phone } AS contact1, [ email, phone ] AS contact2 FROM users`
 );
 console.log(result);
 ```
@@ -103,8 +103,72 @@ console.log(result);
 >     }
 > ]
 > ```
+> 
+> </details>
 
-</details>
+```js
+// A relational query with paths
+const result = await client.query(
+    `SELECT title, content, author ~> name AS author_name FROM books
+    WHERE author ~> role = $1`,
+    ['admin']
+);
+console.log(result);
+```
+
+> <details><summary>Console</summary>
+>
+> ```js
+> [
+>     {
+>         title: 'Beauty and the Beast',
+>         content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
+>         author_name: 'John Doe',
+>     },
+>     {
+>         title: 'The Secrets of Midnight Garden',
+>         content: '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...',
+>         author_name: 'Alice Blue',
+>     }
+> ]
+> ```
+> 
+> </details>
+
+```js
+// A relational query with paths
+const result = await client.query(
+    `SELECT title, content, author: { name, email } AS author FROM books
+    WHERE author ~> role = $1`,
+    ['admin']
+);
+console.log(result);
+```
+
+> <details><summary>Console</summary>
+>
+> ```js
+> [
+>     {
+>         title: 'Beauty and the Beast',
+>         content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
+>         author: {
+>             email: 'johndoed@example.com',
+>             phone: '(555) 123-4567'
+>         },
+>     },
+>     {
+>         title: 'The Secrets of Midnight Garden',
+>         content: '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...',
+>         author: {
+>             email: 'aliceblue@example.com',
+>             phone: '(888) 123-4567'
+>         },
+>     }
+> ]
+> ```
+> 
+> </details>
 
 </details>
 </td></tr>
