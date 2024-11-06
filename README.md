@@ -95,7 +95,7 @@ await client.query(
 <tr><td>
 <details name="features"><summary>Powerful new syntax sugars</summary>
 
-Model structures and traverse relationships like they were plain JSON objects—all right within the language! Meet Linked QL's set of syntax extensions to SQL that do the hard work, cut your query in half, and even save you multiple round trips! (Think everywhere that an ORM fails!)
+Model structures and traverse relationships like they were plain JSON objects—all right within the language! Meet Linked QL's set of syntax extensions to SQL that <ins>do the hard work</ins>, <ins>cut your query in half</ins>, and even <ins>save you multiple round trips</ins>!
 
 ##### └ *Example 1:*
 
@@ -364,7 +364,7 @@ console.log(result);
 <tr><td>
 <details name="features"><summary>Progressive enhancement</summary>
 
-While the typical ORM imposes a high level of abstraction, even when that's not desired, Linked QL offers a SQL-by-default, progressive enhancement workflow that lets you think from the ground up! And wherever you find your sweet spot on that spectrum, you get the same powerful set of features that Linked QL has to offer!
+While the typical ORM imposes a high level of abstraction, even when that's not desired, Linked QL offers a <ins>SQL-by-default, progressive enhancement</ins> workflow that lets you think from the ground up! And at whatever part of that spectrum you find a sweet spot, you also get the same powerful set of features that Linked QL has to offer!
 
 ##### └ *Example 1:*
 
@@ -381,7 +381,7 @@ const result = await client.query(
 ```
 
 ```js
-// (b): Dynamic alternative
+// (b): API equivalent
 const result = await client.database('public').table('users').select(['name', 'email' ], {
     where: [{ eq: ['role', { binding: ['admin'] }] }]
 });
@@ -401,7 +401,7 @@ const result = await client.query(
 ```
 
 ```js
-// (b): Dynamic alternative
+// (b): API equivalent
 const result = await client.database('public').table('users').select([
     { expr: 'name' },
     { expr: { jsonObject: ['email', { expr: 'phone', as: 'mobile'}] }, as: 'contact1' },
@@ -427,7 +427,7 @@ const result = await client.query(
 ```
 
 ```js
-// (b): Dynamic alternative
+// (b): API equivalent
 const result = await client.database('public').table('books').select({
     fields: [
         { expr: 'title' },
@@ -458,7 +458,7 @@ const result = await client.query(
 ```
 
 ```js
-// (b): Dynamic alternative
+// (b): API equivalent
 const result = await client.database('public').table('books').select({
     fields: [
         { expr: 'title' },
@@ -483,7 +483,7 @@ Whereas other tools essentially require you to feed them with your database sche
 
 ##### └ *Example 1:*
 
-> Just setup and go...
+> <ins>Plug</ins> to an arbitrary database and <ins>play</ins>...
 
 ```js
 // Import pg and LinkedQl
@@ -500,7 +500,7 @@ await pgClient.connect();
 const client = new LinkedQl(pgClient, { dialect: 'postgres' });
 ```
 
-> Query arbitrary structures... no upfront schema work required!
+> Query arbitrary structures... with zero upfront schema work!
 
 ```js
 const result = await client.query(
