@@ -52,6 +52,9 @@ const result = await client.query(
     ['admin']
 );
 console.log(result);
+```
+
+```js
 [
     { name: 'John Doe', email: 'johndoed@example.com' },
     { name: 'Alice Blue', email: 'aliceblue@example.com' },
@@ -76,7 +79,9 @@ console.log(result);
 ```
 
 </details>
-</td><td>
+</td></tr>
+
+<tr><td>
 <details name="features"><summary>Progressive enhancement</summary>
 
 While typical ORMs function as API-only solutions—which can get counterproductive for low-abstraction use cases—Linked QL offers a SQL-by-default, progressive enhancement philosophy that lets you go from the ground up. Meanwhile, you find the same powerful SQL-level features available at the API level, and vice-versa!
@@ -107,8 +112,6 @@ The typical database has no concept of versioning, but no problem, Linked QL com
 
 </details>
 </td></tr>
-
-<tr></tr>
 </table>
 
 <br>
