@@ -43,7 +43,7 @@ _What we're doing differently?_
 <tr><td>
 <details name="features" open><summary>A SQL-native experience</summary>
 
-While it is surprisingly hard to find a tool that doesn't get in the way or, at least, treat hand-written SQL as the exception, Linked QL comes with a <ins>SQL-by-default default</ins>, and along with that, it gives you everything that makes it all the more compelling and delightful to just #usethelanguage!
+Whereas the typical database abstraction tool has hand-written SQL as the exception, Linked QL comes with a <ins>SQL-by-default</ins> philosophy, and along with that, everything that makes it all the more delightful to just #usethelanguage!
 
 ##### └ *Example 1:*
 
@@ -480,6 +480,39 @@ const result = await client.database('public').table('books').select({
 <details name="features"><summary>Automatic schema inference</summary>
 
 Whereas other tools essentially require you to feed them with your database schema (case in point: [Drizzle](https://orm.drizzle.team/)), Linked QL <ins>automatically infers it</ins> and magically maintains a 100% schema-awareness all the way! You get a whole class of manual work entirely out of the equation!
+
+##### └ *Example 1:*
+
+> Just setup and go...
+
+```js
+// Import pg and LinkedQl
+import pg from 'pg';
+import LinkedQl from '@linked-db/linked-ql/sql';
+
+// Connect to an arbitrary database
+const pgClient = new pg.Client({
+    connectionString: process.env.SUPABASE_CONNECTION_STRING,
+});
+await pgClient.connect();
+
+// Use LinkedQl as a wrapper over that
+const client = new LinkedQl(pgClient, { dialect: 'postgres' });
+```
+
+> Query arbitrary structures... no upfront schema work required!
+
+```js
+const result = await client.query(
+    `SELECT
+        access_token,
+        user_id: { email, phone, role } AS user,
+        last_active
+    FROM auth.users
+    WHERE user_id ~> email = $1`,
+    ['johndoe@example.com']
+);
+```
 
 </details>
 </td></tr>
