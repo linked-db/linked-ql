@@ -45,6 +45,8 @@ _What we're doing differently?_
 
 Whereas the typical database abstraction tool has hand-written SQL as the exception, Linked QL has it as <ins>the default</ins>, and along with that, it comes with everything that makes it all the more delightful to just #usethelanguage!
 
+<h2></h2>
+
 ##### └ *Example 1:*
 
 ```js
@@ -71,7 +73,7 @@ console.log(result);
 > 
 > </details>
 
---------------
+<h2></h2>
 
 <details><summary><i>Example 2:</i></summary>
 
@@ -98,6 +100,8 @@ await client.query(
 <details name="features"><summary>Powerful new syntax sugars</summary>
 
 Model structures and traverse relationships like they were plain JSON objects—all right within the language! Meet Linked QL's set of syntax extensions to SQL that <ins>do the hard work</ins>, <ins>cut your query in half</ins>, and even <ins>save you multiple round trips</ins>!
+
+<h2></h2>
 
 ##### └ *Example 1:*
 
@@ -138,7 +142,7 @@ console.log(result);
 > 
 > </details>
 
---------------
+<h2></h2>
 
 <details><summary><i>Example 2:</i></summary>
 
@@ -201,7 +205,7 @@ console.log(result);
 
 </details>
 
---------------
+<h2></h2>
 
 <details><summary><i>Example 3:</i></summary>
 
@@ -270,7 +274,7 @@ console.log(result);
 
 </details>
 
---------------
+<h2></h2>
 
 <details><summary><i>Example 4:</i></summary>
 
@@ -373,6 +377,8 @@ console.log(result);
 <details name="features"><summary>Progressive enhancement</summary>
 
 While the typical ORM imposes a high level of abstraction, even when that's not desired, Linked QL offers a <ins>SQL-by-default, progressive enhancement</ins> workflow that lets you think from the ground up! And at whatever part of that spectrum you find a sweet spot, you also get the same powerful set of features that Linked QL has to offer!
+
+<h2></h2>
 
 ##### └ *Example 1:*
 
