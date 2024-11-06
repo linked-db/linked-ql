@@ -20,19 +20,19 @@ _**Get insanely productive with SQL!** Take a break from tooling overheads!_
 
 <br>
 
-> Think a next generation database tool that makes your database interactions and schema management <ins>a breeze</ins>. Linked QL uniquely overcomes known limitations in the typical database system and the SQL language itself to get you <ins>insanely productive</ins>!
+> Think a next generation database tool that makes your database interactions and schema management <ins>a breeze</ins>. Linked QL uniquely overcomes known limitations in the SQL language itself and the typical database system to get you <ins>insanely productive</ins>!
 
 <div align="center">
 
 [Follow](https://x.com/LinkedQL) • [Sponsor](https://github.com/sponsors/ox-harris)
 
-Linked QL is a small JS-based library that is usable over your DB of choice—from the server-side database system (postgres, MySQL and mariadb) to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API)!
+Linked QL is a small JS-based database abstraction library that is usable over your DB of choice—from the server-side database system (postgres, MySQL and mariadb) to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API)!
 
 [Getting Started](https://github.com/sponsors/ox-harris) • [Features](https://github.com/sponsors/ox-harris)
 
 </div>
 
-<h2></h2>
+<br>
 
 See what we're doing differently:
 
