@@ -11,7 +11,7 @@ export class Assertion extends AbstractOperator2Expr {
 			{ test: '<(?!~)' },
 			{ test: '(?<!~)>', backtest: '^(?!.*~$)'/*For Lexer*/ },
 			{ test: '(?<!<)(?:\\!)?~(?:\\*)?(?!>)', backtest: '^(?!.*<$)'/*For Lexer*/ },
-			{ test: '((\\s+(?:NOT\\s+)?IS\\s+(?:NOT\\s+)?(TRUE|FALSE|NULL|UNKNOWN|DISTINCT\\s+FROM\\s+))))|\\s+(ISNULL|NOTNULL|ANY|ALL|(?:NOT\\s+)?(?:IN|LIKE|EXISTS|SIMILAR\\s+TO|BETWEEN(?:\\s+SYMMETRIC)?))\\s+|(?:\\s+)?(=|<=|>=|!=|<>)(?:\\s+)?)' },
+			{ test: '((\\s+IS(?:NOT\\s+)?\\s+(TRUE|FALSE|NULL|UNKNOWN|DISTINCT\\s+FROM\\s+))))|\\s+(ANY|ALL|(?:NOT\\s+)?(?:IN|LIKE|EXISTS|SIMILAR\\s+TO|BETWEEN(?:\\s+SYMMETRIC)?))\\s+|(?:\\s+)?(=|<=|>=|!=|<>)(?:\\s+)?)' },
 		];
 	}
 
