@@ -47,10 +47,8 @@ Whereas the typical database tool has hand-written SQL as the exception, Linked 
 
 ##### └ *Example 1:*
 
-> [!TIP]
-> A basic query with parameters
-
 ```js
+// A basic query with parameters
 const result = await client.query(
     `SELECT
         name,
@@ -75,10 +73,8 @@ console.log(result);
 
 <details><summary><i>Example 2:</i></summary>
 
-> [!TIP]
-> A basic DDL query
-
 ```js
+// A basic DDL query
 await client.query(
     `CREATE TABLE users (
         id int primary key generated always as identity,
@@ -167,7 +163,7 @@ console.log(result);
 > </details>
 
 ```js
-// [ONE-TO-MANY]: Basic join via magic paths
+// A basic join via magic paths | ONE-TO-MANY
 const result = await client.query(
     `SELECT
         title,
@@ -228,7 +224,7 @@ console.log(result);
 > </details>
 
 ```js
-// [ONE-TO-MANY]: Same query with JSON formatting
+// Same query but structured via JSON formatting | ONE-TO-MANY
 const result = await client.query(
     `SELECT
         title,
@@ -287,7 +283,7 @@ console.log(result);
 > </details>
 
 ```js
-// [ONE-TO-MANY]: Multi-level join via magic paths
+// A multi-level join via magic paths | ONE-TO-MANY
 const result = await client.query(
     `SELECT
         name,
@@ -347,7 +343,7 @@ console.log(result);
 > </details>
 
 ```js
-// [MANY-TO-ONE]: Basic many-to-one join via magic paths
+// A basic many-to-one join via magic paths | MANY-TO-ONE
 const result = await client.query(
     `SELECT
         name,
@@ -366,22 +362,22 @@ console.log(result);
 >     {
 >         name: 'John Doe',
 >         email: 'johndoed@example.com',
->         book_title: 'Beauty and the Beast - part 1'
+>         book_title: 'Beauty and the Beast - Part 1'
 >     },
 >     {
 >         name: 'John Doe',
 >         email: 'johndoed@example.com',
->         book_title: 'Beauty and the Beast - part 2'
+>         book_title: 'Beauty and the Beast - Part 2'
 >     },
 >     {
 >         name: 'Alice Blue',
 >         email: 'aliceblue@example.com',
->         books: 'The Secrets of Midnight Garden - part 1'
+>         books: 'The Secrets of Midnight Garden - Part 1'
 >     },
 >     {
 >         name: 'Alice Blue',
 >         email: 'aliceblue@example.com',
->         books: 'The Secrets of Midnight Garden - part 2'
+>         books: 'The Secrets of Midnight Garden - Part 2'
 >     }
 > ]
 > ```
@@ -417,7 +413,7 @@ console.log(result);
 > </details>
 
 ```js
-// [MANY-TO-ONE]: Structured many-to-one join via magic paths
+// Same query but structured and aggregated | MANY-TO-ONE
 const result = await client.query(
     `SELECT
         name,
@@ -438,11 +434,11 @@ console.log(result);
 >         email: 'johndoed@example.com',
 >         books: [
 >             {
->                 title: 'Beauty and the Beast - part 1',
+>                 title: 'Beauty and the Beast - Part 1',
 >                 content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...'
 >             },
 >             {
->                 title: 'Beauty and the Beast - part 2',
+>                 title: 'Beauty and the Beast - Part 2',
 >                 content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...'
 >             }
 >         ]
@@ -452,11 +448,11 @@ console.log(result);
 >         email: 'aliceblue@example.com',
 >         books: [
 >             {
->                 title: 'The Secrets of Midnight Garden - part 1',
+>                 title: 'The Secrets of Midnight Garden - Part 1',
 >                 content: '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...'
 >             },
 >             {
->                 title: 'The Secrets of Midnight Garden - part 2',
+>                 title: 'The Secrets of Midnight Garden - Part 2',
 >                 content: '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...'
 >             }
 >         ]
@@ -495,8 +491,8 @@ console.log(result);
 > </details>
 
 ```js
-// [ONE-TO-MANY]: Basic multi-dimensional INSERT
-// Connects
+// A basic multi-dimensional INSERT | ONE-TO-MANY
+// TIP: for each book CREATED, CREATE a user with said email
 const result = await client.query(
     `INSERT INTO books (
         title,
@@ -512,49 +508,47 @@ const result = await client.query(
         'aliceblue@example.com'
     )`
 );
-console.log(result);
+console.log(result); // true
 ```
 
-> <details><summary>Console</summary>
->
-> ```js
-> [
->     {
->         id: 1,
->         title: 'Beauty and the Beast',
->         content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
->         author: {
->             id: 1,
->             name: 'John Doe',
->             email: 'johndoed@example.com',
->             phone: '(555) 123-4567',
->             role: 'admin',
->             created_time: '2024-11-06T18:22:46.709Z'
->         },
->         created_time: '2024-11-06T18:22:46.709Z'
->     },
->     {
->         id: 2,
->         title: 'The Secrets of Midnight Garden',
->         content: '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...',
->         author: {
->             id: 2,
->             name: 'Alice Blue',
->             email: 'aliceblue@example.com',
->             phone: '(888) 123-4567',
->             role: 'admin',
->             created_time: '2024-11-06T18:22:46.709Z'
->         },
->         created_time: '2024-11-06T18:22:46.709Z'
->     }
-> ]
-> ```
-> 
-> </details>
+```js
+// A basic multi-dimensional UPSERT | ONE-TO-MANY
+// TIP: for each book CREATED or UPDATED, CREATE or UPDATE a user with said email
+const result = await client.query(
+    `UPSERT INTO books (
+        title,
+        content,
+        author ~> email
+    ) VALUES (
+        'Beauty and the Beast',
+        '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
+        'johndoed@example.com'
+    ), (
+        'The Secrets of Midnight Garden'
+        '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...',
+        'aliceblue@example.com'
+    )`
+);
+console.log(result); // true
+```
+
+```js
+// A basic multi-dimensional UPSERT | ONE-TO-MANY
+// TIP: for each book UPDATED, CREATE or UPDATE a user with said email
+const result = await client.query(
+    `UPDATE books
+    SET
+        title = 'Beauty and the Beast',
+        content = '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
+        author ~> email = 'johndoed@example.com'
+    `
+);
+console.log(result); // true
+```
 
 </details>
 
-<details><summary><i>Example 7:</i></summary>
+<details><summary><i>Example 8:</i></summary>
 
 > <details><summary>Schema (as before)</summary>
 >
@@ -582,6 +576,7 @@ console.log(result);
 
 ```js
 // A multi-dimensional INSERT
+// TIP: for each book CREATED, CREATE a user with said name and email, RETURNING entire tree
 const result = await client.query(
     `INSERT INTO books (
         title,
@@ -648,7 +643,7 @@ console.log(result);
 
 </details>
 
-<details><summary><i>Example 6:</i></summary>
+<details><summary><i>Example 9:</i></summary>
 
 > <details><summary>Schema (as before)</summary>
 >
@@ -676,6 +671,7 @@ console.log(result);
 
 ```js
 // A multi-dimensional INSERT
+// TIP: for each user CREATED, CREATE a book entry with said title and content, RETURNING entire tree
 const result = await client.query(
     `INSERT INTO users (
         name,
@@ -721,7 +717,7 @@ console.log(result);
 >                 content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
 >                 created_time: '2024-11-06T18:22:46.709Z'
 >             }
->         ],
+>         ]
 >     },
 >     {
 >         id: 1,
@@ -737,7 +733,130 @@ console.log(result);
 >                 content: '(C) 2024 johndoed@example.com\nThe Secrets of Midnight Garden...',
 >                 created_time: '2024-11-06T18:22:46.709Z'
 >             }
->         ],
+>         ]
+>     }
+> ]
+> ```
+> 
+> </details>
+
+</details>
+
+<details><summary><i>Example 10:</i></summary>
+
+> <details><summary>Schema (as before)</summary>
+>
+> ```sql
+> -- The users table
+> CREATE TABLE users (
+>     id int primary key generated always as identity,
+>     name varchar,
+>     email varchar,
+>     phone varchar,
+>     role varchar,
+>     created_time timestamp
+> );
+> -- The books table
+> CREATE TABLE books (
+>     id int primary key generated always as identity,
+>     title varchar,
+>     content varchar,
+>     author int references users (id),
+>     created_time timestamp
+> );
+> ```
+> 
+> </details>
+
+```js
+// A multi-dimensional INSERT
+// TIP: for each user CREATED, CREATE two book entries with said titles and contents, RETURNING entire tree
+const result = await client.query(
+    `INSERT INTO users (
+        name,
+        email,
+        author <~ books: (
+            title,
+            content
+        )
+    ) VALUES (
+        'John Doe',
+        'johndoed@example.com',
+        VALUES (
+            (
+                'Beauty and the Beast - Part 1',
+                '(C) 2024 johndoed@example.com\nBeauty and the Beast...'
+            ),
+            (
+                'Beauty and the Beast - Part 2',
+                '(C) 2024 johndoed@example.com\nBeauty and the Beast...'
+            )
+        )
+    ), (
+        'Alice Blue',
+        'aliceblue@example.com',
+        VALUES (
+            (
+                'The Secrets of Midnight Garden - Part 1',
+                '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...'
+            ),
+            (
+                'The Secrets of Midnight Garden - Part 2',
+                '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...'
+            )
+        )
+    ) RETURNING *`
+);
+console.log(result);
+```
+
+> <details><summary>Console</summary>
+>
+> ```js
+> [
+>     {
+>         id: 1,
+>         name: 'John Doe',
+>         email: 'johndoed@example.com',
+>         phone: '(555) 123-4567',
+>         role: 'admin',
+>         created_time: '2024-11-06T18:22:46.709Z'
+>         'author <~ books': [
+>             {
+>                 id: 1,
+>                 title: 'Beauty and the Beast - Part 1',
+>                 content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
+>                 created_time: '2024-11-06T18:22:46.709Z'
+>             },
+>             {
+>                 id: 2,
+>                 title: 'Beauty and the Beast - Part 2',
+>                 content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
+>                 created_time: '2024-11-06T18:22:46.709Z'
+>             }
+>         ]
+>     },
+>     {
+>         id: 1,
+>         name: 'Alice Blue',
+>         email: 'aliceblue@example.com',
+>         phone: '(888) 123-4567',
+>         role: 'admin',
+>         created_time: '2024-11-06T18:22:46.709Z'
+>         'author <~ books': [
+>             {
+>                 id: 1,
+>                 title: 'The Secrets of Midnight Garden - Part 1',
+>                 content: '(C) 2024 johndoed@example.com\nThe Secrets of Midnight Garden...',
+>                 created_time: '2024-11-06T18:22:46.709Z'
+>             },
+>             {
+>                 id: 2,
+>                 title: 'The Secrets of Midnight Garden - Part 2',
+>                 content: '(C) 2024 johndoed@example.com\nThe Secrets of Midnight Garden...',
+>                 created_time: '2024-11-06T18:22:46.709Z'
+>             }
+>         ]
 >     }
 > ]
 > ```
