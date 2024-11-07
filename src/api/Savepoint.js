@@ -130,9 +130,9 @@ export class Savepoint {
     /**
      * @returns String
      */
-    restoreQuery() {
+    restorePreview() {
         if (this.versionState() === 'rollback') return this.querify(true);
-        return [this.querify(true), ...this.cascades().map(c => c.restoreQuery())].join('\n');
+        return [this.querify(true), ...this.cascades().map(c => c.restorePreview())].join('\n');
     }
 
     /**

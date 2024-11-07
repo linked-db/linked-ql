@@ -865,7 +865,7 @@ console.table(savepoint.jsonfy());
 
 ```js
 // SQL preview
-console.log(savepoint.restoreQuery()); // DROP TABLE public.users CASCADE
+console.log(savepoint.restorePreview()); // DROP TABLE public.users CASCADE
 ```
 
 ```js
@@ -879,7 +879,7 @@ await savepoint.rollback({
 
 ```js
 // SQL preview
-console.log(savepoint.restoreQuery()); // CREATE TABLE public.users (...)
+console.log(savepoint.restorePreview()); // CREATE TABLE public.users (...)
 ```
 
 ```js

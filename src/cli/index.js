@@ -209,8 +209,8 @@ async function restore(forward = false) {
             confirmMessage.push(`Rolling forward database ${savepoint.name()}@${savepoint.versionDown()} to version ${savepoint.versionTag()}.`);
         } else confirmMessage.push(`Rolling back database ${savepoint.name()}@${savepoint.versionTag()} to version ${savepoint.versionDown()}.`);
         confirmMessage.push(`This will mean ${savepoint.restoreEffect() === 'DROP' ? 'dropping' : (savepoint.restoreEffect() === 'RECREATE' ? 'recreating' : 'altering')} the database!`);
-        const restoreQuery = savepoint.restoreQuery();
-        if (!flags['quiet']) confirmMessage.push(`SQL preview:\n${restoreQuery}\n`);
+        const restorePreview = savepoint.restorePreview();
+        if (!flags['quiet']) confirmMessage.push(`SQL preview:\n${restorePreview}\n`);
         // Confirm and execute...
         if (await confirm(confirmMessage)) {
             const restoreDetails = {
