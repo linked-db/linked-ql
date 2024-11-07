@@ -1089,13 +1089,13 @@ const savepoint = await client.query(
 );
 ```
 
-> 🧩 Obtain same savepoint on-demand
+> ℹ️ Obtain same savepoint on-demand
 
 ```js
 const savepoint = await client.database('public').savepoint();
 ```
 
-> 🧩 Inspect savepoint
+> ℹ️ Inspect savepoint
 
 ```js
 // Some details
@@ -1146,7 +1146,7 @@ console.log(savepoint.jsonfy());
 > 
 > </details>
 
-> 🧩 Rollback savepoint
+> ℹ️ Rollback savepoint
 
 ```js
 // SQL preview
@@ -1157,7 +1157,7 @@ await savepoint.rollback({
 });
 ```
 
-> 🧩 Re-commit savepoint
+> ℹ️ Re-commit savepoint
 
 ```js
 // SQL preview
@@ -1312,7 +1312,7 @@ Jump to sections and features:
 + 🎲 [Getting Started](#getting-started)
 + 🎯 [Magic Paths](#introducing-magic-paths)
 + ⛱ [Auto-Versioning](#introducing-auto-versioning)
-+ 🧩 [Schema-as-Code](#re-introducing-schema-as-code-with-schemajson)
++ ℹ️ [Schema-as-Code](#re-introducing-schema-as-code-with-schemajson)
 + [The Linked QL API](https://github.com/linked-db/linked-ql/wiki/API) ✈️
 + [The Linked QL CLI](https://github.com/linked-db/linked-ql/wiki/CLI) ✈️
 
