@@ -31,7 +31,7 @@ export class CaseConstruct extends AbstractNode {
 	static get expose() {
 		return {
 			switch: (context, switchExpr) => this.fromJSON(context, { switchExpr, cases: [] }),
-			case: (context, ...cases) => this.fromJSON(context, { cases }),
+			cases: (context, ...cases) => this.fromJSON(context, { cases }),
 		};
 	}
 

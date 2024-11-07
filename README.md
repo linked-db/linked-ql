@@ -900,12 +900,12 @@ const result = await client.database('public').table('users').select(
             (q) => q.expr(
                 (r) => r.switch('role').cases(
                     (s) => s.when((t) => t.value('admin')).then(1),
-                    (s) => s.when((t) => t.value('contributor')).then(2),
+                    (s) => s.when((t) => t.value('contributor')).then(2)
                 ).default(3)
             ).asc(),
             (q) => q.expr(
                 (r) => r.cases(
-                    (s) => s.when((t) => t.isNull('phone')).then(0),
+                    (s) => s.when((t) => t.isNull('phone')).then(0)
                 ).default(1)
             ).desc(),
             (q) => q.expr('name').asc()

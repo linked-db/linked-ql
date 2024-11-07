@@ -66,11 +66,11 @@ describe(`SELECT QUERIES`, function() {
                     q => q.isDistinctFrom('col13', 'col14')
                 ).as('assertion2'),
                 field => field.expr(
-                    q => q.caseFor('col15',
+                    q => q.switch('col15').cases(
                         // Use magic method
                         c => c.when(q => q.null()).then('col16'),
                         c => c.when(q => q.false()).then('col16'),
-                    ).else(q => q.true())
+                    ).default(q => q.true())
                 ).as('assertion3'),
                 field => field.expr(q => {
                     const $q = q.select('id').from(['base0','t1'], ['base0','t2']);

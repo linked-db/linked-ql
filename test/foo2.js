@@ -94,7 +94,7 @@ query.fields(q => q.expr('col4'));
 query.fields(q => q.expr(['base5','col/5']).as('s"s'), { expr: { sum: ['col6'], orderBy: [{ expr: 'r', direction: 'asc' }, { expr: 'rr', direction: 'desc' }], over: 'win' }, as: 'o+o'});
 query.fields().add('wq', { sum: ['first', 'second', { sum: ['sub-first', 'sub-second'] }] });
 query.where(q => q.eq('a', 'b'), { isNull: 'c' }, { some: [
-    { caseFor: ['a', { when: 2, then: 'e' } ], else: 'f' },
+    { switch: 'a', cases: [ { when: 2, then: 'e' } ], default: 'f' },
     { eq: ['aa', 3] },
     { lt: ['o', { join: ['a', 'b'] }]}
 ] });
