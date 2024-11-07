@@ -540,7 +540,7 @@ console.log(result);
 <tr><td>
 <details name="features"><summary>Progressive enhancement</summary>
 
-While the typical ORM imposes a high level of abstraction, even when that's not desired, Linked QL offers a <ins>SQL-by-default, progressive enhancement</ins> workflow that lets you think from the ground up! And at whatever part of that spectrum you find a sweet spot, you also get the same powerful set of features that Linked QL has to offer!
+While the typical ORM often imposes a high level of abstraction where that's not desired, Linked QL offers a <ins>SQL-by-default, progressive enhancement</ins> workflow that lets you think from the ground up! And at whatever part of that spectrum you find a sweet spot, you also get the same powerful set of features that Linked QL has to offer!
 
 ##### └ *Example 1:*
 
@@ -659,7 +659,7 @@ Whereas the typical ORM requires you to feed them with your database schema (cas
 
 ##### └ *Example 1:*
 
-> Just <ins>plug</ins> to an arbitrary database and <ins>play</ins>...
+> Simplu <ins>plug</ins> to your database and <ins>play</ins>...
 
 ```js
 // Import pg and LinkedQl
@@ -697,6 +697,128 @@ const result = await client.query(
 <details name="features"><summary>Diff-based migrations</summary>
 
 Whereas schema evolution remains a drag across the board, it comes as a particularly nifty experience in Linked QL! As against the conventional script-based migrations approach, Linked QL follows a diff-based approach that lets you manage your entire DB structure <ins>declaratively</ins> out of a single `schema.json` (or `schema.yml`) file!
+
+##### └ *Example 1:*
+
+> `./database/schema.json`
+
+```js
+[
+    {
+        // string
+        "name": "database_1",
+        // TableSchemaSpec[]
+        "tables": []
+    },
+    {
+        // string
+        "name": "database_2",
+        // TableSchemaSpec[]
+        "tables": []
+    }
+]
+```
+
+<details><summary><i>Example 2:</i></summary>
+
+> `./database/schema.json`
+
+```js
+[
+    {
+        // string - required
+        "name": "database_1",
+        // TableSchemaSpec[]
+        "tables": [
+            {
+                "name": "users",
+                "columns": [
+                    {
+                        "name": "id",
+                        "type": "int",
+                        "primaryKey": true,
+                        "identity": true
+                    },
+                    {
+                        "name": "first_name",
+                        "type": ["varchar", 101]
+                    },
+                    {
+                        "name": "last_name",
+                        "type": ["varchar", 101]
+                    },
+                    {
+                        "name": "full_name",
+                        "type": ["varchar", 101],
+                        "expression": { "join": ["first_name", " ", "last_name"] }
+                    },
+                    {
+                        "name": "email",
+                        "type": ["varchar", 50],
+                        "uniqueKey": true,
+                        "notNull": true,
+                        "check": { "match": ["email", "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"] }
+                    },
+                    {
+                        "name": "parent",
+                        "type": "int",
+                        "notNull": true,
+                        "foreignKey": {
+                            "targetTable": "users",
+                            "targetColumns": ["id"],
+                            "matchRule": "full",
+                            "updateRule": "cascade",
+                            "deleteRule": "restrict"
+                        }
+                    }
+                ],
+                "constraints": [
+                    {
+                        "type": "PRIMARY_KEY",
+                        "columns": ["id_2"],
+                    },
+                    {
+                        "type": "FOREIGN_KEY",
+                        "columns": ["parent_2"],
+                        "targetTable": "users",
+                        "targetColumns": ["id"],
+                        "matchRule": "full",
+                        "updateRule": "cascade",
+                        "deleteRule": "restrict"
+                    },
+                    {
+                        "type": "UNIQUE_KEY",
+                        "name": "constraint_name",
+                        "columns": ["parent", "full_name"]
+                    },
+                    {
+                        "type": "CHECK",
+                        "expr": { "match": ["email", "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"] }
+                    }
+                ],
+                "indexes": [
+                    {
+                        "type": "FULLTEXT",
+                        "columns": ["full_name"]
+                    },
+                    {
+                        "type": "SPATIAL",
+                        "columns": ["full_name"]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        // string - required
+        "name": "database_2",
+        // TableSchemaSpec[]
+        "tables": []
+    }
+]
+```
+
+</details>
 
 </details>
 </td></tr>
