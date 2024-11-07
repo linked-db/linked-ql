@@ -43,7 +43,7 @@ _What we're doing differently?_
 <tr><td>
 <details _name="features" open><summary>A SQL-native experience</summary>
 
-Whereas the typical database tool has hand-written SQL as the exception, Linked QL has it as <ins>the default</ins>, and along with that, it comes with everything that makes it all the more delightful to just #usethelanguage!
+Whereas the typical database tool has hand-written SQL as the exception, Linked QL has it as <ins>the default</ins>, and along with that, it comes with everything that makes it all the more delightful to #usethelanguage!
 
 ##### └ *Example 1:*
 
@@ -163,7 +163,7 @@ console.log(result);
 > </details>
 
 ```js
-// A basic JOIN via magic paths | ONE-TO-MANY
+// A basic JOIN via magic paths | MANY-TO-ONE
 const result = await client.query(
     `SELECT
         title,
@@ -224,7 +224,7 @@ console.log(result);
 > </details>
 
 ```js
-// Same query but structured via JSON formatting | ONE-TO-MANY
+// Same query but structured via JSON formatting | MANY-TO-ONE
 const result = await client.query(
     `SELECT
         title,
@@ -284,7 +284,7 @@ console.log(result);
 > </details>
 
 ```js
-// A multi-level JOIN via magic paths | ONE-TO-MANY
+// A multi-level JOIN via magic paths | MANY-TO-ONE
 const result = await client.query(
     `SELECT
         name,
@@ -344,7 +344,7 @@ console.log(result);
 > </details>
 
 ```js
-// A basic many-to-one JOIN via magic paths | MANY-TO-ONE
+// A basic one-to-many JOIN via magic paths | ONE-TO-MANY
 const result = await client.query(
     `SELECT
         name,
@@ -414,7 +414,7 @@ console.log(result);
 > </details>
 
 ```js
-// Same query but structured and aggregated | MANY-TO-ONE
+// Same query but structured and aggregated via JSON formatting | ONE-TO-MANY
 const result = await client.query(
     `SELECT
         name,
@@ -492,8 +492,8 @@ console.log(result);
 > </details>
 
 ```js
-// A basic multi-dimensional INSERT | ONE-TO-MANY
-// TIP: for each book CREATED, CREATE a user with said email
+// A basic multi-dimensional INSERT | MANY-TO-ONE
+// TIP: for each book entry CREATED, CREATE a user with specified email
 const result = await client.query(
     `INSERT INTO books (
         title,
@@ -513,8 +513,8 @@ console.log(result); // true
 ```
 
 ```js
-// A basic multi-dimensional UPSERT | ONE-TO-MANY
-// TIP: for each book CREATED or UPDATED, CREATE or UPDATE a user with said email
+// A basic multi-dimensional UPSERT | MANY-TO-ONE
+// TIP: for each book entry CREATED or UPDATED, CREATE or UPDATE a user with specified email
 const result = await client.query(
     `UPSERT INTO books (
         title,
@@ -534,8 +534,8 @@ console.log(result); // true
 ```
 
 ```js
-// A basic multi-dimensional UPDATE | ONE-TO-MANY
-// TIP: for each book UPDATED, CREATE or UPDATE a user with said email
+// A basic multi-dimensional UPDATE | MANY-TO-ONE
+// TIP: for each book entry UPDATED, CREATE or UPDATE a user with specified email
 const result = await client.query(
     `UPDATE books
     SET
@@ -577,7 +577,7 @@ console.log(result); // true
 
 ```js
 // A multi-dimensional INSERT
-// TIP: for each book CREATED, CREATE a user with said name and email, RETURNING entire tree
+// TIP: for each book entry CREATED, CREATE a user with specified name and email, RETURNING entire tree
 const result = await client.query(
     `INSERT INTO books (
         title,
@@ -672,7 +672,7 @@ console.log(result);
 
 ```js
 // A multi-dimensional INSERT
-// TIP: for each user CREATED, CREATE a book entry with said title and content, RETURNING entire tree
+// TIP: for each user CREATED, CREATE a book entry with specified title and content, RETURNING entire tree
 const result = await client.query(
     `INSERT INTO users (
         name,
@@ -771,7 +771,7 @@ console.log(result);
 
 ```js
 // A multi-dimensional INSERT
-// TIP: for each user CREATED, CREATE two book entries with said titles and contents, RETURNING entire tree
+// TIP: for each user CREATED, CREATE two book entries with specified titles and contents, RETURNING entire tree
 const result = await client.query(
     `INSERT INTO users (
         name,
