@@ -61,7 +61,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
 
         it(`ROLLFORWARD: ${ desc0 }`, async function() {
             const savepoint = await client.database(publicBefore).savepoint({ direction: 'forward' });
-            const success = await savepoint.rollback();
+            const success = await savepoint.recommit();
             expect(success).to.be.true;
             const databases = await client.databases();
             expect(databases).to.be.an('array').that.includes(publicAfter).and.not.includes(publicBefore);
@@ -146,7 +146,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
 
         it(`ROLLFORWARD: ${ desc1 } (BY RECREATING DB & TABLES)`, async function() {
             const savepoint = await someDb.savepoint({ direction: 'forward' });
-            const success = await savepoint.rollback();
+            const success = await savepoint.recommit();
             expect(success).to.be.true;
             const databases = await client.databases();
             expect(databases).to.be.an('array').that.includes('some_db');
@@ -164,7 +164,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
 
         it(`ROLLFORWARD: ${ desc1 } (BY RECREATING DB & TABLES)`, async function() {
             const savepoint = await someDb.savepoint({ direction: 'forward' });
-            const success = await savepoint.rollback();
+            const success = await savepoint.recommit();
             expect(success).to.be.true;
             const databases = await client.databases();
             expect(databases).to.be.an('array').that.includes('some_db');

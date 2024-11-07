@@ -74,6 +74,8 @@ console.log('.....create users.....', await client.query(`CREATE TABLE users (
     created_time timestamp
 )`, { desc: 'Created users' }));
 const savepoint2 = await client.database(dbPublic).savepoint();
+console.log(savepoint2.jsonfy());
+console.table(savepoint2.jsonfy());
 
 console.log('.....create test_db.....', await client.query(`CREATE SCHEMA test_db`));
 const savepoint2b = await client.database('test_db').savepoint();
@@ -115,7 +117,7 @@ if (spliceForwardHistories) {
 } else {
     // Roll forward
     for (let i = 0; i < 3; i ++) {
-        await (await client.database(dbPublic).savepoint({ direction: 'forward' })).rollback();
+        await (await client.database(dbPublic).savepoint({ direction: 'forward' })).recommit();
     }
     // Should see: 1,2,3
     console.log('\n\n\n\n\n\nAll ===== savepoints-----', ...(await linkedDB.table('savepoints').select()));
