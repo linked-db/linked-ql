@@ -163,7 +163,7 @@ console.log(result);
 > </details>
 
 ```js
-// A basic JOIN via magic paths | MANY-TO-ONE
+// A basic JOIN using magic paths | MANY-TO-ONE
 const result = await client.query(
     `SELECT
         title,
@@ -284,7 +284,7 @@ console.log(result);
 > </details>
 
 ```js
-// A multi-level JOIN via magic paths | MANY-TO-ONE
+// A multi-level JOIN using magic paths | MANY-TO-ONE
 const result = await client.query(
     `SELECT
         name,
@@ -344,7 +344,7 @@ console.log(result);
 > </details>
 
 ```js
-// A basic one-to-many JOIN via magic paths | ONE-TO-MANY
+// A basic one-to-many JOIN using magic paths | ONE-TO-MANY
 const result = await client.query(
     `SELECT
         name,
@@ -928,7 +928,7 @@ const result = await client.database('public').table('users').select([
 // (c): API equivalent 2
 const result = await client.database('public').table('users').select([
     (q) => q.expr('name'),
-    (q) => q.expr((r) => r.jsonObject('email', (s) => q.expr('phone').as('mobile'))).as('contact1'),
+    (q) => q.expr((r) => r.jsonObject('email', (s) => s.expr('phone').as('mobile'))).as('contact1'),
     (q) => q.expr((r) => r.jsonArray('email', 'phone')).as('contact2')
 ]);
 ```
@@ -1072,7 +1072,7 @@ const result = await client.query(
 <tr><td>
 <details _name="features"><summary>Automatic schema versioning</summary>
 
-The typical database has no concept of versioning, but no problem, Linked QL comes with it to your database, and along with that, a powerful rollback and rollforward system! On each DDL operation you run against your database (`CREATE`, `ALTER`, `DROP`), you get a savepoint automatically created for you and a seamless rollback path anytime!
+The typical database has no concept of versioning, but no problem, Linked QL comes with it to your database, and along with it, a powerful rollback and rollforward system! On each DDL operation you run against your database (`CREATE`, `ALTER`, `DROP`), you get a savepoint automatically created for you and a seamless rollback path anytime!
 
 ##### └ *Example 1:*
 
@@ -1102,9 +1102,6 @@ const savepoint = await client.database('public').savepoint();
 console.log(savepoint.versionTag()); // 1
 console.log(savepoint.commitDesc()); // Create users table
 console.log(savepoint.commitDate()); // 2024-07-17T22:40:56.786Z
-```
-
-```js
 // Everything...
 console.log(savepoint.jsonfy());
 ```
@@ -1113,11 +1110,11 @@ console.log(savepoint.jsonfy());
 > 
 > ```js
 > {
->   // Internal details
+>   // Internal parameters...
 >   master_savepoint: null,
 >   id: '952cc6ae-5b5b-4534-8b03-dc38ee8658ac',
 >   database_tag: 'db.1730978107426',
->   // Schema snapshot
+>   // Schema snapshot...
 >   name: 'public',
 >   '$name': null,
 >   tables: [
@@ -1130,17 +1127,19 @@ console.log(savepoint.jsonfy());
 >     }
 >   ],
 >   status: null,
->   // Version details
+>   // Version details...
 >   version_tag: 1,
 >   version_tags: [ 1 ],
 >   version_state: 'commit',
 >   commit_date: '2024-07-17T22:40:56.786Z',
 >   commit_desc: 'Create users table',
 >   commit_ref: null,
+>   commit_pid: '72776',
 >   rollback_date: null,
 >   rollback_desc: null,
 >   rollback_ref: null,
->   // Cascades
+>   rollback_pid: null,
+>   // Cascades...
 >   cascades: []
 > }
 > ```
