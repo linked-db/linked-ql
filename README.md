@@ -41,7 +41,7 @@ _What we're doing differently?_
     
 </th></tr>
 <tr><td>
-<details name="features" open><summary>A SQL-native experience</summary>
+<details _name="features" open><summary>A SQL-native experience</summary>
 
 Whereas the typical database tool has hand-written SQL as the exception, Linked QL has it as <ins>the default</ins>, and along with that, it comes with everything that makes it all the more delightful to just #usethelanguage!
 
@@ -93,7 +93,7 @@ await client.query(
 </td></tr>
 
 <tr><td>
-<details name="features"><summary>Powerful new syntax sugars</summary>
+<details _name="features"><summary>Powerful new syntax sugars</summary>
 
 Model structures and traverse relationships like they were plain JSON objects—all right within the language! Meet Linked QL's set of syntax extensions to SQL that <ins>do the hard work</ins>, <ins>cut your query in half</ins>, and even <ins>save you multiple round trips</ins>!
 
@@ -538,7 +538,7 @@ console.log(result);
 </td></tr>
 
 <tr><td>
-<details name="features"><summary>Progressive enhancement</summary>
+<details _name="features"><summary>Progressive enhancement</summary>
 
 While the typical ORM often imposes a high level of abstraction where that's not desired, Linked QL offers a <ins>SQL-by-default, progressive enhancement</ins> workflow that lets you think from the ground up! And at whatever part of that spectrum you find a sweet spot, you also get the same powerful set of features that Linked QL has to offer!
 
@@ -653,7 +653,7 @@ const result = await client.database('public').table('books').select({
 </td></tr>
 
 <tr><td>
-<details name="features"><summary>Automatic schema inference</summary>
+<details _name="features"><summary>Automatic schema inference</summary>
 
 Whereas the typical ORM requires you to feed them with your database schema (case in point: [Drizzle](https://orm.drizzle.team/)), Linked QL <ins>automatically infers it</ins> and magically maintains 100% schema-awareness throughout (without necessarily looking again)! You get a whole class of manual work entirely out of the equation!
 
@@ -694,7 +694,7 @@ const result = await client.query(
 </td></tr>
 
 <tr><td>
-<details name="features"><summary>Diff-based migrations</summary>
+<details _name="features"><summary>Diff-based migrations</summary>
 
 Whereas schema evolution remains a drag across the board, it comes as a particularly nifty experience in Linked QL! As against the conventional script-based migrations approach, Linked QL follows a diff-based approach that lets you manage your entire DB structure <ins>declaratively</ins> out of a single `schema.json` (or `schema.yml`) file!
 
@@ -818,7 +818,7 @@ Whereas schema evolution remains a drag across the board, it comes as a particul
 </td></tr>
 
 <tr><td>
-<details name="features"><summary>Automatic Schema Versioning</summary>
+<details _name="features"><summary>Automatic Schema Versioning</summary>
 
 The typical database has no concept of versioning, but no problem, Linked QL comes with it to your database, and along with that, a powerful rollback and rollforward system! On each DDL operation you run against you database (`CREATE`, `ALTER`, `DROP`), you get a savepoint automatically created for you and a seamless rollback path anytime!
 
