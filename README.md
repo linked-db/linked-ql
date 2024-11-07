@@ -822,6 +822,61 @@ Whereas schema evolution remains a drag across the board, it comes as a particul
 
 The typical database has no concept of versioning, but no problem, Linked QL comes with it to your database, and along with that, a powerful rollback and rollforward system! On each DDL operation you run against you database (`CREATE`, `ALTER`, `DROP`), you get a savepoint automatically created for you and a seamless rollback path anytime!
 
+##### └ *Example 1:*
+
+> Alter your database and get back a reference to a "savepoint" automatically created for you
+
+```js
+// Alter schema
+const savepoint = await client.query(
+    `CREATE TABLE public.users (
+        id int,
+        name varchar
+    )`,
+    { desc: 'Create users table' }
+);
+```
+
+> Obtain same savepoint on-demand
+
+```js
+const savepoint = await client.database('public').savepoint();
+```
+
+> Inspect savepoint
+
+```js
+// What you see...
+console.log(savepoint.versionTag()); // 1
+console.log(savepoint.commitDesc()); // Create users table
+console.log(savepoint.commitDate()); // 2024-07-17T22:40:56.786Z
+```
+
+```js
+// Everything...
+console.table(savepoint.jsonfy());
+```
+
+> <details><summary>Console</summary>
+> 
+> </details>
+
+> Restore savepoint
+
+```js
+// Roll back
+await savepoint.rollback({
+    desc: 'Users table unnecessary'
+});
+```
+
+```js
+// Roll forward
+await savepoint.recommit({
+    desc: 'Users table re-necessary'
+});
+```
+
 </details>
 </td></tr>
 </table>
@@ -1087,7 +1142,7 @@ Here, you alter your schema and get back a reference to a "savepoint" automatica
 ```js
 // Alter schema
 const savepoint = await client.query('CREATE TABLE public.users (id int, name varchar)', {
-    description: 'Create users table'
+    desc: 'Create users table'
 });
 ```
 

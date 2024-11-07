@@ -13,13 +13,12 @@ import { Savepoint } from '../api/Savepoint.js';
 // Parse argv
 const { command, flags } = parseArgv(process.argv);
 if (flags['with-env']) await import('dotenv/config');
-// Validate flags['direction']
-if (flags['direction'] && !['forward', 'backward'].includes(flags['direction'])) throw new Error(`Invalid --direction. Expected: forward|backward`);
 // Map depreciated commands to corresponding commands
 if (flags['auto']) flags['yes'] = true;
 const deprCommands = {
     forget: 'clear-histories',
-    leaderboard: 'state',
+    leaderboard: 'savepoints',
+    state: 'savepoints',
     migrate: 'commit',
 }
 
@@ -30,33 +29,22 @@ const $command = deprCommands[command] || command;
 const fileAPIS = createFilesAPI(dir);
 const clientAPIS = await importClients(dir);
 switch($command) {
-    case 'state': await showState();
+    // Histories
+    case 'savepoints': await showSavepoints();
     case 'clear-histories': await clearHistories();
+    // Commit / restore
     case 'commit': await commit();
-    case 'rollback': await rollback();
+    case 'restore': await restore(!!flags['forward']);
+    case 'rollback': await restore();
+    case 'rollforward': await restore(true);
+    // Local
     case 'refresh': await refresh();
     case 'generate': await generate();
+    // Replication
     case 'replicate': await replicate();
 }
 
 // ------
-
-async function importClients(dir, requireRemote = false) {
-    let driverFile, imports = {};
-    if (fs.existsSync(driverFile = path.resolve(dir, 'driver.js'))) {
-        imports = await import(url.pathToFileURL(driverFile));
-    }
-    if (typeof imports.default !== 'function') {
-        throw new Error(`\nNo Linked QL client has been configured at ${driverFile}. Aborting.`);
-    }
-    if (requireRemote && typeof imports.remote !== 'function') {
-        throw new Error(`\nNo remote Linked QL client has been configured at ${driverFile}. Aborting.`);
-    }
-    return {
-        default: await imports.default(),
-        remote: await imports.remote?.(),
-    };
-}
 
 function createFilesAPI(dir) {
     const fileResolution = (filename) => [['json', JSON], ['yml', YAML]].map(([ext, parser]) => [path.resolve(dir, `${filename}.${ext}`), parser]);
@@ -69,8 +57,31 @@ function createFilesAPI(dir) {
         console.log(`\nLocal ${path.basename(target[0])} file ${!target[2] ? 'updated' : 'generated'}.`);
     };
     return {
-        schema: { read: () => readFile('schema'), write: (json) => writeFile('schema', json) },
-        histories: { read: () => readFile('histories'), write: (json) => writeFile('histories', json) },
+        schema: () => ({ read: () => readFile('schema'), write: (json) => writeFile('schema', json) }),
+        histories: () => ({ read: () => readFile('histories'), write: (json) => writeFile('histories', json) }),
+    };
+}
+
+async function importClients(dir) {
+    let driverFile, imports = {};
+    if (fs.existsSync(driverFile = path.resolve(dir, 'driver.js'))) {
+        imports = await import(url.pathToFileURL(driverFile));
+    }
+    const client1 = await imports.default?.();
+    const client2 = await imports.remote?.();
+    return {
+        default: (require = true) => {
+            if (client1 && require) {
+                throw new Error(`\nNo Linked QL client has been configured at ${driverFile}. Aborting.`);
+            }
+            return client1;
+        },
+        remote: (require = true) => {
+            if (client2 && require) {
+                throw new Error(`\nNo remote Linked QL client has been configured at ${driverFile}. Aborting.`);
+            }
+            return client2;
+        },
     };
 }
 
@@ -80,7 +91,7 @@ function notFoundExit(thing = 'schemas') {
 }
 
 function getResolvedSchemaSelector() {
-    const schemaSelector = new Map(clientAPIS.default.params.schemaSelector.map((s) => [/^!/.test(s) ? s.slice(1) : s, s]));
+    const schemaSelector = new Map(clientAPIS.default().params.schemaSelector.map((s) => [/^!/.test(s) ? s.slice(1) : s, s]));
     for (const s of (flags['select']?.split(',') || []).map((s) => s.trim())) {
         schemaSelector.set(/^!/.test(s) ? s.slice(1) : s, s);
     }
@@ -107,22 +118,22 @@ async function prompt(message) {
 
 // ------
 
-async function showState() {
-    const savepoints = await clientAPIS.default.getSavepoints({ selector: flags['select']?.split(',').map((s) => s.trim()), direction: flags['direction'] });
-    const versionState = flags['direction'] === 'forward' ? 'rollback' : 'commit';
+async function showSavepoints() {
+    const savepoints = await clientAPIS.default().getSavepoints({ selector: flags['select']?.split(',').map((s) => s.trim()), direction: flags['forward'] ? 'forward' : 'backward' });
+    const versionState = flags['forward'] ? 'rollback' : 'commit';
     console.table(savepoints.map(sv => sv.jsonfy()), ['name', 'version_tag', 'version_tags', 'version_state', `${versionState}_date`, `${versionState}_desc`]);
     process.exit();
 }
 
 async function clearHistories() {
-    const utils = clientAPIS.default.createCommonSQLUtils();
-    const savepointsLite = await clientAPIS.default.getSavepoints({ lite: true, selector: flags['select']?.split(',').map((s) => s.trim()) });
+    const utils = clientAPIS.default().createCommonSQLUtils();
+    const savepointsLite = await clientAPIS.default().getSavepoints({ lite: true, selector: flags['select']?.split(',').map((s) => s.trim()) });
     if (!savepointsLite.length) notFoundExit('savepoint records');
     // Confirm and execute...
     const confirmMessage = [`This will permanently erase savepoint records for ${savepointsLite.map((v) => `${utils.ident(v.name)}@${v.version_tag}`).join(', ')}!`];
     if (await confirm(confirmMessage)) {
-        const linkedDB = await clientAPIS.default.linkedDB();
-        await clientAPIS.default.query(`DELETE FROM ${linkedDB.table('savepoints').ident} WHERE ${utils.matchSelector('database_tag', savepointsLite.map((v) => v.database_tag))}`);
+        const linkedDB = await clientAPIS.default().linkedDB();
+        await clientAPIS.default().query(`DELETE FROM ${linkedDB.table('savepoints').ident} WHERE ${utils.matchSelector('database_tag', savepointsLite.map((v) => v.database_tag))}`);
     }
     console.log(`\nDone.`);
     process.exit();
@@ -132,7 +143,7 @@ async function commit() {
     if (!flags['desc'] && flags['yes']) throw new Error(`Command missing the --desc parameter.`);
     // Schema selector
     let localSchema, upstreamSchema;
-    const savepointsLite = await clientAPIS.default.getSavepoints({ lite: true });
+    const savepointsLite = await clientAPIS.default().getSavepoints({ lite: true });
     if (flags['select']) {
         const schemaSelector = getResolvedSchemaSelector();
         const [a, b] = [...schemaSelector.values()].reduce(([a, b], s) => {
@@ -146,11 +157,11 @@ async function commit() {
             return [a.concat(re), b];
         }, [[], []]);
         const matchName = (name) => (!b.length || b.every((re) => !re.test(name))) && (!a.length || a.some((re) => re.test(name)));
-        localSchema = RootSchema.fromJSON(clientAPIS.default, (fileAPIS.schema.read() || []).filter((sc) => matchName(sc.name)));
-        upstreamSchema = await clientAPIS.default.schema({ depth: 2, selector: [...schemaSelector.values()] });
+        localSchema = RootSchema.fromJSON(clientAPIS.default(), (fileAPIS.schema().read() || []).filter((sc) => matchName(sc.name)));
+        upstreamSchema = await clientAPIS.default().schema({ depth: 2, selector: [...schemaSelector.values()] });
     } else {
-        localSchema = RootSchema.fromJSON(clientAPIS.default, fileAPIS.schema.read() || []);
-        upstreamSchema = await clientAPIS.default.schema({ depth: 2, selector: [...new Set(localSchema.databases(false).concat(savepointsLite.map((sc) => sc.name)))] });
+        localSchema = RootSchema.fromJSON(clientAPIS.default(), fileAPIS.schema().read() || []);
+        upstreamSchema = await clientAPIS.default().schema({ depth: 2, selector: [...new Set(localSchema.databases(false).concat(savepointsLite.map((sc) => sc.name)))] });
     }
     // Schema diffing
     let commitsCount = 0;
@@ -172,10 +183,10 @@ async function commit() {
         // Confirm and execute...
         if (await confirm(confirmMessage)) {
             const commitDetails = {
-                ref: flags['ref'] || clientAPIS.default.params.commitRef,
+                ref: flags['ref'] || clientAPIS.default().params.commitRef,
                 desc: flags['desc'] || await prompt('Enter commit description:'),
             };
-            await clientAPIS.default.query(dbAction, commitDetails);
+            await clientAPIS.default().query(dbAction, commitDetails);
             commitsCount ++;
         }
     }
@@ -186,41 +197,41 @@ async function commit() {
     } else await refresh();
 }
 
-async function rollback() {
+async function restore(forward = false) {
     if (!flags['desc'] && flags['yes']) throw new Error(`Command missing the --desc parameter.`);
-    const savepoints = await clientAPIS.default.getSavepoints({ selector: flags['select']?.split(',').map((s) => s.trim()), direction: flags['direction'] });
-    if (!savepoints.length) notFoundExit(flags['direction'] === 'forward' ? 'forward savepoint records' : 'savepoint records');
-    let commitsCount = 0;
+    const savepoints = await clientAPIS.default().getSavepoints({ selector: flags['select']?.split(',').map((s) => s.trim()), direction: forward ? 'forward' : 'backward' });
+    if (!savepoints.length) notFoundExit(forward ? 'forward savepoint records' : 'savepoint records');
+    let restoreCount = 0;
     for (const savepoint of savepoints) {
         // Preview...
         const confirmMessage = [`\n----------\n`];
-        if (flags['direction'] === 'forward') {
+        if (forward) {
             confirmMessage.push(`Rolling forward database ${savepoint.name()}@${savepoint.versionDown()} to version ${savepoint.versionTag()}.`);
         } else confirmMessage.push(`Rolling back database ${savepoint.name()}@${savepoint.versionTag()} to version ${savepoint.versionDown()}.`);
-        confirmMessage.push(`This will mean ${savepoint.rollbackEffect() === 'DROP' ? 'dropping' : (savepoint.rollbackEffect() === 'RECREATE' ? 'recreating' : 'altering')} the database!`);
-        const rollbackQuery = savepoint.rollbackQuery();
-        if (!flags['quiet']) confirmMessage.push(`SQL preview:\n${rollbackQuery}\n`);
+        confirmMessage.push(`This will mean ${savepoint.restoreEffect() === 'DROP' ? 'dropping' : (savepoint.restoreEffect() === 'RECREATE' ? 'recreating' : 'altering')} the database!`);
+        const restoreQuery = savepoint.restoreQuery();
+        if (!flags['quiet']) confirmMessage.push(`SQL preview:\n${restoreQuery}\n`);
         // Confirm and execute...
         if (await confirm(confirmMessage)) {
-            const commitDetails = {
-                desc: flags['desc'] || await prompt('Enter rollback description:'),
-                ref: flags['ref'] || clientAPIS.default.params.commitRef,
+            const restoreDetails = {
+                desc: flags['desc'] || await prompt(`Enter ${forward ? 'recommit' : 'rollback'} description:`),
+                ref: flags['ref'] || clientAPIS.default().params.commitRef,
             };
-            await savepoint.rollback(commitDetails);
-            commitsCount ++;
+            await savepoint.restore(restoreDetails);
+            restoreCount ++;
         }
     }
-    if (!commitsCount) {
+    if (!restoreCount) {
         console.log('\nDone.');
         process.exit();
     } else await refresh();
 }
 
 async function refresh() {
-    const localSchema = RootSchema.fromJSON(clientAPIS.default, fileAPIS.schema.read() || []);
-    const savepointsLite = await clientAPIS.default.getSavepoints({ lite: true, selector: flags['select']?.split(',').map((s) => s.trim()) });
+    const localSchema = RootSchema.fromJSON(clientAPIS.default(), fileAPIS.schema().read() || []);
+    const savepointsLite = await clientAPIS.default().getSavepoints({ lite: true, selector: flags['select']?.split(',').map((s) => s.trim()) });
     const selector = [...new Set(localSchema.databases(false).concat(savepointsLite.map((sc) => sc.name)))];
-    const upstreamSchema = selector.length && await clientAPIS.default.schema({ depth: 2, selector });
+    const upstreamSchema = selector.length && await clientAPIS.default().schema({ depth: 2, selector });
     if (upstreamSchema.length) {
         for (const dbName of selector) {
             const upstreamDB = upstreamSchema.database(dbName);
@@ -230,12 +241,12 @@ async function refresh() {
         }
         console.log(`\nDone.`);
         const schemaJson = localSchema.jsonfy({ nodeNames: false });
-        fileAPIS.schema.write(schemaJson);
+        fileAPIS.schema().write(schemaJson);
     } else if (!flags['live']) notFoundExit();
     // Enter live mode?
     if (flags['live']) {
         console.log(`Live refresh active...`);
-        clientAPIS.default.listen('savepoints', (e) => {
+        clientAPIS.default().listen('savepoints', (e) => {
             const payload = JSON.parse(e.payload);
             if (payload.action === 'DELETE') return;
             console.log(`\n----------\n`);
@@ -246,53 +257,53 @@ async function refresh() {
             const { version_tag, [`${version_state}_desc`]: desc, [`${version_state}_ref`]: ref, [`${version_state}_pid`]: pid } = payload.body;
             console.log(`New ${version_state} event on database "${dbNameBeforeChange}" ${version_state === 'rollback' ? 'from' : 'to'} version ${version_tag}. ${version_state_title} desc: "${desc}". ${version_state_title} ref: "${ref}". ${version_state_title} PID: "${pid}".`);
             // ------
-            const savepoint = new Savepoint(clientAPIS.default, payload.body);
-            const rootCDL = RootCDL.fromJSON(clientAPIS.default, { actions: [savepoint.querify()] });
-            const rootSchema = RootSchema.fromJSON(clientAPIS.default, fileAPIS.schema.read() || []);
+            const savepoint = new Savepoint(clientAPIS.default(), payload.body);
+            const rootCDL = RootCDL.fromJSON(clientAPIS.default(), { actions: [savepoint.querify()] });
+            const rootSchema = RootSchema.fromJSON(clientAPIS.default(), fileAPIS.schema().read() || []);
             const schemaJson = rootSchema.alterWith(rootCDL, { diff: false }).jsonfy({ nodeNames: false });
-            fileAPIS.schema.write(schemaJson);
+            fileAPIS.schema().write(schemaJson);
         });
     } else process.exit();
 }
 
 async function generate() {
     if (flags['histories']) {
-        const historiesJson = await clientAPIS.default.getSavepoints({ histories: true });
+        const historiesJson = await clientAPIS.default().getSavepoints({ histories: true });
         console.log(`\nDone.`);
-        fileAPIS.histories.write(historiesJson);
+        fileAPIS.histories().write(historiesJson);
         process.exit();
     }
-    const localSchema = RootSchema.fromJSON(clientAPIS.default, fileAPIS.schema.read() || []);
+    const localSchema = RootSchema.fromJSON(clientAPIS.default(), fileAPIS.schema().read() || []);
     const schemaSelector = getResolvedSchemaSelector();
-    const savepointsLite = await clientAPIS.default.getSavepoints({ lite: true });
+    const savepointsLite = await clientAPIS.default().getSavepoints({ lite: true });
     for (const v of savepointsLite) schemaSelector.set(v.name, `!${v.name}`);
-    const upstreamSchema = await clientAPIS.default.schema({ depth: 2, selector: [...schemaSelector.values()] });
+    const upstreamSchema = await clientAPIS.default().schema({ depth: 2, selector: [...schemaSelector.values()] });
     if (upstreamSchema.length) {
         for (const dbSchema of upstreamSchema) {
             localSchema.database({ ...dbSchema.jsonfy(), version: 0 });
         }
         console.log(`\nDone.`);
         const schemaJson = localSchema.jsonfy({ nodeNames: false });
-        fileAPIS.schema.write(schemaJson);
+        fileAPIS.schema().write(schemaJson);
     } else notFoundExit();
     process.exit();
 }
 
 async function replicate() {
     let historiesJson1, historiesJson2, targetClient;
-    if (clientAPIS.remote) {
-        historiesJson1 = await clientAPIS.default.getSavepoints({ histories: true });
-        historiesJson2 = await clientAPIS.remote.getSavepoints({ histories: true });
-        let targetClient1 = clientAPIS.default;
-        let targetClient2 = clientAPIS.remote;
+    if (clientAPIS.remote(false)) {
+        historiesJson1 = await clientAPIS.default().getSavepoints({ histories: true });
+        historiesJson2 = await clientAPIS.remote().getSavepoints({ histories: true });
+        let targetClient1 = clientAPIS.default();
+        let targetClient2 = clientAPIS.remote();
         if (flags['reverse']) {
             [historiesJson1, historiesJson2, targetClient1, targetClient2] = [historiesJson2, historiesJson1, targetClient2, targetClient1];
         }
         targetClient = targetClient2;
     } else {
-        historiesJson1 = fileAPIS.histories.read();
-        historiesJson2 = await clientAPIS.default.getSavepoints({ histories: true });
-        targetClient = clientAPIS.default;
+        historiesJson1 = fileAPIS.histories().read();
+        historiesJson2 = await clientAPIS.default().getSavepoints({ histories: true });
+        targetClient = clientAPIS.default();
     }
     const targetClientLinkedDB = await targetClient.linkedDB();
     const targetSavepointsTable = targetClientLinkedDB.table('savepoints');
@@ -358,7 +369,7 @@ async function replicate() {
     // ------------
     async function rollforwardSavepoint(savepoint2) {
         console.log(`Rolling forward ${savepoint2.name()}@${savepoint2.versionDown()} -> ${savepoint2.name(true)}@${savepoint2.versionTag()}`);
-        await savepoint2.rollback();
+        await savepoint2.recommit();
     }
     async function rollbackSavepoints(savepoints, splice = false) {
         for (const savepoint2 of $sort('desc', savepoints, 'versionTag')) {
@@ -415,7 +426,7 @@ async function replicate() {
     }
     // ------------
     console.log(`\n${replications} savepoint records processed.`);
-    if (!clientAPIS.remote) await refresh();
+    if (!clientAPIS.remote()) await refresh();
     else console.log(`\nDone.`);
     process.exit();
 }

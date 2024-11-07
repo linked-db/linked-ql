@@ -122,7 +122,7 @@ export class Savepoint {
     /**
      * @returns String
      */
-    rollbackEffect() {
+    restoreEffect() {
         const $outcome = this.$.json.status === 'new' ? ['DROP', 'RECREATE'] : (this.$.json.status === 'obsolete' ? ['RECREATE', 'DROP'] : ['ALTER']);
         return this.versionState() === 'rollback' ? $outcome.reverse()[0] : $outcome[0];
     }
@@ -130,9 +130,9 @@ export class Savepoint {
     /**
      * @returns String
      */
-    rollbackQuery() {
+    restoreQuery() {
         if (this.versionState() === 'rollback') return this.querify(true);
-        return [this.querify(true), ...this.cascades().map(c => c.rollbackQuery())].join('\n');
+        return [this.querify(true), ...this.cascades().map(c => c.restoreQuery())].join('\n');
     }
 
     /**
@@ -165,9 +165,33 @@ export class Savepoint {
     /**
      * @returns Bool
      */
-    async isNextPointInTime() {
+    async isNextRestorePoint() {
         const currentSavepoint = (await this.client.database(this.name()).savepoint({ direction: this.versionState() === 'commit' ? 'backward' : 'forward', withCascades: false })) || {};
         return currentSavepoint.id?.() === this.$.json.id;
+    }
+
+    /**
+     * Rollback savepoint.
+     * 
+     * @param Object rollbackParams
+     * 
+     * @return Boolean
+     */
+    async rollback(rollbackParams = {}) {
+        if (this.versionState() === 'rollback') throw new Error(`Already in rollback state.`);
+        return await this.restore(rollbackParams);
+    }
+
+    /**
+     * Recommit savepoint.
+     * 
+     * @param Object commitParams
+     * 
+     * @return Boolean
+     */
+    async recommit(commitParams = {}) {
+        if (this.versionState() === 'commit') throw new Error(`Already in commit state.`);
+        return await this.restore(commitParams);
     }
 
     /**
@@ -175,14 +199,14 @@ export class Savepoint {
      * 
      * @return Void
      */
-    async rollback(details = {}) {
+    async restore(restoreParams = {}) {
         if (this.masterSavepoint()) {
             if (this.versionState() === 'commit') {
                 const query = this.querify(true);
                 if (query) await this.client.query(query, { noCreateSavepoint: true });
             }
         } else {
-            if (!(await this.isNextPointInTime())) throw new Error(`Invalid rollback order.`);
+            if (!(await this.isNextRestorePoint())) throw new Error(`Invalid restore order.`);
             await this.client.query(this.querify(true), { noCreateSavepoint: true });
         }
         const linkedDB = await this.client.linkedDB();
@@ -191,12 +215,12 @@ export class Savepoint {
         const updatedRecord = await linkedDB.table('savepoints').update({
             ['version_state']: versionState,
             [`${versionState}_date`]: q => q.now(),
-            [`${versionState}_desc`]: details.desc || this[`${versionState}Desc`](),
-            [`${versionState}_ref`]: details.ref || this.client.params.commitRef || this[`${versionState}Ref`](),
+            [`${versionState}_desc`]: restoreParams.desc || this[`${versionState}Desc`](),
+            [`${versionState}_ref`]: restoreParams.ref || this.client.params.commitRef || this[`${versionState}Ref`](),
             [`${versionState}_pid`]: q => q.fn(this.client.params.dialect === 'mysql' ? 'connection_id' : 'pg_backend_pid'),
         }, { where: (q) => q.eq('id', (q) => q.value(this.$.json.id)), returning: ['*'] });
         for (const cascade of this.cascades()) {
-            await cascade.rollback(details);
+            await cascade.restore(restoreParams);
         }
         this.$.json = updatedRecord[0];
         return true;
