@@ -1076,7 +1076,7 @@ The typical database has no concept of versioning, but no problem, Linked QL com
 
 ##### └ *Example 1:*
 
-> Alter your database and get back a reference to a "savepoint" automatically created for you
+> 🏅 Alter your database and get back a reference to a "savepoint" automatically created for you
 
 ```js
 // Alter schema
@@ -1089,13 +1089,13 @@ const savepoint = await client.query(
 );
 ```
 
-> Obtain same savepoint on-demand
+> 🧩 Obtain same savepoint on-demand
 
 ```js
 const savepoint = await client.database('public').savepoint();
 ```
 
-> Inspect savepoint
+> 🧩 Inspect savepoint
 
 ```js
 // Some details
@@ -1146,7 +1146,7 @@ console.log(savepoint.jsonfy());
 > 
 > </details>
 
-> Rollback savepoint
+> 🧩 Rollback savepoint
 
 ```js
 // SQL preview
@@ -1157,7 +1157,7 @@ await savepoint.rollback({
 });
 ```
 
-> Re-commit savepoint
+> 🧩 Re-commit savepoint
 
 ```js
 // SQL preview
@@ -1231,7 +1231,7 @@ Whereas schema evolution remains a drag across the board, it comes as a particul
                         "type": ["varchar", 50],
                         "uniqueKey": true,
                         "notNull": true,
-                        "check": { "match": ["email", "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"] }
+                        "check": { "matches": ["email", "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"] }
                     },
                     {
                         "name": "parent",
@@ -1267,7 +1267,7 @@ Whereas schema evolution remains a drag across the board, it comes as a particul
                     },
                     {
                         "type": "CHECK",
-                        "expr": { "match": ["email", "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"] }
+                        "expr": { "matches": ["email", "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"] }
                     }
                 ],
                 "indexes": [
@@ -1688,7 +1688,7 @@ With schema versioning now happening at the database level, the whole concept of
 >                         // boolean
 >                         "notNull": true,
 >                         // string or CheckConstraintSchemaSpec
->                         "check": "(email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')"
+>                         "matches": "(email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')"
 >                     },
 >                     {
 >                         // string - required

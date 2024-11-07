@@ -10,7 +10,8 @@ export class Assertion extends AbstractOperator2Expr {
 		return [
 			{ test: '<(?!~)' },
 			{ test: '(?<!~)>', backtest: '^(?!.*~$)'/*For Lexer*/ },
-			{ test: '((\\s+(?:NOT\\s+)?IS\\s+(?:NOT\\s+)?(TRUE|FALSE|NULL|UNKNOWN|DISTINCT\\s+FROM\\s+))|\\s+(ISNULL|NOTNULL|IN|ANY|LIKE|(?:NOT\\s+)?BETWEEN(?:\\s+SYMMETRIC)?)\\s+|(?:\\s+)?(=|<=|>=|!=|<>)(?:\\s+)?)' },
+			{ test: '(?<!<)(?:\\!)?~(?:\\*)?(?!>)', backtest: '^(?!.*<$)'/*For Lexer*/ },
+			{ test: '((\\s+(?:NOT\\s+)?IS\\s+(?:NOT\\s+)?(TRUE|FALSE|NULL|UNKNOWN|DISTINCT\\s+FROM\\s+))))|\\s+(ISNULL|NOTNULL|ANY|ALL|(?:NOT\\s+)?(?:IN|LIKE|EXISTS|SIMILAR\\s+TO|BETWEEN(?:\\s+SYMMETRIC)?))\\s+|(?:\\s+)?(=|<=|>=|!=|<>)(?:\\s+)?)' },
 		];
 	}
 
@@ -22,10 +23,24 @@ export class Assertion extends AbstractOperator2Expr {
 			'lessThanOrEqual|ltOrEq': (context, lhs, rhs) => this.fromJSON(context, { operator: '<=', lhs, rhs }),
 			'greaterThan|gt': (context, lhs, rhs) => this.fromJSON(context, { operator: '>', lhs, rhs }),
 			'greaterThanOrEqual|gtOrEq': (context, lhs, rhs) => this.fromJSON(context, { operator: '>=', lhs, rhs }),
-			in: (context, lhs, rhs) => this.fromJSON(context, { operator: 'IN', lhs, rhs }),
 			any: (context, lhs, rhs) => this.fromJSON(context, { operator: 'ANY', lhs, rhs }),
+			all: (context, lhs, rhs) => this.fromJSON(context, { operator: 'ALL', lhs, rhs }),
+			in: (context, lhs, rhs) => this.fromJSON(context, { operator: 'IN', lhs, rhs }),
+			notIn: (context, lhs, rhs) => this.fromJSON(context, { operator: 'NOT IN', lhs, rhs }),
+			exists: (context, lhs, rhs) => this.fromJSON(context, { operator: 'EXISTS', lhs, rhs }),
+			notExists: (context, lhs, rhs) => this.fromJSON(context, { operator: 'NOT EXISTS', lhs, rhs }),
 			like: (context, lhs, rhs) => this.fromJSON(context, { operator: 'LIKE', lhs, rhs }),
 			notLike: (context, lhs, rhs) => this.fromJSON(context, { operator: 'NOT LIKE', lhs, rhs }),
+			similarTo: (context, lhs, rhs) => this.fromJSON(context, { operator: 'SIMILAR TO', lhs, rhs }),
+			notSimilarTo: (context, lhs, rhs) => this.fromJSON(context, { operator: 'NOT SIMILAR TO', lhs, rhs }),
+			matches: (context, lhs, rhs) => this.fromJSON(context, { operator: '~', lhs, rhs }),
+			matchesi: (context, lhs, rhs) => this.fromJSON(context, { operator: '~*', lhs, rhs }),
+			notMatches: (context, lhs, rhs) => this.fromJSON(context, { operator: '!~', lhs, rhs }),
+			notMatchesi: (context, lhs, rhs) => this.fromJSON(context, { operator: '!~*', lhs, rhs }),
+			between: (context, lhs, rhs) => this.fromJSON(context, { operator: 'BETWEEN', lhs, rhs }),
+			notBetween: (context, lhs, rhs) => this.fromJSON(context, { operator: 'NOT BETWEEN', lhs, rhs }),
+			betweenSymmetric: (context, lhs, rhs) => this.fromJSON(context, { operator: 'BETWEEN SYMMETRIC', lhs, rhs }),
+			notBetweenSymmetric: (context, lhs, rhs) => this.fromJSON(context, { operator: 'NOT BETWEEN SYMMETRIC', lhs, rhs }),
 			isNull: (context, lhs) => this.fromJSON(context, { operator: 'IS NULL', lhs }),
 			isNotNull: (context, lhs) => this.fromJSON(context, { operator: 'IS NOT NULL', lhs }),
 			isTrue: (context, lhs) => this.fromJSON(context, { operator: 'IS TRUE', lhs }),
@@ -36,10 +51,6 @@ export class Assertion extends AbstractOperator2Expr {
 			isNotUnknow: (context, lhs) => this.fromJSON(context, { operator: 'IS NOT UNKNOWN', lhs }),
 			isDistinctFrom: (context, lhs, rhs) => this.fromJSON(context, { operator: 'IS DISTINCT FROM', lhs, rhs }),
 			isNotDistinctFrom: (context, lhs, rhs) => this.fromJSON(context, { operator: 'IS NOT DISTINCT FROM', lhs, rhs }),
-			isBetween: (context, lhs, rhs) => this.fromJSON(context, { operator: 'IS BETWEEN', lhs, rhs }),
-			isNotBetween: (context, lhs, rhs) => this.fromJSON(context, { operator: 'IS NOT BETWEEN', lhs, rhs }),
-			isBetweenSymmetric: (context, lhs, rhs) => this.fromJSON(context, { operator: 'IS BETWEEN SYMMETRIC', lhs, rhs }),
-			isNotBetweenSymmetric: (context, lhs, rhs) => this.fromJSON(context, { operator: 'IS NOT BETWEEN SYMMETRIC', lhs, rhs }),
 		};
 	}
 	

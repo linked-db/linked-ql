@@ -32,10 +32,10 @@ export const Exprs = [
 	// Operators
 	StrJoin,
 	Condition,
-	PathRight, // Must come before PathLeft given something like: dd<~d~>l
-	JsonPath, // ...
-	Assertion,
-	Math,
+	PathRight,
+	JsonPath,
+	Assertion, // Must come after PathRight
+	Math, // Must come after Assertion
 	// Non-operators
 	RowSpec, // Must come before Parens
 	Parens,

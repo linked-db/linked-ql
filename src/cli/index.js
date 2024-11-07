@@ -34,9 +34,9 @@ switch($command) {
     case 'clear-histories': await clearHistories();
     // Commit / restore
     case 'commit': await commit();
-    case 'restore': await restore(!!flags['forward']);
     case 'rollback': await restore();
     case 'rollforward': await restore(true);
+    case 'restore': await restore(!!flags['forward']);
     // Local
     case 'refresh': await refresh();
     case 'generate': await generate();
