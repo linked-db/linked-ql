@@ -881,7 +881,11 @@ const result = await client.query(
         name,
         email
     FROM users
-    WHERE role = $1`,
+    WHERE role = $1
+    ORDER BY
+        CASE role WHEN 'admin' THEN 1 WHEN 'contributor' THEN 2 ELSE 3 END ASC,
+        CASE WHEN phone IS NULL THEN 0 ELSE 1 END DESC,
+        name ASC`,
     ['admin']
 );
 ```
@@ -890,7 +894,23 @@ const result = await client.query(
 // (b): API equivalent 1
 const result = await client.database('public').table('users').select(
     [ 'name', 'email' ],
-    { where: [{ eq: ['role', { binding: ['admin'] }] }] }
+    {
+        where: [ (q) => q.eq('role', (r) => r.binding('admin')) ],
+        orderBy: [
+            (q) => q.expr(
+                (r) => r.switch('role').cases(
+                    (s) => s.when((t) => t.value('admin')).then(1),
+                    (s) => s.when((t) => t.value('contributor')).then(2),
+                ).default(3)
+            ).asc(),
+            (q) => q.expr(
+                (r) => r.cases(
+                    (s) => s.when((t) => t.isNull('phone')).then(0),
+                ).default(1)
+            ).desc(),
+            (q) => q.expr('name').asc()
+        ]
+    }
 );
 ```
 
@@ -898,7 +918,30 @@ const result = await client.database('public').table('users').select(
 // (c): API equivalent 2
 const result = await client.database('public').table('users').select(
     [ 'name', 'email' ],
-    { where: [(q) => q.eq('role', (r) => r.binding('admin'))] }
+    {
+        where: [ { eq: ['role', { binding: ['admin'] }] } ],
+        orderBy: [
+            {
+                expr: {
+                    switch: 'role',
+                    cases: [
+                        { when: { value: 'admin' }, then: 1 },
+                        { when: { value: 'contributor' }, then: 2 }
+                    ],
+                    default: 0
+                },
+                asc: true
+            },
+            {
+                expr: {
+                    cases: [ { when: { isNull: 'phone' }, then: 0 } ],
+                    default: 1
+                },
+                desc: true
+            },
+            { expr: 'name', asc: true }
+        ],
+    }
 );
 ```
 
@@ -918,18 +961,18 @@ const result = await client.query(
 ```js
 // (b): API equivalent 1
 const result = await client.database('public').table('users').select([
-    { expr: 'name' },
-    { expr: { jsonObject: ['email', { expr: 'phone', as: 'mobile'}] }, as: 'contact1' },
-    { expr: { jsonArray: ['email', 'phone'] }, as: 'contact2' }
+    (q) => q.expr('name'),
+    (q) => q.expr((r) => r.jsonObject('email', (s) => s.expr('phone').as('mobile'))).as('contact1'),
+    (q) => q.expr((r) => r.jsonArray('email', 'phone')).as('contact2')
 ]);
 ```
 
 ```js
 // (c): API equivalent 2
 const result = await client.database('public').table('users').select([
-    (q) => q.expr('name'),
-    (q) => q.expr((r) => r.jsonObject('email', (s) => s.expr('phone').as('mobile'))).as('contact1'),
-    (q) => q.expr((r) => r.jsonArray('email', 'phone')).as('contact2')
+    { expr: 'name' },
+    { expr: { jsonObject: ['email', { expr: 'phone', as: 'mobile'}] }, as: 'contact1' },
+    { expr: { jsonArray: ['email', 'phone'] }, as: 'contact2' }
 ]);
 ```
 
@@ -954,12 +997,12 @@ const result = await client.query(
 // (b): API equivalent 1
 const result = await client.database('public').table('books').select({
     fields: [
-        { expr: 'title' },
-        { expr: 'content' },
-        { expr: { path: ['author', '~>', 'name'] }, as: 'author_name' }
+        (q) => q.expr('title'),
+        (q) => q.expr('content'),
+        (q) => q.expr((r) => r.path('author', '~>', 'name')).as('author_name'),
     ],
     where: [
-        { eq: [{ path: ['author', '~>', 'role'] }, { binding: ['admin'] }] }
+        (q) => q.eq((r) => r.path('author', '~>', 'role'), (r) => r.binding('admin'))
     ]
 });
 ```
@@ -968,12 +1011,12 @@ const result = await client.database('public').table('books').select({
 // (c): API equivalent 2
 const result = await client.database('public').table('books').select({
     fields: [
-        (q) => q.expr('title'),
-        (q) => q.expr('content'),
-        (q) => q.expr((r) => r.path('author', '~>', 'name')).as('author_name'),
+        { expr: 'title' },
+        { expr: 'content' },
+        { expr: { path: ['author', '~>', 'name'] }, as: 'author_name' }
     ],
     where: [
-        (q) => q.eq((r) => r.path('author', '~>', 'role'), (r) => r.binding('admin'))
+        { eq: [{ path: ['author', '~>', 'role'] }, { binding: ['admin'] }] }
     ]
 });
 ```
@@ -999,12 +1042,12 @@ const result = await client.query(
 // (b): API equivalent 1
 const result = await client.database('public').table('books').select({
     fields: [
-        { expr: 'title' },
-        { expr: 'content' },
-        { expr: { path: ['author', '~>', { jsonObject: ['name', 'email'] }] }, as: 'author' }
+        (q) => q.expr('title'),
+        (q) => q.expr('content'),
+        (q) => q.expr((r) => r.path('author', '~>', (s) => s.jsonObject('name', 'email'))).as('author'),
     ],
     where: [
-        { eq: [{ path: ['author', '~>', 'role'] }, { binding: ['admin'] }] }
+        (q) => q.eq((r) => r.path('author', '~>', 'role'), (r) => r.binding('admin'))
     ]
 });
 ```
@@ -1013,12 +1056,12 @@ const result = await client.database('public').table('books').select({
 // (c): API equivalent 2
 const result = await client.database('public').table('books').select({
     fields: [
-        (q) => q.expr('title'),
-        (q) => q.expr('content'),
-        (q) => q.expr((r) => r.path('author', '~>', (s) => s.jsonObject('name', 'email'))).as('author'),
+        { expr: 'title' },
+        { expr: 'content' },
+        { expr: { path: ['author', '~>', { jsonObject: ['name', 'email'] }] }, as: 'author' }
     ],
     where: [
-        (q) => q.eq((r) => r.path('author', '~>', 'role'), (r) => r.binding('admin'))
+        { eq: [{ path: ['author', '~>', 'role'] }, { binding: ['admin'] }] }
     ]
 });
 ```
