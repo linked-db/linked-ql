@@ -1076,7 +1076,7 @@ The typical database has no concept of versioning, but no problem, Linked QL com
 
 ##### └ *Example 1:*
 
-> 🏅 Alter your database and get back a reference to a "savepoint" automatically created for you
+> ℹ️ Alter your database and get back a reference to a "savepoint" automatically created for you
 
 ```js
 // Alter schema
