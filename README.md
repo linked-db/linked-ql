@@ -705,15 +705,11 @@ Whereas schema evolution remains a drag across the board, it comes as a particul
 ```js
 [
     {
-        // string
         "name": "database_1",
-        // TableSchemaSpec[]
         "tables": []
     },
     {
-        // string
         "name": "database_2",
-        // TableSchemaSpec[]
         "tables": []
     }
 ]
@@ -721,14 +717,14 @@ Whereas schema evolution remains a drag across the board, it comes as a particul
 
 <details><summary><i>Example 2:</i></summary>
 
+<br>
+
 > `./database/schema.json`
 
 ```js
 [
     {
-        // string - required
         "name": "database_1",
-        // TableSchemaSpec[]
         "tables": [
             {
                 "name": "users",
@@ -810,9 +806,7 @@ Whereas schema evolution remains a drag across the board, it comes as a particul
         ]
     },
     {
-        // string - required
         "name": "database_2",
-        // TableSchemaSpec[]
         "tables": []
     }
 ]
