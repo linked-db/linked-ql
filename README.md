@@ -47,8 +47,10 @@ Whereas the typical database tool has hand-written SQL as the exception, Linked 
 
 ##### └ *Example 1:*
 
+> [!TIP]
+> A basic query with parameters
+
 ```js
-// A basic query with parameters
 const result = await client.query(
     `SELECT
         name,
@@ -73,8 +75,10 @@ console.log(result);
 
 <details><summary><i>Example 2:</i></summary>
 
+> [!TIP]
+> A basic DDL query
+
 ```js
-// A basic DDL query
 await client.query(
     `CREATE TABLE users (
         id int primary key generated always as identity,
@@ -163,7 +167,7 @@ console.log(result);
 > </details>
 
 ```js
-// A path-based relational query
+// [ONE-TO-MANY]: Basic join via magic paths
 const result = await client.query(
     `SELECT
         title,
@@ -224,7 +228,7 @@ console.log(result);
 > </details>
 
 ```js
-// Same relational query with JSON formatting
+// [ONE-TO-MANY]: Same query with JSON formatting
 const result = await client.query(
     `SELECT
         title,
@@ -266,6 +270,128 @@ console.log(result);
 
 <details><summary><i>Example 4:</i></summary>
 
+> <details><summary>Schema</summary>
+>
+> ```sql
+> -- The users table
+> CREATE TABLE users (
+>     id int primary key generated always as identity,
+>     name varchar,
+>     email varchar,
+>     phone varchar,
+>     role varchar,
+>     parent int references users (id),
+>     created_time timestamp
+> );
+> 
+> </details>
+
+```js
+// [ONE-TO-MANY]: Multi-level join via magic paths
+const result = await client.query(
+    `SELECT
+        name,
+        email,
+        parent ~> parent ~> name AS grand_parent
+    FROM users
+    LIMIT 2
+);
+console.log(result);
+```
+
+> <details><summary>Console</summary>
+>
+> ```js
+> [
+>     {
+>         name: 'John Doe',
+>         email: 'johndoed@example.com',
+>         grand_parent: 'Some user 1'
+>     },
+>     {
+>         name: 'Alice Blue',
+>         email: 'aliceblue@example.com',
+>         grand_parent: 'Some user 2'
+>     }
+> ]
+> ```
+> 
+> </details>
+
+</details>
+
+<details><summary><i>Example 5:</i></summary>
+
+> <details><summary>Schema</summary>
+>
+> ```sql
+> -- The users table
+> CREATE TABLE users (
+>     id int primary key generated always as identity,
+>     name varchar,
+>     email varchar,
+>     phone varchar,
+>     role varchar,
+>     created_time timestamp
+> );
+> -- The books table
+> CREATE TABLE books (
+>     id int primary key generated always as identity,
+>     title varchar,
+>     content varchar,
+>     author int references users (id),
+>     created_time timestamp
+> );
+> ```
+> 
+> </details>
+
+```js
+// [MANY-TO-ONE]: Basic many-to-one join via magic paths
+const result = await client.query(
+    `SELECT
+        name,
+        email,
+        author <~ books ~> title AS book_title
+    FROM books
+    WHERE author <~ books ~> content LIKE '%(C) 2024%'`,
+);
+console.log(result);
+```
+
+> <details><summary>Console</summary>
+>
+> ```js
+> [
+>     {
+>         name: 'John Doe',
+>         email: 'johndoed@example.com',
+>         book_title: 'Beauty and the Beast - part 1'
+>     },
+>     {
+>         name: 'John Doe',
+>         email: 'johndoed@example.com',
+>         book_title: 'Beauty and the Beast - part 2'
+>     },
+>     {
+>         name: 'Alice Blue',
+>         email: 'aliceblue@example.com',
+>         books: 'The Secrets of Midnight Garden - part 1'
+>     },
+>     {
+>         name: 'Alice Blue',
+>         email: 'aliceblue@example.com',
+>         books: 'The Secrets of Midnight Garden - part 2'
+>     }
+> ]
+> ```
+> 
+> </details>
+
+</details>
+
+<details><summary><i>Example 6:</i></summary>
+
 > <details><summary>Schema (as before)</summary>
 >
 > ```sql
@@ -291,7 +417,7 @@ console.log(result);
 > </details>
 
 ```js
-// Get all books for each user
+// [MANY-TO-ONE]: Structured many-to-one join via magic paths
 const result = await client.query(
     `SELECT
         name,
@@ -313,13 +439,13 @@ console.log(result);
 >         books: [
 >             {
 >                 title: 'Beauty and the Beast - part 1',
->                 content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
+>                 content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...'
 >             },
 >             {
 >                 title: 'Beauty and the Beast - part 2',
->                 content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
+>                 content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...'
 >             }
->         ],
+>         ]
 >     },
 >     {
 >         name: 'Alice Blue',
@@ -327,13 +453,13 @@ console.log(result);
 >         books: [
 >             {
 >                 title: 'The Secrets of Midnight Garden - part 1',
->                 content: '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...',
+>                 content: '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...'
 >             },
 >             {
 >                 title: 'The Secrets of Midnight Garden - part 2',
->                 content: '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...',
+>                 content: '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...'
 >             }
->         ],
+>         ]
 >     }
 > ]
 > ```
@@ -342,7 +468,93 @@ console.log(result);
 
 </details>
 
-<details><summary><i>Example 5:</i></summary>
+<details><summary><i>Example 7:</i></summary>
+
+> <details><summary>Schema (as before)</summary>
+>
+> ```sql
+> -- The users table
+> CREATE TABLE users (
+>     id int primary key generated always as identity,
+>     name varchar,
+>     email varchar,
+>     phone varchar,
+>     role varchar,
+>     created_time timestamp
+> );
+> -- The books table
+> CREATE TABLE books (
+>     id int primary key generated always as identity,
+>     title varchar,
+>     content varchar,
+>     author int references users (id),
+>     created_time timestamp
+> );
+> ```
+> 
+> </details>
+
+```js
+// [ONE-TO-MANY]: Basic multi-dimensional INSERT
+// Connects
+const result = await client.query(
+    `INSERT INTO books (
+        title,
+        content,
+        author ~> email
+    ) VALUES (
+        'Beauty and the Beast',
+        '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
+        'johndoed@example.com'
+    ), (
+        'The Secrets of Midnight Garden'
+        '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...',
+        'aliceblue@example.com'
+    )`
+);
+console.log(result);
+```
+
+> <details><summary>Console</summary>
+>
+> ```js
+> [
+>     {
+>         id: 1,
+>         title: 'Beauty and the Beast',
+>         content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
+>         author: {
+>             id: 1,
+>             name: 'John Doe',
+>             email: 'johndoed@example.com',
+>             phone: '(555) 123-4567',
+>             role: 'admin',
+>             created_time: '2024-11-06T18:22:46.709Z'
+>         },
+>         created_time: '2024-11-06T18:22:46.709Z'
+>     },
+>     {
+>         id: 2,
+>         title: 'The Secrets of Midnight Garden',
+>         content: '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...',
+>         author: {
+>             id: 2,
+>             name: 'Alice Blue',
+>             email: 'aliceblue@example.com',
+>             phone: '(888) 123-4567',
+>             role: 'admin',
+>             created_time: '2024-11-06T18:22:46.709Z'
+>         },
+>         created_time: '2024-11-06T18:22:46.709Z'
+>     }
+> ]
+> ```
+> 
+> </details>
+
+</details>
+
+<details><summary><i>Example 7:</i></summary>
 
 > <details><summary>Schema (as before)</summary>
 >
@@ -722,7 +934,7 @@ const savepoint = await client.database('public').savepoint();
 > Inspect savepoint
 
 ```js
-// Some things to see...
+// Some details
 console.log(savepoint.versionTag()); // 1
 console.log(savepoint.commitDesc()); // Create users table
 console.log(savepoint.commitDate()); // 2024-07-17T22:40:56.786Z
@@ -776,7 +988,7 @@ console.log(savepoint.jsonfy());
 ```js
 // SQL preview
 console.log(savepoint.restorePreview()); // DROP TABLE public.users CASCADE
-// Execution (drops "users" table)
+// Execute (drops "users" table)
 await savepoint.rollback({
     desc: 'Users table unnecessary'
 });
@@ -787,7 +999,7 @@ await savepoint.rollback({
 ```js
 // SQL preview
 console.log(savepoint.restorePreview()); // CREATE TABLE public.users (...)
-// Execution (recreates "users" table)
+// Execute (recreates "users" table)
 await savepoint.recommit({
     desc: 'Users table necessary again'
 });
