@@ -737,14 +737,13 @@ console.log(savepoint.jsonfy());
 > 
 > ```js
 > {
+>   // Internal details
 >   master_savepoint: null,
 >   id: '952cc6ae-5b5b-4534-8b03-dc38ee8658ac',
 >   database_tag: 'db.1730978107426',
+>   // Schema snapshot
 >   name: 'public',
 >   '$name': null,
->   status: null,
->   version_tag: 1,
->   version_tags: [ 1 ],
 >   tables: [
 >     {
 >       name: 'users',
@@ -754,13 +753,18 @@ console.log(savepoint.jsonfy());
 >       status: 'new'
 >     }
 >   ],
+>   status: null,
+>   // Version details
+>   version_tag: 1,
+>   version_tags: [ 1 ],
 >   version_state: 'commit',
->   commit_date: '2024-11-07T11:15:07.584Z',
->   commit_desc: 'Create users',
+>   commit_date: '2024-07-17T22:40:56.786Z',
+>   commit_desc: 'Create users table',
 >   commit_ref: null,
 >   rollback_date: null,
 >   rollback_desc: null,
 >   rollback_ref: null,
+>   // Cascades
 >   cascades: []
 > }
 > ```
