@@ -861,20 +861,28 @@ console.table(savepoint.jsonfy());
 > 
 > </details>
 
-> Restore savepoint
+> Rollback savepoint
 
 ```js
 // Preview
 console.log(savepoint.restoreQuery()); // DROP TABLE public.users CASCADE
+```
+
+```js
 // Roll back all changes (drops "users" table)
 await savepoint.rollback({
     desc: 'Users table unnecessary'
 });
 ```
 
+> Re-commit savepoint
+
 ```js
 // Preview
 console.log(savepoint.restoreQuery()); // CREATE TABLE public.users (...)
+```
+
+```js
 // Roll forward all changes (recreates "users" table)
 await savepoint.recommit({
     desc: 'Users table re-necessary'
