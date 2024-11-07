@@ -846,7 +846,7 @@ const savepoint = await client.database('public').savepoint();
 > Inspect savepoint
 
 ```js
-// What you see...
+// Some things to see...
 console.log(savepoint.versionTag()); // 1
 console.log(savepoint.commitDesc()); // Create users table
 console.log(savepoint.commitDate()); // 2024-07-17T22:40:56.786Z
@@ -864,7 +864,7 @@ console.table(savepoint.jsonfy());
 > Rollback savepoint
 
 ```js
-// Preview
+// SQL preview
 console.log(savepoint.restoreQuery()); // DROP TABLE public.users CASCADE
 ```
 
@@ -878,7 +878,7 @@ await savepoint.rollback({
 > Re-commit savepoint
 
 ```js
-// Preview
+// SQL preview
 console.log(savepoint.restoreQuery()); // CREATE TABLE public.users (...)
 ```
 
