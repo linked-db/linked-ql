@@ -163,7 +163,7 @@ console.log(result);
 > </details>
 
 ```js
-// A basic join via magic paths | ONE-TO-MANY
+// A basic JOIN via magic paths | ONE-TO-MANY
 const result = await client.query(
     `SELECT
         title,
@@ -279,11 +279,12 @@ console.log(result);
 >     parent int references users (id),
 >     created_time timestamp
 > );
-> 
+> ```
+>
 > </details>
 
 ```js
-// A multi-level join via magic paths | ONE-TO-MANY
+// A multi-level JOIN via magic paths | ONE-TO-MANY
 const result = await client.query(
     `SELECT
         name,
@@ -343,7 +344,7 @@ console.log(result);
 > </details>
 
 ```js
-// A basic many-to-one join via magic paths | MANY-TO-ONE
+// A basic many-to-one JOIN via magic paths | MANY-TO-ONE
 const result = await client.query(
     `SELECT
         name,
@@ -533,7 +534,7 @@ console.log(result); // true
 ```
 
 ```js
-// A basic multi-dimensional UPSERT | ONE-TO-MANY
+// A basic multi-dimensional UPDATE | ONE-TO-MANY
 // TIP: for each book UPDATED, CREATE or UPDATE a user with said email
 const result = await client.query(
     `UPDATE books
@@ -786,8 +787,7 @@ const result = await client.query(
             (
                 'Beauty and the Beast - Part 1',
                 '(C) 2024 johndoed@example.com\nBeauty and the Beast...'
-            ),
-            (
+            ), (
                 'Beauty and the Beast - Part 2',
                 '(C) 2024 johndoed@example.com\nBeauty and the Beast...'
             )
@@ -799,8 +799,7 @@ const result = await client.query(
             (
                 'The Secrets of Midnight Garden - Part 1',
                 '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...'
-            ),
-            (
+            ), (
                 'The Secrets of Midnight Garden - Part 2',
                 '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...'
             )
@@ -888,10 +887,19 @@ const result = await client.query(
 ```
 
 ```js
-// (b): API equivalent
-const result = await client.database('public').table('users').select(['name', 'email' ], {
-    where: [{ eq: ['role', { binding: ['admin'] }] }]
-});
+// (b): API equivalent 1
+const result = await client.database('public').table('users').select(
+    [ 'name', 'email' ],
+    { where: [{ eq: ['role', { binding: ['admin'] }] }] }
+);
+```
+
+```js
+// (c): API equivalent 2
+const result = await client.database('public').table('users').select(
+    [ 'name', 'email' ],
+    { where: [(q) => q.eq('role', (r) => r.binding('admin'))] }
+);
 ```
 
 <details><summary><i>Example 2:</i></summary>
@@ -908,11 +916,20 @@ const result = await client.query(
 ```
 
 ```js
-// (b): API equivalent
+// (b): API equivalent 1
 const result = await client.database('public').table('users').select([
     { expr: 'name' },
     { expr: { jsonObject: ['email', { expr: 'phone', as: 'mobile'}] }, as: 'contact1' },
     { expr: { jsonArray: ['email', 'phone'] }, as: 'contact2' }
+]);
+```
+
+```js
+// (c): API equivalent 2
+const result = await client.database('public').table('users').select([
+    (q) => q.expr('name'),
+    (q) => q.expr((r) => r.jsonObject('email', (s) => q.expr('phone').as('mobile'))).as('contact1'),
+    (q) => q.expr((r) => r.jsonArray('email', 'phone')).as('contact2')
 ]);
 ```
 
@@ -934,7 +951,7 @@ const result = await client.query(
 ```
 
 ```js
-// (b): API equivalent
+// (b): API equivalent 1
 const result = await client.database('public').table('books').select({
     fields: [
         { expr: 'title' },
@@ -943,6 +960,20 @@ const result = await client.database('public').table('books').select({
     ],
     where: [
         { eq: [{ path: ['author', '~>', 'role'] }, { binding: ['admin'] }] }
+    ]
+});
+```
+
+```js
+// (c): API equivalent 2
+const result = await client.database('public').table('books').select({
+    fields: [
+        (q) => q.expr('title'),
+        (q) => q.expr('content'),
+        (q) => q.expr((r) => r.path('author', '~>', 'name')).as('author_name'),
+    ],
+    where: [
+        (q) => q.eq((r) => r.path('author', '~>', 'role'), (r) => r.binding('admin'))
     ]
 });
 ```
@@ -965,7 +996,7 @@ const result = await client.query(
 ```
 
 ```js
-// (b): API equivalent
+// (b): API equivalent 1
 const result = await client.database('public').table('books').select({
     fields: [
         { expr: 'title' },
@@ -974,6 +1005,20 @@ const result = await client.database('public').table('books').select({
     ],
     where: [
         { eq: [{ path: ['author', '~>', 'role'] }, { binding: ['admin'] }] }
+    ]
+});
+```
+
+```js
+// (c): API equivalent 2
+const result = await client.database('public').table('books').select({
+    fields: [
+        (q) => q.expr('title'),
+        (q) => q.expr('content'),
+        (q) => q.expr((r) => r.path('author', '~>', (s) => s.jsonObject('name', 'email'))).as('author'),
+    ],
+    where: [
+        (q) => q.eq((r) => r.path('author', '~>', 'role'), (r) => r.binding('admin'))
     ]
 });
 ```
