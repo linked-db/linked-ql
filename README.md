@@ -1089,7 +1089,7 @@ const savepoint = await client.query(
 );
 ```
 
-> ℹ️ Obtain same savepoint on-demand
+> ℹ️ Or obtain said savepoint on-demand
 
 ```js
 const savepoint = await client.database('public').savepoint();
@@ -1146,7 +1146,7 @@ console.log(savepoint.jsonfy());
 > 
 > </details>
 
-> ℹ️ Rollback savepoint
+> ℹ️ Roll back savepoint
 
 ```js
 // SQL preview
@@ -1157,7 +1157,7 @@ await savepoint.rollback({
 });
 ```
 
-> ℹ️ Re-commit savepoint
+> ℹ️ Roll forward savepoint
 
 ```js
 // SQL preview
