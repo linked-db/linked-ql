@@ -820,7 +820,7 @@ Whereas schema evolution remains a drag across the board, it comes as a particul
 <tr><td>
 <details _name="features"><summary>Automatic Schema Versioning</summary>
 
-The typical database has no concept of versioning, but no problem, Linked QL comes with it to your database, and along with that, a powerful rollback and rollforward system! On each DDL operation you run against you database (`CREATE`, `ALTER`, `DROP`), you get a savepoint automatically created for you and a seamless rollback path anytime!
+The typical database has no concept of versioning, but no problem, Linked QL comes with it to your database, and along with that, a powerful rollback and rollforward system! On each DDL operation you run against your database (`CREATE`, `ALTER`, `DROP`), you get a savepoint automatically created for you and a seamless rollback path anytime!
 
 ##### └ *Example 1:*
 
@@ -864,14 +864,18 @@ console.table(savepoint.jsonfy());
 > Restore savepoint
 
 ```js
-// Roll back
+// Preview
+console.log(savepoint.restoreQuery()); // DROP TABLE public.users CASCADE
+// Roll back all changes (drops "users" table)
 await savepoint.rollback({
     desc: 'Users table unnecessary'
 });
 ```
 
 ```js
-// Roll forward
+// Preview
+console.log(savepoint.restoreQuery()); // CREATE TABLE public.users (...)
+// Roll forward all changes (recreates "users" table)
 await savepoint.recommit({
     desc: 'Users table re-necessary'
 });
