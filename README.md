@@ -776,10 +776,7 @@ console.log(savepoint.jsonfy());
 ```js
 // SQL preview
 console.log(savepoint.restorePreview()); // DROP TABLE public.users CASCADE
-```
-
-```js
-// Roll back all changes (drops "users" table)
+// Execution (drops "users" table)
 await savepoint.rollback({
     desc: 'Users table unnecessary'
 });
@@ -790,12 +787,9 @@ await savepoint.rollback({
 ```js
 // SQL preview
 console.log(savepoint.restorePreview()); // CREATE TABLE public.users (...)
-```
-
-```js
-// Roll forward all changes (recreates "users" table)
+// Execution (recreates "users" table)
 await savepoint.recommit({
-    desc: 'Users table re-necessary'
+    desc: 'Users table necessary again'
 });
 ```
 
