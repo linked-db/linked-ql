@@ -1193,7 +1193,7 @@ Whereas the typical ORM requires you to feed them with your database schema (cas
 
 ##### └ *Example 1:*
 
-> ℹ️ Simply <ins>plug</ins> to your database and <ins>play</ins>...
+> ✨ Simply <ins>plug</ins> to your database and <ins>play</ins>...
 
 ```js
 // Import pg and LinkedQl
@@ -1210,7 +1210,7 @@ await pgClient.connect();
 const client = new LinkedQl(pgClient, { dialect: 'postgres' });
 ```
 
-> ℹ️ Query arbitrary structures... without the upfront schema work!
+> ✨ Query arbitrary structures... without the upfront schema work!
 
 ```js
 const result = await client.query(
@@ -1234,7 +1234,7 @@ The typical database has no concept of versioning, but no problem, Linked QL com
 
 ##### └ *Example 1:*
 
-> ℹ️ Alter your database and get back a reference to a "savepoint" automatically created for you
+> ✨ Alter your database and get back a reference to a "savepoint" automatically created for you
 
 ```js
 // Alter schema
@@ -1247,13 +1247,13 @@ const savepoint = await client.query(
 );
 ```
 
-> ℹ️ Or obtain said savepoint on-demand
+> ✨ Or obtain said savepoint on-demand
 
 ```js
 const savepoint = await client.database('public').savepoint();
 ```
 
-> ℹ️ Inspect savepoint
+> ✨ Inspect savepoint
 
 ```js
 // Some details
@@ -1304,23 +1304,23 @@ console.log(savepoint.jsonfy());
 > 
 > </details>
 
-> ℹ️ Roll back savepoint
+> ✨ Roll back savepoint
 
 ```js
 // SQL preview
 console.log(savepoint.restorePreview()); // DROP TABLE public.users CASCADE
-// Execute (drops "users" table)
+// Execute now (drops "users" table)
 await savepoint.rollback({
     desc: 'Users table unnecessary'
 });
 ```
 
-> ℹ️ Roll forward savepoint
+> ✨ Roll forward savepoint
 
 ```js
 // SQL preview
 console.log(savepoint.restorePreview()); // CREATE TABLE public.users (...)
-// Execute (recreates "users" table)
+// Execute now (recreates "users" table)
 await savepoint.recommit({
     desc: 'Users table necessary again'
 });
@@ -1470,7 +1470,7 @@ Jump to sections and features:
 + 🎲 [Getting Started](#getting-started)
 + 🎯 [Magic Paths](#introducing-magic-paths)
 + ⛱ [Auto-Versioning](#introducing-auto-versioning)
-+ ℹ️ [Schema-as-Code](#re-introducing-schema-as-code-with-schemajson)
++ ✨ [Schema-as-Code](#re-introducing-schema-as-code-with-schemajson)
 + [The Linked QL API](https://github.com/linked-db/linked-ql/wiki/API) ✈️
 + [The Linked QL CLI](https://github.com/linked-db/linked-ql/wiki/CLI) ✈️
 
