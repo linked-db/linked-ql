@@ -659,7 +659,7 @@ Whereas the typical ORM requires you to feed them with your database schema (cas
 
 ##### └ *Example 1:*
 
-> Simplu <ins>plug</ins> to your database and <ins>play</ins>...
+> Simply <ins>plug</ins> to your database and <ins>play</ins>...
 
 ```js
 // Import pg and LinkedQl
@@ -676,7 +676,7 @@ await pgClient.connect();
 const client = new LinkedQl(pgClient, { dialect: 'postgres' });
 ```
 
-> Query arbitrary structures... with zero upfront schema work!
+> Query arbitrary structures... without the upfront schema work!
 
 ```js
 const result = await client.query(
