@@ -166,7 +166,7 @@ export class Savepoint {
      * @returns Bool
      */
     async isNextRestorePoint() {
-        const currentSavepoint = (await this.client.database(this.name()).savepoint({ direction: this.versionState() === 'commit' ? 'backward' : 'forward', withCascades: false })) || {};
+        const currentSavepoint = (await this.client.database(this.name()).savepoint({ lookAhead: this.versionState() === 'rollback', withCascades: false })) || {};
         return currentSavepoint.id?.() === this.$.json.id;
     }
 

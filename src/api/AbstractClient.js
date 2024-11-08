@@ -361,13 +361,13 @@ export class AbstractClient {
         };
         // -- Find a match first. We're doing forward first to be able to restart an entire history that has been rolled all the way back
         const dbName = dbSchema.name()/* IMPORTANT: not $name() */;
-        const currentSavepoint = (await this.database(dbName).savepoint({ direction: 'forward', withCascades: false })) || await this.database(dbName).savepoint({ withCascades: false });
+        const currentSavepoint = (await this.database(dbName).savepoint({ lookAhead: true, withCascades: false })) || await this.database(dbName).savepoint({ withCascades: false });
         if (currentSavepoint) {
             // -- Apply id and tag from lookup
             savepointJson.database_tag = currentSavepoint.databaseTag();
             savepointJson.version_tag = details.masterSavepoint ? 0 : currentSavepoint.versionMax() + 1;
             // -- Delete all forward records
-            if (!details.masterSavepoint && currentSavepoint.direction === 'forward') {
+            if (!details.masterSavepoint && currentSavepoint.versionState() === 'rollback') {
                 await savepointsTable.delete(q => q.where(
                     q => q.eq('database_tag', q => q.value(currentSavepoint.databaseTag())),
                     q => q.eq('version_state', q => q.value('rollback')),
@@ -419,10 +419,10 @@ export class AbstractClient {
         const result = await this.query(`
             SELECT ${fields.join(', ')} FROM (
                 SELECT *,
-                ROW_NUMBER() OVER (PARTITION BY database_tag ORDER BY version_state = ${params.direction === 'forward' ? `'rollback'` : `'commit'`} DESC, version_tag ${params.direction === 'forward' ? 'ASC' : 'DESC'}) AS rank_for_target,
+                ROW_NUMBER() OVER (PARTITION BY database_tag ORDER BY version_state = ${params.lookAhead ? `'rollback'` : `'commit'`} DESC, version_tag ${params.lookAhead ? 'ASC' : 'DESC'}) AS rank_for_target,
                 FROM ${tableIdent}
                 WHERE master_savepoint IS NULL
-            ) AS main_savepoint WHERE version_state = ${params.direction === 'forward' ? `'rollback'` : `'commit'`} AND rank_for_target = 1${params.selector ? (params.direction === 'forward' ? ` AND ${utils.matchSelector('name', schemaSelector)}` : ` AND ${utils.matchSelector(`COALESCE(${utils.ident('$name')}, name)`, schemaSelector)}`) : ''}
+            ) AS main_savepoint WHERE version_state = ${params.lookAhead ? `'rollback'` : `'commit'`} AND rank_for_target = 1${params.selector ? (params.lookAhead ? ` AND ${utils.matchSelector('name', schemaSelector)}` : ` AND ${utils.matchSelector(`COALESCE(${utils.ident('$name')}, name)`, schemaSelector)}`) : ''}
         `);
         if (params.lite) return result;
         return result.map((savepointJson) => new Savepoint(this, normalizeJson(savepointJson)));
@@ -545,7 +545,7 @@ export class AbstractClient {
                     if (/^!/.test(e)) return [names, _names.concat(e.slice(1)), patterns];
                     return [names.concat(e), _names, patterns];
                 }, [[], [], []]);
-                const $names = names.length ? `${ident} IN (${names.map(utils.str).join(', ')})` : null;
+                const $names = names.length && !(names.length === 1 && names[0] === '*') ? `${ident} IN (${names.map(utils.str).join(', ')})` : null;
                 const $_names = _names.length ? `${ident} NOT IN (${_names.map(utils.str).join(', ')})` : null;
                 const $patterns = patterns.length ? patterns.map((p) => /^!/.test(p) ? `${ident} NOT LIKE ${utils.str(p.slice(1))}` : `${ident} LIKE ${utils.str(p)}`).join(' AND ') : null;
                 return [$names, $_names, $patterns].filter(s => s).join(' AND ');

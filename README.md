@@ -45,7 +45,7 @@ _What we're doing differently?_
 
 Whereas the typical ORM has hand-written SQL as the exception, Linked QL has it as <ins>the default</ins>, and along with that, it comes with everything that makes it all the more delightful to #usethelanguage!
 
-##### └ *Example 1:*
+##### └ *Preview 1:*
 
 ```js
 // A basic query with parameters
@@ -71,7 +71,7 @@ console.log(result);
 > 
 > </details>
 
-<details><summary><i>Example 2:</i></summary>
+##### └ *Preview 2:*
 
 ```js
 // A basic DDL query
@@ -88,8 +88,6 @@ await client.query(
 ```
 
 </details>
-
-</details>
 </td></tr>
 
 <tr><td>
@@ -97,7 +95,7 @@ await client.query(
 
 Model structures and traverse relationships like they were plain JSON objects—all right within the language! Meet Linked QL's set of syntax extensions to SQL that <ins>do the hard work</ins>, <ins>cut your query in half</ins>, and even <ins>save you multiple round trips</ins>!
 
-##### └ *Example 1:*
+##### └ *JSON Sugars:*
 
 ```js
 // A basic query with JSON formatting
@@ -136,7 +134,9 @@ console.log(result);
 > 
 > </details>
 
-<details><summary><i>Example 2:</i></summary>
+└ *(Details in the [JSON Sugars](https://github.com/linked-db/linked-ql/wiki/JSON-Sugars) docs.)*
+
+##### └ *Magic Paths:*
 
 > <details><summary>Schema</summary>
 >
@@ -163,7 +163,7 @@ console.log(result);
 > </details>
 
 ```js
-// A basic JOIN using magic paths | MANY-TO-ONE
+// A basic JOIN using magic paths | On a MANY-TO-ONE relationship
 const result = await client.query(
     `SELECT
         title,
@@ -195,674 +195,22 @@ console.log(result);
 > 
 > </details>
 
-</details>
 
-<details><summary><i>Example 3:</i></summary>
+└ *(Details in the [Magic Paths](https://github.com/linked-db/linked-ql/wiki/Magic-Paths) docs.)*
 
-> <details><summary>Schema (as before)</summary>
->
-> ```sql
-> -- The users table
-> CREATE TABLE users (
->     id int primary key generated always as identity,
->     name varchar,
->     email varchar,
->     phone varchar,
->     role varchar,
->     created_time timestamp
-> );
-> -- The books table
-> CREATE TABLE books (
->     id int primary key generated always as identity,
->     title varchar,
->     content varchar,
->     author int references users (id),
->     created_time timestamp
-> );
-> ```
-> 
-> </details>
+##### └ *UPSERTS:*
 
 ```js
-// Same query but structured via JSON formatting | MANY-TO-ONE
+// Create new user entry or update existing
 const result = await client.query(
-    `SELECT
-        title,
-        content,
-        author: { name, email } AS author
-    FROM books
-    WHERE author ~> role = $1`,
-    ['admin']
+    `UPSERT INTO public.users 
+        ( name, email role )
+    VALUES ( 'John Doe', 'johndoe@example.com', 'admin' ),
+        ( 'Alice Blue', 'aliceblue@example.com', 'contributor' )`
 );
-console.log(result);
 ```
 
-> <details><summary>Console</summary>
->
-> ```js
-> [
->     {
->         title: 'Beauty and the Beast',
->         content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
->         author: {
->             name: 'John Doe',
->             email: 'johndoed@example.com'
->         }
->     },
->     {
->         title: 'The Secrets of Midnight Garden',
->         content: '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...',
->         author: {
->             name: 'Alice Blue',
->             email: 'aliceblue@example.com'
->         }
->     }
-> ]
-> ```
-> 
-> </details>
-
-</details>
-
-<details><summary><i>Example 4:</i></summary>
-
-> <details><summary>Schema</summary>
->
-> ```sql
-> -- The users table
-> CREATE TABLE users (
->     id int primary key generated always as identity,
->     name varchar,
->     email varchar,
->     phone varchar,
->     role varchar,
->     parent int references users (id),
->     created_time timestamp
-> );
-> ```
->
-> </details>
-
-```js
-// A multi-level JOIN using magic paths | MANY-TO-ONE
-const result = await client.query(
-    `SELECT
-        name,
-        email,
-        parent ~> parent ~> name AS grand_parent
-    FROM users
-    LIMIT 2
-);
-console.log(result);
-```
-
-> <details><summary>Console</summary>
->
-> ```js
-> [
->     {
->         name: 'John Doe',
->         email: 'johndoed@example.com',
->         grand_parent: 'Some user 1'
->     },
->     {
->         name: 'Alice Blue',
->         email: 'aliceblue@example.com',
->         grand_parent: 'Some user 2'
->     }
-> ]
-> ```
-> 
-> </details>
-
-</details>
-
-<details><summary><i>Example 5:</i></summary>
-
-> <details><summary>Schema</summary>
->
-> ```sql
-> -- The users table
-> CREATE TABLE users (
->     id int primary key generated always as identity,
->     name varchar,
->     email varchar,
->     phone varchar,
->     role varchar,
->     created_time timestamp
-> );
-> -- The books table
-> CREATE TABLE books (
->     id int primary key generated always as identity,
->     title varchar,
->     content varchar,
->     author int references users (id),
->     created_time timestamp
-> );
-> ```
-> 
-> </details>
-
-```js
-// A basic one-to-many JOIN using magic paths | ONE-TO-MANY
-const result = await client.query(
-    `SELECT
-        name,
-        email,
-        author <~ books ~> title AS book_title
-    FROM books
-    WHERE author <~ books ~> content LIKE '%(C) 2024%'`,
-);
-console.log(result);
-```
-
-> <details><summary>Console</summary>
->
-> ```js
-> [
->     {
->         name: 'John Doe',
->         email: 'johndoed@example.com',
->         book_title: 'Beauty and the Beast - Part 1'
->     },
->     {
->         name: 'John Doe',
->         email: 'johndoed@example.com',
->         book_title: 'Beauty and the Beast - Part 2'
->     },
->     {
->         name: 'Alice Blue',
->         email: 'aliceblue@example.com',
->         books: 'The Secrets of Midnight Garden - Part 1'
->     },
->     {
->         name: 'Alice Blue',
->         email: 'aliceblue@example.com',
->         books: 'The Secrets of Midnight Garden - Part 2'
->     }
-> ]
-> ```
-> 
-> </details>
-
-</details>
-
-<details><summary><i>Example 6:</i></summary>
-
-> <details><summary>Schema (as before)</summary>
->
-> ```sql
-> -- The users table
-> CREATE TABLE users (
->     id int primary key generated always as identity,
->     name varchar,
->     email varchar,
->     phone varchar,
->     role varchar,
->     created_time timestamp
-> );
-> -- The books table
-> CREATE TABLE books (
->     id int primary key generated always as identity,
->     title varchar,
->     content varchar,
->     author int references users (id),
->     created_time timestamp
-> );
-> ```
-> 
-> </details>
-
-```js
-// Same query but structured and aggregated via JSON formatting | ONE-TO-MANY
-const result = await client.query(
-    `SELECT
-        name,
-        email,
-        author <~ books: { title, content }[] AS books
-    FROM books
-    WHERE author <~ books ~> content LIKE '%(C) 2024%'`,
-);
-console.log(result);
-```
-
-> <details><summary>Console</summary>
->
-> ```js
-> [
->     {
->         name: 'John Doe',
->         email: 'johndoed@example.com',
->         books: [
->             {
->                 title: 'Beauty and the Beast - Part 1',
->                 content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...'
->             },
->             {
->                 title: 'Beauty and the Beast - Part 2',
->                 content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...'
->             }
->         ]
->     },
->     {
->         name: 'Alice Blue',
->         email: 'aliceblue@example.com',
->         books: [
->             {
->                 title: 'The Secrets of Midnight Garden - Part 1',
->                 content: '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...'
->             },
->             {
->                 title: 'The Secrets of Midnight Garden - Part 2',
->                 content: '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...'
->             }
->         ]
->     }
-> ]
-> ```
-> 
-> </details>
-
-</details>
-
-<details><summary><i>Example 7:</i></summary>
-
-> <details><summary>Schema (as before)</summary>
->
-> ```sql
-> -- The users table
-> CREATE TABLE users (
->     id int primary key generated always as identity,
->     name varchar,
->     email varchar,
->     phone varchar,
->     role varchar,
->     created_time timestamp
-> );
-> -- The books table
-> CREATE TABLE books (
->     id int primary key generated always as identity,
->     title varchar,
->     content varchar,
->     author int references users (id),
->     created_time timestamp
-> );
-> ```
-> 
-> </details>
-
-```js
-// A basic multi-dimensional INSERT | MANY-TO-ONE
-// TIP: for each book entry CREATED, CREATE a user with specified email
-const result = await client.query(
-    `INSERT INTO books (
-        title,
-        content,
-        author ~> email
-    ) VALUES (
-        'Beauty and the Beast',
-        '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
-        'johndoed@example.com'
-    ), (
-        'The Secrets of Midnight Garden'
-        '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...',
-        'aliceblue@example.com'
-    )`
-);
-console.log(result); // true
-```
-
-```js
-// A basic multi-dimensional UPSERT | MANY-TO-ONE
-// TIP: for each book entry CREATED or UPDATED, CREATE or UPDATE a user with specified email
-const result = await client.query(
-    `UPSERT INTO books (
-        title,
-        content,
-        author ~> email
-    ) VALUES (
-        'Beauty and the Beast',
-        '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
-        'johndoed@example.com'
-    ), (
-        'The Secrets of Midnight Garden'
-        '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...',
-        'aliceblue@example.com'
-    )`
-);
-console.log(result); // true
-```
-
-```js
-// A basic multi-dimensional UPDATE | MANY-TO-ONE
-// TIP: for each book entry UPDATED, CREATE or UPDATE a user with specified email
-const result = await client.query(
-    `UPDATE books
-    SET
-        title = 'Beauty and the Beast',
-        content = '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
-        author ~> email = 'johndoed@example.com'
-    `
-);
-console.log(result); // true
-```
-
-</details>
-
-<details><summary><i>Example 8:</i></summary>
-
-> <details><summary>Schema (as before)</summary>
->
-> ```sql
-> -- The users table
-> CREATE TABLE users (
->     id int primary key generated always as identity,
->     name varchar,
->     email varchar,
->     phone varchar,
->     role varchar,
->     created_time timestamp
-> );
-> -- The books table
-> CREATE TABLE books (
->     id int primary key generated always as identity,
->     title varchar,
->     content varchar,
->     author int references users (id),
->     created_time timestamp
-> );
-> ```
-> 
-> </details>
-
-```js
-// A multi-dimensional INSERT
-// TIP: for each book entry CREATED, CREATE a user with specified name and email, RETURNING entire tree
-const result = await client.query(
-    `INSERT INTO books (
-        title,
-        content,
-        author: (
-            name,
-            email
-        )
-    ) VALUES (
-        'Beauty and the Beast',
-        '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
-        (
-            'John Doe',
-            'johndoed@example.com'
-        )
-    ), (
-        'The Secrets of Midnight Garden'
-        '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...',
-        (
-            'Alice Blue',
-            'aliceblue@example.com'
-        )
-    ) RETURNING *`
-);
-console.log(result);
-```
-
-> <details><summary>Console</summary>
->
-> ```js
-> [
->     {
->         id: 1,
->         title: 'Beauty and the Beast',
->         content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
->         author: {
->             id: 1,
->             name: 'John Doe',
->             email: 'johndoed@example.com',
->             phone: '(555) 123-4567',
->             role: 'admin',
->             created_time: '2024-11-06T18:22:46.709Z'
->         },
->         created_time: '2024-11-06T18:22:46.709Z'
->     },
->     {
->         id: 2,
->         title: 'The Secrets of Midnight Garden',
->         content: '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...',
->         author: {
->             id: 2,
->             name: 'Alice Blue',
->             email: 'aliceblue@example.com',
->             phone: '(888) 123-4567',
->             role: 'admin',
->             created_time: '2024-11-06T18:22:46.709Z'
->         },
->         created_time: '2024-11-06T18:22:46.709Z'
->     }
-> ]
-> ```
-> 
-> </details>
-
-</details>
-
-<details><summary><i>Example 9:</i></summary>
-
-> <details><summary>Schema (as before)</summary>
->
-> ```sql
-> -- The users table
-> CREATE TABLE users (
->     id int primary key generated always as identity,
->     name varchar,
->     email varchar,
->     phone varchar,
->     role varchar,
->     created_time timestamp
-> );
-> -- The books table
-> CREATE TABLE books (
->     id int primary key generated always as identity,
->     title varchar,
->     content varchar,
->     author int references users (id),
->     created_time timestamp
-> );
-> ```
-> 
-> </details>
-
-```js
-// A multi-dimensional INSERT
-// TIP: for each user CREATED, CREATE a book entry with specified title and content, RETURNING entire tree
-const result = await client.query(
-    `INSERT INTO users (
-        name,
-        email,
-        author <~ books: (
-            title,
-            content
-        )
-    ) VALUES (
-        'John Doe',
-        'johndoed@example.com',
-        (
-            'Beauty and the Beast',
-            '(C) 2024 johndoed@example.com\nBeauty and the Beast...'
-        )
-    ), (
-        'Alice Blue',
-        'aliceblue@example.com',
-        (
-            'The Secrets of Midnight Garden',
-            '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...'
-        )
-    ) RETURNING *`
-);
-console.log(result);
-```
-
-> <details><summary>Console</summary>
->
-> ```js
-> [
->     {
->         id: 1,
->         name: 'John Doe',
->         email: 'johndoed@example.com',
->         phone: '(555) 123-4567',
->         role: 'admin',
->         created_time: '2024-11-06T18:22:46.709Z'
->         'author <~ books': [
->             {
->                 id: 1,
->                 title: 'Beauty and the Beast',
->                 content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
->                 created_time: '2024-11-06T18:22:46.709Z'
->             }
->         ]
->     },
->     {
->         id: 1,
->         name: 'Alice Blue',
->         email: 'aliceblue@example.com',
->         phone: '(888) 123-4567',
->         role: 'admin',
->         created_time: '2024-11-06T18:22:46.709Z'
->         'author <~ books': [
->             {
->                 id: 1,
->                 title: 'The Secrets of Midnight Garden',
->                 content: '(C) 2024 johndoed@example.com\nThe Secrets of Midnight Garden...',
->                 created_time: '2024-11-06T18:22:46.709Z'
->             }
->         ]
->     }
-> ]
-> ```
-> 
-> </details>
-
-</details>
-
-<details><summary><i>Example 10:</i></summary>
-
-> <details><summary>Schema (as before)</summary>
->
-> ```sql
-> -- The users table
-> CREATE TABLE users (
->     id int primary key generated always as identity,
->     name varchar,
->     email varchar,
->     phone varchar,
->     role varchar,
->     created_time timestamp
-> );
-> -- The books table
-> CREATE TABLE books (
->     id int primary key generated always as identity,
->     title varchar,
->     content varchar,
->     author int references users (id),
->     created_time timestamp
-> );
-> ```
-> 
-> </details>
-
-```js
-// A multi-dimensional INSERT
-// TIP: for each user CREATED, CREATE two book entries with specified titles and contents, RETURNING entire tree
-const result = await client.query(
-    `INSERT INTO users (
-        name,
-        email,
-        author <~ books: (
-            title,
-            content
-        )
-    ) VALUES (
-        'John Doe',
-        'johndoed@example.com',
-        VALUES (
-            (
-                'Beauty and the Beast - Part 1',
-                '(C) 2024 johndoed@example.com\nBeauty and the Beast...'
-            ), (
-                'Beauty and the Beast - Part 2',
-                '(C) 2024 johndoed@example.com\nBeauty and the Beast...'
-            )
-        )
-    ), (
-        'Alice Blue',
-        'aliceblue@example.com',
-        VALUES (
-            (
-                'The Secrets of Midnight Garden - Part 1',
-                '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...'
-            ), (
-                'The Secrets of Midnight Garden - Part 2',
-                '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...'
-            )
-        )
-    ) RETURNING *`
-);
-console.log(result);
-```
-
-> <details><summary>Console</summary>
->
-> ```js
-> [
->     {
->         id: 1,
->         name: 'John Doe',
->         email: 'johndoed@example.com',
->         phone: '(555) 123-4567',
->         role: 'admin',
->         created_time: '2024-11-06T18:22:46.709Z'
->         'author <~ books': [
->             {
->                 id: 1,
->                 title: 'Beauty and the Beast - Part 1',
->                 content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
->                 created_time: '2024-11-06T18:22:46.709Z'
->             },
->             {
->                 id: 2,
->                 title: 'Beauty and the Beast - Part 2',
->                 content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
->                 created_time: '2024-11-06T18:22:46.709Z'
->             }
->         ]
->     },
->     {
->         id: 1,
->         name: 'Alice Blue',
->         email: 'aliceblue@example.com',
->         phone: '(888) 123-4567',
->         role: 'admin',
->         created_time: '2024-11-06T18:22:46.709Z'
->         'author <~ books': [
->             {
->                 id: 1,
->                 title: 'The Secrets of Midnight Garden - Part 1',
->                 content: '(C) 2024 johndoed@example.com\nThe Secrets of Midnight Garden...',
->                 created_time: '2024-11-06T18:22:46.709Z'
->             },
->             {
->                 id: 2,
->                 title: 'The Secrets of Midnight Garden - Part 2',
->                 content: '(C) 2024 johndoed@example.com\nThe Secrets of Midnight Garden...',
->                 created_time: '2024-11-06T18:22:46.709Z'
->             }
->         ]
->     }
-> ]
-> ```
-> 
-> </details>
-
-</details>
+└ *(Details in the [UPSERT](https://github.com/linked-db/linked-ql/wiki/UPSERT) docs.)*
 
 </details>
 </td></tr>
@@ -872,7 +220,7 @@ console.log(result);
 
 While the typical ORM often imposes a high level of abstraction where that's not desired, Linked QL offers a <ins>SQL-by-default, progressive enhancement</ins> workflow that lets you think from the ground up! And at whatever part of that spectrum you find a sweet spot, you also get the same powerful set of features that Linked QL has to offer!
 
-##### └ *Example 1:*
+##### └ *Preview:*
 
 ```js
 // (a): A basic query with parameters
@@ -908,280 +256,7 @@ const result = await client.database('public').table('users').select(
 );
 ```
 
-<details><summary><i>Example 2:</i></summary>
-
-```js
-// (a): A non-basic query with parameters
-const result = await client.query(
-    `SELECT
-        name,
-        email
-    FROM users
-    WHERE (role = $1 OR role = $2) AND (
-        email IS NOT NULL OR (
-            phone IS NOT NULL AND country_code IS NOT NULL
-        )
-    )`,
-    ['admin', 'contributor']
-);
-```
-
-```js
-// (b): API equivalent 1
-const result = await client.database('public').table('users').select(
-    [ 'name', 'email' ],
-    { where: [
-        { some: [
-            { eq: ['role', { binding: 'admin' }] },
-            { eq: ['role', { binding: 'contributor' }] }
-        ] },
-        { some: [
-            { isNotNull: 'email' },
-            { every: [
-                { isNotNull: 'phone' },
-                { isNotNull: 'country_code' }
-            ] }
-        ] }
-    ] }
-);
-```
-
-```js
-// (c): API equivalent 2
-const result = await client.database('public').table('users').select(
-    [ 'name', 'email' ],
-    { where: [
-        (q) => q.some(
-            (r) => r.eq('role', (s) => s.binding('admin')),
-            (r) => r.eq('role', (s) => s.binding('contributor')),
-        ),
-        (q) => q.some(
-            (r) => r.isNotNull('email'),
-            (r) => r.every(
-                (s) => s.isNotNull('phone'),
-                (s) => s.isNotNull('country_code')
-            )
-        )
-    ] }
-);
-```
-
-</details>
-
-<details><summary><i>Example 3:</i></summary>
-
-```js
-// (a): A non-basic query with order by
-const result = await client.query(
-    `SELECT
-        name,
-        email
-    FROM users
-    WHERE role IS NOT NULL AND COALESCE(email, phone) IS NOT NULL)
-    ORDER BY
-        CASE role WHEN 'admin' THEN 1 WHEN 'contributor' THEN 2 ELSE 3 END ASC,
-        CASE WHEN phone IS NULL THEN 0 ELSE 1 END DESC,
-        name ASC`
-);
-```
-
-```js
-// (b): API equivalent 1
-const result = await client.database('public').table('users').select(
-    [ 'name', 'email' ],
-    { where: [
-        { isNotNull: 'role' },
-        { isNotNull: { fn: ['COALESCE', 'email', 'phone'] } }
-    ], orderBy: [
-        { expr: {
-            switch: 'role',
-            cases: [
-                { when: { value: 'admin' }, then: 1 },
-                { when: { value: 'contributor' }, then: 2 }
-            ],
-            default: 0
-        }, asc: true },
-        { expr: {
-            cases: [ { when: { isNull: 'phone' }, then: 0 } ],
-            default: 1
-        }, desc: true },
-        { expr: 'name', asc: true }
-    ] }
-);
-```
-
-```js
-// (c): API equivalent 2
-const result = await client.database('public').table('users').select(
-    [ 'name', 'email' ],
-    { where: [
-        (q) => q.isNotNull('role'),
-        (q) => q.isNotNull((r) => r.fn('COALESCE', 'email', 'phone'))
-    ], orderBy: [
-        (q) => q.expr(
-            (r) => r.switch('role').cases(
-                (s) => s.when((t) => t.value('admin')).then(1),
-                (s) => s.when((t) => t.value('contributor')).then(2)
-            ).default(3)
-        ).asc(),
-        (q) => q.expr(
-            (r) => r.cases(
-                (s) => s.when((t) => t.isNull('phone')).then(0)
-            ).default(1)
-        ).desc(),
-        (q) => q.expr('name').asc()
-    ] }
-);
-```
-
-</details>
-
-<details><summary><i>Example 4:</i></summary>
-
-```js
-// (a): A basic query with JSON formatting
-const result = await client.query(
-    `SELECT
-        name,
-        { email, phone AS mobile } AS contact1,
-        [ email, phone ] AS contact2
-    FROM users`
-);
-```
-
-```js
-// (b): API equivalent 1
-const result = await client.database('public').table('users').select([
-    { expr: 'name' },
-    { expr: {
-        jsonObject: ['email', { expr: 'phone', as: 'mobile'}]
-    }, as: 'contact1' },
-    { expr: {
-        jsonArray: ['email', 'phone']
-    }, as: 'contact2' }
-]);
-```
-
-```js
-// (c): API equivalent 2
-const result = await client.database('public').table('users').select([
-    (q) => q.expr('name'),
-    (q) => q.expr(
-        (r) => r.jsonObject('email', (s) => s.expr('phone').as('mobile'))
-    ).as('contact1'),
-    (q) => q.expr(
-        (r) => r.jsonArray('email', 'phone')
-    ).as('contact2')
-]);
-```
-
-</details>
-
-<details><summary><i>Example 5:</i></summary>
- 
-```js
-// (a): A path-based relational query
-const result = await client.query(
-    `SELECT
-        title,
-        content,
-        author ~> name AS author_name
-    FROM books
-    WHERE author ~> role = $1`,
-    ['admin']
-);
-```
-
-```js
-// (b): API equivalent 1
-const result = await client.database('public').table('books').select(
-    { fields: [
-        { expr: 'title' },
-        { expr: 'content' },
-        { expr: {
-            path: ['author', '~>', 'name']
-        }, as: 'author_name' }
-    ], where: [
-        { eq: [
-            { path: ['author', '~>', 'role'] },
-            { binding: ['admin'] }
-        ] }
-    ] }
-);
-```
-
-```js
-// (c): API equivalent 2
-const result = await client.database('public').table('books').select(
-    { fields: [
-        (q) => q.expr('title'),
-        (q) => q.expr('content'),
-        (q) => q.expr(
-            (r) => r.path('author', '~>', 'name')
-        ).as('author_name'),
-    ], where: [
-        (q) => q.eq(
-            (r) => r.path('author', '~>', 'role'),
-            (r) => r.binding('admin')
-        )
-    ] }
-);
-```
-
-</details>
-
-<details><summary><i>Example 6:</i></summary>
-
-```js
-// (a): Same relational query with formatting
-const result = await client.query(
-    `SELECT
-        title,
-        content,
-        author: { name, email } AS author
-    FROM books
-    WHERE author ~> role = $1`,
-    ['admin']
-);
-```
-
-```js
-// (b): API equivalent 1
-const result = await client.database('public').table('books').select(
-    { fields: [
-        { expr: 'title' },
-        { expr: 'content' },
-        { expr: {
-            path: ['author', '~>', { jsonObject: ['name', 'email'] }]
-        }, as: 'author' }
-    ], where: [
-        { eq: [
-            { path: ['author', '~>', 'role'] },
-            { binding: ['admin'] }
-        ] }
-    ] }
-);
-```
-
-```js
-// (c): API equivalent 2
-const result = await client.database('public').table('books').select(
-    { fields: [
-        (q) => q.expr('title'),
-        (q) => q.expr('content'),
-        (q) => q.expr(
-            (r) => r.path('author', '~>', (s) => s.jsonObject('name', 'email'))
-        ).as('author'),
-    ], where: [
-        (q) => q.eq(
-            (r) => r.path('author', '~>', 'role'),
-            (r) => r.binding('admin')
-        )
-    ] }
-);
-```
-
-</details>
+└ *(Details in the [Examples](https://github.com/linked-db/linked-ql/wiki/Examples) section.)*
 
 </details>
 </td></tr>
@@ -1191,7 +266,7 @@ const result = await client.database('public').table('books').select(
 
 Whereas the typical ORM requires you to feed them with your database schema (case in point: [Drizzle](https://orm.drizzle.team/)), Linked QL <ins>automatically infers it</ins> and magically maintains 100% schema-awareness throughout (without necessarily looking again)! You get a whole class of manual work entirely out of the equation!
 
-##### └ *Example 1:*
+##### └ *Preview:*
 
 > ✨ Simply <ins>plug</ins> to your database and <ins>play</ins>...
 
@@ -1224,15 +299,17 @@ const result = await client.query(
 );
 ```
 
+└ *(Details in the [Automatic Schema Inference](https://github.com/linked-db/linked-ql/wiki/Automatic-Schema-Inference) section.)*
+
 </details>
 </td></tr>
 
 <tr><td>
 <details _name="features"><summary>Automatic schema versioning</summary>
 
-The typical database has no concept of versioning, but no problem, Linked QL comes with it to your database, and along with it, a powerful rollback and rollforward system! On each DDL operation you run against your database (`CREATE`, `ALTER`, `DROP`), you get a savepoint automatically created for you and a seamless rollback path anytime!
+The typical database has no concept of versioning, but no problem, Linked QL comes with it to your database, and along with it, a powerful rollback and rollforward system! On each DDL operation you run against your database (`CREATE`, `ALTER`, `DROP`), you get a savepoint automatically created for you and a seamless rollback path you can take anytime!
 
-##### └ *Example 1:*
+##### └ *Preview:*
 
 > ✨ Alter your database and get back a reference to a "savepoint" automatically created for you
 
@@ -1264,46 +341,6 @@ console.log(savepoint.commitDate()); // 2024-07-17T22:40:56.786Z
 console.log(savepoint.jsonfy());
 ```
 
-> <details><summary>Console</summary>
-> 
-> ```js
-> {
->   // Internal parameters...
->   master_savepoint: null,
->   id: '952cc6ae-5b5b-4534-8b03-dc38ee8658ac',
->   database_tag: 'db.1730978107426',
->   // Schema snapshot...
->   name: 'public',
->   '$name': null,
->   tables: [
->     {
->       name: 'users',
->       columns: [Array],
->       constraints: [],
->       indexes: [],
->       status: 'new'
->     }
->   ],
->   status: null,
->   // Version details...
->   version_tag: 1,
->   version_tags: [ 1 ],
->   version_state: 'commit',
->   commit_date: '2024-07-17T22:40:56.786Z',
->   commit_desc: 'Create users table',
->   commit_ref: null,
->   commit_pid: '72776',
->   rollback_date: null,
->   rollback_desc: null,
->   rollback_ref: null,
->   rollback_pid: null,
->   // Cascades...
->   cascades: []
-> }
-> ```
-> 
-> </details>
-
 > ✨ Roll back savepoint
 
 ```js
@@ -1311,20 +348,11 @@ console.log(savepoint.jsonfy());
 console.log(savepoint.restorePreview()); // DROP TABLE public.users CASCADE
 // Execute now (drops "users" table)
 await savepoint.rollback({
-    desc: 'Users table unnecessary'
+    desc: 'Users table no more necessary'
 });
 ```
 
-> ✨ Roll forward savepoint
-
-```js
-// SQL preview
-console.log(savepoint.restorePreview()); // CREATE TABLE public.users (...)
-// Execute now (recreates "users" table)
-await savepoint.recommit({
-    desc: 'Users table necessary again'
-});
-```
+└ *(Details in the [Automatic Schema Versioning](https://github.com/linked-db/linked-ql/wiki/Automatic-Schema-Versioning) section.)*
 
 </details>
 </td></tr>
@@ -1334,7 +362,7 @@ await savepoint.recommit({
 
 Whereas schema evolution remains a drag across the board, it comes as a particularly nifty experience in Linked QL! As against the conventional script-based migrations approach, Linked QL follows a diff-based approach that lets you manage your entire DB structure <ins>declaratively</ins> out of a single `schema.json` (or `schema.yml`) file!
 
-##### └ *Example 1:*
+##### └ *Preview:*
 
 > `./database/schema.json`
 
@@ -1351,108 +379,48 @@ Whereas schema evolution remains a drag across the board, it comes as a particul
 ]
 ```
 
-<details><summary><i>Example 2:</i></summary>
-
-<br>
-
-> `./database/schema.json`
-
-```js
-[
-    {
-        "name": "database_1",
-        "tables": [
-            {
-                "name": "users",
-                "columns": [
-                    {
-                        "name": "id",
-                        "type": "int",
-                        "primaryKey": true,
-                        "identity": true
-                    },
-                    {
-                        "name": "first_name",
-                        "type": ["varchar", 101]
-                    },
-                    {
-                        "name": "last_name",
-                        "type": ["varchar", 101]
-                    },
-                    {
-                        "name": "full_name",
-                        "type": ["varchar", 101],
-                        "expression": { "join": ["first_name", " ", "last_name"] }
-                    },
-                    {
-                        "name": "email",
-                        "type": ["varchar", 50],
-                        "uniqueKey": true,
-                        "notNull": true,
-                        "check": { "matches": ["email", "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"] }
-                    },
-                    {
-                        "name": "parent",
-                        "type": "int",
-                        "notNull": true,
-                        "foreignKey": {
-                            "targetTable": "users",
-                            "targetColumns": ["id"],
-                            "matchRule": "full",
-                            "updateRule": "cascade",
-                            "deleteRule": "restrict"
-                        }
-                    }
-                ],
-                "constraints": [
-                    {
-                        "type": "PRIMARY_KEY",
-                        "columns": ["id_2"],
-                    },
-                    {
-                        "type": "FOREIGN_KEY",
-                        "columns": ["parent_2"],
-                        "targetTable": "users",
-                        "targetColumns": ["id"],
-                        "matchRule": "full",
-                        "updateRule": "cascade",
-                        "deleteRule": "restrict"
-                    },
-                    {
-                        "type": "UNIQUE_KEY",
-                        "name": "constraint_name",
-                        "columns": ["parent", "full_name"]
-                    },
-                    {
-                        "type": "CHECK",
-                        "expr": { "matches": ["email", "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"] }
-                    }
-                ],
-                "indexes": [
-                    {
-                        "type": "FULLTEXT",
-                        "columns": ["full_name"]
-                    },
-                    {
-                        "type": "SPATIAL",
-                        "columns": ["full_name"]
-                    }
-                ]
-            }
-        ]
-    },
-    {
-        "name": "database_2",
-        "tables": []
-    }
-]
-```
-
-</details>
+└ *(Details in the [Migration](https://github.com/linked-db/linked-ql/wiki/Migration) section.)*
 
 </details>
 </td></tr>
 </table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 <br>
 
@@ -1791,268 +759,6 @@ With schema versioning now happening at the database level, the whole concept of
     }
 ]
 ```
-
-> <details><summary>See a complete example</summary>
-> 
-> ```js
-> [
->     {
->         // string - required
->         "name": "database_1",
->         // TableSchemaSpec[]
->         "tables": [
->             {
->                 // string - required
->                 "name": "users",
->                 // ColumnSchemaSpec[] - required
->                 "columns": [
->                     {
->                         // string - required
->                         "name": "id",
->                         // string or array like ["int",3] - required
->                         "type": "int",
->                         // boolean or PrimaryKeySchemaSpec
->                         "primaryKey": true,
->                         // boolean or IdentityConstraintSchemaSpec
->                         "identity": true
->                     },
->                     {
->                         // string - required
->                         "name": "first_name",
->                         // array or string like "varchar" - required
->                         "type": ["varchar", 101]
->                     },
->                     {
->                         // string - required
->                         "name": "last_name",
->                         // array or string like "varchar" - required
->                         "type": ["varchar", 101]
->                     },
->                     {
->                         // string - required
->                         "name": "full_name",
->                         // array or string like "varchar" - required
->                         "type": ["varchar", 101],
->                         // string or ExpressionConstraintSchemaSpec
->                         "expression": "(first_name || ' ' || last_name)"
->                     },
->                     {
->                         // string - required
->                         "name": "email",
->                         // array or string like "varchar" - required
->                         "type": ["varchar", 50],
->                         // boolean or UniqueKeySchemaSpec
->                         "uniqueKey": true,
->                         // boolean
->                         "notNull": true,
->                         // string or CheckConstraintSchemaSpec
->                         "matches": "(email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')"
->                     },
->                     {
->                         // string - required
->                         "name": "parent",
->                         // string or array like ["int",3] - required
->                         "type": "int",
->                         // boolean
->                         "notNull": true,
->                         // ForeignKeySchemaSpec
->                         "references": {
->                             // string or string[] like ["database_2", "users"] - required
->                             "targetTable": "users",
->                             // string[] - required
->                             "targetColumns": ["id"],
->                             // string
->                             "matchRule": "full",
->                             // string or object like { rule: "cascade", columns: ["col1"] }
->                             "updateRule": "cascade",
->                             // string or object like { rule: "restrict", columns: ["col1"] }
->                             "deleteRule": "restrict"
->                         }
->                     }
->                 ],
->                 // TableConstraintSchemaType[]
->                 "constraints": [
->                     {
->                         // string - required
->                         "type": "PRIMARY_KEY",
->                         // string[] - required
->                         "columns": ["id_2"],
->                     },
->                     {
->                         // string - required
->                         "type": "FOREIGN_KEY",
->                         // string[] - required
->                         "columns": ["parent_2"],
->                         // string or string[] like ["database_2", "users"] - required
->                         "targetTable": "users",
->                         // string[] - required
->                         "targetColumns": ["id"],
->                         // string
->                         "matchRule": "full",
->                         // string or object like { rule: "cascade", columns: ["col1"] }
->                         "updateRule": "cascade",
->                         // string or object like { rule: "restrict", columns: ["col1"] }
->                         "deleteRule": "restrict"
->                     },
->                     {
->                         // string - required
->                         "type": "UNIQUE_KEY",
->                         // string
->                         "name": "constraint_name",
->                         // string[] - required
->                         "columns": ["parent", "full_name"]
->                     },
->                     {
->                         // string - required
->                         "type": "CHECK",
->                         // string - required
->                         "expr": "(email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')"
->                     }
->                 ],
->                 // IndexSchemaSpec[]
->                 "indexes": [
->                     {
->                         // string - required
->                         "type": "FULLTEXT",
->                         // string[] - required
->                         "columns": ["full_name"]
->                     },
->                     {
->                         // string - required
->                         "type": "SPATIAL",
->                         // string[] - required
->                         "columns": ["full_name"]
->                     }
->                 ]
->             }
->         ]
->     },
->     {
->         // string - required
->         "name": "database_2",
->         // TableSchemaSpec[]
->         "tables": []
->     }
-> ]
-> ```
-> 
-> </details>
-
-> <details><summary>See the schema spec</summary>
-> 
-> ```ts
-> interface DatabaseSchemaSpec {
->     name: string;
->     tables: TableSchemaSpec[];
-> }
-> ```
-> 
-> ```ts
-> interface TableSchemaSpec {
->     name: string | string[];
->     columns: ColumnSchemaSpec[];
->     constraints: TableConstraintSchemaType[];
->     indexes: IndexSchemaSpec[];
-> }
-> ```
-> 
-> ```ts
-> interface ColumnSchemaSpec {
->     name: string;
->     type: string | array;
->     primaryKey?: boolean | PrimaryKeySchemaSpec;
->     [ foreignKey | references ]?: ForeignKeySchemaSpec;
->     uniqueKey?: boolean | UniqueKeySchemaSpec;
->     check?: string | CheckConstraintSchemaSpec;
->     default?: string | DefaultConstraintSchemaSpec;
->     expression?: string | ExpressionConstraintSchemaSpec;
->     identity: boolean | IdentityConstraintSchemaSpec;
->     onUpdate?: string | OnUpdateConstraintSchemaSpec; // (MySQL-specific attribute)
->     autoIncrement?: boolean; // (MySQL-specific attribute)
->     notNull?: boolean;
->     null?: boolean;
-> }
-> ```
-> 
-> ```ts
-> type TableConstraintSchemaType = TablePrimaryKeySchemaSpec | TableForeignKeySchemaSpec | TableUniqueKeySchemaSpec | TableCheckConstraintSchemaSpec;
-> ```
-> 
-> ```ts
-> interface TablePrimaryKeySchemaSpec extends PrimaryKeySchemaSpec {
->     type: 'PRIMARY_KEY';
->     columns: string[];
-> }
-> 
-> interface TableForeignKeySchemaSpec extends ForeignKeySchemaSpec {
->     type: 'FOREIGN_KEY';
->     columns: string[];
-> }
-> 
-> interface TableUniqueKeySchemaSpec extends UniqueKeySchemaSpec {
->     type: 'UNIQUE_KEY';
->     columns: string[];
-> }
-> 
-> interface TableCheckConstraintSchemaSpec extends CheckConstraintSchemaSpec {
->     type: 'CHECK';
-> }
-> ```
-> 
-> ```ts
-> type ColumnConstraintSchemaType = PrimaryKeySchemaSpec | ForeignKeySchemaSpec | UniqueKeySchemaSpec | CheckConstraintSchemaSpec | DefaultConstraintSchemaSpec | ExpressionConstraintSchemaSpec | IdentityConstraintSchemaSpec | OnUpdateConstraintSchemaSpec;
-> ```
-> 
-> ```ts
-> interface PrimaryKeySchemaSpec {
->     name: string;
-> }
-> 
-> interface ForeignKeySchemaSpec {
->     name?: string;
->     targetTable: string | string[];
->     targetColumns: string[];
->     matchRule?: string;
->     updateRule?: string | { rule: string, columns: string[] };
->     deleteRule?: string | { rule: string, columns: string[] };
-> }
-> 
-> interface UniqueKeySchemaSpec {
->     name: string;
-> }
-> 
-> interface CheckConstraintSchemaSpec {
->     name?: string;
->     expr: string;
-> }
-> 
-> interface DefaultConstraintSchemaSpec {
->     expr: string;
-> }
-> 
-> interface ExpressionConstraintSchemaSpec {
->     expr: string;
->     stored: boolean;
-> }
-> 
-> interface IdentityConstraintSchemaSpec {
->     always: boolean;
-> }
-> 
-> interface OnUpdateConstraintSchemaSpec {
->     expr: string;
-> }
-> ```
-> 
-> ```ts
-> interface IndexSchemaSpec {
->     name?: string;
->     type: string;
->     columns: string[];
-> }
-> ```
->
-> </details>
 
 If you had that somewhere in your application, say at `./database/schema.json`, Linked QL could help keep it in sync both ways with your database:
 

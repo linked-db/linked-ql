@@ -31,15 +31,16 @@ const clientAPIS = await importClients(dir);
 switch($command) {
     // Histories
     case 'savepoints': await showSavepoints();
+    case 'dump-histories': await dumpHistories();
     case 'clear-histories': await clearHistories();
+    // Local
+    case 'refresh': await refresh();
+    case 'generate': await generate();
     // Commit / restore
     case 'commit': await commit();
     case 'rollback': await restore();
     case 'rollforward': await restore(true);
     case 'restore': await restore(!!flags['forward']);
-    // Local
-    case 'refresh': await refresh();
-    case 'generate': await generate();
     // Replication
     case 'replicate': await replicate();
 }
@@ -119,15 +120,26 @@ async function prompt(message) {
 // ------
 
 async function showSavepoints() {
-    const savepoints = await clientAPIS.default().getSavepoints({ selector: flags['select']?.split(',').map((s) => s.trim()), direction: flags['forward'] ? 'forward' : 'backward' });
+    const savepoints = await clientAPIS.default().getSavepoints({ selector: flags['select']?.split(',').map((s) => s.trim()), lookAhead: !!flags['forward'] });
     const versionState = flags['forward'] ? 'rollback' : 'commit';
     console.table(savepoints.map(sv => sv.jsonfy()), ['name', 'version_tag', 'version_tags', 'version_state', `${versionState}_date`, `${versionState}_desc`]);
     process.exit();
 }
 
+async function dumpHistories() {
+    const historiesJson = await clientAPIS.default().getSavepoints({ histories: true });
+    console.log(`\nDone.`);
+    fileAPIS.histories().write(historiesJson);
+    process.exit();
+}
+
 async function clearHistories() {
+    if (!flags['select']) {
+        console.log(`No databases selected. Aborting.`);
+        process.exit();
+    }
     const utils = clientAPIS.default().createCommonSQLUtils();
-    const savepointsLite = await clientAPIS.default().getSavepoints({ lite: true, selector: flags['select']?.split(',').map((s) => s.trim()) });
+    const savepointsLite = await clientAPIS.default().getSavepoints({ lite: true, selector: flags['select'].split(',').map((s) => s.trim()) });
     if (!savepointsLite.length) notFoundExit('savepoint records');
     // Confirm and execute...
     const confirmMessage = [`This will permanently erase savepoint records for ${savepointsLite.map((v) => `${utils.ident(v.name)}@${v.version_tag}`).join(', ')}!`];
@@ -199,7 +211,7 @@ async function commit() {
 
 async function restore(forward = false) {
     if (!flags['desc'] && flags['yes']) throw new Error(`Command missing the --desc parameter.`);
-    const savepoints = await clientAPIS.default().getSavepoints({ selector: flags['select']?.split(',').map((s) => s.trim()), direction: forward ? 'forward' : 'backward' });
+    const savepoints = await clientAPIS.default().getSavepoints({ selector: flags['select']?.split(',').map((s) => s.trim()), lookAhead: !!forward });
     if (!savepoints.length) notFoundExit(forward ? 'forward savepoint records' : 'savepoint records');
     let restoreCount = 0;
     for (const savepoint of savepoints) {
@@ -267,12 +279,6 @@ async function refresh() {
 }
 
 async function generate() {
-    if (flags['histories']) {
-        const historiesJson = await clientAPIS.default().getSavepoints({ histories: true });
-        console.log(`\nDone.`);
-        fileAPIS.histories().write(historiesJson);
-        process.exit();
-    }
     const localSchema = RootSchema.fromJSON(clientAPIS.default(), fileAPIS.schema().read() || []);
     const schemaSelector = getResolvedSchemaSelector();
     const savepointsLite = await clientAPIS.default().getSavepoints({ lite: true });
@@ -291,19 +297,22 @@ async function generate() {
 
 async function replicate() {
     let historiesJson1, historiesJson2, targetClient;
-    if (clientAPIS.remote(false)) {
+    if (flags['origin']) {
         historiesJson1 = await clientAPIS.default().getSavepoints({ histories: true });
         historiesJson2 = await clientAPIS.remote().getSavepoints({ histories: true });
         let targetClient1 = clientAPIS.default();
         let targetClient2 = clientAPIS.remote();
-        if (flags['reverse']) {
+        if (flags['swap']) {
             [historiesJson1, historiesJson2, targetClient1, targetClient2] = [historiesJson2, historiesJson1, targetClient2, targetClient1];
         }
         targetClient = targetClient2;
-    } else {
+    } else if (flags['histories']) {
         historiesJson1 = fileAPIS.histories().read();
         historiesJson2 = await clientAPIS.default().getSavepoints({ histories: true });
         targetClient = clientAPIS.default();
+    } else {
+        console.log(`Neither the --origin flag nor the --histories flag has been specified. Aborting.`);
+        process.exit();
     }
     const targetClientLinkedDB = await targetClient.linkedDB();
     const targetSavepointsTable = targetClientLinkedDB.table('savepoints');
