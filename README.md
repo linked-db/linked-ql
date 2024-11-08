@@ -333,7 +333,7 @@ Install Linked QL:
 <tr><td>
 <details _name="setup"><summary>Postgres</summary>
 
-Install and connect the [`pg`](https://github.com/brianc/node-postgres) client. Use Linked QL as a wrapper over that.
+Install and connect the [`pg`](https://github.com/brianc/node-postgres) client. (Or another postgres client of your choice.) Use Linked QL as a wrapper over that.
 
 ```cmd
 npm install pg
@@ -360,7 +360,7 @@ const client = new Client(pgClient, { dialect: 'postgres' });
 <tr><td>
 <details _name="setup"><summary>MySQL/mariadb</summary>
 
-Install and connect the [`mariadb`](https://github.com/mariadb-corporation/mariadb-connector-nodejs) client. (Alternatively, the [`mysql`](https://www.npmjs.com/package/mysql)/[`mysql2`](https://www.npmjs.com/package/mysql2) for MySQL databases.) Use Linked QL as a wrapper over that.
+Install and connect the [`mariadb`](https://github.com/mariadb-corporation/mariadb-connector-nodejs) client. (Or, where applicable, the [`mysql`](https://www.npmjs.com/package/mysql)/[`mysql2`](https://www.npmjs.com/package/mysql2).) Use Linked QL as a wrapper over that.
 
 ```cmd
 npm install mariadb
@@ -421,7 +421,7 @@ const client = new Client;
 
 <br>
 
-All `client` instances above implement the same [interface](https://github.com/linked-db/linked-ql/wiki/API)! The primary query interface therein is the [`client.query()`](https://github.com/linked-db/linked-ql/wiki/clientquery) method. For a quick list of examples, see [here's](https://github.com/linked-db/linked-ql/wiki/Examples).
+All `client` instances above implement the same [interface](https://github.com/linked-db/linked-ql/wiki/API)! The primary query interface therein is the [`client.query()`](https://github.com/linked-db/linked-ql/wiki/clientquery) method. For a quick list of examples, see [here](https://github.com/linked-db/linked-ql/wiki/Examples).
 
 </div>
 
