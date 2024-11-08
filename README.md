@@ -388,6 +388,22 @@ const client = new Client;
 
 </details>
 </td></tr>
+<tr><td>
+
+All `client` instances above implement the same interface:
+
+```js
+client.query('SELECT fname, lname FROM users WHERE role = $1', ['admin']).then(result => {
+    console.log(result);
+});
+```
+
+```js
+const result = await client.query('SELECT fname, lname FROM users WHERE role = $1', ['admin']);
+console.log(result);
+```
+
+</td></tr>
 </table>
 
 
