@@ -85,7 +85,7 @@ Model structures and traverse relationships like they were plain JSON objects—
 
 ##### └ *Preview:*
 
-➞ JSON Sugars ([Docs](https://github.com/linked-db/linked-ql/wiki/JSON-Sugars)):
+> JSON Sugars ➞ ([Docs](https://github.com/linked-db/linked-ql/wiki/JSON-Sugars)):
 
 ```js
 // A basic query with JSON formatting
@@ -99,56 +99,7 @@ const result = await client.query(
 console.log(result);
 ```
 
-> <details><summary>Console</summary>
->
-> ```js
-> [
->     {
->         name: 'John Doe',
->         contact1: {
->             email: 'johndoed@example.com',
->             mobile: '(555) 123-4567'
->         },
->         contact2: [ 'johndoed@example.com', '(555) 123-4567' ]
->     },
->     {
->         name: 'Alice Blue',
->         contact1: {
->             email: 'aliceblue@example.com',
->             mobile: '(888) 123-4567'
->         },
->         contact2: [ 'aliceblue@example.com', '(888) 123-4567' ]
->     }
-> ]
-> ```
-> 
-> </details>
-
-➞ Magic Paths ([Docs](https://github.com/linked-db/linked-ql/wiki/Magic-Paths)):
-
-> <details><summary>Schema</summary>
->
-> ```sql
-> -- The users table
-> CREATE TABLE users (
->     id int primary key generated always as identity,
->     name varchar,
->     email varchar,
->     phone varchar,
->     role varchar,
->     created_time timestamp
-> );
-> -- The books table
-> CREATE TABLE books (
->     id int primary key generated always as identity,
->     title varchar,
->     content varchar,
->     author int references users (id),
->     created_time timestamp
-> );
-> ```
-> 
-> </details>
+> Magic Paths ➞ ([Docs](https://github.com/linked-db/linked-ql/wiki/Magic-Paths)):
 
 ```js
 // A basic JOIN using magic paths | On a MANY-TO-ONE relationship
@@ -164,27 +115,7 @@ const result = await client.query(
 console.log(result);
 ```
 
-> <details><summary>Console</summary>
->
-> ```js
-> [
->     {
->         title: 'Beauty and the Beast',
->         content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
->         author_name: 'John Doe'
->     },
->     {
->         title: 'The Secrets of Midnight Garden',
->         content: '(C) 2024 aliceblue@example.com\nThe Secrets of Midnight Garden...',
->         author_name: 'Alice Blue'
->     }
-> ]
-> ```
-> 
-> </details>
-
-
-➞ Upserts ([Docs](https://github.com/linked-db/linked-ql/wiki/UPSERT)):
+> Upserts ➞ ([Docs](https://github.com/linked-db/linked-ql/wiki/UPSERT)):
 
 ```js
 // Create new user entry or update existing
@@ -194,6 +125,7 @@ const result = await client.query(
     VALUES ( 'John Doe', 'johndoe@example.com', 'admin' ),
         ( 'Alice Blue', 'aliceblue@example.com', 'contributor' )`
 );
+console.log(result);
 ```
 
 </details>
