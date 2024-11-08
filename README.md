@@ -83,7 +83,9 @@ console.log(result); // Savepoint
 
 Model structures and traverse relationships like they were plain JSON objects—all right within the language! Meet Linked QL's set of syntax extensions to SQL that <ins>do the hard work</ins>, <ins>cut your query in half</ins>, and even <ins>save you multiple round trips</ins>!
 
-##### └ *JSON Sugars:* ⟶ [Docs](https://github.com/linked-db/linked-ql/wiki/JSON-Sugars)
+##### └ *Preview:*
+
+> *JSON Sugars:* ⤏ [Docs](https://github.com/linked-db/linked-ql/wiki/JSON-Sugars)
 
 ```js
 // A basic query with JSON formatting
@@ -122,7 +124,7 @@ console.log(result);
 > 
 > </details>
 
-##### └ *Magic Paths:* ⟶ [Docs](https://github.com/linked-db/linked-ql/wiki/Magic-Paths)
+> *Magic Paths:* ⤏ [Docs](https://github.com/linked-db/linked-ql/wiki/Magic-Paths)
 
 > <details><summary>Schema</summary>
 >
@@ -182,7 +184,7 @@ console.log(result);
 > </details>
 
 
-##### └ *UPSERTS:* ⟶ [Docs](https://github.com/linked-db/linked-ql/wiki/UPSERT)
+> *UPSERTS:* ⤏ [Docs](https://github.com/linked-db/linked-ql/wiki/UPSERT)
 
 ```js
 // Create new user entry or update existing
