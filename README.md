@@ -45,7 +45,7 @@ _What we're doing differently?_
 
 Whereas the typical ORM has hand-written SQL as the exception, Linked QL has it as <ins>the default</ins>, and along with that, it comes with everything that makes it all the more delightful to #usethelanguage!
 
-##### └ *Preview 1:*
+##### └ *Preview:*
 
 ```js
 // A basic query with parameters
@@ -57,25 +57,12 @@ const result = await client.query(
     WHERE role = $1`,
     ['admin']
 );
-console.log(result);
+console.log(result); // Array
 ```
-
-> <details><summary>Console</summary>
->
-> ```js
-> [
->     { name: 'John Doe', email: 'johndoed@example.com' },
->     { name: 'Alice Blue', email: 'aliceblue@example.com' },
-> ]
-> ```
-> 
-> </details>
-
-##### └ *Preview 2:*
 
 ```js
 // A basic DDL query
-await client.query(
+const result = await client.query(
     `CREATE TABLE users (
         id int primary key generated always as identity,
         name varchar,
@@ -85,6 +72,7 @@ await client.query(
         created_time timestamp
     )`
 );
+console.log(result); // Savepoint
 ```
 
 </details>
@@ -95,7 +83,7 @@ await client.query(
 
 Model structures and traverse relationships like they were plain JSON objects—all right within the language! Meet Linked QL's set of syntax extensions to SQL that <ins>do the hard work</ins>, <ins>cut your query in half</ins>, and even <ins>save you multiple round trips</ins>!
 
-##### └ *JSON Sugars:*
+##### └ *JSON Sugars:* ⟶ [Docs](https://github.com/linked-db/linked-ql/wiki/JSON-Sugars)
 
 ```js
 // A basic query with JSON formatting
@@ -134,9 +122,7 @@ console.log(result);
 > 
 > </details>
 
-└ *(Details in the [JSON Sugars](https://github.com/linked-db/linked-ql/wiki/JSON-Sugars) docs.)*
-
-##### └ *Magic Paths:*
+##### └ *Magic Paths:* ⟶ [Docs](https://github.com/linked-db/linked-ql/wiki/Magic-Paths)
 
 > <details><summary>Schema</summary>
 >
@@ -196,9 +182,7 @@ console.log(result);
 > </details>
 
 
-└ *(Details in the [Magic Paths](https://github.com/linked-db/linked-ql/wiki/Magic-Paths) docs.)*
-
-##### └ *UPSERTS:*
+##### └ *UPSERTS:* ⟶ [Docs](https://github.com/linked-db/linked-ql/wiki/UPSERT)
 
 ```js
 // Create new user entry or update existing
@@ -209,8 +193,6 @@ const result = await client.query(
         ( 'Alice Blue', 'aliceblue@example.com', 'contributor' )`
 );
 ```
-
-└ *(Details in the [UPSERT](https://github.com/linked-db/linked-ql/wiki/UPSERT) docs.)*
 
 </details>
 </td></tr>
