@@ -86,7 +86,7 @@ Model structures and traverse relationships like they were plain JSON objects—
 ##### └ *Preview:*
 
 ```js
-// (a): A basic query with JSON formatting
+// (a): JSON Sugars
 const result = await client.query(
     `SELECT
         name,
@@ -98,7 +98,7 @@ console.log(result);
 ```
 
 ```js
-// (b): A basic JOIN using magic paths | On a MANY-TO-ONE relationship
+// (b): Magic Paths
 const result = await client.query(
     `SELECT
         title,
@@ -112,7 +112,7 @@ console.log(result);
 ```
 
 ```js
-// (c): Create new user entry or update existing
+// (c): Upsert
 const result = await client.query(
     `UPSERT INTO public.users 
         ( name, email role )
