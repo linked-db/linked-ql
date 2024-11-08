@@ -41,6 +41,17 @@ _What we're doing differently?_
     
 </th></tr>
 <tr><td>
+
+<div align="center">
+
+Not an ORM like Prisma or Drizzle, and yet, not an ordinary database query client!
+
+Here's what we're building:
+
+</div>
+
+</td></td>
+<tr><td>
 <details _name="features" open><summary>A SQL-native experience</summary>
 
 Whereas the typical ORM has hand-written SQL as the exception, Linked QL has it as <ins>the default</ins>, and along with that, it comes with everything that makes it all the more delightful to #usethelanguage!
@@ -286,6 +297,17 @@ Whereas schema evolution remains a drag across the board, it comes as a particul
 
 </details>
 </td></tr>
+<tr><td>
+
+<div align="center">
+
+<br>
+
+And we've got a few things in the radar: extensive TypeScript support (something we love about Prisma); Linked QL Realtime—a realtime data API for offline-first applications.
+
+</div>
+
+</td></tr>
 </table>
 
 <br>
@@ -311,9 +333,7 @@ Install Linked QL:
 <tr><td>
 <details _name="setup"><summary>Postgres</summary>
 
-<br>
-
-*Install and connect the [`pg`](https://github.com/brianc/node-postgres) client. Use Linked QL as a wrapper over that.*
+Install and connect the [`pg`](https://github.com/brianc/node-postgres) client. Use Linked QL as a wrapper over that.
 
 ```cmd
 npm install pg
@@ -340,7 +360,7 @@ const client = new Client(pgClient, { dialect: 'postgres' });
 <tr><td>
 <details _name="setup"><summary>MySQL/mariadb</summary>
 
-*Install and connect the [`mariadb`](https://github.com/mariadb-corporation/mariadb-connector-nodejs) client. (Alternatively, the [`mysql`](https://www.npmjs.com/package/mysql)/[`mysql2`](https://www.npmjs.com/package/mysql2) for MySQL databases.) Use Linked QL as a wrapper over that.*
+Install and connect the [`mariadb`](https://github.com/mariadb-corporation/mariadb-connector-nodejs) client. (Alternatively, the [`mysql`](https://www.npmjs.com/package/mysql)/[`mysql2`](https://www.npmjs.com/package/mysql2) for MySQL databases.) Use Linked QL as a wrapper over that.
 
 ```cmd
 npm install mariadb
@@ -401,7 +421,7 @@ const client = new Client;
 
 <br>
 
-All `client` instances above implement the same [interface](https://github.com/linked-db/linked-ql/wiki/API)! The primary query interface therein, `client.query()`, is covered [here](https://github.com/linked-db/linked-ql/wiki/clientquery). And [here's](https://github.com/linked-db/linked-ql/wiki/Examples). for some quick examples.
+All `client` instances above implement the same [interface](https://github.com/linked-db/linked-ql/wiki/API)! The primary query interface therein is the [`client.query()`](https://github.com/linked-db/linked-ql/wiki/clientquery) method. For a quick list of examples, see [here's](https://github.com/linked-db/linked-ql/wiki/Examples).
 
 </div>
 
