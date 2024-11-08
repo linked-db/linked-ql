@@ -302,6 +302,7 @@ _Getting Started_
 <div align="center">
 
 <br>
+
 Install Linked QL:
 
 <code>npm install @linked-db/linked-ql</code>
@@ -313,6 +314,7 @@ Install Linked QL:
 <details _name="setup"><summary>Postgres</summary>
 
 <br>
+
 > Install the [`pg`](https://github.com/brianc/node-postgres) client.
 
 ```cmd
@@ -341,6 +343,7 @@ const client = new Client(pgClient, { dialect: 'postgres' });
 <details _name="setup"><summary>MySQL/mariadb</summary>
 
 <br>
+
 > Install the [`mariadb`](https://github.com/mariadb-corporation/mariadb-connector-nodejs) client. (Alternatively, the [`mysql`](https://www.npmjs.com/package/mysql)/[`mysql2`](https://www.npmjs.com/package/mysql2) for MySQL databases.)
 
 ```cmd
@@ -401,6 +404,7 @@ const client = new Client;
 <div align="center">
 
 <br>
+
 All `client` instances above implement the same [interface]()!
 
 </div>
