@@ -288,6 +288,10 @@ Whereas schema evolution remains a drag across the board, it comes as a particul
 </td></tr>
 </table>
 
+<br>
+<br>
+<br>
+
 <table>
 <tr><th>
 
@@ -296,20 +300,23 @@ _Getting Started_
 </th></tr>
 <tr><td>
 
+<div align="center">
+
 Install Linked QL:
 
 ```cmd
 npm install @linked-db/linked-ql
 ```
 
-For SQL databases, install the regular SQL client you use for your DB. (Typically, [`pg`](https://github.com/brianc/node-postgres) for PostgreSQL, [`mariadb`](https://github.com/mariadb-corporation/mariadb-connector-nodejs) for mariadb, [`mysql`](https://www.npmjs.com/package/mysql)/[`mysql2`](https://www.npmjs.com/package/mysql2) for MySQL databases.)
+</div>
 
 </td></td>
 <tr><td>
 <details _name="setup"><summary>Postgres</summary>
 
-```js
-// Install the pg client
+> Install the [`pg`](https://github.com/brianc/node-postgres) client.
+
+```cmd
 npm install pg
 ```
 
@@ -334,8 +341,9 @@ const client = new Client(pgClient, { dialect: 'postgres' });
 <tr><td>
 <details _name="setup"><summary>MySQL/mariadb</summary>
 
-```js
-// Install the mariadb client
+> Install the [`mariadb`](https://github.com/mariadb-corporation/mariadb-connector-nodejs) client. (Alternatively, the [`mysql`](https://www.npmjs.com/package/mysql)/[`mysql2`](https://www.npmjs.com/package/mysql2) for MySQL databases.)
+
+```cmd
 npm install mariadb
 ```
 
@@ -390,6 +398,8 @@ const client = new Client;
 </td></tr>
 <tr><td>
 
+<div align="center">
+
 All `client` instances above implement the same interface:
 
 ```js
@@ -402,6 +412,8 @@ client.query('SELECT fname, lname FROM users WHERE role = $1', ['admin']).then(r
 const result = await client.query('SELECT fname, lname FROM users WHERE role = $1', ['admin']);
 console.log(result);
 ```
+
+</div>
 
 </td></tr>
 </table>
