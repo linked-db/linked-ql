@@ -85,7 +85,7 @@ Model structures and traverse relationships like they were plain JSON objects—
 
 ##### └ *Preview:*
 
-*JSON Sugars:* ➞ [Docs](https://github.com/linked-db/linked-ql/wiki/JSON-Sugars)
+➞ *JSON Sugars:* ([Docs](https://github.com/linked-db/linked-ql/wiki/JSON-Sugars))
 
 ```js
 // A basic query with JSON formatting
@@ -124,7 +124,7 @@ console.log(result);
 > 
 > </details>
 
-*Magic Paths:* ➞ [Docs](https://github.com/linked-db/linked-ql/wiki/Magic-Paths)
+➞ *Magic Paths:* ([Docs](https://github.com/linked-db/linked-ql/wiki/Magic-Paths))
 
 > <details><summary>Schema</summary>
 >
@@ -184,7 +184,7 @@ console.log(result);
 > </details>
 
 
-*Upserts:* ➞ [Docs](https://github.com/linked-db/linked-ql/wiki/UPSERT)
+➞ *Upserts:* ([Docs](https://github.com/linked-db/linked-ql/wiki/UPSERT))
 
 ```js
 // Create new user entry or update existing
