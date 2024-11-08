@@ -48,7 +48,7 @@ Whereas the typical ORM has hand-written SQL as the exception, Linked QL has it 
 ##### └ *Preview:*
 
 ```js
-// A basic query with parameters
+// (a): A basic query with parameters
 const result = await client.query(
     `SELECT
         name,
@@ -57,11 +57,11 @@ const result = await client.query(
     WHERE role = $1`,
     ['admin']
 );
-console.log(result); // Array
+console.log(result);
 ```
 
 ```js
-// A basic DDL query
+// (b): A basic DDL query
 const result = await client.query(
     `CREATE TABLE users (
         id int primary key generated always as identity,
@@ -72,7 +72,7 @@ const result = await client.query(
         created_time timestamp
     )`
 );
-console.log(result); // Savepoint
+console.log(result);
 ```
 
 </details>
@@ -85,10 +85,8 @@ Model structures and traverse relationships like they were plain JSON objects—
 
 ##### └ *Preview:*
 
-> JSON Sugars ➞ ([Docs](https://github.com/linked-db/linked-ql/wiki/JSON-Sugars)):
-
 ```js
-// A basic query with JSON formatting
+// (a): A basic query with JSON formatting
 const result = await client.query(
     `SELECT
         name,
@@ -99,10 +97,8 @@ const result = await client.query(
 console.log(result);
 ```
 
-> Magic Paths ➞ ([Docs](https://github.com/linked-db/linked-ql/wiki/Magic-Paths)):
-
 ```js
-// A basic JOIN using magic paths | On a MANY-TO-ONE relationship
+// (b): A basic JOIN using magic paths | On a MANY-TO-ONE relationship
 const result = await client.query(
     `SELECT
         title,
@@ -115,10 +111,8 @@ const result = await client.query(
 console.log(result);
 ```
 
-> Upserts ➞ ([Docs](https://github.com/linked-db/linked-ql/wiki/UPSERT)):
-
 ```js
-// Create new user entry or update existing
+// (c): Create new user entry or update existing
 const result = await client.query(
     `UPSERT INTO public.users 
         ( name, email role )
@@ -127,6 +121,8 @@ const result = await client.query(
 );
 console.log(result);
 ```
+
+> See docs ➞ [JSON Sugars](https://github.com/linked-db/linked-ql/wiki/JSON-Sugars), [Magic Paths](https://github.com/linked-db/linked-ql/wiki/Magic-Paths), [Upserts](https://github.com/linked-db/linked-ql/wiki/UPSERT)
 
 </details>
 </td></tr>
