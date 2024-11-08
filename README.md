@@ -48,7 +48,7 @@ Whereas the typical ORM has hand-written SQL as the exception, Linked QL has it 
 ##### └ *Preview:*
 
 ```js
-// (a): A basic query with parameters
+// (1): A basic query with parameters
 const result = await client.query(
     `SELECT
         name,
@@ -61,7 +61,7 @@ console.log(result);
 ```
 
 ```js
-// (b): A basic DDL query
+// (2): A basic DDL query
 const result = await client.query(
     `CREATE TABLE users (
         id int primary key generated always as identity,
@@ -86,7 +86,7 @@ Model structures and traverse relationships like they were plain JSON objects—
 ##### └ *Preview:*
 
 ```js
-// (a): JSON Sugars
+// (1): JSON Sugars
 const result = await client.query(
     `SELECT
         name,
@@ -98,7 +98,7 @@ console.log(result);
 ```
 
 ```js
-// (b): Magic Paths
+// (2): Magic Paths
 const result = await client.query(
     `SELECT
         title,
@@ -112,12 +112,13 @@ console.log(result);
 ```
 
 ```js
-// (c): Upsert
+// (3): Upsert
 const result = await client.query(
     `UPSERT INTO public.users 
-        ( name, email role )
-    VALUES ( 'John Doe', 'johndoe@example.com', 'admin' ),
-        ( 'Alice Blue', 'aliceblue@example.com', 'contributor' )`
+        ( name, email, role )
+    VALUES
+        ( 'John Doe', 'jd@example.com', 'admin' ),
+        ( 'Alice Blue', 'ab@example.com', 'guest' )`
 );
 console.log(result);
 ```
@@ -128,12 +129,12 @@ console.log(result);
 <tr><td>
 <details _name="features"><summary>Progressive enhancement</summary>
 
-While the typical ORM often imposes a high level of abstraction where that's not desired, Linked QL offers a <ins>SQL-by-default, progressive enhancement</ins> workflow that lets you think from the ground up! And at whatever part of that spectrum you find a sweet spot, you also get the same powerful set of features that Linked QL has to offer!
+While the typical ORM often imposes a high level of abstraction where that's not desired, Linked QL offers a <ins>SQL-by-default, progressive enhancement</ins> workflow that lets you think from the ground up! And at whatever part of that spectrum you find a sweet spot, you also get the same powerful set of features that Linked QL has to offer! *(See ➞ [Examples](https://github.com/linked-db/linked-ql/wiki/Examples))*
 
 ##### └ *Preview:*
 
 ```js
-// (a): A basic query with parameters
+// (a): SQL
 const result = await client.query(
     `SELECT
         name,
@@ -145,7 +146,7 @@ const result = await client.query(
 ```
 
 ```js
-// (b): API equivalent 1
+// (b): Object-Based Query Builder
 const result = await client.database('public').table('users').select(
     [ 'name', 'email' ],
     { where: { some: [
@@ -156,7 +157,7 @@ const result = await client.database('public').table('users').select(
 ```
 
 ```js
-// (c): API equivalent 2
+// (c): Function-Based Query Builder
 const result = await client.database('public').table('users').select(
     [ 'name', 'email' ],
     { where: (q) => q.some(
@@ -166,19 +167,17 @@ const result = await client.database('public').table('users').select(
 );
 ```
 
-└ *(Details in the [Examples](https://github.com/linked-db/linked-ql/wiki/Examples) section.)*
-
 </details>
 </td></tr>
 
 <tr><td>
 <details _name="features"><summary>Automatic schema inference</summary>
 
-Whereas the typical ORM requires you to feed them with your database schema (case in point: [Drizzle](https://orm.drizzle.team/)), Linked QL <ins>automatically infers it</ins> and magically maintains 100% schema-awareness throughout (without necessarily looking again)! You get a whole class of manual work entirely out of the equation!
+Whereas the typical ORM requires you to feed them with your database schema (case in point: [Drizzle](https://orm.drizzle.team/)), Linked QL <ins>automatically infers it</ins> and magically maintains 100% schema-awareness throughout (without necessarily looking again)! You get a whole class of manual work entirely out of the equation! *(See ➞ [Automatic Schema Inference](https://github.com/linked-db/linked-ql/wiki/Automatic-Schema-Inference))*
 
 ##### └ *Preview:*
 
-> ✨ Simply <ins>plug</ins> to your database and <ins>play</ins>...
+> (1): Simply <ins>plug</ins> to your database and <ins>play</ins>...
 
 ```js
 // Import pg and LinkedQl
@@ -195,7 +194,7 @@ await pgClient.connect();
 const client = new LinkedQl(pgClient, { dialect: 'postgres' });
 ```
 
-> ✨ Query arbitrary structures... without the upfront schema work!
+> (2): Query arbitrary structures... without the upfront schema work!
 
 ```js
 const result = await client.query(
@@ -209,19 +208,17 @@ const result = await client.query(
 );
 ```
 
-└ *(Details in the [Automatic Schema Inference](https://github.com/linked-db/linked-ql/wiki/Automatic-Schema-Inference) section.)*
-
 </details>
 </td></tr>
 
 <tr><td>
 <details _name="features"><summary>Automatic schema versioning</summary>
 
-The typical database has no concept of versioning, but no problem, Linked QL comes with it to your database, and along with it, a powerful rollback and rollforward system! On each DDL operation you run against your database (`CREATE`, `ALTER`, `DROP`), you get a savepoint automatically created for you and a seamless rollback path you can take anytime!
+The typical database has no concept of versioning, but no problem, Linked QL comes with it to your database, and along with it, a powerful rollback and rollforward system! On each DDL operation you run against your database (`CREATE`, `ALTER`, `DROP`), you get a savepoint automatically created for you and a seamless rollback path you can take anytime! *(See ➞ [Automatic Schema Versioning](https://github.com/linked-db/linked-ql/wiki/Automatic-Schema-Versioning))*
 
 ##### └ *Preview:*
 
-> ✨ Alter your database and get back a reference to a "savepoint" automatically created for you
+> (1a): Alter your database and get back a reference to a "savepoint" automatically created for you
 
 ```js
 // Alter schema
@@ -234,13 +231,13 @@ const savepoint = await client.query(
 );
 ```
 
-> ✨ Or obtain said savepoint on-demand
+> (1b): Or obtain said savepoint on-demand
 
 ```js
 const savepoint = await client.database('public').savepoint();
 ```
 
-> ✨ Inspect savepoint
+> (2): Inspect savepoint
 
 ```js
 // Some details
@@ -251,7 +248,7 @@ console.log(savepoint.commitDate()); // 2024-07-17T22:40:56.786Z
 console.log(savepoint.jsonfy());
 ```
 
-> ✨ Roll back savepoint
+> (3): Roll back savepoint
 
 ```js
 // SQL preview
@@ -262,15 +259,13 @@ await savepoint.rollback({
 });
 ```
 
-└ *(Details in the [Automatic Schema Versioning](https://github.com/linked-db/linked-ql/wiki/Automatic-Schema-Versioning) section.)*
-
 </details>
 </td></tr>
 
 <tr><td>
 <details _name="features"><summary>Diff-based migrations</summary>
 
-Whereas schema evolution remains a drag across the board, it comes as a particularly nifty experience in Linked QL! As against the conventional script-based migrations approach, Linked QL follows a diff-based approach that lets you manage your entire DB structure <ins>declaratively</ins> out of a single `schema.json` (or `schema.yml`) file!
+Whereas schema evolution remains a drag across the board, it comes as a particularly nifty experience in Linked QL! As against the conventional script-based migrations approach, Linked QL follows a diff-based approach that lets you manage your entire DB structure <ins>declaratively</ins> out of a single `schema.json` (or `schema.yml`) file! *(See ➞ [Migration](https://github.com/linked-db/linked-ql/wiki/Migration))*
 
 ##### └ *Preview:*
 
@@ -289,13 +284,111 @@ Whereas schema evolution remains a drag across the board, it comes as a particul
 ]
 ```
 
-└ *(Details in the [Migration](https://github.com/linked-db/linked-ql/wiki/Migration) section.)*
-
 </details>
 </td></tr>
 </table>
 
+<table>
+<tr><th>
 
+_Getting Started_
+    
+</th></tr>
+<tr><td>
+
+Install Linked QL:
+
+```cmd
+npm install @linked-db/linked-ql
+```
+
+For SQL databases, install the regular SQL client you use for your DB. (Typically, [`pg`](https://github.com/brianc/node-postgres) for PostgreSQL, [`mariadb`](https://github.com/mariadb-corporation/mariadb-connector-nodejs) for mariadb, [`mysql`](https://www.npmjs.com/package/mysql)/[`mysql2`](https://www.npmjs.com/package/mysql2) for MySQL databases.)
+
+</td></td>
+<tr><td>
+<details _name="setup"><summary>Postgres</summary>
+
+```js
+// Install the pg client
+npm install pg
+```
+
+```js
+// Import pg and LinkedQl
+import pg from 'pg';
+import { Client } from '@linked-db/linked-ql/sql';
+
+// Connect pg
+const pgClient = new pg.Client({
+    host: 'localhost',
+    port: 5432,
+});
+await pgClient.connect();
+
+// Use LinkedQl as a wrapper over that
+const client = new Client(pgClient, { dialect: 'postgres' });
+```
+
+</details>
+</td></tr>
+<tr><td>
+<details _name="setup"><summary>MySQL/mariadb</summary>
+
+```js
+// Install the mariadb client
+npm install mariadb
+```
+
+```js
+// Import mariadb and LinkedQl
+import mariadb from 'mariadb';
+import { Client } from '@linked-db/linked-ql/sql';
+
+// Connect pg
+const myConnection = await mariadb.createConnection({
+    host: '127.0.0.1',
+    user: 'root',
+    port: 3306,
+    multipleStatements: true, // Required
+    bitOneIsBoolean: true, // The default, but required
+    trace: true, // Recommended
+});
+
+// Use LinkedQl as a wrapper over that
+const client = new Client(myConnection, { dialect: 'mysql' });
+```
+
+> **Note that your mariadb database must be `v10.5.2` or higher.** (MySQL `v8` comparably.) In addition, Linked QL needs to be able to run multiple statements in one query. The `multipleStatements` connector parameter above is thus required. We also needed to have the `bitOneIsBoolean` parameter in place.
+
+</details>
+</td></tr>
+<tr><td>
+<details _name="setup"><summary>Indexed DB (Coming soon)</summary>
+
+```js
+// Import the IDB Client
+import { Client } from '@linked-db/linked-ql/idb';
+
+// Create an instance.
+const client = new Client;
+```
+
+</details>
+</td></tr>
+<tr><td>
+<details _name="setup"><summary>In-Mem DB (Coming soon)</summary>
+
+```js
+// Import the ODB Client
+import { Client } from '@linked-db/linked-ql/odb';
+
+// Create an instance.
+const client = new Client;
+```
+
+</details>
+</td></tr>
+</table>
 
 
 
