@@ -290,7 +290,6 @@ Whereas schema evolution remains a drag across the board, it comes as a particul
 
 <br>
 <br>
-<br>
 
 <table>
 <tr><th>
@@ -302,11 +301,10 @@ _Getting Started_
 
 <div align="center">
 
+<br>
 Install Linked QL:
 
-```cmd
-npm install @linked-db/linked-ql
-```
+<code>npm install @linked-db/linked-ql</code>
 
 </div>
 
@@ -314,6 +312,7 @@ npm install @linked-db/linked-ql
 <tr><td>
 <details _name="setup"><summary>Postgres</summary>
 
+<br>
 > Install the [`pg`](https://github.com/brianc/node-postgres) client.
 
 ```cmd
@@ -341,6 +340,7 @@ const client = new Client(pgClient, { dialect: 'postgres' });
 <tr><td>
 <details _name="setup"><summary>MySQL/mariadb</summary>
 
+<br>
 > Install the [`mariadb`](https://github.com/mariadb-corporation/mariadb-connector-nodejs) client. (Alternatively, the [`mysql`](https://www.npmjs.com/package/mysql)/[`mysql2`](https://www.npmjs.com/package/mysql2) for MySQL databases.)
 
 ```cmd
@@ -400,18 +400,8 @@ const client = new Client;
 
 <div align="center">
 
-All `client` instances above implement the same interface:
-
-```js
-client.query('SELECT fname, lname FROM users WHERE role = $1', ['admin']).then(result => {
-    console.log(result);
-});
-```
-
-```js
-const result = await client.query('SELECT fname, lname FROM users WHERE role = $1', ['admin']);
-console.log(result);
-```
+<br>
+All `client` instances above implement the same [interface]()!
 
 </div>
 
