@@ -232,7 +232,8 @@ The typical database has no concept of versioning, but no problem, Linked QL com
 > (1): Obtain a reference to a savepoint
 
 ```js
-// Alter your database and get back a reference to a "savepoint" automatically created for you
+// Alter your database and get back a reference to
+// a "savepoint" automatically created for you
 const savepoint = await client.query(
     `CREATE TABLE public.users (
         id int,
