@@ -31,9 +31,6 @@ Linked QL is a small JS-based database abstraction library that is usable over y
 
 </div>
 
-
-<br>
-
 <div align="center">
 
 ---------------------------------
@@ -42,6 +39,7 @@ Linked QL is a small JS-based database abstraction library that is usable over y
 
 </div>
 
+<br>
 <br>
 <br>
 
@@ -326,9 +324,11 @@ And we've got a few things in the radar: extensive TypeScript support (something
 </table>
 
 <br>
+<br>
 
 <div align="center">•</div>
 
+<br>
 <br>
 
 <table>
