@@ -311,9 +311,14 @@ And we've got a few things in the radar: extensive TypeScript support (something
 </table>
 
 <br>
-<br>
 
-[Docs](https://github.com/linked-db/linked-ql/wiki) • [CLI](https://github.com/linked-db/linked-ql/wiki/CLI) • [API](https://github.com/linked-db/linked-ql/wiki/API) • [Migration](https://github.com/linked-db/linked-ql/wiki/Migration)
+<div align="center">
+
+[Docs](https://github.com/linked-db/linked-ql/wiki) • [Examples](https://github.com/linked-db/linked-ql/wiki/Examples) • [CLI](https://github.com/linked-db/linked-ql/wiki/CLI) • [API](https://github.com/linked-db/linked-ql/wiki/API) • [Migration](https://github.com/linked-db/linked-ql/wiki/Migration)
+
+</div>
+
+<br>
 
 <table>
 <tr><th>
