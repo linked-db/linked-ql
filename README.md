@@ -316,13 +316,7 @@ And we've got a few things in the radar: extensive TypeScript support (something
 
 <br>
 
-<div align="center">
-
-[Docs](https://github.com/linked-db/linked-ql/wiki) • [Examples](https://github.com/linked-db/linked-ql/wiki/Examples) • [CLI](https://github.com/linked-db/linked-ql/wiki/CLI) • [API](https://github.com/linked-db/linked-ql/wiki/API) • [Migration](https://github.com/linked-db/linked-ql/wiki/Migration)
-
----------------------------------
-
-</div>
+<div align="center">•</div>
 
 <br>
 
@@ -445,6 +439,17 @@ All `client` instances above implement the same [interface](https://github.com/l
 
 </td></tr>
 </table>
+
+
+<br>
+
+<div align="center">
+
+[Docs](https://github.com/linked-db/linked-ql/wiki) • [Examples](https://github.com/linked-db/linked-ql/wiki/Examples) • [CLI](https://github.com/linked-db/linked-ql/wiki/CLI) • [API](https://github.com/linked-db/linked-ql/wiki/API) • [Migration](https://github.com/linked-db/linked-ql/wiki/Migration)
+
+---------------------------------
+
+</div>
 
 <br>
 
