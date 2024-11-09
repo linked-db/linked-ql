@@ -28,10 +28,21 @@ _**Get insanely productive with SQL!** Take a break from tooling overheads!_
 
 Linked QL is a small JS-based database abstraction library that is usable over your DB of choice—from the server-side database system (postgres, MySQL and mariadb) to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API)!
 
-[Getting Started](https://github.com/sponsors/ox-harris) • [Features](https://github.com/sponsors/ox-harris)
 
 </div>
 
+
+<br>
+
+<div align="center">
+
+---------------------------------
+
+[Docs](https://github.com/linked-db/linked-ql/wiki) • [Examples](https://github.com/linked-db/linked-ql/wiki/Examples) • [CLI](https://github.com/linked-db/linked-ql/wiki/CLI) • [API](https://github.com/linked-db/linked-ql/wiki/API) • [Migration](https://github.com/linked-db/linked-ql/wiki/Migration)
+
+</div>
+
+<br>
 <br>
 
 <table>
