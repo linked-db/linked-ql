@@ -229,10 +229,10 @@ The typical database has no concept of versioning, but no problem, Linked QL com
 
 ##### └ *Preview:*
 
-> (1a): Alter your database and get back a reference to a "savepoint" automatically created for you
+> (1): Obtain a reference to a savepoint
 
 ```js
-// Alter schema
+// Alter your database and get back a reference to a "savepoint" automatically created for you
 const savepoint = await client.query(
     `CREATE TABLE public.users (
         id int,
@@ -242,9 +242,8 @@ const savepoint = await client.query(
 );
 ```
 
-> (1b): Or obtain said savepoint on-demand
-
 ```js
+// Or obtain said savepoint on-demand
 const savepoint = await client.database('public').savepoint();
 ```
 
