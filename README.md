@@ -442,6 +442,7 @@ All `client` instances above implement the same [interface](https://github.com/l
 
 
 <br>
+<br>
 
 <div align="center">
 
@@ -450,8 +451,6 @@ All `client` instances above implement the same [interface](https://github.com/l
 ---------------------------------
 
 </div>
-
-<br>
 
 ## Issues
 
