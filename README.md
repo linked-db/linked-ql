@@ -331,7 +331,7 @@ Install Linked QL:
 
 </td></td>
 <tr><td>
-<details _name="setup"><summary>Postgres</summary>
+<details _name="setup"><summary>Postgres/Supabase/Neon/etc</summary>
 
 Install and connect the [`pg`](https://github.com/brianc/node-postgres) client. (Or another postgres client of your choice.) Use Linked QL as a wrapper over that.
 
@@ -345,14 +345,20 @@ import pg from 'pg';
 import { SQLClient } from '@linked-db/linked-ql/sql';
 
 // Connect pg
-const pgClient = new pg.Client({
+const connectionParams = {
     host: 'localhost',
     port: 5432,
-});
+};
+const pgClient = new pg.Client(connectParams);
 await pgClient.connect();
-
 // Use LinkedQl as a wrapper over that
 const client = new SQLClient(pgClient, { dialect: 'postgres' });
+```
+
+For Supabase/Neon/etc., simply update `connectionParams` to use the *connectionString* for your remote DB:
+
+```js
+const connectionParams = { connectionString: process.env.SUPABASE_CONNECTION_STRING };
 ```
 
 </details>
@@ -380,7 +386,6 @@ const myConnection = await mariadb.createConnection({
     bitOneIsBoolean: true, // The default, but required
     trace: true, // Recommended
 });
-
 // Use LinkedQl as a wrapper over that
 const client = new SQLClient(myConnection, { dialect: 'mysql' });
 ```
@@ -428,22 +433,7 @@ All `client` instances above implement the same [interface](https://github.com/l
 </td></tr>
 </table>
 
-<!--
-## Roadmap
-
-+ [`DONE`] Implement support for a `schema.yml` alternative to `schema.json` file.
-+ [`DONE`] Support dimensional payloads at `table.insert()`, `table.upsert()`, `table.update()`.
-+ [`ONGOING`] Support dimensional fields at `table.select()` and in the `returning` clause at `table.insert()`, `table.upsert()`, `table.update()`.
-+ [`ONGOING`] Improve support for MySQL.
-+ [`PENDING`] Implement support for IndexedDB.
-+ [`PENDING`] Implement the in-memory database.
-+ [`PENDING`] Implement LinkedDB Realtime.
-+ [`PENDING`] Implement DB-native extensions of LinkedDB.
-
-> Much of that could happen sooner with your support! If you'd like to help out, please consider a [sponsorship](https://github.com/sponsors/ox-harris). PRs are also always welcome.
--->
-
-<div align="center">
+<br>
 
 ## Issues
 
@@ -452,8 +442,6 @@ To report bugs or request features, please submit an issue to this repository.
 ## License
 
 MIT.
-
-</div>
 
 [npm-version-src]: https://img.shields.io/npm/v/@linked-db/linked-ql?style=flat&colorA=18181B&colorB=F0DB4F
 [npm-version-href]: https://npmjs.com/package/@linked-db/linked-ql
