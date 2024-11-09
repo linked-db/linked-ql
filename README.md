@@ -268,7 +268,7 @@ console.log(savepoint.restorePreview());
 ```
 
 ```js
-// Execute now (drops "users" table)
+// Execute rollback (drops "users" table)
 await savepoint.rollback({
     desc: 'Users table no more necessary'
 });
@@ -278,7 +278,7 @@ await savepoint.rollback({
 </td></tr>
 
 <tr><td>
-<details _name="features"><summary>Diff-based migrations</summary>
+<details _name="features"><summary>Diff-based migration</summary>
 
 Whereas schema evolution remains a drag across the board, it comes as a particularly nifty experience in Linked QL! As against the conventional script-based migrations approach, Linked QL follows a diff-based approach that lets you manage your entire DB structure <ins>declaratively</ins> out of a single `schema.json` (or `schema.yml`) file! *(See ➞ [Migration](https://github.com/linked-db/linked-ql/wiki/Migration))*
 
@@ -319,6 +319,8 @@ And we've got a few things in the radar: extensive TypeScript support (something
 <div align="center">
 
 [Docs](https://github.com/linked-db/linked-ql/wiki) • [Examples](https://github.com/linked-db/linked-ql/wiki/Examples) • [CLI](https://github.com/linked-db/linked-ql/wiki/CLI) • [API](https://github.com/linked-db/linked-ql/wiki/API) • [Migration](https://github.com/linked-db/linked-ql/wiki/Migration)
+
+---------------------------------
 
 </div>
 
