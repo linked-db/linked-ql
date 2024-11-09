@@ -263,7 +263,11 @@ console.log(savepoint.jsonfy());
 
 ```js
 // SQL preview
-console.log(savepoint.restorePreview()); // DROP TABLE public.users CASCADE
+console.log(savepoint.restorePreview());
+// "DROP TABLE public.users CASCADE"
+```
+
+```js
 // Execute now (drops "users" table)
 await savepoint.rollback({
     desc: 'Users table no more necessary'
