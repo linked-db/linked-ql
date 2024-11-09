@@ -322,7 +322,7 @@ And we've got a few things in the radar: extensive TypeScript support (something
 
 <br>
 
-<div align="center">•</div>
+<div align="center">•••</div>
 
 <br>
 
