@@ -374,6 +374,8 @@ For Supabase/Neon/etc., simply update `connectionParams` to use the *connectionS
 const connectionParams = { connectionString: process.env.SUPABASE_CONNECTION_STRING };
 ```
 
+> **Note that your postgres database must be `v15.x` or higher.**
+
 </details>
 </td></tr>
 <tr><td>
