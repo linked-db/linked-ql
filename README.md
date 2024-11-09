@@ -52,7 +52,7 @@ Here's what we're building:
 
 </td></td>
 <tr><td>
-<details _name="features" open><summary>A SQL-native experience</summary>
+<details _name="features"><summary>A SQL-native experience</summary>
 
 Whereas the typical ORM has hand-written SQL as the exception, Linked QL has it as <ins>the default</ins>, and along with that, it comes with everything that makes it all the more delightful to #usethelanguage!
 
@@ -90,7 +90,7 @@ console.log(result);
 </td></tr>
 
 <tr><td>
-<details _name="features"><summary>Powerful new syntax sugars</summary>
+<details _name="features"><summary>Powerful syntax sugars</summary>
 
 Model structures and traverse relationships like they were plain JSON objects—all right within the language! Meet Linked QL's set of syntax extensions to SQL that <ins>do the hard work</ins>, <ins>cut your query in half</ins>, and even <ins>save you multiple round trips</ins>! *(See ➞ [JSON Sugars](https://github.com/linked-db/linked-ql/wiki/JSON-Sugars), [Magic Paths](https://github.com/linked-db/linked-ql/wiki/Magic-Paths), [Upserts](https://github.com/linked-db/linked-ql/wiki/UPSERT))*
 
@@ -193,7 +193,7 @@ Whereas the typical ORM requires you to feed them with your database schema (cas
 ```js
 // Import pg and LinkedQl
 import pg from 'pg';
-import LinkedQl from '@linked-db/linked-ql/sql';
+import { SQLClient } from '@linked-db/linked-ql/sql';
 
 // Connect to an arbitrary database
 const pgClient = new pg.Client({
@@ -202,7 +202,7 @@ const pgClient = new pg.Client({
 await pgClient.connect();
 
 // Use LinkedQl as a wrapper over that
-const client = new LinkedQl(pgClient, { dialect: 'postgres' });
+const client = new SQLClient(pgClient, { dialect: 'postgres' });
 ```
 
 > (2): Query arbitrary structures... without the upfront schema work!
@@ -342,7 +342,7 @@ npm install pg
 ```js
 // Import pg and LinkedQl
 import pg from 'pg';
-import { Client } from '@linked-db/linked-ql/sql';
+import { SQLClient } from '@linked-db/linked-ql/sql';
 
 // Connect pg
 const pgClient = new pg.Client({
@@ -352,7 +352,7 @@ const pgClient = new pg.Client({
 await pgClient.connect();
 
 // Use LinkedQl as a wrapper over that
-const client = new Client(pgClient, { dialect: 'postgres' });
+const client = new SQLClient(pgClient, { dialect: 'postgres' });
 ```
 
 </details>
@@ -369,7 +369,7 @@ npm install mariadb
 ```js
 // Import mariadb and LinkedQl
 import mariadb from 'mariadb';
-import { Client } from '@linked-db/linked-ql/sql';
+import { SQLClient } from '@linked-db/linked-ql/sql';
 
 // Connect pg
 const myConnection = await mariadb.createConnection({
@@ -382,7 +382,7 @@ const myConnection = await mariadb.createConnection({
 });
 
 // Use LinkedQl as a wrapper over that
-const client = new Client(myConnection, { dialect: 'mysql' });
+const client = new SQLClient(myConnection, { dialect: 'mysql' });
 ```
 
 > **Note that your mariadb database must be `v10.5.2` or higher.** (MySQL `v8` comparably.) In addition, Linked QL needs to be able to run multiple statements in one query. The `multipleStatements` connector parameter above is thus required. We also needed to have the `bitOneIsBoolean` parameter in place.
@@ -394,10 +394,10 @@ const client = new Client(myConnection, { dialect: 'mysql' });
 
 ```js
 // Import the IDB Client
-import { Client } from '@linked-db/linked-ql/idb';
+import { IDBClient } from '@linked-db/linked-ql/idb';
 
 // Create an instance.
-const client = new Client;
+const client = new IDBClient;
 ```
 
 </details>
@@ -407,10 +407,10 @@ const client = new Client;
 
 ```js
 // Import the ODB Client
-import { Client } from '@linked-db/linked-ql/odb';
+import { ODBClient } from '@linked-db/linked-ql/odb';
 
 // Create an instance.
-const client = new Client;
+const client = new ODBClient;
 ```
 
 </details>
@@ -443,6 +443,8 @@ All `client` instances above implement the same [interface](https://github.com/l
 > Much of that could happen sooner with your support! If you'd like to help out, please consider a [sponsorship](https://github.com/sponsors/ox-harris). PRs are also always welcome.
 -->
 
+<div align="center">
+
 ## Issues
 
 To report bugs or request features, please submit an issue to this repository.
@@ -450,6 +452,8 @@ To report bugs or request features, please submit an issue to this repository.
 ## License
 
 MIT.
+
+</div>
 
 [npm-version-src]: https://img.shields.io/npm/v/@linked-db/linked-ql?style=flat&colorA=18181B&colorB=F0DB4F
 [npm-version-href]: https://npmjs.com/package/@linked-db/linked-ql
