@@ -313,6 +313,8 @@ And we've got a few things in the radar: extensive TypeScript support (something
 <br>
 <br>
 
+[Docs](https://github.com/linked-db/linked-ql/wiki) • [CLI](https://github.com/linked-db/linked-ql/wiki/CLI) • [API](https://github.com/linked-db/linked-ql/wiki/API) • [Migration](https://github.com/linked-db/linked-ql/wiki/Migration)
+
 <table>
 <tr><th>
 
@@ -331,7 +333,7 @@ Install Linked QL:
 
 </td></td>
 <tr><td>
-<details _name="setup"><summary>Postgres/Supabase/Neon/etc</summary>
+<details _name="setup"><summary>Postgres / Supabase / Neon / etc</summary>
 
 Install and connect the [`pg`](https://github.com/brianc/node-postgres) client. (Or another postgres client of your choice.) Use Linked QL as a wrapper over that.
 
@@ -364,7 +366,7 @@ const connectionParams = { connectionString: process.env.SUPABASE_CONNECTION_STR
 </details>
 </td></tr>
 <tr><td>
-<details _name="setup"><summary>MySQL/mariadb</summary>
+<details _name="setup"><summary>MySQL / mariadb</summary>
 
 Install and connect the [`mariadb`](https://github.com/mariadb-corporation/mariadb-connector-nodejs) client. (Or, where applicable, the [`mysql`](https://www.npmjs.com/package/mysql)/[`mysql2`](https://www.npmjs.com/package/mysql2).) Use Linked QL as a wrapper over that.
 
