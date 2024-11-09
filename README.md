@@ -460,11 +460,11 @@ All `client` instances above implement the same [interface](https://github.com/l
 
 ## Issues
 
-To report bugs or request features, please submit an issue to this repository.
+To report bugs or request features, please submit an [issue](https://github.com/linked-db/linked-ql/issues).
 
 ## License
 
-MIT.
+MIT. (See [LICENSE](https://github.com/linked-db/linked-ql/tree/next?tab=License-1-ov-file))
 
 [npm-version-src]: https://img.shields.io/npm/v/@linked-db/linked-ql?style=flat&colorA=18181B&colorB=F0DB4F
 [npm-version-href]: https://npmjs.com/package/@linked-db/linked-ql
