@@ -16,6 +16,11 @@ export class SubQuery extends Parens {
 		return tblSchema;
 	}
 	
+	static fromJSON(context, json, callback = null) {
+		if (!json?.expr || !json?.expr?.fieldsSpec) return;
+		return super.fromJSON(context, json, callback);
+	}
+
 	static parse(context, expr, parseCallback) {
 		if (!/\(\s*SELECT\s+/i.test(expr)) return;
 		return super.parse(context, expr, parseCallback);

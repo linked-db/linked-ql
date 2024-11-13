@@ -11,7 +11,7 @@ export class JsonObjectSpec extends AbstractSugar(AbstractNodeList) {
 
 	static get expose() {
 		return {
-			jsonObject: (context, ...entries) => this.fromJSON(context, { entries }),
+			fields: (context, ...entries) => this.fromJSON(context, { entries }),
 		};
 	}
 

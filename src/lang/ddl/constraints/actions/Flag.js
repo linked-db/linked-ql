@@ -24,8 +24,8 @@ export class Flag extends AbstractAction {
 		});
 	}
 
-    parse(context, expr) {
-        const [value] = expr.match(/DEFERRABLE|NOT\s+DEFERRABLE|INITIALLY\s+DEFERRED|INITIALLY\s+IMMEDIATE/i) || [];
+    static parse(context, expr) {
+        const [value] = expr.match(/DEFERRABLE|NOT\s+DEFERRABLE|INITIALLY\s+DEFERRED|INITIALLY\s+IMMEDIATE|VISIBLE|INVISIBLE/i) || [];
         if (value) return (new this(context)).value(value.replace(/\s+/, '_').toUpperCase());
     }
 

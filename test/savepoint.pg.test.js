@@ -18,22 +18,24 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
     before(async function() {
         //await client.query('ALTER SCHEMA private RENAME TO public', { inspect: true, noCreateSavepoint: true }));
         console.log('DATABSES BEFORE:', await client.databases());
-        await client.query('DROP TABLE if exists public.test1 CASCADE', { noCreateSavepoint: true });
-        await client.query('DROP TABLE if exists public.test2 CASCADE', { noCreateSavepoint: true });
-        await client.query('DROP SCHEMA if exists obj_information_schema CASCADE', { noCreateSavepoint: true });
-        await client.query('DROP SCHEMA if exists "some_db" CASCADE', { noCreateSavepoint: true });
-        await client.query('DROP SCHEMA if exists "some_db.new" CASCADE', { noCreateSavepoint: true });
+        await client.query('DROP TABLE if exists public.test1 CASCADE');
+        await client.query('DROP TABLE if exists public.test2 CASCADE');
+        await client.query('DROP SCHEMA if exists obj_information_schema CASCADE');
+        await client.query('DROP SCHEMA if exists "some_db" CASCADE');
+        await client.query('DROP SCHEMA if exists "some_db.new" CASCADE');
         const linkedDB = await client.linkedDB(true);
         await linkedDB.table('savepoints').delete(true);
     });
 
     after(async function() {
         console.log('DATABSES AFTER:', await client.databases());
-        await client.query('DROP TABLE if exists public.test1 CASCADE', { noCreateSavepoint: true });
-        await client.query('DROP TABLE if exists public.test2 CASCADE', { noCreateSavepoint: true });
-        await client.query('DROP SCHEMA if exists obj_information_schema CASCADE', { noCreateSavepoint: true });
-        await client.query('DROP SCHEMA if exists "some_db" CASCADE', { noCreateSavepoint: true });
-        await client.query('DROP SCHEMA if exists "some_db.new" CASCADE', { noCreateSavepoint: true });
+        await client.query('DROP TABLE if exists public.test1 CASCADE');
+        await client.query('DROP TABLE if exists public.test2 CASCADE');
+        await client.query('DROP SCHEMA if exists obj_information_schema CASCADE');
+        await client.query('DROP SCHEMA if exists "some_db" CASCADE');
+        await client.query('DROP SCHEMA if exists "some_db.new" CASCADE');
+        const linkedDB = await client.linkedDB(true);
+        await linkedDB.table('savepoints').delete(true);
     });
 
     const desc0 = `Re-name DB "public" to "private".`;
@@ -45,7 +47,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
             savepoint0 = await client.alterDatabase(publicBefore, dbSchema => {
                 dbSchema.name(publicAfter);
             }, {
-                desc: 'Rename to private',
+                desc: 'Rename to private', returning: 'savepoint'
             });
             const databases = await client.databases();
             expect(databases).to.be.an('array').that.includes(publicAfter).and.not.includes(publicBefore);
@@ -60,7 +62,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
         });
 
         it(`ROLLFORWARD: ${ desc0 }`, async function() {
-            const savepoint = await client.database(publicBefore).savepoint({ direction: 'forward' });
+            const savepoint = await client.database(publicBefore).savepoint({ lookAhead: true });
             const success = await savepoint.recommit();
             expect(success).to.be.true;
             const databases = await client.databases();
@@ -129,7 +131,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
         let savepoint0, someDb;
 
         it(`DO: ${ desc1 }`, async function() {
-            savepoint0 = await client.createDatabase(dbCreateRequest, { inspect: true });
+            savepoint0 = await client.createDatabase(dbCreateRequest, { inspect: true, returning: 'savepoint' });
             someDb = client.database(dbCreateRequest.name);
             const databases = await client.databases();
             expect(databases).to.be.an('array').that.includes('some_db');
@@ -145,7 +147,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
         });
 
         it(`ROLLFORWARD: ${ desc1 } (BY RECREATING DB & TABLES)`, async function() {
-            const savepoint = await someDb.savepoint({ direction: 'forward' });
+            const savepoint = await someDb.savepoint({ lookAhead: true });
             const success = await savepoint.recommit();
             expect(success).to.be.true;
             const databases = await client.databases();
@@ -163,7 +165,7 @@ describe(`Postgres Savepoints & Rollbacks`, function() {
         });
 
         it(`ROLLFORWARD: ${ desc1 } (BY RECREATING DB & TABLES)`, async function() {
-            const savepoint = await someDb.savepoint({ direction: 'forward' });
+            const savepoint = await someDb.savepoint({ lookAhead: true });
             const success = await savepoint.recommit();
             expect(success).to.be.true;
             const databases = await client.databases();

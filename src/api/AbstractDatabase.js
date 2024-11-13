@@ -43,6 +43,20 @@ export class AbstractDatabase {
     async savepoint(params = {}) { return (await this.client.getSavepoints({ ...params, selector: this.name }))[0]; }
 
     /**
+     * Get current version tag.
+     * 
+     * @returns number
+     */
+    async version() { return (await this.savepoint())?.versionTag() || 0; }
+
+    /**
+     * Get list of version tags.
+     * 
+     * @returns Array
+     */
+    async versions() { return (await this.savepoint())?.versionTags() || []; }
+
+    /**
      * Returns the database's schema.
      * 
      * @param Array     tblSelector
@@ -54,17 +68,20 @@ export class AbstractDatabase {
     /**
      * Composes a CREATE TABLE query from descrete inputs
      * 
-     * @param Object            createSpec
+     * @param String|Object     createSpec
      * @param Object            params
      * 
      * @return Savepoint
      */
     async createTable(createSpec, params = {}) {
-        if (typeof createSpec?.name !== 'string') throw new Error(`createTable() called with invalid arguments.`);
-        const query = CreateTable.fromJSON(this, { argument: createSpec });
+        if (typeof createSpec === 'string') { createSpec = { name: createSpec, columns: [] }; }
+        const query = CreateTable.fromJSON(this, { kind: params.kind, argument: createSpec });
         query.argument().prefix(this.name);
         if (params.ifNotExists) query.withFlag('IF_NOT_EXISTS');
-        return this.client.query(query, params);
+        if (params.returning) query.returning(params.returning);
+        const returnValue = await this.client.execQuery(query, params);
+        if (returnValue === true) return this.table(query.argument().name());
+        return returnValue;
     }
 
     /**
@@ -77,10 +94,11 @@ export class AbstractDatabase {
      * @return Savepoint
      */
     async renameTable(tblName, tblToName, params = {}) {
-        const query = RenameTable.fromJSON(this, { reference: tblName, argument: tblToName });
-        if (!query) throw new Error(`renameTable() called with an invalid arguments.`);
+        const query = RenameTable.fromJSON(this, { kind: params.kind, reference: tblName, argument: tblToName });
+        if (!query) throw new Error(`renameTable() called with invalid arguments.`);
         query.reference().prefix(this.name);
-        return await this.client.query(query, params);
+        if (params.returning) query.returning(params.returning);
+        return await this.client.execQuery(query, params);
     }
 
     /**
@@ -100,11 +118,13 @@ export class AbstractDatabase {
             if (!tblSchema) throw new Error(`Table "${tblName}" does not exist.`);
             const tblSchemaEditable = tblSchema.clone();
             await callback(tblSchemaEditable.$nameLock(true));
-            const tableCDL = tblSchema.diffWith(tblSchemaEditable).generateCDL({ cascade: params.cascade });
+            const tableCDL = tblSchema.diffWith(tblSchemaEditable).generateCDL({ cascadeRule: params.cascadeRule, existsChecks: params.existsChecks });
             if (!tableCDL.length) return;
-            const query = AlterTable.fromJSON(this, { reference: tblSchema.name(), argument: tableCDL });
+            const query = AlterTable.fromJSON(this, { kind: params.kind, reference: tblSchema.name(), argument: tableCDL });
             query.reference().prefix(this.name);
-            return this.client.query(query, params);
+            if (params.ifExists) query.withFlag('IF_EXISTS');
+            if (params.returning) query.returning(params.returning);
+            return this.client.execQuery(query, params);
         });
     }
 
@@ -117,12 +137,14 @@ export class AbstractDatabase {
      * @return Savepoint
      */
     async dropTable(tblName, params = {}) {
-        const query = DropTable.fromJSON(this, { reference: tblName });
-        if (!query) throw new Error(`dropTable() called with an invalid arguments.`);
+        const query = DropTable.fromJSON(this, { kind: params.kind, reference: tblName });
+        if (!query) throw new Error(`dropTable() called with invalid arguments.`);
         query.reference().prefix(this.name);
         if (params.ifExists) query.withFlag('IF_EXISTS');
-        if (params.cascade) query.withFlag('CASCADE');
-        return this.client.query(query, params);
+        if (params.restrict) query.withFlag('RESTRICT');
+        else if (params.cascade) query.withFlag('CASCADE');
+        if (params.returning) query.returning(params.returning);
+        return this.client.execQuery(query, params);
     }
 
     /**

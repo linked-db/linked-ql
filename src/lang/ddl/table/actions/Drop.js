@@ -23,12 +23,12 @@ export class Drop extends AbstractReferenceMixin(AbstractAction) {
 	static parse(context, expr, parseCallback) {
 		const KINDS = Object.keys(this.EXPECTED_KINDS);
 		const $KINDS = context?.params?.dialect === 'mysql'
-			? KINDS.reduce((kinds, k) => kinds.concat(k, this.EXPECTED_KINDS[k]), [])
+			? [...new Set(KINDS.reduce((kinds, k) => kinds.concat(k, this.EXPECTED_KINDS[k]), []))]
 			: KINDS;
-		const [ wholeMatch, kindExp = 'COLUMN', ifExists, referenceExpr, restrictCascadeForce ] = expr.match(new RegExp(`^DROP\\s+(?:(${$KINDS.map(s => s.replace(/_/gi, '\\s+')).join('|')})\\s+(IF\\s+EXISTS\\s+)?)?([\\s\\S]+?)(?:\\s+(RESTRICT|CASCADE|FORCE))?$`, 'i')) || [];
+		const [ wholeMatch, kindExp = 'COLUMN', ifExists, referenceExpr, restrictCascadeForce ] = expr.match(new RegExp(`^DROP(?:\\s+(${$KINDS.map(s => s.replace(/_/gi, '\\s+')).join('|')})(\\s+IF\\s+EXISTS)?)?(?:\\s+([\\s\\S]+?)(?:\\s+(RESTRICT|CASCADE|FORCE))?)?$`, 'i')) || [];
 		if (!wholeMatch) return;
 		const $KIND = kindExp.replace(/\s+/g, '_').toUpperCase();
-		const KIND = KINDS.find(k => this.EXPECTED_KINDS[k].includes($KIND));
+		const KIND = KINDS.includes($KIND) ? $KIND : KINDS.find(k => this.EXPECTED_KINDS[k].includes($KIND));
 		if (!KIND) return;
 		const instance = new this(context, KIND, $KIND);
 		if (ifExists) instance.withFlag('IF_EXISTS');

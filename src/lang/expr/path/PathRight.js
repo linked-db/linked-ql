@@ -24,6 +24,15 @@ export class PathRight extends AbstractPath {
 		}
 		return super.$capture(requestName, requestSource);
 	}
+	
+	static get expose() {
+		return { path: (context, lhs, ...rest) => {
+			if (rest.length === 1) {
+				return this.fromJSON(context, { lhs, operator: '~>', rhs: rest[0] });
+			}
+			return super.expose.path(context, lhs, ...rest);
+		}, };
+	}
 
 	schema() {
 		if (this.lhs() instanceof PathJunction) return this.lhs().schema();

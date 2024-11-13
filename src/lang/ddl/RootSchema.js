@@ -133,7 +133,7 @@ export class RootSchema extends AbstractDiffableNode {
 			if ($$transforms.has(db)) {
 				// Ignore physically dropped
 				if (!$$transforms.get(db)) return;
-				if ($$options.cascade && $$options.rootCDL) {
+				if (/*$$options.cascade && */$$options.rootCDL) {
 					$json = db.constructor.fromJSON(this, $$transforms.get(db)).jsonfy($$options);
 				} else $json = $$transforms.get(db);
 			} else $json = db.jsonfy($$options);
@@ -219,12 +219,13 @@ export class RootSchema extends AbstractDiffableNode {
 			if (db.status() === 'new') {
 				rootCDL.add('CREATE', kind, (cd) => {
 					cd.argument(db.jsonfy({ ...options, diff: false }));
-					if (options.ifNotExists) cd.withFlag('IF_NOT_EXISTS');
+					if (options.existsChecks) cd.withFlag('IF_NOT_EXISTS');
 				});
 			} else if (db.status() === 'obsolete') {
 				rootCDL.add('DROP', kind, (cd) => {
 					cd.reference(db.name());
-					if (options.cascade) cd.withFlag('CASCADE');
+					if (options.cascadeRule) cd.withFlag(options.cascadeRule);
+					if (options.existsChecks) cd.withFlag('IF_EXISTS');
 				});
 			} else {
 				const dbCDL = db.generateCDL(options);

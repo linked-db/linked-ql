@@ -63,7 +63,7 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
                 ALTER COLUMN column_name8 SET COMPRESSION compression_method,
                 ALTER constraint constraint_name8 DEFERRABLE
             `;
-            const tblAlterInstance1 = Parser.parse({ name: 'some_database', params: { inputDialect: 'postgres', dialect: 'mysql' } }, alterTableSql);
+            const tblAlterInstance1 = Parser.parse({ name: 'some_database', params: { inputDialect: 'postgres', dialect: 'mysql' } }, alterTableSql, null, { inspect: false });
             const tblAlterInstance2 = AlterTable.fromJSON(tblAlterInstance1.CONTEXT, tblAlterInstance1.toJSON());
             const sql1 = tblAlterInstance1 + '';
             const sql2 = tblAlterInstance2 + '';

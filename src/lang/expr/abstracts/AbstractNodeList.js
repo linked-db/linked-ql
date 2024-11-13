@@ -77,13 +77,14 @@ export class AbstractNodeList extends AbstractNode {
 
     stringify() {
         let str = this.#entries.join(', ');
+        if (this.constructor.TAGS.length) {
+            // E.g. ARRAY[]/Columns/Values/JsonArray/JsonObject Spec Tags: ()
+            str = this.constructor.TAGS.join(str);
+        }
         if (this.constructor.CLAUSE) {
             // e.g. SET|RETURNING|WINDOW
-            if (!this.#entries.length) return '';
+            if (!this.#entries.length && !this.constructor.TAGS.length) return '';
             str = `\n${this.constructor.CLAUSE} ${str}`;
-        } else if (this.constructor.TAGS.length) {
-            // E.g. Columns/Values/JsonArray/JsonObject Spec Tags: ()
-            str = this.constructor.TAGS.join(str);
         }
         return str;
     }

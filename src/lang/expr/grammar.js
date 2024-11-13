@@ -7,6 +7,7 @@ import { JsonPath } from './json/JsonPath.js';
 import { JsonAgg } from './json/JsonAgg.js';
 import { JsonObjectSpec } from './json/JsonObjectSpec.js';
 import { JsonArraySpec } from './json/JsonArraySpec.js';
+import { Array } from './types/Array.js';
 import { StrJoin } from './types/StrJoin.js';
 import { Math } from './operators/Math.js';
 import { Aggr } from './functions/Aggr.js';
@@ -38,6 +39,7 @@ export const Exprs = [
 	Math, // Must come after Assertion
 	// Non-operators
 	RowSpec, // Must come before Parens
+	Array,
 	Parens,
 	RowSpecClause,
 	ValuesSubClause,

@@ -4,11 +4,13 @@ import { IdentityConstraint } from '../../constraints/IdentityConstraint.js';
 import { ExpressionConstraint } from '../../constraints/ExpressionConstraint.js';
 import { DefaultConstraint } from '../../constraints/DefaultConstraint.js';
 import { NotNullConstraint } from '../../constraints/NotNullConstraint.js';
+import { Literal } from '../../../expr/Literal.js';
 import { DataType } from '../DataType.js';
 
 export class Set extends AbstractArgumentMixin(AbstractAction) {
     static get EXPECTED_TYPES() {
         return {
+            FLAG: [Literal],
             DATA_TYPE: [DataType],
             CONSTRAINT: [IdentityConstraint, ExpressionConstraint, DefaultConstraint, NotNullConstraint, /* NullConstraint, AutoIncrementConstraint, OnUpdateConstraint */],
         };
@@ -33,7 +35,11 @@ export class Set extends AbstractArgumentMixin(AbstractAction) {
         } else if (subMatch = restExpr.match(/^(DEFAULT|NOT\s+NULL)[\s\S]+$/i)) {
             $KIND = subMatch[1].replace(/\s+/g, '_').toUpperCase();
             argumentExpr = restExpr;
-        } else return;
+        } else {
+            const [,name,value] = restExpr.match(/(\w+)(?:\s+)?(.+)/);
+            const instance = new this(context, 'FLAG', name.toUpperCase());
+            return instance.argument((q) => q.literal(value));
+        }
         const instance = new this(context, $KIND === 'DATA_TYPE' ? $KIND : 'CONSTRAINT', $KIND);
 		return instance.argument(parseCallback(instance, argumentExpr, this.EXPECTED_TYPES[instance.KIND]));
 	}

@@ -33,7 +33,7 @@ Linked QL is a small JS-based database abstraction library that is usable over y
 
 <div align="center">
 
-[Docs](https://github.com/linked-db/linked-ql/wiki) • [Examples](https://github.com/linked-db/linked-ql/wiki/Examples) • [CLI](https://github.com/linked-db/linked-ql/wiki/CLI) • [API](https://github.com/linked-db/linked-ql/wiki/API) • [Migration](https://github.com/linked-db/linked-ql/wiki/Migration)
+[LANG](https://github.com/linked-db/linked-ql/wiki/LANG) • [API](https://github.com/linked-db/linked-ql/wiki/API) • [CLI](https://github.com/linked-db/linked-ql/wiki/CLI)
 
 </div>
 
@@ -146,7 +146,7 @@ console.log(result);
 <tr><td>
 <details _name="features"><summary>Progressive enhancement</summary>
 
-While the typical ORM often imposes a high level of abstraction where that's not desired, Linked QL offers a <ins>SQL-by-default, progressive enhancement</ins> workflow that lets you think from the ground up! And at whatever part of that spectrum you find a sweet spot, you also get the same powerful set of features that Linked QL has to offer! *(See ➞ [Examples](https://github.com/linked-db/linked-ql/wiki/Examples))*
+While the typical ORM often imposes a high level of abstraction where that's not desired, Linked QL offers a <ins>SQL-by-default, progressive enhancement</ins> workflow that lets you think from the ground up! And at whatever part of that spectrum you find a sweet spot, you also get the same powerful set of features that Linked QL has to offer! *(See ➞ [Examples](https://github.com/linked-db/linked-ql/wiki/LANG))*
 
 ##### └ *Preview:*
 
@@ -269,7 +269,7 @@ console.log(savepoint.jsonfy());
 
 ```js
 // SQL preview
-console.log(savepoint.restorePreview());
+console.log(savepoint.reverseSQL());
 // "DROP TABLE public.users CASCADE"
 ```
 
@@ -286,7 +286,7 @@ await savepoint.rollback({
 <tr><td>
 <details _name="features"><summary>Diff-based migration</summary>
 
-Whereas schema evolution remains a drag across the board, it comes as a particularly nifty experience in Linked QL! As against the conventional script-based migrations approach, Linked QL follows a diff-based approach that lets you manage your entire DB structure <ins>declaratively</ins> out of a single `schema.json` (or `schema.yml`) file! *(See ➞ [Migration](https://github.com/linked-db/linked-ql/wiki/Migration))*
+Whereas schema evolution remains a drag across the board, it comes as a particularly nifty experience in Linked QL! As against the conventional script-based migrations approach, Linked QL follows a diff-based approach that lets you manage your entire DB structure <ins>declaratively</ins> out of a single `schema.json` (or `schema.yml`) file! *(See ➞ [Migrations](https://github.com/linked-db/linked-ql/wiki/Migrations))*
 
 ##### └ *Preview:*
 
@@ -454,7 +454,10 @@ All `client` instances above implement the same [interface](https://github.com/l
 
 <div align="center">
 
-[Docs](https://github.com/linked-db/linked-ql/wiki) • [Examples](https://github.com/linked-db/linked-ql/wiki/Examples) • [CLI](https://github.com/linked-db/linked-ql/wiki/CLI) • [API](https://github.com/linked-db/linked-ql/wiki/API) • [Migration](https://github.com/linked-db/linked-ql/wiki/Migration)
+[LANG](https://github.com/linked-db/linked-ql/wiki/LANG) • [API](https://github.com/linked-db/linked-ql/wiki/API) • [CLI](https://github.com/linked-db/linked-ql/wiki/CLI)
+
+
+[SELECT](https://github.com/linked-db/linked-ql/wiki/SELECT) • [INSERT](https://github.com/linked-db/linked-ql/wiki/INSERT) • [UPSERT](https://github.com/linked-db/linked-ql/wiki/UPSERT) • [UPDATE](https://github.com/linked-db/linked-ql/wiki/UPDATE) • [DELETE](https://github.com/linked-db/linked-ql/wiki/DELETE) • [CREATE](https://github.com/linked-db/linked-ql/wiki/CREATE) • [RENAME](https://github.com/linked-db/linked-ql/wiki/RENAME) • [ALTER](https://github.com/linked-db/linked-ql/wiki/ALTER) • [DROP](https://github.com/linked-db/linked-ql/wiki/DROP)
 
 ---------------------------------
 

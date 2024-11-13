@@ -11,7 +11,9 @@ export class Assertion extends AbstractOperator2Expr {
 			{ test: '<(?!~)' },
 			{ test: '(?<!~)>', backtest: '^(?!.*~$)'/*For Lexer*/ },
 			{ test: '(?<!<)(?:\\!)?~(?:\\*)?(?!>)', backtest: '^(?!.*<$)'/*For Lexer*/ },
-			{ test: '((\\s+IS(?:NOT\\s+)?\\s+(TRUE|FALSE|NULL|UNKNOWN|DISTINCT\\s+FROM\\s+))))|\\s+(ANY|ALL|(?:NOT\\s+)?(?:IN|LIKE|EXISTS|SIMILAR\\s+TO|BETWEEN(?:\\s+SYMMETRIC)?))\\s+|(?:\\s+)?(=|<=|>=|!=|<>)(?:\\s+)?)' },
+			{ test: '(\\s+(?:' + 
+				'IS\\s+(?:NOT\\s+)?(TRUE|FALSE|NULL|UNKNOWN|DISTINCT\\s+FROM)' + '|' + 'ANY|ALL' + '|' + '(?:NOT\\s+)?(?:IN|LIKE|EXISTS|SIMILAR\\s+TO|BETWEEN(?:\\s+SYMMETRIC)?)' + 
+			')\\s+' + '|' + '(?:\\s+)?(=|<=|>=|!=|<>)(?:\\s+)?)' },
 		];
 	}
 
@@ -23,10 +25,10 @@ export class Assertion extends AbstractOperator2Expr {
 			'lessThanOrEqual|ltOrEq': (context, lhs, rhs) => this.fromJSON(context, { operator: '<=', lhs, rhs }),
 			'greaterThan|gt': (context, lhs, rhs) => this.fromJSON(context, { operator: '>', lhs, rhs }),
 			'greaterThanOrEqual|gtOrEq': (context, lhs, rhs) => this.fromJSON(context, { operator: '>=', lhs, rhs }),
-			any: (context, lhs, rhs) => this.fromJSON(context, { operator: 'ANY', lhs, rhs }),
-			all: (context, lhs, rhs) => this.fromJSON(context, { operator: 'ALL', lhs, rhs }),
-			in: (context, lhs, rhs) => this.fromJSON(context, { operator: 'IN', lhs, rhs }),
-			notIn: (context, lhs, rhs) => this.fromJSON(context, { operator: 'NOT IN', lhs, rhs }),
+			any: (context, lhs, ...rhs) => this.fromJSON(context, { operator: 'ANY', lhs, rhs: { row: rhs } }),
+			all: (context, lhs, ...rhs) => this.fromJSON(context, { operator: 'ALL', lhs, rhs: { row: rhs } }),
+			in: (context, lhs, ...rhs) => this.fromJSON(context, { operator: 'IN', lhs, rhs: { row: rhs } }),
+			notIn: (context, lhs, ...rhs) => this.fromJSON(context, { operator: 'NOT IN', lhs, rhs: { row: rhs } }),
 			exists: (context, lhs, rhs) => this.fromJSON(context, { operator: 'EXISTS', lhs, rhs }),
 			notExists: (context, lhs, rhs) => this.fromJSON(context, { operator: 'NOT EXISTS', lhs, rhs }),
 			like: (context, lhs, rhs) => this.fromJSON(context, { operator: 'LIKE', lhs, rhs }),

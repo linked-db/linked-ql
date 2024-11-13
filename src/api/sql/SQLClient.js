@@ -359,7 +359,7 @@ export class SQLClient extends AbstractClient {
         });
         const parseJsonfyExpr = (expr, withColumns = false) => {
             const columns = new Set;
-            const node = Parser.parse({ params: !withColumns ? this.params : { ...this.params, nodeCallback: (node) => node.NODE_NAME === 'COLUMN_REF' ? columns.add(node.name().toLowerCase()) : null }}, expr);
+            const node = Parser.parse({ params: !withColumns ? this.params : { ...this.params, nodeCallback: (node) => node.NODE_NAME === 'COLUMN_REF' ? columns.add(node.name().toLowerCase()) : null }}, expr, null, { inspect: false });
             const json = node.NODE_NAME === 'PARENS' ? node.exprUnwrapped().jsonfy({ nodeNames: false }) : node.jsonfy({ nodeNames: false });
             return withColumns ? { columns: [...columns], json } : json;
         };

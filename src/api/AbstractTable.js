@@ -94,7 +94,7 @@ export class AbstractTable {
 	 * @param Object|Function			modifiers
 	 * 
 	 * @param Array 					columns
-	 * @param Array 					multilineValues
+	 * @param Array 					valueMatrix
 	 * @param Object|Function			modifiers
 	 */
 	async insert(...args) {
@@ -144,7 +144,7 @@ export class AbstractTable {
 	 * @param Object|Function			modifiers
 	 * 
 	 * @param Array 					columns
-	 * @param Array 					multilineValues
+	 * @param Array 					valueMatrix
 	 * @param Object|Function			modifiers
 	 */
 	async upsert(...args) { return await this.insert(true, ...args); }

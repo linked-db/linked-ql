@@ -33,8 +33,8 @@ export class Savepoint {
     /**
      * @returns String
      */
-    name(postRollback = false) {
-        if (postRollback) return this.versionState() === 'rollback' && this.$.json.$name || this.$.json.name;
+    name(postRestore = false) {
+        if (postRestore) return this.versionState() === 'rollback' && this.$.json.$name || this.$.json.name;
         return this.versionState() === 'commit' && this.$.json.$name || this.$.json.name;
     }
 
@@ -70,6 +70,21 @@ export class Savepoint {
     versionTags() { return this.$.json.version_tags || [this.$.json.version_tag]; }
 
     /**
+     * @returns Number
+     */
+    versionUp() { return this.versionTags().reduce((prev, v) => prev || (v > this.versionTag() ? v : 0), 0); }
+
+    /**
+     * @returns Number
+     */
+    versionDown() { return [...this.versionTags()].reverse().reduce((prev, v) => prev || (v < this.versionTag() ? v : 0), 0); }
+
+    /**
+     * @returns Number
+     */
+    versionMax() { return Math.max(...this.versionTags()); }
+
+    /**
      * @returns String
      */
     versionState() { return this.$.json.version_state; }
@@ -90,6 +105,11 @@ export class Savepoint {
     commitRef() { return this.$.json.commit_ref; }
 
     /**
+     * @returns String
+     */
+    commitPID() { return this.$.json.commit_pid; }
+
+    /**
      * @returns Date
      */
     rollbackDate() { return this.$.json.rollback_date; }
@@ -105,19 +125,9 @@ export class Savepoint {
     rollbackRef() { return this.$.json.rollback_ref; }
 
     /**
-     * @returns Number
+     * @returns String
      */
-    versionMax() { return Math.max(...this.versionTags()); }
-
-    /**
-     * @returns Number
-     */
-    versionUp() { return this.versionTags().reduce((prev, v) => prev || (v > this.versionTag() ? v : 0), 0); }
-
-    /**
-     * @returns Number
-     */
-    versionDown() { return [...this.versionTags()].reverse().reduce((prev, v) => prev || (v < this.versionTag() ? v : 0), 0); }
+    rollbackPID() { return this.$.json.rollback_pid; }
 
     /**
      * @returns String
@@ -130,9 +140,9 @@ export class Savepoint {
     /**
      * @returns String
      */
-    restorePreview() {
+    reverseSQL() {
         if (this.versionState() === 'rollback') return this.querify(true);
-        return [this.querify(true), ...this.cascades().map(c => c.restorePreview())].join('\n');
+        return [this.querify(true), ...this.cascades().map(c => c.reverseSQL())].join('\n');
     }
 
     /**
@@ -159,7 +169,7 @@ export class Savepoint {
         if ($reversed) {
             rootSchema = rootSchema.reverseDiff({ forceNormalize: true, honourCDLIgnoreList: this.versionState() === 'rollback' });
         }
-        return rootSchema.generateCDL({ cascade: true }).actions()[0];
+        return rootSchema.generateCDL({ cascadeRule: 'CASCADE' }).actions()[0];
     }
 
     /**
@@ -203,11 +213,11 @@ export class Savepoint {
         if (this.masterSavepoint()) {
             if (this.versionState() === 'commit') {
                 const query = this.querify(true);
-                if (query) await this.client.query(query, { noCreateSavepoint: true });
+                if (query) await this.client.withMode('restore', () => this.client.query(query));
             }
         } else {
             if (!(await this.isNextRestorePoint())) throw new Error(`Invalid restore order.`);
-            await this.client.query(this.querify(true), { noCreateSavepoint: true });
+            await this.client.withMode('restore', () => this.client.query(this.querify(true)));
         }
         const linkedDB = await this.client.linkedDB();
         // Update record

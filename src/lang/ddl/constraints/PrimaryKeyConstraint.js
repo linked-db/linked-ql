@@ -1,5 +1,6 @@
 import { AbstractLevel2Constraint } from './abstracts/AbstractLevel2Constraint.js';
 import { AbstractColumnsMixin } from '../abstracts/AbstractColumnsMixin.js';
+import { Lexer } from '../../Lexer.js';
 
 export class PrimaryKeyConstraint extends AbstractColumnsMixin(AbstractLevel2Constraint) {
 

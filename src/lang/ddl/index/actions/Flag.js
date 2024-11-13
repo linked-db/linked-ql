@@ -24,7 +24,7 @@ export class Flag extends AbstractAction {
 		});
 	}
 
-    parse(context, expr) {
+    static parse(context, expr) {
         const [value] = expr.match(/TODO/i) || [];
         if (value) return (new this(context)).value(value.replace(/\s+/, '_').toUpperCase());
     }

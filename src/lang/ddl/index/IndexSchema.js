@@ -10,7 +10,7 @@ export class IndexSchema extends AbstractColumnsMixin(AbstractNameableNode) {
 
 	type(value) {
 		if (!arguments.length) return this.#type;
-		if (typeof value !== 'string') throw new Error(`The "type" directive must be of type string`);
+		if (typeof value !== 'string') throw new Error(`The "type" directive must be of type string. Recieved ${value}`);
 		if (this.$diffTagHydrate()) {
 			this.#$type = value;
 		} else this.#type = value;
@@ -51,7 +51,7 @@ export class IndexSchema extends AbstractColumnsMixin(AbstractNameableNode) {
 	static fromJSON(context, json, callback = null) {
 		if (!/^(INDEX|KEY|FULLTEXT)$/i.test(json.type)) return;
 		return super.fromJSON(context, json, (instance) => {
-			instance.type(!!json.type);
+			instance.type(json.type);
 			instance.$diffTagHydrate(json.$type, ($type) => instance.type($type));
 			callback?.(instance);
 		});
@@ -64,6 +64,8 @@ export class IndexSchema extends AbstractColumnsMixin(AbstractNameableNode) {
 			...jsonIn
 		});
 	}
+
+    static checkIsColumn(contextNode) { return false; }
 
 	static parse(context, expr) {
 		const [ match, type, rest ] = /^((?:(?:FULLTEXT|SPATIAL)(?:\s+INDEX|\s+KEY)?)|(?:INDEX|KEY))([\s\S]+)$/i.exec(expr) || [];

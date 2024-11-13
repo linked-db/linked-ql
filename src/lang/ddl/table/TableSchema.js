@@ -55,25 +55,31 @@ export class TableSchema extends AbstractPrefixableNameableNode {
 			}
 			arg1 = { name: arg1, ...(typeof args[0] === 'object' ? args[0] : { type: args[0] }) };
 		}
-		this.#columns = this.$castInputs([arg1], ColumnSchema, this.#columns, 'columns', null, (existing) => {
-			return this.#columns.find((col) => col.identifiesAs(existing.name()));
+		this.#columns = this.$castInputs([arg1], ColumnSchema, this.#columns, 'columns', null, (instance) => {
+			return this.#columns.find((col) => col.identifiesAs(instance.name()));
 		});
 		return this;
 	}
 
 	constraint(arg1, ...args) {
 		if (typeof arg1 === 'string') {
-			const existing = this.#constraints.find((cons) => cons.identifiesAs(arg1));
+			const existing = [...this.#nodes]/*deeply*/.find((cons) => cons.identifiesAs(arg1));
 			if (!args.length) return existing;
 			if (args[0] === false) {
-				this.#constraints = this.#constraints.filter((c) => c !== existing);
-				existing?.bubble('DISCONNECTED');
+				if (this.#constraints.includes(existing)) {
+					this.#constraints = this.#constraints.filter((c) => c !== existing);
+					existing?.bubble('DISCONNECTED');
+				} else if (existing) {
+					this.column(existing.columns()[0]).constraint(existing.TYPE, false);
+				}
 				return this;
 			}
 			arg1 = { name: arg1, ...(typeof args[0] === 'object' ? args[0] : { type: args[0], columns: args[1] }) };
 		}
-		this.#constraints = this.$castInputs([arg1], this.constructor.CONSTRAINT_TYPES, this.#constraints, 'constraints', null, (existing) => {
-			return this.#constraints.find((cons) => cons.identifiesAs(existing.name()));
+		this.#constraints = this.$castInputs([arg1], this.constructor.CONSTRAINT_TYPES, this.#constraints, 'constraints', null, (instance) => {
+			const existing = this.#constraints.find((cons) => cons.identifiesAs(instance.name()));
+			if (!existing && instance.columns().length === 1) this.column(instance.columns()[0]).constraint(instance.TYPE, false);
+			return existing;
 		});
 		return this;
 	}
@@ -89,8 +95,8 @@ export class TableSchema extends AbstractPrefixableNameableNode {
 			}
 			arg1 = { name: arg1, ...(typeof args[0] === 'object' ? args[0] : { type: args[0], columns: args[1] }) };
 		}
-		this.#indexes = this.$castInputs([arg1], IndexSchema, this.#indexes, 'indexes', null, (existing) => {
-			return this.#indexes.find((idx) => idx.identifiesAs(existing.name()));
+		this.#indexes = this.$castInputs([arg1], IndexSchema, this.#indexes, 'indexes', null, (instance) => {
+			return this.#indexes.find((idx) => idx.identifiesAs(instance.name()));
 		});
 		return this;
 	}
@@ -300,12 +306,13 @@ export class TableSchema extends AbstractPrefixableNameableNode {
 			if (node.status() === 'new') {
 				tableCDL.add('ADD', kind, $kind, (cd) => {
 					cd.argument(node.jsonfy({ withColumns: kind !== 'COLUMN', diff: false }));
-					if (kind === 'COLUMN' && options.ifNotExists) cd.withFlag('IF_NOT_EXISTS');
+					if (kind === 'COLUMN' && options.existsChecks) cd.withFlag('IF_NOT_EXISTS');
 				});
 			} else if (node.status() === 'obsolete') {
 				tableCDL.add('DROP', kind, $kind, (cd) => {
 					cd.reference(node.name());
-					if (options.cascade) cd.withFlag('CASCADE');
+					if (options.cascadeRule) cd.withFlag(options.cascadeRule);
+					if (options.existsChecks) cd.withFlag('IF_EXISTS');
 				});
 			} else/* existing */ {
 				const nodeCDL = node.generateCDL();

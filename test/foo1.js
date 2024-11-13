@@ -51,12 +51,12 @@ if (0) {
     process.exit();
 }
 
+console.log('DROP 5', await client.query(`DROP SCHEMA if exists test_db${ dialect === 'mysql' ? '' : ' CASCADE' } RETURNING SCHEMA`));
+console.log('DROP 3', await client.query(`DROP TABLE if exists ${ dbPublic }.books${ dialect === 'mysql' ? '' : ' CASCADE' } RETURNING SCHEMA`));
+console.log('DROP 2', await client.query(`DROP TABLE if exists ${ dbPublic }.users${ dialect === 'mysql' ? '' : ' CASCADE RETURNING SAVEPOINT' }`));
+console.log('DROP 1', await client.query(`DROP TABLE if exists ${ dbPublic }.roles${ dialect === 'mysql' ? '' : ' CASCADE' }`));
+console.log('DROP 1', await client.query(`DROP TABLE if exists ${ dbPublic }.savepoints${ dialect === 'mysql' ? '' : ' CASCADE' }`));
 await linkedDB.table('savepoints').delete(true);
-console.log('DROP 5', await client.query(`DROP SCHEMA if exists test_db${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
-console.log('DROP 3', await client.query(`DROP TABLE if exists ${ dbPublic }.books${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
-console.log('DROP 2', await client.query(`DROP TABLE if exists ${ dbPublic }.users${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
-console.log('DROP 1', await client.query(`DROP TABLE if exists ${ dbPublic }.roles${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
-console.log('DROP 1', await client.query(`DROP TABLE if exists ${ dbPublic }.savepoints${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
 
 console.log('....create roles......', await client.query(`CREATE TABLE roles (
     id int primary key generated always as identity,
@@ -117,7 +117,7 @@ if (spliceForwardHistories) {
 } else {
     // Roll forward
     for (let i = 0; i < 3; i ++) {
-        await (await client.database(dbPublic).savepoint({ direction: 'forward' })).recommit();
+        await (await client.database(dbPublic).savepoint({ lookAhead: true })).recommit();
     }
     // Should see: 1,2,3
     console.log('\n\n\n\n\n\nAll ===== savepoints-----', ...(await linkedDB.table('savepoints').select()));
@@ -180,10 +180,10 @@ if (spliceForwardHistories) {
 
 /*
 // Clean up
-console.log('DROP 3', await client.query(`DROP TABLE if exists ${ dbPublic }.books${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
-console.log('DROP 2', await client.query(`DROP TABLE if exists ${ dbPublic }.users${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
-console.log('DROP 1', await client.query(`DROP TABLE if exists ${ dbPublic }.roles${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
-console.log('DROP 5', await client.query(`DROP SCHEMA if exists test_db${ dialect === 'mysql' ? '' : ' CASCADE' }`, { noCreateSavepoint: true }));
+console.log('DROP 3', await client.query(`DROP TABLE if exists ${ dbPublic }.books${ dialect === 'mysql' ? '' : ' CASCADE' }`));
+console.log('DROP 2', await client.query(`DROP TABLE if exists ${ dbPublic }.users${ dialect === 'mysql' ? '' : ' CASCADE' }`));
+console.log('DROP 1', await client.query(`DROP TABLE if exists ${ dbPublic }.roles${ dialect === 'mysql' ? '' : ' CASCADE' }`));
+console.log('DROP 5', await client.query(`DROP SCHEMA if exists test_db${ dialect === 'mysql' ? '' : ' CASCADE' }`));
 console.log('---PUBLIC TABLES AFTER:', (await client.rootSchema({ depth: 1 })).database(dbPublic).tables(false));
 console.log('---DATABSES AFTER:', (await client.rootSchema()).databases(false));
 */

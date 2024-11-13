@@ -177,7 +177,7 @@ async function commit() {
     }
     // Schema diffing
     let commitsCount = 0;
-    const CDL = upstreamSchema.diffWith(localSchema).generateCDL({ cascade: true });
+    const CDL = upstreamSchema.diffWith(localSchema).generateCDL({ cascadeRule: flags['cascade-rule'] });
     for (const dbAction of CDL) {
         // Preview...
         const confirmMessage = [`\n----------\n`];
@@ -221,8 +221,8 @@ async function restore(forward = false) {
             confirmMessage.push(`Rolling forward database ${savepoint.name()}@${savepoint.versionDown()} to version ${savepoint.versionTag()}.`);
         } else confirmMessage.push(`Rolling back database ${savepoint.name()}@${savepoint.versionTag()} to version ${savepoint.versionDown()}.`);
         confirmMessage.push(`This will mean ${savepoint.restoreEffect() === 'DROP' ? 'dropping' : (savepoint.restoreEffect() === 'RECREATE' ? 'recreating' : 'altering')} the database!`);
-        const restorePreview = savepoint.restorePreview();
-        if (!flags['quiet']) confirmMessage.push(`SQL preview:\n${restorePreview}\n`);
+        const reverseSQL = savepoint.reverseSQL();
+        if (!flags['quiet']) confirmMessage.push(`SQL preview:\n${reverseSQL}\n`);
         // Confirm and execute...
         if (await confirm(confirmMessage)) {
             const restoreDetails = {
@@ -297,7 +297,7 @@ async function generate() {
 
 async function replicate() {
     let historiesJson1, historiesJson2, targetClient;
-    if (flags['origin']) {
+    if (flags['online']) {
         historiesJson1 = await clientAPIS.default().getSavepoints({ histories: true });
         historiesJson2 = await clientAPIS.remote().getSavepoints({ histories: true });
         let targetClient1 = clientAPIS.default();
@@ -306,7 +306,7 @@ async function replicate() {
             [historiesJson1, historiesJson2, targetClient1, targetClient2] = [historiesJson2, historiesJson1, targetClient2, targetClient1];
         }
         targetClient = targetClient2;
-    } else if (flags['histories']) {
+    } else if (flags['offline']) {
         historiesJson1 = fileAPIS.histories().read();
         historiesJson2 = await clientAPIS.default().getSavepoints({ histories: true });
         targetClient = clientAPIS.default();
@@ -394,7 +394,7 @@ async function replicate() {
     async function createSavepoint(savepoint1) {
         console.log(`Creating ${savepoint1.name()}@${savepoint1.versionTag()}`);
         if (savepoint1.versionState() === 'commit') {
-            await targetClient.query(savepoint1.querify(), { noCreateSavepoint: true });
+            await targetClient.withMode('replication', () => targetClient.query(savepoint1.querify()));
         }
         const versionState = savepoint1.versionState();
         const savepointJson = {

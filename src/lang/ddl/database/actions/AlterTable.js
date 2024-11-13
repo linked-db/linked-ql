@@ -25,10 +25,10 @@ export class AlterTable extends AbstractDDLStatement(AbstractAlterAction) {
 			if (action.CLAUSE === 'RENAME') return [a, b, c.concat(action), d];
 			return [a, b, c, d.concat(action)];
 		}, [null, null, [], []]);
-		const sql = [];
-		if (actions.length) sql.push(`ALTER ${this.KIND} ${this.reference()}\n\t${actions.join(',\n\t')}`);
-		for (const rename of renames.concat(ownRename || [])) sql.push(`ALTER ${this.KIND} ${this.reference()} ${rename}`);
-		if (moveAction) sql.push(`ALTER ${this.KIND} ${ownRename?.argument() || this.reference()} ${moveAction}`);
+		const sql = [], stmt_ = `ALTER ${this.KIND}${ this.hasFlag('IF_EXISTS') ? ` IF EXISTS` : ''}`;
+		if (actions.length) sql.push(`${stmt_} ${this.reference()}\n\t${actions.join(',\n\t')}`);
+		for (const rename of renames.concat(ownRename || [])) sql.push(`${stmt_} ${this.reference()} ${rename}`);
+		if (moveAction) sql.push(`${stmt_} ${ownRename?.argument() || this.reference()} ${moveAction}`);
 		return sql.join(';\n');
 	}
 }

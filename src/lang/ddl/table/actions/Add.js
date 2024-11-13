@@ -38,7 +38,7 @@ export class Add extends AbstractArgumentMixin(AbstractAction) {
 
 	after(value) {
 		if (!arguments.length) return this.#after;
-		this.#after = this.$castInputs([value], this.REF_TYPES, this.#after, 'ref');
+		this.#after = this.$castInputs([value], this.constructor.REF_TYPES[this.KIND], this.#after, 'ref');
 		return this;
 	}
 
@@ -59,7 +59,17 @@ export class Add extends AbstractArgumentMixin(AbstractAction) {
 	}
 
 	static parse(context, expr, parseCallback, argParseCallback = null) {
-		let [, kindExpr = 'COLUMN', argumentExpr, afterRef, first] = expr.match(new RegExp(`^${this.CLAUSE}\\s+(?:(${Object.keys(this.EXPECTED_TYPES).join('|')})\\s+)?([\\s\\S]+?)(?:\\s+AFTER\\s+(.+)|\\s+(FIRST))?$`, 'i')) || [];
+		let autoFiguredKind;
+		let [, kindExpr, argumentExpr, afterRef, first] = expr.match(new RegExp(`^${this.CLAUSE}\\s+(?:(${Object.keys(this.EXPECTED_TYPES).join('|')})\\s+)?([\\s\\S]+?)(?:\\s+AFTER\\s+(.+)|\\s+(FIRST))?$`, 'i')) || [];
+		if (!kindExpr) {
+			if (/^(PRIMARY|FOREIGN|UNIQUE|CHECK)/i.test(argumentExpr)) {
+				kindExpr = 'CONSTRAINT';
+				autoFiguredKind = true;
+			} else if (/^(FULLTEXT|SPATIAL)/i.test(argumentExpr)) {
+				kindExpr = 'INDEX';
+				autoFiguredKind = true;
+			} else if (argumentExpr) kindExpr = 'COLUMN';
+		}
 		if (!kindExpr) return;
 		const instance = new this(context, kindExpr.toUpperCase());
 		if (instance.CLAUSE === 'ADD') {
@@ -71,7 +81,7 @@ export class Add extends AbstractArgumentMixin(AbstractAction) {
 		if (afterRef) instance.after(parseCallback(instance, afterRef, this.REF_TYPES[instance.KIND]));
 		else if (first) instance.first();
 		// Handle argument
-		const argument = (argParseCallback || parseCallback)(instance, instance.KIND === 'COLUMN' ? argumentExpr : `${instance.KIND} ${argumentExpr}`, this.EXPECTED_TYPES[instance.KIND]);
+		const argument = (argParseCallback || parseCallback)(instance, instance.KIND === 'COLUMN' || autoFiguredKind ? argumentExpr : `${instance.KIND} ${argumentExpr}`, this.EXPECTED_TYPES[instance.KIND]);
 		return instance.argument(argument);
 	}
 
@@ -80,7 +90,7 @@ export class Add extends AbstractArgumentMixin(AbstractAction) {
 		if (this.hasFlag('IF_NOT_EXISTS')) sql.push('IF NOT EXISTS');
 		sql.push(this.argument());
 		if (this.#first) sql.push('FIRST');
-		else if (this.#after) sql.push('AFTER', action.#after);
+		else if (this.#after) sql.push('AFTER', this.#after);
         return sql.join(' ');
 	}
 }

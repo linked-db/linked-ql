@@ -184,12 +184,13 @@ export class DatabaseSchema extends AbstractNameableNode {
 			if (tbl.status() === 'new') {
 				databaseCDL.add('CREATE', kind, (cd) => {
 					cd.argument({ prefix: this.name(), ...tbl.jsonfy({ ...options, diff: false }) });
-					if (options.ifNotExists) cd.withFlag('IF_NOT_EXISTS');
+					if (options.existsChecks) cd.withFlag('IF_NOT_EXISTS');
 				});
 			} else if (tbl.status() === 'obsolete') {
 				databaseCDL.add('DROP', kind, (cd) => {
 					cd.reference([this.name(), tbl.name()]);
-					if (options.cascade) cd.withFlag('CASCADE');
+					if (options.cascadeRule) cd.withFlag(options.cascadeRule);
+					if (options.existsChecks) cd.withFlag('IF_EXISTS');
 				});
 			} else {
 				const tblCDL = tbl.generateCDL(options);

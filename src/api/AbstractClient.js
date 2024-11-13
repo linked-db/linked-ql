@@ -1,4 +1,5 @@
 import { _from as _arrFrom, _difference, _intersect } from '@webqit/util/arr/index.js';
+import { AlterTable } from '../lang/ddl/database/actions/AlterTable.js';
 import { _isObject } from '@webqit/util/js/index.js';
 import { Str } from '../lang/expr/types/Str.js';
 import { Identifier } from '../lang/expr/Identifier.js';
@@ -31,6 +32,7 @@ export class AbstractClient {
 
     /**
      * @property Object
+     * 
      * - dialect
      * - commitRef
      * - ansiQuotes
@@ -56,6 +58,22 @@ export class AbstractClient {
         if (args[0] === false) return callback(); // IMPORTANT: withSchema() callers can do this for convenience
         const params = Array.isArray(args[0]) || _isObject(args[0]) ? args.pop() : { depth: 2 };
         return await this.schema(params, callback);
+    }
+
+    /**
+     * Runs an operation within specific modes.
+     * 
+     * @param string                mode
+     * @param Function              callback
+     * 
+     * @return Any
+     */
+    #modeStack = [];
+    async withMode(mode, callback) {
+        this.#modeStack.unshift(mode);
+        const returnValue = await callback();
+        this.#modeStack.shift();
+        return returnValue;
     }
 
     /**
@@ -143,10 +161,13 @@ export class AbstractClient {
      * @return Savepoint
      */
     async createDatabase(createSpec, params = {}) {
-        if (typeof createSpec === 'string') { createSpec = { name: createSpec }; }
-        const query = CreateDatabase.fromJSON(this, { argument: createSpec });
+        if (typeof createSpec === 'string') { createSpec = { name: createSpec, tables: [] }; }
+        const query = CreateDatabase.fromJSON(this, { kind: params.kind, argument: createSpec });
         if (params.ifNotExists) query.withFlag('IF_NOT_EXISTS');
-        return await this.execQuery(query, params);
+        if (params.returning) query.returning(params.returning);
+        const returnValue = await this.execQuery(query, params);
+        if (returnValue === true) return this.database(query.argument().name());
+        return returnValue;
     }
 
     /**
@@ -159,8 +180,9 @@ export class AbstractClient {
      * @return Savepoint
      */
     async renameDatabase(dbName, dbToName, params = {}) {
-        const query = RenameDatabase.fromJSON(this, { reference: dbName, argument: dbToName });
-        if (!query) throw new Error(`renameDatabase() called with an invalid arguments.`);
+        const query = RenameDatabase.fromJSON(this, { kind: params.kind, reference: dbName, argument: dbToName });
+        if (!query) throw new Error(`renameDatabase() called with invalid arguments.`);
+        if (params.returning) query.returning(params.returning);
         return await this.execQuery(query, params);
     }
 
@@ -178,13 +200,14 @@ export class AbstractClient {
         if (typeof alterSpec === 'string') { alterSpec = { name: alterSpec }; }
         return await this.withSchema(async () => {
             // -- Compose an altInstance from request
-            const dbSchema = (await this.schema([{ name: alterSpec.name, tables: alterSpec.tables }])).database(alterSpec.name);
+            const dbSchema = (await this.schema([{ name: alterSpec.name, tables: alterSpec.tables || ['*'] }])).database(alterSpec.name);
             if (!dbSchema) throw new Error(`Database "${alterSpec.name}" does not exist.`);
             const dbSchemaEditable = dbSchema.clone();
             await callback(dbSchemaEditable.$nameLock(true));
-            const databaseCDL = dbSchema.diffWith(dbSchemaEditable).generateCDL({ cascade: params.cascade });
+            const databaseCDL = dbSchema.diffWith(dbSchemaEditable).generateCDL({ cascadeRule: params.cascadeRule, existsChecks: params.existsChecks });
             if (!databaseCDL.length) return;
-            const query = AlterDatabase.fromJSON(this, { reference: dbSchema.name(), argument: databaseCDL });
+            const query = AlterDatabase.fromJSON(this, { kind: params.kind, reference: dbSchema.name(), argument: databaseCDL });
+            if (params.returning) query.returning(params.returning);
             return await this.execQuery(query, params);
         });
     }
@@ -198,10 +221,12 @@ export class AbstractClient {
      * @return Savepoint
      */
     async dropDatabase(dbName, params = {}) {
-        const query = DropDatabase.fromJSON(this, { reference: dbName });
-        if (!query) throw new Error(`dropDatabase() called with an invalid arguments.`);
+        const query = DropDatabase.fromJSON(this, { kind: params.kind, reference: dbName });
+        if (!query) throw new Error(`dropDatabase() called with invalid arguments.`);
         if (params.ifExists) query.withFlag('IF_EXISTS');
-        if (params.cascade) query.withFlag('CASCADE');
+        if (params.restrict) query.withFlag('RESTRICT');
+        else if (params.cascade) query.withFlag('CASCADE');
+        if (params.returning) query.returning(params.returning);
         return await this.execQuery(query, params);
     }
 
@@ -254,7 +279,7 @@ export class AbstractClient {
             if (query.statementType === 'DDL') {
                 return await this.execDDL(query, rootSchema, params);
             }
-            const vars = {}
+            const vars = {};
             // IMPORTANT: The order of the following
             query.renderBindings?.(params.values || []);
             if (query.hasSugars) query = query.deSugar();
@@ -297,24 +322,45 @@ export class AbstractClient {
             dbAction: query,
             mainSavepointData: null,
             cascadeSavepointsData: [],
+            returning: query.returning(),
+            inNativeMode: ['restore', 'replication', 'install', 'uninstall'].includes(this.#modeStack[0])
         };
+        const linkedDB = await this.linkedDB();
+        if (!vars.inNativeMode && (await linkedDB.config('database_role')) === 'master') {
+            throw new Error(`Direct DDL operations on a master database not allowed.`);
+        }
+        // IMPORTANT: after having desugared out the returning clause
+        if (query.hasSugars) query = query.deSugar();
         // Normalise to db-level query
         if (['TABLE', 'VIEW'].includes(query.KIND)) {
-            if (query.CLAUSE === 'CREATE' && !query.argument().prefix()) {
+            // Normalise renames
+            if (query.CLAUSE === 'RENAME') {
+                const [fromName, toName] = [query.reference().jsonfy(), query.argument().jsonfy()];
+                query = AlterTable.fromJSON(this, { kind: query.KIND, reference: fromName, argument: { actions: [] } });
+                query.add('RENAME', null, (cd) => cd.argument(toName));
+            } else if (query.CLAUSE === 'CREATE' && !query.argument().prefix()) {
                 query.argument().prefix(rootSchema.defaultDB());
             }
             vars.dbAction = AlterDatabase.fromJSON(this, {
                 reference: (query.reference?.() || query.argument()).prefix(true).name(),
                 argument: { actions: [query] }
             });
+        } else {
+            // Normalise renames
+            if (query.CLAUSE === 'RENAME') {
+                const [fromName, toName] = [query.reference().jsonfy(), query.argument().jsonfy()];
+                query = AlterDatabase.fromJSON(this, { kind: query.KIND, reference: fromName, argument: { actions: [] } });
+                query.add('RENAME', null, (cd) => cd.argument(toName));
+                vars.dbAction = query;
+            }
         }
         vars.rootCDL = RootCDL.fromJSON(this, { actions: [vars.dbAction] });
         // Generate savepoint data
-        if (!params.noCreateSavepoint) {
+        if (!vars.inNativeMode && parseInt(await linkedDB.config('auto_savepoints')) !== 0) {
             const $rootSchema = rootSchema.alterWith(vars.rootCDL, { diff: true });
-            vars.dbName = (vars.dbAction.reference?.() || vars.dbAction.argument()).name();
+            vars.dbReference = (vars.dbAction.reference?.() || vars.dbAction.argument()).name();
             [vars.mainSavepointData, vars.cascadeSavepointsData] = $rootSchema.databases().reduce(([main, cascades], db) => {
-                if (db.identifiesAs(vars.dbName)) return [db, cascades];
+                if (db.identifiesAs(vars.dbReference)) return [db, cascades];
                 return [main, cascades.concat(db.dirtyCheck(true).length ? db : [])];
             }, [null, []]);
         }
@@ -322,14 +368,27 @@ export class AbstractClient {
         await $execDDL(query, rootSchema, params);
         vars.returnValue = true;
         if (vars.mainSavepointData) {
-            vars.returnValue = await this.createSavepoint(vars.mainSavepointData, { ...params, masterSavepoint: null });
-            vars.returnValue.$._cascades = [];
+            vars.savepointInstance = await this.createSavepoint(vars.mainSavepointData, { ...params, masterSavepoint: null });
+            vars.savepointInstance.$._cascades = [];
             for (const cascadeSavepointData of vars.cascadeSavepointsData) {
-                vars.returnValue.$._cascades.push(await this.createSavepoint(cascadeSavepointData, { ...params, masterSavepoint: vars.returnValue.id() }));
+                vars.savepointInstance.$._cascades.push(await this.createSavepoint(cascadeSavepointData, { ...params, masterSavepoint: vars.savepointInstance.id() }));
             }
         }
+        // Render resulting schema
         const entry = this.#matchSchemaRequest({ depth: 2 });
         entry.resolvedSchema = entry.resolvedSchema.alterWith(vars.rootCDL, { diff: false });
+        // Handle RETURNING clause
+        const getRenderedName = (query) => {
+            if (query.CLAUSE === 'CREATE') return query.argument().name();
+            if (query.CLAUSE === 'ALTER') return query.argument().actions().find((cd) => cd.CLAUSE === 'RENAME' && !cd.KIND)?.argument().name() || query.reference().name();
+            return query.reference().name();
+        };
+        if (vars.returning === 'SCHEMA') {
+            const resultDbSchema = (query.CLAUSE === 'DROP' ? rootSchema : entry.resolvedSchema).database(getRenderedName(vars.dbAction));
+            if (['TABLE', 'VIEW'].includes(query.KIND)) return resultDbSchema.table(getRenderedName(query));
+            return resultDbSchema;
+        };
+        if (vars.returning === 'SAVEPOINT') return vars.savepointInstance || null;
         return vars.returnValue;
     }
 
@@ -559,11 +618,12 @@ export class AbstractClient {
      * 
      * @return Database
      */
+    #linkedDBConfig;
     async linkedDB() {
         const migrations = [
             // --v1: create base structure
             async (dbName) => {
-                await this.createDatabase({
+                await this.withMode('install', () => this.createDatabase({
                     name: dbName,
                     tables: [{
                         name: 'savepoints',
@@ -574,12 +634,12 @@ export class AbstractClient {
                             { name: 'name', type: ['varchar', 255], notNull: true },
                             { name: '$name', type: ['varchar', 255] },
                             { name: 'tables', type: 'json' },
-                            { name: 'status', type: ['varchar', 8], check: `status IN (null, 'new', 'obsolete')` },
+                            { name: 'status', type: ['varchar', 8], check: { in: ['status', { value: null }, { value: 'new' }, { value: 'obsolete' }] } },
                             // Meta data
                             { name: 'database_tag', type: ['varchar', 30], notNull: true },
                             { name: 'version_tag', type: 'int', notNull: true },
                             // Revision data
-                            { name: 'version_state', type: ['varchar', 8], notNull: true, check: `version_state IN ('commit', 'rollback')` },
+                            { name: 'version_state', type: ['varchar', 8], notNull: true, check: { in: ['version_state', { value: 'commit' }, { value: 'rollback' }] } },
                             { name: 'commit_date', type: ['timestamp', 3], notNull: true },
                             { name: 'commit_desc', type: ['varchar', 255] },
                             { name: 'commit_ref', type: ['varchar', 255] },
@@ -589,12 +649,19 @@ export class AbstractClient {
                             { name: 'rollback_ref', type: ['varchar', 255] },
                             { name: 'rollback_pid', type: ['varchar', 50] },
                         ],
+                    }, {
+                        name: 'config',
+                        columns: [
+                            { name: 'id', ...(this.params.dialect === 'mysql' ? { type: 'int', autoIncrement: true } : { type: 'int', identity: true }), primaryKey: true },
+                            { name: 'name', type: ['varchar', 100], notNull: true, uniqueKey: true },
+                            { name: 'value', type: ['varchar', 255] },
+                        ],
                     }],
-                }, { noCreateSavepoint: true });
+                }));
                 if (this.params.dialect === 'postgres') {
                     await this.driver.query(`
                         -- The Function
-                        CREATE OR REPLACE FUNCTION fire_savepoints_event() RETURNS trigger AS $$
+                        CREATE OR REPLACE FUNCTION fire_linked_db_event1() RETURNS trigger AS $$
                         BEGIN
                             PERFORM pg_notify('savepoints', json_build_object(
                                 'action', TG_OP,
@@ -603,11 +670,24 @@ export class AbstractClient {
                             RETURN NEW;
                         END;
                         $$ LANGUAGE plpgsql;
-                        -- The trigger
+                        CREATE OR REPLACE FUNCTION fire_linked_db_event2() RETURNS trigger AS $$
+                        BEGIN
+                            PERFORM pg_notify('config', json_build_object(
+                                'action', TG_OP,
+                                'body', CASE WHEN TG_OP = 'DELETE' THEN row_to_json(OLD) ELSE row_to_json(NEW) END
+                            )::text);
+                            RETURN NEW;
+                        END;
+                        $$ LANGUAGE plpgsql;
+                        -- The triggers
                         DROP TRIGGER IF EXISTS savepoints_event_trigger ON "${dbName}"."savepoints";
                         CREATE TRIGGER savepoints_event_trigger
                             AFTER INSERT OR UPDATE OR DELETE ON "${dbName}"."savepoints"
-                            FOR EACH ROW EXECUTE FUNCTION fire_savepoints_event();
+                            FOR EACH ROW EXECUTE FUNCTION fire_linked_db_event1();
+                        DROP TRIGGER IF EXISTS config_event_trigger ON "${dbName}"."config";
+                        CREATE TRIGGER config_event_trigger
+                            AFTER INSERT OR UPDATE OR DELETE ON "${dbName}"."config"
+                            FOR EACH ROW EXECUTE FUNCTION fire_linked_db_event2();
                     `);
                 }
             },
@@ -618,9 +698,41 @@ export class AbstractClient {
         const instance = this.database(baseName(peakVersion));
         Object.defineProperty(instance, 'uninstall', {
             value: async (cascade) => {
-                const returnValue = await this.dropDatabase(instance.name, { cascade, noCreateSavepoint: true });
+                const returnValue = await this.withMode('uninstall', () => this.dropDatabase(instance.name, { cascade }));
                 this.installed = false;
                 return returnValue;
+            }
+        });
+        Object.defineProperty(instance, 'config', {
+            value: async (...args) => {
+                if (args.length > 1 || _isObject(args[0])) {
+                    const hash = _isObject(args[0])
+                        ? Object.keys(args[0]).map((name) => ({ name, value: args[0][name] }))
+                        : { name: args[0], value: args[1] };
+                    if (this.#linkedDBConfig) {
+                        for (const e of [].concat(hash)) {
+                            this.#linkedDBConfig.set(e.name, e.value);
+                        }
+                    }
+                    return this.withSchema({ depth: 2, selector: 'linked_db%' }, async () => {
+                        return await instance.table('config').upsert(hash);
+                    });
+                }
+                if (!this.#linkedDBConfig) {
+                    const entries = await instance.table('config').select();
+                    this.#linkedDBConfig = new Map(entries.map((e) => [e.name, e.value]));
+                    this.listen('config', (e) => {
+                        const payload = JSON.parse(e.payload);
+                        if (payload.action === 'DELETE') {
+                            this.#linkedDBConfig.delete(payload.body.name);
+                        } else {
+                            this.#linkedDBConfig.set(payload.body.name, payload.body.value);
+                        }
+                    });
+                }
+                if (!args.length) return Object.fromEntries(this.#linkedDBConfig);
+                if (Array.isArray(args[0])) return Object.fromEntries(args[0].map((k) => [k, this.#linkedDBConfig.get(k)]));
+                return this.#linkedDBConfig.get(args[0]);
             }
         });
         if (this.installed) return instance;
@@ -635,7 +747,7 @@ export class AbstractClient {
             if (i <= foundVersion) continue;
             const fromName = baseName(i - 1), toName = baseName(i);
             try {
-                if (i > 1) await this.alterDatabase(fromName, dbSchema => dbSchema.name(toName), { noCreateSavepoint: true });
+                if (i > 1) await this.withMode('install', () => this.alterDatabase(fromName, dbSchema => dbSchema.name(toName)));
                 await migrations[i - 1](toName);
             } catch (e) {
                 if (!foundName && i === 1) console.log(`Error installing ${toName}.`);

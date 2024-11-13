@@ -10,7 +10,7 @@ export class JsonArraySpec extends AbstractSugar(AbstractNodeList) {
 
 	static get expose() {
 		return {
-			jsonArray: (context, ...entries) => this.fromJSON(context, { entries }),
+			items: (context, ...entries) => this.fromJSON(context, { entries }),
 		};
 	}
 

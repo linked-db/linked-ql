@@ -7,7 +7,6 @@ export const AbstractNonDDLStatement = Class => class extends AbstractStatementN
 
 	#uuid;
 	#queryBindings = new Set;
-	#querySugars = new Set;
 
 	get uuid() {
 		if (!this.#uuid) this.#uuid = `scope_${(0 | Math.random() * 9e6).toString(36)}`;
@@ -16,18 +15,12 @@ export const AbstractNonDDLStatement = Class => class extends AbstractStatementN
 
 	get queryBindings() { return [...this.#queryBindings].sort((a, b) => b.offset() === 0 || b.offset() > a.offset() ? -1 : 1); }
 
-	get querySugars() { return this.#querySugars; }
-
-	get hasSugars() { return this.isSugar || !!this.#querySugars.size; }
-
-	get hasPaths() { return [...this.#querySugars].some(s => s.isPath); }
+	get hasPaths() { return [...this.querySugars].some(s => s.isPath); }
 
 	$bubble(eventType, eventSource) {
-		if (['CONNECTED', 'DISCONNECTED'].includes(eventType)
-			&& (eventSource.isSugar || [Binding].some(x => eventSource instanceof x))) {
-			const collection = eventSource.isSugar ? this.#querySugars : this.#queryBindings;
-			if (eventType === 'DISCONNECTED') collection.delete(eventSource);
-			else collection.add(eventSource);
+		if (['CONNECTED', 'DISCONNECTED'].includes(eventType) && [Binding].some(x => eventSource instanceof x)) {
+			if (eventType === 'DISCONNECTED') this.#queryBindings.delete(eventSource);
+			else this.#queryBindings.add(eventSource);
 			return; // Don't bubble beyond this point. think dimensional queries
 		}
 		return super.$bubble(eventType, eventSource);
