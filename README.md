@@ -68,6 +68,8 @@ If you miss the art and power of SQL, then you'll love Linked QL! While SQL as l
 
 ##### └ *Preview:*
 
+<table><tr><td>
+
 ```js
 // (1): A basic query with parameters
 const result = await client.query(
@@ -95,6 +97,8 @@ const result = await client.query(
 );
 console.log(result);
 ```
+
+</td></tr><table>
 
 </details>
 </td></tr>
@@ -335,7 +339,7 @@ And we've got a few things in the radar: extensive TypeScript support (something
 
 <br>
 
-<div align="center">•••</div>
+<div align="center">|</div>
 
 <br>
 
