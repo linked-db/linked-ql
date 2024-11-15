@@ -470,7 +470,7 @@ All `client` instances above implement the same [interface](https://github.com/l
 
 </div>
 
-> [!NOTE]
+> [!IMPORTANT]
 >
 > This a fast-evolving project and a few things around here might change in the course of that!
 
