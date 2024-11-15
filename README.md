@@ -2,7 +2,7 @@
     
 # Linked QL
 
-_**Get insanely productive with SQL!** Take a break from tooling overheads!_
+_**Get insanely productive with SQL!** Take a break from database tooling overheads!_
 
 [![npm version][npm-version-src]][npm-version-href]<!--[![npm downloads][npm-downloads-src]][npm-downloads-href]-->
 [![bundle][bundle-src]][bundle-href]
@@ -242,7 +242,7 @@ While the typical database has no concept of versioning, Linked QL comes with it
 *Perform a DDL operation and obtain a reference to the automatically created savepoint:*
 
 ```js
-// (a): Using the database.savepoint() API at other times
+// (a): Using the database.savepoint() API at any time
 const savepoint = await client.database('public').savepoint();
 ```
 
@@ -252,7 +252,8 @@ const savepoint = await client.query(
     `CREATE TABLE public.users (
         id int,
         name varchar
-    ) RETURNING SAVEPOINT`,
+    )
+    RETURNING SAVEPOINT`,
     { desc: 'Create users table' }
 );
 ```
@@ -285,7 +286,7 @@ await savepoint.rollback({
 <tr><td>
 <details _name="features"><summary>Diff-based migration</summary>
 
-Whereas schema evolution remains a drag across the board, it comes as a particularly nifty experience in Linked QL! As against the conventional script-based migrations approach, Linked QL follows a diff-based approach that lets you manage your entire DB structure <ins>declaratively</ins> out of a single `schema.json` (or `schema.yml`) file! *(See ➞ [Migrations](https://github.com/linked-db/linked-ql/wiki/Migrations))*
+Whereas schema evolution remains a drag in the database tooling ecosystem, it comes as a particularly nifty experience in Linked QL! As against the conventional script-based migrations approach, Linked QL follows a diff-based approach that lets you manage your entire DB structure <ins>declaratively</ins> out of a single `schema.json` (or `schema.yml`) file! *(See ➞ [Migrations](https://github.com/linked-db/linked-ql/wiki/Migrations))*
 
 ##### └ *Preview:*
 
@@ -306,16 +307,12 @@ Whereas schema evolution remains a drag across the board, it comes as a particul
 ]
 ```
 
-*Use a command to commit yor changes to your DB:*
+> *For an existing DB, usa a command to generate your DB structure: `npx linkedql generate`.*
+
+*Extend your database with tables and columns. Remove existing ibjects or edit them in-place. Then, use a command to commit your changes to your DB:*
 
 ```cmd
 npx linkedql commit
-```
-
-*Or, for an existing DB, usa a command to generate your DB structure:*
-
-```cmd
-npx linkedql generate
 ```
 
 </details>
