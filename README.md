@@ -470,6 +470,10 @@ All `client` instances above implement the same [interface](https://github.com/l
 
 </div>
 
+> [!NOTE]
+>
+> This a fast-evolving project and a few things around here might change in the course of that!
+
 ## Issues
 
 To report bugs or request features, please submit an [issue](https://github.com/linked-db/linked-ql/issues).
