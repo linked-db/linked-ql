@@ -333,9 +333,8 @@ And we've got a few things in the radar: extensive TypeScript support (something
 </td></tr>
 </table>
 
-<div align="center">|</div>
-<div align="center">|</div>
-<div align="center">|</div>
+<br>
+<br>
 
 <table>
 <tr><th>
