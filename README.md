@@ -64,7 +64,7 @@ Here's what we're building:
 <tr><td>
 <details _name="features"><summary>A SQL-native experience</summary>
 
-If you miss the art and power of SQL, then you'll love Linked QL! While SQL as language may have come to be *the exception* in the database tooling ecosystem, it is <ins>the default</ins> in Linked QL! That is a go-ahead to, in fact, #usethelanguage whenever it feels inclined!
+If you miss the art and power of SQL, then you'll love Linked QL! While SQL as a language may have come to be *the exception* in the database tooling ecosystem, it is <ins>the default</ins> in Linked QL! That is a go-ahead to, in fact, #usethelanguage whenever it feels inclined!
 
 ##### └ *Preview:*
 
