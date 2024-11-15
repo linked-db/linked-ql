@@ -98,7 +98,9 @@ export class AbstractDatabase {
         if (!query) throw new Error(`renameTable() called with invalid arguments.`);
         query.reference().prefix(this.name);
         if (params.returning) query.returning(params.returning);
-        return await this.client.execQuery(query, params);
+        const returnValue = await this.client.execQuery(query, params);
+        if (returnValue === true) return this.table(tblToName);
+        return returnValue;
     }
 
     /**
@@ -124,7 +126,9 @@ export class AbstractDatabase {
             query.reference().prefix(this.name);
             if (params.ifExists) query.withFlag('IF_EXISTS');
             if (params.returning) query.returning(params.returning);
-            return this.client.execQuery(query, params);
+            const returnValue = await this.client.execQuery(query, params);
+            if (returnValue === true) return this.table(this.client.extractPostExecName(query));
+            return returnValue;
         });
     }
 

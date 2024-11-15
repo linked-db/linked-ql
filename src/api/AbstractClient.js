@@ -183,7 +183,9 @@ export class AbstractClient {
         const query = RenameDatabase.fromJSON(this, { kind: params.kind, reference: dbName, argument: dbToName });
         if (!query) throw new Error(`renameDatabase() called with invalid arguments.`);
         if (params.returning) query.returning(params.returning);
-        return await this.execQuery(query, params);
+        const returnValue = await this.execQuery(query, params);
+        if (returnValue === true) return this.database(dbToName);
+        return returnValue;
     }
 
     /**
@@ -208,7 +210,9 @@ export class AbstractClient {
             if (!databaseCDL.length) return;
             const query = AlterDatabase.fromJSON(this, { kind: params.kind, reference: dbSchema.name(), argument: databaseCDL });
             if (params.returning) query.returning(params.returning);
-            return await this.execQuery(query, params);
+            const returnValue = await this.execQuery(query, params);
+            if (returnValue === true) return this.database(this.extractPostExecName(query));
+            return returnValue;
         });
     }
 
@@ -378,14 +382,9 @@ export class AbstractClient {
         const entry = this.#matchSchemaRequest({ depth: 2 });
         entry.resolvedSchema = entry.resolvedSchema.alterWith(vars.rootCDL, { diff: false });
         // Handle RETURNING clause
-        const getRenderedName = (query) => {
-            if (query.CLAUSE === 'CREATE') return query.argument().name();
-            if (query.CLAUSE === 'ALTER') return query.argument().actions().find((cd) => cd.CLAUSE === 'RENAME' && !cd.KIND)?.argument().name() || query.reference().name();
-            return query.reference().name();
-        };
         if (vars.returning === 'SCHEMA') {
-            const resultDbSchema = (query.CLAUSE === 'DROP' ? rootSchema : entry.resolvedSchema).database(getRenderedName(vars.dbAction));
-            if (['TABLE', 'VIEW'].includes(query.KIND)) return resultDbSchema.table(getRenderedName(query));
+            const resultDbSchema = (query.CLAUSE === 'DROP' ? rootSchema : entry.resolvedSchema).database(this.extractPostExecName(vars.dbAction));
+            if (['TABLE', 'VIEW'].includes(query.KIND)) return resultDbSchema.table(this.extractPostExecName(query));
             return resultDbSchema;
         };
         if (vars.returning === 'SAVEPOINT') return vars.savepointInstance || null;
@@ -583,6 +582,12 @@ export class AbstractClient {
         if (requestName === 'ROOT_SCHEMA') {
             return this.#matchSchemaRequest({ depth: 2 })?.resolvedSchema;
         }
+    }
+
+    extractPostExecName(query) {
+        if (query.CLAUSE === 'CREATE') return query.argument().name();
+        if (query.CLAUSE === 'ALTER') return query.argument().actions().find((cd) => cd.CLAUSE === 'RENAME' && !cd.KIND)?.argument().name() || query.reference().name();
+        return query.reference().name();
     }
 
     /**

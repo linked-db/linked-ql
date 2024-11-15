@@ -242,7 +242,12 @@ While the typical database has no concept of versioning, Linked QL comes with it
 *Perform a DDL operation and obtain a reference to the automatically created savepoint:*
 
 ```js
-// (a): Using the "RETURNING" clause at creation time
+// (a): Using the database.savepoint() API at other times
+const savepoint = await client.database('public').savepoint();
+```
+
+```js
+// (b): Using the "RETURNING" clause at DDL execution time
 const savepoint = await client.query(
     `CREATE TABLE public.users (
         id int,
@@ -250,11 +255,6 @@ const savepoint = await client.query(
     ) RETURNING SAVEPOINT`,
     { desc: 'Create users table' }
 );
-```
-
-```js
-// (b): Using the database.savepoint() API at other times
-const savepoint = await client.database('public').savepoint();
 ```
 
 *See what you've got there:*
@@ -333,7 +333,6 @@ And we've got a few things in the radar: extensive TypeScript support (something
 </td></tr>
 </table>
 
-<br>
 <br>
 
 <table>
