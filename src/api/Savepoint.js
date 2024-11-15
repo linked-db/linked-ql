@@ -102,12 +102,12 @@ export class Savepoint {
     /**
      * @returns String
      */
-    commitRef() { return this.$.json.commit_ref; }
+    commitClientID() { return this.$.json.commit_client_id; }
 
     /**
      * @returns String
      */
-    commitPID() { return this.$.json.commit_pid; }
+    commitClientPID() { return this.$.json.commit_client_pid; }
 
     /**
      * @returns Date
@@ -122,12 +122,12 @@ export class Savepoint {
     /**
      * @returns String
      */
-    rollbackRef() { return this.$.json.rollback_ref; }
+    rollbackClientID() { return this.$.json.rollback_client_id; }
 
     /**
      * @returns String
      */
-    rollbackPID() { return this.$.json.rollback_pid; }
+    rollbackClientPID() { return this.$.json.rollback_client_pid; }
 
     /**
      * @returns String
@@ -226,8 +226,8 @@ export class Savepoint {
             ['version_state']: versionState,
             [`${versionState}_date`]: q => q.now(),
             [`${versionState}_desc`]: restoreParams.desc || this[`${versionState}Desc`](),
-            [`${versionState}_ref`]: restoreParams.ref || this.client.params.commitRef || this[`${versionState}Ref`](),
-            [`${versionState}_pid`]: q => q.fn(this.client.params.dialect === 'mysql' ? 'connection_id' : 'pg_backend_pid'),
+            [`${versionState}_client_id`]: this.client.params.clientID || this[`${versionState}ClientID`](),
+            [`${versionState}_client_pid`]: q => q.fn(this.client.params.dialect === 'mysql' ? 'connection_id' : 'pg_backend_pid'),
         }, { where: (q) => q.eq('id', (q) => q.value(this.$.json.id)), returning: ['*'] });
         for (const cascade of this.cascades()) {
             await cascade.restore(restoreParams);

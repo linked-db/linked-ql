@@ -34,7 +34,7 @@ export class AbstractClient {
      * @property Object
      * 
      * - dialect
-     * - commitRef
+     * - clientID
      * - ansiQuotes
      * - autoBindings
      * - schemaSelector
@@ -331,7 +331,13 @@ export class AbstractClient {
         };
         const linkedDB = await this.linkedDB();
         if (!vars.inNativeMode && (await linkedDB.config('database_role')) === 'master') {
-            throw new Error(`Direct DDL operations on a master database not allowed.`);
+            throw new Error(`Operation rejected! Direct DDL operations on a master database not allowed.`);
+        }
+        if (!this.params.clientID && !!parseInt(await linkedDB.config('require_client_ids'))) {
+            throw new Error(`Operation rejected! Your DB requires all client instances to have a "clientID".`);
+        }
+        if (!params.desc && !!parseInt(await linkedDB.config('require_commit_descs'))) {
+            throw new Error(`Operation rejected! Your DB requires all DDL operations to have a "desc".`);
         }
         // IMPORTANT: after having desugared out the returning clause
         if (query.hasSugars) query = query.deSugar();
@@ -414,8 +420,8 @@ export class AbstractClient {
             version_state: 'commit',
             commit_date: q => q.now(),
             commit_desc: details.desc,
-            commit_ref: details.ref || this.params.commitRef,
-            commit_pid: q => q.literal(this.params.dialect === 'mysql' ? 'connection_id()' : 'pg_backend_pid()'),
+            commit_client_id: this.params.clientID,
+            commit_client_pid: q => q.literal(this.params.dialect === 'mysql' ? 'connection_id()' : 'pg_backend_pid()'),
         };
         // -- Find a match first. We're doing forward first to be able to restart an entire history that has been rolled all the way back
         const dbName = dbSchema.name()/* IMPORTANT: not $name() */;
@@ -453,7 +459,7 @@ export class AbstractClient {
         const tableIdent = linkedDB.table('savepoints').ident;
         const utils = this.createCommonSQLUtils();
         const fieldsLite = [`COALESCE(${utils.ident('$name')}, name) AS name`, 'database_tag', 'version_tag'];
-        const fieldsStd = ['master_savepoint', 'id', 'database_tag', 'name', utils.ident('$name'), 'status', 'version_tag', 'tables', 'version_state', 'commit_date', 'commit_desc', 'commit_ref', 'rollback_date', 'rollback_desc', 'rollback_ref'];
+        const fieldsStd = ['master_savepoint', 'id', 'database_tag', 'name', utils.ident('$name'), 'status', 'version_tag', 'tables', 'version_state', 'commit_date', 'commit_desc', 'commit_client_id', 'rollback_date', 'rollback_desc', 'rollback_client_id'];
         const versionTagsField = `(SELECT ${utils.jsonAgg('version_tag')} FROM ${tableIdent}
             WHERE database_tag = main_savepoint.database_tag
         ) AS version_tags`;
@@ -647,12 +653,12 @@ export class AbstractClient {
                             { name: 'version_state', type: ['varchar', 8], notNull: true, check: { in: ['version_state', { value: 'commit' }, { value: 'rollback' }] } },
                             { name: 'commit_date', type: ['timestamp', 3], notNull: true },
                             { name: 'commit_desc', type: ['varchar', 255] },
-                            { name: 'commit_ref', type: ['varchar', 255] },
-                            { name: 'commit_pid', type: ['varchar', 50] },
+                            { name: 'commit_client_id', type: ['varchar', 255] },
+                            { name: 'commit_client_pid', type: ['varchar', 50] },
                             { name: 'rollback_date', type: ['timestamp', 3] },
                             { name: 'rollback_desc', type: ['varchar', 255] },
-                            { name: 'rollback_ref', type: ['varchar', 255] },
-                            { name: 'rollback_pid', type: ['varchar', 50] },
+                            { name: 'rollback_client_id', type: ['varchar', 255] },
+                            { name: 'rollback_client_pid', type: ['varchar', 50] },
                         ],
                     }, {
                         name: 'config',
@@ -724,16 +730,20 @@ export class AbstractClient {
                     });
                 }
                 if (!this.#linkedDBConfig) {
-                    const entries = await instance.table('config').select();
-                    this.#linkedDBConfig = new Map(entries.map((e) => [e.name, e.value]));
-                    this.listen('config', (e) => {
-                        const payload = JSON.parse(e.payload);
-                        if (payload.action === 'DELETE') {
-                            this.#linkedDBConfig.delete(payload.body.name);
-                        } else {
-                            this.#linkedDBConfig.set(payload.body.name, payload.body.value);
-                        }
-                    });
+                    try {
+                        const entries = await instance.table('config').select();
+                        this.#linkedDBConfig = new Map(entries.map((e) => [e.name, e.value]));
+                        this.listen('config', (e) => {
+                            const payload = JSON.parse(e.payload);
+                            if (payload.action === 'DELETE') {
+                                this.#linkedDBConfig.delete(payload.body.name);
+                            } else {
+                                this.#linkedDBConfig.set(payload.body.name, payload.body.value);
+                            }
+                        });
+                    } catch (e) {
+                        this.#linkedDBConfig = new Map;
+                    }
                 }
                 if (!args.length) return Object.fromEntries(this.#linkedDBConfig);
                 if (Array.isArray(args[0])) return Object.fromEntries(args[0].map((k) => [k, this.#linkedDBConfig.get(k)]));

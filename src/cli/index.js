@@ -152,8 +152,8 @@ async function clearHistories() {
 }
 
 async function commit() {
-    if (!flags['desc'] && flags['yes']) throw new Error(`Command missing the --desc parameter.`);
     // Schema selector
+    const linkedDB = await clientAPIS.default().linkedDB();
     let localSchema, upstreamSchema;
     const savepointsLite = await clientAPIS.default().getSavepoints({ lite: true });
     if (flags['select']) {
@@ -195,8 +195,7 @@ async function commit() {
         // Confirm and execute...
         if (await confirm(confirmMessage)) {
             const commitDetails = {
-                ref: flags['ref'] || clientAPIS.default().params.commitRef,
-                desc: flags['desc'] || await prompt('Enter commit description:'),
+                desc: flags['desc'] || (parseInt(await linkedDB.config('require_commit_descs')) ? await prompt('Enter commit description:') : null),
             };
             await clientAPIS.default().query(dbAction, commitDetails);
             commitsCount ++;
@@ -210,7 +209,7 @@ async function commit() {
 }
 
 async function restore(forward = false) {
-    if (!flags['desc'] && flags['yes']) throw new Error(`Command missing the --desc parameter.`);
+    const linkedDB = await clientAPIS.default().linkedDB();
     const savepoints = await clientAPIS.default().getSavepoints({ selector: flags['select']?.split(',').map((s) => s.trim()), lookAhead: !!forward });
     if (!savepoints.length) notFoundExit(forward ? 'forward savepoint records' : 'savepoint records');
     let restoreCount = 0;
@@ -226,8 +225,7 @@ async function restore(forward = false) {
         // Confirm and execute...
         if (await confirm(confirmMessage)) {
             const restoreDetails = {
-                desc: flags['desc'] || await prompt(`Enter ${forward ? 'recommit' : 'rollback'} description:`),
-                ref: flags['ref'] || clientAPIS.default().params.commitRef,
+                desc: flags['desc'] || (parseInt(await linkedDB.config('require_commit_descs')) ? await prompt(`Enter ${forward ? 'recommit' : 'rollback'} description:`) : null),
             };
             await savepoint.restore(restoreDetails);
             restoreCount ++;
@@ -266,8 +264,8 @@ async function refresh() {
             const version_state = payload.body.version_state;
             const version_state_title = _toTitle(version_state);
             const dbNameBeforeChange = version_state === 'rollback' && payload.body.$name || payload.body.name;
-            const { version_tag, [`${version_state}_desc`]: desc, [`${version_state}_ref`]: ref, [`${version_state}_pid`]: pid } = payload.body;
-            console.log(`New ${version_state} event on database "${dbNameBeforeChange}" ${version_state === 'rollback' ? 'from' : 'to'} version ${version_tag}. ${version_state_title} desc: "${desc}". ${version_state_title} ref: "${ref}". ${version_state_title} PID: "${pid}".`);
+            const { version_tag, [`${version_state}_desc`]: desc, [`${version_state}_client_id`]: client_id, [`${version_state}_client_pid`]: client_pid } = payload.body;
+            console.log(`New ${version_state} event on database "${dbNameBeforeChange}" ${version_state === 'rollback' ? 'from' : 'to'} version ${version_tag}. ${version_state_title} desc: "${desc}". ${version_state_title} Client ID: "${client_id}". ${version_state_title} Client PID: "${client_pid}".`);
             // ------
             const savepoint = new Savepoint(clientAPIS.default(), payload.body);
             const rootCDL = RootCDL.fromJSON(clientAPIS.default(), { actions: [savepoint.querify()] });
@@ -315,6 +313,9 @@ async function replicate() {
         process.exit();
     }
     const targetClientLinkedDB = await targetClient.linkedDB();
+    if (!targetClient.params.clientID && !!parseInt(await targetClientLinkedDB.config('require_client_ids'))) {
+        throw new Error(`Operation rejected! Target DB requires all client instances to have a "clientID".`);
+    }
     const targetSavepointsTable = targetClientLinkedDB.table('savepoints');
     const historiesByTag1 = byTag(historiesJson1);
     const historiesByTag2 = byTag(historiesJson2);
@@ -400,8 +401,8 @@ async function replicate() {
         const savepointJson = {
             ...savepoint1.jsonfy(),
             [`${versionState}_date`]: q => q.now(),
-            [`${versionState}_ref`]: targetClient.params.commitRef || savepoint1[`${versionState}Ref`](),
-            [`${versionState}_pid`]: q => q.fn(targetClient.params.dialect === 'mysql' ? 'connection_id' : 'pg_backend_pid'),
+            [`${versionState}_client_id`]: targetClient.params.clientID || savepoint1[`${versionState}ClientID`](),
+            [`${versionState}_client_pid`]: q => q.fn(targetClient.params.dialect === 'mysql' ? 'connection_id' : 'pg_backend_pid'),
         };
         delete savepointJson.version_tags;
         delete savepointJson.cascades;

@@ -347,7 +347,7 @@ _Getting Started_
 
 Install Linked QL:
 
-<code>npm install @linked-db/linked-ql</code>
+<code>npm install @linked-db/linked-ql@next</code>
 
 </div>
 
