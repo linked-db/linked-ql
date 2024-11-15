@@ -98,7 +98,7 @@ const result = await client.query(
 console.log(result);
 ```
 
-</td></tr><table>
+</td></tr></table>
 
 </details>
 </td></tr>
