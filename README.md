@@ -64,7 +64,7 @@ Here's what we're building:
 <tr><td>
 <details _name="features"><summary>A SQL-native experience</summary>
 
-Whereas the typical ORM has hand-written SQL as the exception, Linked QL has it as <ins>the default</ins>, and along with that, it comes with everything that makes it all the more delightful to #usethelanguage!
+If you miss the art and power of SQL, then you'll love Linked QL! While SQL as language may have come to be *the exception* in the database tooling ecosystem, it is <ins>the default</ins> in Linked QL! That is a go-ahead to, in fact, #usethelanguage whenever it feels inclined!
 
 ##### └ *Preview:*
 
@@ -102,7 +102,7 @@ console.log(result);
 <tr><td>
 <details _name="features"><summary>Powerful syntax sugars</summary>
 
-Model structures and traverse relationships like they were plain JSON objects—all right within the language! Meet Linked QL's set of syntax extensions to SQL that <ins>do the hard work</ins>, <ins>cut your query in half</ins>, and even <ins>save you multiple round trips</ins>! *(See ➞ [JSON Sugars](https://github.com/linked-db/linked-ql/wiki/JSON-Sugars), [Magic Paths](https://github.com/linked-db/linked-ql/wiki/Magic-Paths), [Upserts](https://github.com/linked-db/linked-ql/wiki/UPSERT))*
+Go ahead and model structures and traverse relationships like they were plain JSON objects—right within the language! Meet Linked QL's set of syntax extensions to SQL that <ins>do the hard work</ins>, <ins>cut your query in half</ins>, and even <ins>save you multiple round trips</ins>! *(See ➞ [JSON Sugars](https://github.com/linked-db/linked-ql/wiki/JSON-Sugars), [Magic Paths](https://github.com/linked-db/linked-ql/wiki/Magic-Paths), [Upserts](https://github.com/linked-db/linked-ql/wiki/UPSERT))*
 
 ##### └ *Preview:*
 
@@ -111,8 +111,9 @@ Model structures and traverse relationships like they were plain JSON objects—
 const result = await client.query(
     `SELECT
         name,
-        { email, phone AS mobile } AS contact1,
-        [ email, phone ] AS contact2
+        email,
+        { email, phone AS mobile } AS format1,
+        [ email, phone ] AS format2
     FROM users`
 );
 console.log(result);
@@ -194,28 +195,27 @@ const result = await client.database('public').table('users').select(
 <tr><td>
 <details _name="features"><summary>Automatic schema inference</summary>
 
-Whereas the typical ORM requires you to feed them with your database schema (case in point: [Drizzle](https://orm.drizzle.team/)), Linked QL <ins>automatically infers it</ins> and magically maintains 100% schema-awareness throughout (without necessarily looking again)! You get a whole class of manual work entirely out of the equation! *(See ➞ [Automatic Schema Inference](https://github.com/linked-db/linked-ql/wiki/Automatic-Schema-Inference))*
+Whereas the typical ORM requires you to feed them with your database schema (case in point: [Drizzle](https://orm.drizzle.team/)), Linked QL <ins>automatically infers it</ins> and magically maintains 100% schema-awareness throughout (without necessarily looking again)! You get a whole lot of manual work entirely taken out of the equation! *(See ➞ [Automatic Schema Inference](https://github.com/linked-db/linked-ql/wiki/Automatic-Schema-Inference))*
 
 ##### └ *Preview:*
 
-> (1): Simply <ins>plug</ins> to your database and <ins>play</ins>...
+*Simply <ins>plug</ins> to your database and <ins>play</ins>:*
 
 ```js
 // Import pg and LinkedQl
 import pg from 'pg';
 import { SQLClient } from '@linked-db/linked-ql/sql';
 
-// Connect to an arbitrary database
-const pgClient = new pg.Client({
-    connectionString: process.env.SUPABASE_CONNECTION_STRING,
-});
+// Connect to your database
+const connectionParams = { connectionString: process.env.SUPABASE_CONNECTION_STRING }
+const pgClient = new pg.Client(connectionParams);
 await pgClient.connect();
 
 // Use LinkedQl as a wrapper over that
 const client = new SQLClient(pgClient, { dialect: 'postgres' });
 ```
 
-> (2): Query arbitrary structures... without the upfront schema work!
+*Query structures on the fly... without the upfront schema work:*
 
 ```js
 const result = await client.query(
@@ -235,50 +235,45 @@ const result = await client.query(
 <tr><td>
 <details _name="features"><summary>Automatic schema versioning</summary>
 
-The typical database has no concept of versioning, but no problem, Linked QL comes with it to your database, and along with it, a powerful rollback and rollforward system! On each DDL operation you run against your database (`CREATE`, `ALTER`, `DROP`), you get a savepoint automatically created for you and a seamless rollback path you can take anytime! *(See ➞ [Automatic Schema Versioning](https://github.com/linked-db/linked-ql/wiki/Automatic-Schema-Versioning))*
+While the typical database has no concept of versioning, Linked QL comes with it to your database, and along with that, a powerful rollback (and rollforward) mechanism! On each DDL operation you run against your database (`CREATE`, `ALTER`, `DROP`), you get a savepoint automatically created for you and a seamless rollback path you can take anytime! *(See ➞ [Automatic Schema Versioning](https://github.com/linked-db/linked-ql/wiki/Automatic-Schema-Versioning))*
 
 ##### └ *Preview:*
 
-> (1): Obtain a reference to a savepoint
+*Perform a DDL operation and obtain a reference to the automatically created savepoint:*
 
 ```js
-// Alter your database and get back a reference to
-// a "savepoint" automatically created for you
+// (a): Using the "RETURNING" clause at creation time
 const savepoint = await client.query(
     `CREATE TABLE public.users (
         id int,
         name varchar
-    )`,
+    ) RETURNING SAVEPOINT`,
     { desc: 'Create users table' }
 );
 ```
 
 ```js
-// Or obtain said savepoint on-demand
+// (b): Using the database.savepoint() API at other times
 const savepoint = await client.database('public').savepoint();
 ```
 
-> (2): Inspect savepoint
+*See what you've got there:*
 
 ```js
-// Some details
+// (a): Some important details about the referenced point in time
 console.log(savepoint.versionTag()); // 1
 console.log(savepoint.commitDesc()); // Create users table
 console.log(savepoint.commitDate()); // 2024-07-17T22:40:56.786Z
-// Everything...
-console.log(savepoint.jsonfy());
 ```
 
-> (3): Roll back savepoint
-
 ```js
-// SQL preview
+// (b): Your rollback path
 console.log(savepoint.reverseSQL());
 // "DROP TABLE public.users CASCADE"
 ```
 
 ```js
-// Execute rollback (drops "users" table)
+// (c): Your rollback magic wand button
 await savepoint.rollback({
     desc: 'Users table no more necessary'
 });
@@ -294,6 +289,8 @@ Whereas schema evolution remains a drag across the board, it comes as a particul
 
 ##### └ *Preview:*
 
+*Declare your project's DB structure:*
+
 > `./database/schema.json`
 
 ```js
@@ -307,6 +304,18 @@ Whereas schema evolution remains a drag across the board, it comes as a particul
         "tables": []
     }
 ]
+```
+
+*Use a command to commit yor changes to your DB:*
+
+```cmd
+npx linkedql commit
+```
+
+*Or, for an existing DB, usa a command to generate your DB structure:*
+
+```cmd
+npx linkedql generate
 ```
 
 </details>
@@ -368,6 +377,7 @@ const connectionParams = {
 };
 const pgClient = new pg.Client(connectParams);
 await pgClient.connect();
+
 // Use LinkedQl as a wrapper over that
 const client = new SQLClient(pgClient, { dialect: 'postgres' });
 ```
