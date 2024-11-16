@@ -472,7 +472,7 @@ All `client` instances above implement the same [interface](https://github.com/l
 
 > [!IMPORTANT]
 >
-> This a fast-evolving project and a few things around here might change in the course of that!
+> Note that this a fast-evolving project and a few things around here might change again before we hit `v1`!
 
 ## Issues
 
