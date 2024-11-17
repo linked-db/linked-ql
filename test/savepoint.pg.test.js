@@ -16,7 +16,7 @@ const $tables = async (dbName) => await client.database(dbName).tables();
 describe(`Postgres Savepoints & Rollbacks`, function() {
 
     before(async function() {
-        //await client.query('ALTER SCHEMA private RENAME TO public', { inspect: true, noCreateSavepoint: true }));
+        //await client.query('ALTER SCHEMA private RENAME TO public', { inspect: true, noCreateSavepoint: true });
         console.log('DATABSES BEFORE:', await client.databases());
         await client.query('DROP TABLE if exists public.test1 CASCADE');
         await client.query('DROP TABLE if exists public.test2 CASCADE');

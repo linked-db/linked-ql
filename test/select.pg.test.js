@@ -74,10 +74,10 @@ describe(`SELECT QUERIES`, function() {
                 ).as('assertion3'),
                 field => field.expr(q => {
                     const $q = q.select('id').from(['base0','t1'], ['base0','t2']);
-                    $q.leftJoin( q => q.name('j1') ).as('j1').using('correlation1');
-                    $q.crossJoin(['base2','j2']).as('j2').on(
+                    $q.leftJoin( q => q.expr('j1').as('j1').using('correlation1') );
+                    $q.crossJoin( q => q.expr(['base2','j2']).as('j2').on(
                         q => q.equals(['j2','col1'], ['j1','col1'])
-                    );
+                    ) );
                 }).as('subValue', false),
                 field => field.expr(
                     q => q.fn('max', q => q.cast('col2', 'text', true))

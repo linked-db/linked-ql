@@ -6,9 +6,9 @@ export class RowSpecClause extends RowSpec {
     static get CLAUSE() { return 'ROW'; }
 
     stringify() {
-		const str = super.stringify();
-		return this.contextNode instanceof ValuesClause
-			? `(${str})`
-			: str;
+        const str = super.stringify();
+        return this.contextNode instanceof ValuesClause
+          ? `(${str})`
+          : str;
     }
 }

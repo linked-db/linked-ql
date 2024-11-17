@@ -3,9 +3,6 @@ import { RootSchema } from '../lang/ddl/RootSchema.js';
 
 export class Savepoint {
 
-    /**
-     * @constructor
-     */
     constructor(client, json) {
         Object.defineProperty(this, '$', {
             value: {
@@ -15,153 +12,75 @@ export class Savepoint {
         });
     }
 
-    /**
-     * @returns Driver
-     */
     get client() { return this.$.client; }
 
-    /**
-     * @returns String
-     */
     id() { return this.$.json.id; }
 
-    /**
-     * @returns String
-     */
     masterSavepoint() { return this.$.json.master_savepoint; }
 
-    /**
-     * @returns String
-     */
     name(postRestore = false) {
         if (postRestore) return this.versionState() === 'rollback' && this.$.json.$name || this.$.json.name;
         return this.versionState() === 'commit' && this.$.json.$name || this.$.json.name;
     }
 
-    /**
-     * @returns Object
-     */
     schema() {
         const { name, $name, tables = [], status } = this.$.json;
         return DatabaseSchema.fromJSON(this.client, { name, ...($name ? { $name } : {}), tables, status });
     }
 
-    /**
-     * @returns Array
-     */
     cascades() {
         this.$._cascades = this.$._cascades || (this.$.json.cascades || []).map(cascade => new Savepoint(this.client, cascade));
         return this.$._cascades;
     }
 
-    /**
-     * @returns String
-     */
     databaseTag() { return this.$.json.database_tag; }
 
-    /**
-     * @returns Number
-     */
     versionTag() { return this.$.json.version_tag; }
 
-    /**
-     * @returns Array
-     */
     versionTags() { return this.$.json.version_tags || [this.$.json.version_tag]; }
 
-    /**
-     * @returns Number
-     */
     versionUp() { return this.versionTags().reduce((prev, v) => prev || (v > this.versionTag() ? v : 0), 0); }
 
-    /**
-     * @returns Number
-     */
     versionDown() { return [...this.versionTags()].reverse().reduce((prev, v) => prev || (v < this.versionTag() ? v : 0), 0); }
 
-    /**
-     * @returns Number
-     */
     versionMax() { return Math.max(...this.versionTags()); }
 
-    /**
-     * @returns String
-     */
     versionState() { return this.$.json.version_state; }
 
-    /**
-     * @returns Date
-     */
     commitDate() { return this.$.json.commit_date; }
 
-    /**
-     * @returns String
-     */
     commitDesc() { return this.$.json.commit_desc; }
 
-    /**
-     * @returns String
-     */
     commitClientID() { return this.$.json.commit_client_id; }
 
-    /**
-     * @returns String
-     */
     commitClientPID() { return this.$.json.commit_client_pid; }
 
-    /**
-     * @returns Date
-     */
     rollbackDate() { return this.$.json.rollback_date; }
 
-    /**
-     * @returns String
-     */
     rollbackDesc() { return this.$.json.rollback_desc; }
 
-    /**
-     * @returns String
-     */
     rollbackClientID() { return this.$.json.rollback_client_id; }
 
-    /**
-     * @returns String
-     */
     rollbackClientPID() { return this.$.json.rollback_client_pid; }
 
-    /**
-     * @returns String
-     */
     restoreEffect() {
         const $outcome = this.$.json.status === 'new' ? ['DROP', 'RECREATE'] : (this.$.json.status === 'obsolete' ? ['RECREATE', 'DROP'] : ['ALTER']);
         return this.versionState() === 'rollback' ? $outcome.reverse()[0] : $outcome[0];
     }
 
-    /**
-     * @returns String
-     */
     reverseSQL() {
         if (this.versionState() === 'rollback') return this.querify(true);
         return [this.querify(true), ...this.cascades().map(c => c.reverseSQL())].join('\n');
     }
 
-    /**
-     * @returns this
-     */
     static fromJSON(context, json) {
         return new this(context, json);
     }
 
-    /**
-     * @returns Object
-     */
     jsonfy() {
         return this.$.json;
     }
 
-    /**
-     * @returns String
-     */
     querify(reversed = false) {
         let rootSchema = RootSchema.fromJSON(this.client, [this.schema()]);
         let $reversed = this.versionState() === 'rollback';
@@ -172,43 +91,21 @@ export class Savepoint {
         return rootSchema.generateCDL({ cascadeRule: 'CASCADE' }).actions()[0];
     }
 
-    /**
-     * @returns Bool
-     */
     async isNextRestorePoint() {
         const currentSavepoint = (await this.client.database(this.name()).savepoint({ lookAhead: this.versionState() === 'rollback', withCascades: false })) || {};
         return currentSavepoint.id?.() === this.$.json.id;
     }
 
-    /**
-     * Rollback savepoint.
-     * 
-     * @param Object rollbackParams
-     * 
-     * @return Boolean
-     */
     async rollback(rollbackParams = {}) {
         if (this.versionState() === 'rollback') throw new Error(`Already in rollback state.`);
         return await this.restore(rollbackParams);
     }
 
-    /**
-     * Recommit savepoint.
-     * 
-     * @param Object commitParams
-     * 
-     * @return Boolean
-     */
     async recommit(commitParams = {}) {
         if (this.versionState() === 'commit') throw new Error(`Already in commit state.`);
         return await this.restore(commitParams);
     }
 
-    /**
-     * Method for restoring db schema to an identified savepoint.
-     * 
-     * @return Void
-     */
     async restore(restoreParams = {}) {
         if (this.masterSavepoint()) {
             if (this.versionState() === 'commit') {
@@ -227,7 +124,7 @@ export class Savepoint {
             [`${versionState}_date`]: q => q.now(),
             [`${versionState}_desc`]: restoreParams.desc || this[`${versionState}Desc`](),
             [`${versionState}_client_id`]: this.client.params.clientID || this[`${versionState}ClientID`](),
-            [`${versionState}_client_pid`]: q => q.fn(this.client.params.dialect === 'mysql' ? 'connection_id' : 'pg_backend_pid'),
+            [`${versionState}_client_pid`]: (q) => q.fn(this.client.params.dialect === 'mysql' ? 'connection_id' : 'pg_backend_pid'),
         }, { where: (q) => q.eq('id', (q) => q.value(this.$.json.id)), returning: ['*'] });
         for (const cascade of this.cascades()) {
             await cascade.restore(restoreParams);

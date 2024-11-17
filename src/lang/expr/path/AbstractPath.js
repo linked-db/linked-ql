@@ -8,10 +8,6 @@ import { PathLeft } from './PathLeft.js';
 export class AbstractPath extends AbstractSugar(AbstractOperator2Expr) {
 
 	get isPath() { return true; }
-	
-	static get expose() {
-		return { path: (context, lhs, operator, rhs) => this.fromJSON(context, { lhs, operator, rhs }), };
-	}
 
 	plot(fullyQualified = false) {
 		const targetSchema = this.schema();

@@ -1,5 +1,6 @@
 import { AbstractNode } from '../../AbstractNode.js';
 import { AbstractRef } from '../refs/AbstractRef.js';
+import { Lexer } from '../../Lexer.js';
 
 export class AbstractAliasableExpr extends AbstractNode {
 	static get EXPECTED_TYPES() { return []; }
@@ -58,31 +59,26 @@ export class AbstractAliasableExpr extends AbstractNode {
 	
 	static parse(context, expr, parseCallback) {
 		const instance = new this(context);
-		const escChar = this.getEscChar(context, true);
 		// With an "AS" clause, its easy to obtain the alias...
 		// E.g: SELECT first_name AS fname, 4 + 5 AS result, 5 + 5
 		// Without an "AS" clause, its hard to determine if an expression is actually aliased...
 		// E.g: In the statement SELECT first_name fname, 4 + 5 result, 5 + 5, (SELECT ...) alias FROM ...,
-		let [ , $expr, $separator, aliasUnescaped, /*esc*/, aliasEscaped ] = (new RegExp(`^([\\s\\S]+?)` + `(?:` + `(\\s+AS\\s+|(?<!(?:~>|<~|\\:))\\s+)` + `(?:([\\w]+)|(${ escChar })((?:\\4\\4|[^\\4])+)\\4)` + `)?$`, 'i')).exec(expr.trim()) || [];
-		let exprNode, $alias = aliasUnescaped || aliasEscaped;
-		if ($alias && !$separator?.trim() && ![']','}',')'].includes($expr.trim().slice(-1))) {
-			try {
-				exprNode = parseCallback(instance, $expr, this.EXPECTED_TYPES);
-			} catch(e) {}
-			if (!exprNode) {
-				$alias = aliasUnescaped = aliasEscaped = null;
-				$expr = expr; // IMPORTANT
+		let claused = true;
+		let [$$expr, $$alias] = Lexer.split(expr, ['AS\\s+'], { useRegex: 'i' }).map((s) => s.trim());
+		if (!$$alias) {
+			const tokens = Lexer.split(expr, ['\\s+'], { useRegex: 'i' });
+			if (tokens.length > 1 && /[\w"'`\]\)\}]$/.test(tokens[tokens.length - 2])) {
+				$$alias = tokens.pop().trim();
+				$$expr = tokens.join(' ');
 			}
-		}
-		if (!exprNode) { exprNode = parseCallback(instance, $expr, this.EXPECTED_TYPES); }
-		if (!$alias && ![AbstractRef].some(c => exprNode instanceof c) && !exprNode.isPath && this.requireAliasForNoneIdents) {
+			claused = false;
+		};
+		instance.expr(parseCallback(instance, $$expr, this.EXPECTED_TYPES));
+		if ($$alias) {
+			[$$alias] = this.parseIdent(instance, $$alias.trim());
+			instance.as($$alias, claused);
+		} else if (![AbstractRef].some(c => instance.expr() instanceof c) && !instance.expr().isPath && this.requireAliasForNoneIdents) {
 			throw new Error(`[${ this }]: An alias is required for a non-path properties.`);
-		}
-		instance.expr(exprNode);
-		if ($alias) {
-			const alias = aliasUnescaped || this.unesc(escChar, aliasEscaped);
-			const claused = !!$separator?.trim();
-			instance.as(alias, claused);
 		}
 		return instance;
 	}

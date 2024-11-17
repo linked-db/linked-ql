@@ -59,7 +59,7 @@ export class AbstractNodeList extends AbstractNode {
 
     static parse(context, expr, parseCallback) {
         if (this.CLAUSE) {
-            const [ clauseMatch, spec ] = expr.match(new RegExp(`^${ this.CLAUSE }([\\s\\S]*)$`, 'i')) || [];
+            const [ clauseMatch, spec ] = expr.match(new RegExp(`^${ this.CLAUSE }[\\W]([\\s\\S]*)$`, 'i')) || [];
             if (!clauseMatch) return;
             expr = spec.trim();
         }

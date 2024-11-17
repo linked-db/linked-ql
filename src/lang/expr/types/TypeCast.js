@@ -29,7 +29,7 @@ export class TypeCast extends AbstractNode {
 	}
 
 	static fromJSON(context, json, callback = null) {
-		if (!json?.value || !json.type || Object.keys(json).filter((k) => !['nodeName', 'type', 'compact'].includes(k)).length > 1) return;
+		if (!json?.value || !json.type || Object.keys(json).filter((k) => !['nodeName', 'type', 'value', 'compact'].includes(k)).length) return;
 		return super.fromJSON(context, json, (instance) => {
 			instance.value(json.value).type(json.type).compact(json.compact);
 			callback?.(instance);

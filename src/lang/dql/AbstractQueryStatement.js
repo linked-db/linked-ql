@@ -14,31 +14,37 @@ export const AbstractQueryStatement = Class => class extends Class {
 	#orderByClause;
 	#limitClause;
 
-	joins() { return this.#joinClauses; }
-
-	join(table) {
-		this.#joinClauses = this.$castInputs([table], JoinClause, this.#joinClauses, 'join_clause', 'full');
-		return this.#joinClauses[this.#joinClauses.length - 1];
+	joins(...args) {
+		if (!arguments.length) return this.#joinClauses;
+		this.#joinClauses = this.$castInputs(args, JoinClause, this.#joinClauses, 'join_clause');
+		return this;
 	}
 
-	leftJoin(table) {
-		this.#joinClauses = this.$castInputs([table], JoinClause, this.#joinClauses, 'join_clause', 'left');
-		return this.#joinClauses[this.#joinClauses.length - 1];
-	}
-
-	rightJoin(table) {
-		this.#joinClauses = this.$castInputs([table], JoinClause, this.#joinClauses, 'join_clause', 'right');
-		return this.#joinClauses[this.#joinClauses.length - 1];
-	}
+	join(table) { return this.joins(table); }
 
 	innerJoin(table) {
-		this.#joinClauses = this.$castInputs([table], JoinClause, this.#joinClauses, 'join_clause', 'inner');
-		return this.#joinClauses[this.#joinClauses.length - 1];
+		this.join(table);
+		return (this.#joinClauses[this.#joinClauses.length - 1].type('INNER_JOIN'), this);
 	}
 
 	crossJoin(table) {
-		this.#joinClauses = this.$castInputs([table], JoinClause, this.#joinClauses, 'join_clause', 'cross');
-		return this.#joinClauses[this.#joinClauses.length - 1];
+		this.join(table);
+		return (this.#joinClauses[this.#joinClauses.length - 1].type('CROSS_JOIN'), this);
+	}
+
+	leftJoin(table) {
+		this.join(table);
+		return (this.#joinClauses[this.#joinClauses.length - 1].type('LEFT_JOIN'), this);
+	}
+
+	rightJoin(table) {
+		this.join(table);
+		return (this.#joinClauses[this.#joinClauses.length - 1].type('RIGHT_JOIN'), this);
+	}
+
+	fullJoin(table) {
+		this.join(table);
+		return (this.#joinClauses[this.#joinClauses.length - 1].type('FULL_JOIN'), this);
 	}
 
 	where(...args) {
@@ -115,12 +121,12 @@ export const AbstractQueryStatement = Class => class extends Class {
 		// The JOIN, next
 		if (!this.#generatedJoins.has(relationID)) {
 			const keyRhsMask = `$key::${(0 | Math.random() * 9e6).toString(36)}`;
-			const join = new JoinClause(this);
-			join.left(
+			const clause = new JoinClause(this);
+			clause.type('LEFT_JOIN').expr(
 				q => q.select(q => q.expr(keyRhs_ident.jsonfy()).as(keyRhsMask)).from([targetTableIdent.prefix(), targetTableIdent.name()])
 			).as(relationID).on(on => on.equals([relationID, keyRhsMask], keyLhs_ident.jsonfy()));
-			if (path.rhs() instanceof JsonAgg) { join.expr().expr().groupBy(keyRhsMask); }
-			this.#generatedJoins.set(relationID, join);
+			if (path.rhs() instanceof JsonAgg) { clause.expr().expr().groupBy(keyRhsMask); }
+			this.#generatedJoins.set(relationID, clause);
 		}
 		const pathID = `$path::${(0 | Math.random() * 9e6).toString(36)}`;
 		const detailQ = q => q.expr(path.rhs().jsonfy()).as(pathID);
@@ -135,7 +141,7 @@ export const AbstractQueryStatement = Class => class extends Class {
 
 	static fromJSON(context, json, callback = null) {
 		return super.fromJSON(context, json, (instance) => {
-			if (json.joinClauses?.length) for (const tbl of json.joinClauses) instance.join(tbl);
+			if (json.joinClauses?.length) instance.joins(...json.joinClauses);
 			if (json.whereClause) instance.where(json.whereClause);
 			if (json.orderByClause) instance.orderBy(json.orderByClause);
 			if (json.limitClause) instance.limit(json.limitClause);

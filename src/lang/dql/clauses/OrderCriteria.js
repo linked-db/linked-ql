@@ -25,6 +25,7 @@ export class OrderCriteria extends AbstractNode {
 	identifiesAs(value) { return this.#expr?.identifiesAs(value) || super.identifiesAs(value); }
 
 	static fromJSON(context, json, callback = null) {
+		if (Object.keys(json || {}).filter((k) => !['nodeName', 'expr', 'direction'].includes(k)).length) return;
 		return super.fromJSON(context, json, (instance) => {
 			if (json.expr) instance.expr(json.expr);
 			if (json.direction) instance.direction(json.direction);

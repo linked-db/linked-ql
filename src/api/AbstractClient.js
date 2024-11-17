@@ -15,9 +15,6 @@ import { Parser } from '../lang/Parser.js';
 
 export class AbstractClient {
 
-    /**
-     * @constructor
-     */
     constructor(params = {}) {
         Object.defineProperty(this, '$', {
             value: {
@@ -30,29 +27,8 @@ export class AbstractClient {
         });
     }
 
-    /**
-     * @property Object
-     * 
-     * - dialect
-     * - clientID
-     * - ansiQuotes
-     * - autoBindings
-     * - schemaSelector
-     * - schemaCacheInvalidation
-     * - mysqlReturningClause
-     */
     get params() { return this.$.params || {}; }
 
-    /**
-     * Alias of this.schema() with standard default params
-     * 
-     * @param Array|Object          params
-     * @param Function              callback
-     * 
-     * @param Function              callback
-     * 
-     * @return Any
-     */
     async withSchema(...args) {
         const callback = args.pop();
         if (args[0] === false) return callback(); // IMPORTANT: withSchema() callers can do this for convenience
@@ -60,14 +36,6 @@ export class AbstractClient {
         return await this.schema(params, callback);
     }
 
-    /**
-     * Runs an operation within specific modes.
-     * 
-     * @param string                mode
-     * @param Function              callback
-     * 
-     * @return Any
-     */
     #modeStack = [];
     async withMode(mode, callback) {
         this.#modeStack.unshift(mode);
@@ -76,15 +44,6 @@ export class AbstractClient {
         return returnValue;
     }
 
-    /**
-     * Base logic for this.schema()
-     * 
-     * @param Function                  $execFetchSchema
-     * @param Array|Object              params
-     * @param Array                     ...rest
-     * 
-     * @return Object|Any
-     */
     async schema($execFetchSchema, params = {}, ...rest) {
         const exactMatching = typeof rest[0] === 'boolean' ? rest.shift() : true;
         const callback = typeof rest[0] === 'function' ? rest.shift() : ((result) => result);
@@ -130,13 +89,6 @@ export class AbstractClient {
         return returnValue;
     }
 
-    /**
-     * Main query API
-     * 
-     * @param Array                   args
-     * 
-     * @return Any
-     */
     async query(...args) {
         let query, params = {};
         if (_isObject(args[0]) && !(args[0] instanceof AbstractNode)) {
@@ -152,14 +104,6 @@ export class AbstractClient {
         return await this.execQuery(query, params);
     }
 
-    /**
-     * Composes a CREATE DATABASE query from descrete inputs
-     * 
-     * @param String|Object  createSpec
-     * @param Object         params
-     * 
-     * @return Savepoint
-     */
     async createDatabase(createSpec, params = {}) {
         if (typeof createSpec === 'string') { createSpec = { name: createSpec, tables: [] }; }
         const query = CreateDatabase.fromJSON(this, { kind: params.kind, argument: createSpec });
@@ -170,15 +114,6 @@ export class AbstractClient {
         return returnValue;
     }
 
-    /**
-     * Composes a DROP DATABASE query from descrete inputs
-     * 
-     * @param String            dbName
-     * @param String            dbToName
-     * @param Object            params
-     * 
-     * @return Savepoint
-     */
     async renameDatabase(dbName, dbToName, params = {}) {
         const query = RenameDatabase.fromJSON(this, { kind: params.kind, reference: dbName, argument: dbToName });
         if (!query) throw new Error(`renameDatabase() called with invalid arguments.`);
@@ -188,15 +123,6 @@ export class AbstractClient {
         return returnValue;
     }
 
-    /**
-     * Composes an ALTER DATABASE query from descrete inputs
-     * 
-     * @param String|Object   alterSpec
-     * @param Function        callback
-     * @param Object          params
-     * 
-     * @return Savepoint
-     */
     async alterDatabase(alterSpec, callback, params = {}) {
         if (typeof callback !== 'function') throw new Error(`alterDatabase() called with invalid arguments.`);
         if (typeof alterSpec === 'string') { alterSpec = { name: alterSpec }; }
@@ -216,14 +142,6 @@ export class AbstractClient {
         });
     }
 
-    /**
-     * Composes a DROP DATABASE query from descrete inputs
-     * 
-     * @param String            dbName
-     * @param Object            params
-     * 
-     * @return Savepoint
-     */
     async dropDatabase(dbName, params = {}) {
         const query = DropDatabase.fromJSON(this, { kind: params.kind, reference: dbName });
         if (!query) throw new Error(`dropDatabase() called with invalid arguments.`);
@@ -234,46 +152,18 @@ export class AbstractClient {
         return await this.execQuery(query, params);
     }
 
-    /**
-     * Tells whether a database exists.
-     * 
-     * @param String            name
-     * 
-     * @return Bool
-     */
     async hasDatabase(name) {
         return (await this.databases()).includes(name);
     }
 
-    /**
-     * Returns list of databases.
-     * 
-     * @return Array
-     */
     async databases() {
         return (await this.schema()).databases(false);
     }
 
-    /**
-     * Returns a database instance.
-     * 
-     * @param String            name
-     * @param Object            params
-     * 
-     * @return Database
-     */
     database(name, params = {}) {
         return new this.constructor.Database(this, ...arguments);
     }
 
-    /**
-     * Base logic for dropDatabase()
-     * 
-     * @param String                    query
-     * @param Object                    params
-     * 
-     * @return Any
-     */
     async execQuery(query, params = {}) {
         if (!(query instanceof AbstractNode)) {
             throw new Error(`execQuery() called with invalid arguments.`);
@@ -311,16 +201,6 @@ export class AbstractClient {
         });
     }
 
-    /**
-     * Base logic for this.execDDL()
-     * 
-     * @param Function $execDDL 
-     * @param Statement query 
-     * @param RootSchema rootSchema 
-     * @param Object params 
-     * 
-     * @returns Savepoint
-     */
     async execDDL($execDDL, query, rootSchema, params) {
         const vars = {
             dbAction: query,
@@ -397,14 +277,6 @@ export class AbstractClient {
         return vars.returnValue;
     }
 
-    /**
-     * Method for saving snapshots to internal OBJ_INFOSCHEMA db.
-     * 
-     * @param DatabaseSchema    dbSchema
-     * @param String            description
-     * 
-     * @return Object
-     */
     async createSavepoint(dbSchema, details = {}) {
         const linkedDB = await this.linkedDB();
         const savepointsTable = linkedDB.table('savepoints');
@@ -447,13 +319,6 @@ export class AbstractClient {
         return new Savepoint(this, insertResult);
     }
 
-    /**
-     * Returns all databases' current savepoint.
-     * 
-     * @param Object params
-     * 
-     * @returns Object
-     */
     async getSavepoints(params = {}) {
         const linkedDB = await this.linkedDB();
         const tableIdent = linkedDB.table('savepoints').ident;
@@ -496,28 +361,12 @@ export class AbstractClient {
      * ----------------
      */
 
-    /**
-     * Base logic for this.getPID()
-     * 
-     * @param Function $pid
-     * 
-     * @returns String
-     */
     #pid;
     async getPID($execGetPID) {
         if (!this.#pid) this.#pid = await $execGetPID();
         return this.#pid;
     }
 
-    /**
-     * Base logic for this.listen()
-     * 
-     * @param Function      $execListen
-     * @param String        channel
-     * @param Function      callback
-     * 
-     * @returns this
-     */
     #listeners = new Map;
     listen($execListen, channel, callback, ownEvents = false) {
         if (!this.#listeners.has(channel)) {
@@ -538,52 +387,35 @@ export class AbstractClient {
      * -------------------------------
      */
 
-    /**
-     * Get the schemaRequestStack entry matching params
-     * 
-     * @param Array|Object              params 
-     * @param Bool                      exactMatching 
-     * 
-     * @returns Object
-     */
     #schemaRequestStack = new Set;
     #matchSchemaRequest(params, exactMatching = false) {
-        return [...this.#schemaRequestStack].find(req => {
-            if (_isObject(req.params) && _isObject(params)) {
+        return [...this.#schemaRequestStack].find((entry) => {
+            if (_isObject(entry.params) && _isObject(params)) {
                 return Object.keys(params).every(key => {
                     if (key === 'depth') {
                         // If ongoing request has higher depth, current does't matter
-                        const [a, b] = [req.params[key] || 0, params[key] || 0];
+                        const [a, b] = [entry.params[key] || 0, params[key] || 0];
                         return !exactMatching ? a >= b : a === b;
                     }
-                    return req.params[key] === params[key];
+                    return entry.params[key] === params[key];
                 });
             }
-            if (Array.isArray(req.params) && Array.isArray(params)) {
+            if (Array.isArray(entry.params) && Array.isArray(params)) {
                 return params.every(path2 => {
                     // If ongoing request already has the db name
-                    return req.params.find(path1 => path2.name === path1.name
+                    return entry.params.find(path1 => path2.name === path1.name
                         // If ongoing request has any of the tables mentioned in new request
                         && ((tbls2, tbls1) => exactMatching ? _intersect(tbls2, tbls1).length === tbls2.length : !_difference(tbls2, tbls1).length)(_arrFrom(path2.tables), _arrFrom(path1.tables)));
                 });
             }
-            if (_isObject(req.params) && req.params.depth && Array.isArray(params)) {
-                // See if it's up to table depth
-                const tblDepth = params.reduce((prev, s) => Math.max(prev, [].concat(s.tables || []).length), 0) ? 2 : 1;
-                // Match depth
-                return req.params.depth >= tblDepth;
+            if (_isObject(entry.params) && entry.params.depth && Array.isArray(params)) {
+                return params.every((req) => {
+                    return entry.resolvedSchema.database(req.name) && (![].concat(req.tables || []).length || entry.params.depth === 2);
+                });
             }
         });
     }
 
-    /**
-     * Respond to ROOT_SCHEMA requests.
-     * 
-     * @param String requestName
-     * @param AbstractNode requestSource
-     * 
-     * @returns 
-     */
     $capture(requestName, requestSource) {
         if (requestName === 'ROOT_SCHEMA') {
             return this.#matchSchemaRequest({ depth: 2 })?.resolvedSchema;
@@ -596,11 +428,6 @@ export class AbstractClient {
         return query.reference().name();
     }
 
-    /**
-     * Create common SQL expression utilities
-     * 
-     * @returns Object
-     */
     createCommonSQLUtils() {
         const utils = {
             ident: (name) => Identifier.fromJSON(this, name),
@@ -624,11 +451,6 @@ export class AbstractClient {
         return utils;
     }
 
-    /**
-     * Returns LinkedDB DB instance; does setup work where necessary.
-     * 
-     * @return Database
-     */
     #linkedDBConfig;
     async linkedDB() {
         const migrations = [

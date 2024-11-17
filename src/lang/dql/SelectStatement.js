@@ -62,7 +62,7 @@ export class SelectStatement extends AbstractQueryStatement(
 	
 	offset(value) {
 		if (!arguments.length) return this.#offsetClause;
-		this.#offsetClause = this.$castInputs([value], OffsetClause, this.#offsetClause, 'offset_clause');
+		this.#offsetClause = this.$castInputs([value], OffsetClause, this.#offsetClause, 'offset_clause', 'value');
 		return this;
 	}
 
@@ -89,7 +89,7 @@ export class SelectStatement extends AbstractQueryStatement(
 	jsonfy(options = {}, jsonIn = {}) {
 		return super.jsonfy(options, () => ({
 			fieldsSpec: this.#fieldsSpec?.jsonfy(options),
-			...(this.#fromList.length ? { fromList: this.#fromList.map(t => t.jsonfy(options)) } : {}),
+			...(this.#fromList.length ? { fromList: this.#fromList.map((t) => t.jsonfy(options)) } : {}),
 			...(this.#groupByClause ? { groupByClause: this.#groupByClause.jsonfy(options) } : {}),
 			...(this.#havingClause ? { havingClause: this.#havingClause.jsonfy(options) } : {}),
 			...(this.#windowClause ? { windowClause: this.#windowClause.jsonfy(options) } : {}),
@@ -106,7 +106,7 @@ export class SelectStatement extends AbstractQueryStatement(
 		const $body = this.mySubstitutePlaceholders(instance, body.trim());
 		// Tokenize
 		const clauses = { from: { backtest: '^(?!.*\\s+DISTINCT\\s+$)', test: 'FROM' }, join:JoinClause, where:WhereClause, groupBy:GroupByClause, having:HavingClause, window:WindowClause, orderBy:OrderByClause, limit:LimitClause, offset:OffsetClause, union:'UNION' };
-		const [ fieldsSpec, ...tokens ] = Lexer.split($body, Object.values(clauses).map(x => x.REGEX || x.CLAUSE || x), { useRegex: 'i', preserveDelims: true });
+		const [ fieldsSpec, ...tokens ] = Lexer.split($body, Object.values(clauses).map(x => x.REGEX || x.CLAUSE && `${x.CLAUSE}(?!\\w)` || x), { useRegex: 'i', preserveDelims: true });
 		// Parse
 		instance.fields(parseCallback(instance, fieldsSpec.trim(), [FieldsSpec]));
 		main: for (const token of tokens) {

@@ -41,6 +41,26 @@ const client = new SQLClient({
     on(...args) { return driver.on(...args) }
 }, { dialect });
 
+
+const result = await client.database('public').table('books').select(
+    { fields: [
+        (q) => q.expr('title'),
+        (q) => q.expr('content'),
+        (q) => q.expr(
+            (r) => r.path('author', '~>', 'name')
+        ).as('author_name'),
+        (q) => q.expr(
+            (r) => r.path('coauthor', '~>', 'name')
+        ).as('coauthor_name')
+    ], where: [
+        (q) => q.eq(
+            (r) => r.path('author', '~>', 'role'),
+            (r) => r.binding('admin')
+        )
+    ] }
+);
+process.exit();
+
 /*
 */
 console.log('---DATABSES BEFORE:', (await client.schema()).databases(false));

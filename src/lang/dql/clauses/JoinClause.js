@@ -4,7 +4,7 @@ import { Identifier } from '../../expr/Identifier.js';
 import { OnClause } from './OnClause.js';
 
 export class JoinClause extends Table {
-	static get REGEX() { return '(INNER\\s+|CROSS\\s+|(?:LEFT|RIGHT)(?:\\s+OUTER)?\\s+)?JOIN(?!\\w)'; }
+	static get REGEX() { return '(INNER\\s+|CROSS\\s+|(?:LEFT|RIGHT|FULL)(?:\\s+OUTER)?\\s+)?JOIN(?!\\w)'; }
 	 
 	#type;
 	#usingClause;
@@ -15,15 +15,9 @@ export class JoinClause extends Table {
 		return (this.#type = value, this);
 	}
 
-	full(table) { return this.type('JOIN').expr(table); }
-
-	left(table) { return this.type('LEFT_JOIN').expr(table); }
-
-	right(table) { return this.type('RIGHT_JOIN').expr(table); }
-
-	inner(table) { return this.type('INNER_JOIN').expr(table); }
-
-	cross(table) { return this.type('CROSS_JOIN').expr(table); }
+	expr(...args) {
+		return args.length > 1 ? super.expr(args) : super.expr(...args);
+	}
 
 	on(...args) {
 		if (!arguments.length) return this.#onClause;
@@ -38,7 +32,7 @@ export class JoinClause extends Table {
 	}
 
 	static fromJSON(context, json, callback = null) {
-		if (!json.type) return;
+		if (!json?.type || Object.keys(json).filter((k) => !['nodeName', 'type', 'expr', 'alias', 'usingClause', 'onClause', 'claused'].includes(k)).length) return;
 		return super.fromJSON(context, json, (instance) => {
 			instance.type(json.type);
 			if (json.usingClause) instance.using(json.usingClause);

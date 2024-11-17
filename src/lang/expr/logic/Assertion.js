@@ -9,11 +9,11 @@ export class Assertion extends AbstractOperator2Expr {
 	static get OPERATORS() {
 		return [
 			{ test: '<(?!~)' },
-			{ test: '(?<!~)>', backtest: '^(?!.*~$)'/*For Lexer*/ },
+			{ test: '(?<![~-])>', backtest: '^(?!.*[~-]$)'/*For Lexer*/ },
 			{ test: '(?<!<)(?:\\!)?~(?:\\*)?(?!>)', backtest: '^(?!.*<$)'/*For Lexer*/ },
-			{ test: '(\\s+(?:' + 
-				'IS\\s+(?:NOT\\s+)?(TRUE|FALSE|NULL|UNKNOWN|DISTINCT\\s+FROM)' + '|' + 'ANY|ALL' + '|' + '(?:NOT\\s+)?(?:IN|LIKE|EXISTS|SIMILAR\\s+TO|BETWEEN(?:\\s+SYMMETRIC)?)' + 
-			')\\s+' + '|' + '(?:\\s+)?(=|<=|>=|!=|<>)(?:\\s+)?)' },
+			{ test: '(' + '(?:(?:\\s+)?(=|<=|>=|!=|<>)(?:\\s+)?)' + '|' + 
+				'(?:\\s+IS\\s+(?:NOT\\s+)?(TRUE|FALSE|NULL|UNKNOWN|DISTINCT\\s+FROM\\s+))' + '|' + '(?:\\s+(?:' + 'ANY|ALL' + '|' + '(?:NOT\\s+)?(?:IN|LIKE|EXISTS|SIMILAR\\s+TO|BETWEEN(?:\\s+SYMMETRIC)?)' + 
+			')\\s+)' + ')' },
 		];
 	}
 

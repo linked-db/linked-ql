@@ -20,7 +20,7 @@ export class Bool extends AbstractNode {
 	}
 
 	static fromJSON(context, json, callback = null) {
-		if (![true,false].includes(json?.value) || Object.keys(json).filter((k) => k !== 'nodeName').length > 1) return;
+		if (![true,false].includes(json?.value) || Object.keys(json).filter((k) => !['nodeName', 'value'].includes(k)).length) return;
 		return super.fromJSON(context, json, (instance) => {
 			instance.value(json.value);
 			callback?.(instance);

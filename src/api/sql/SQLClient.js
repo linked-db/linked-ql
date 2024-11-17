@@ -9,11 +9,6 @@ import { Parser } from '../../lang/Parser.js';
 
 export class SQLClient extends AbstractClient {
 
-    /**
-     * Instance.
-     * 
-     * @param Object params 
-     */
     constructor(driver, params = {}) {
         if (typeof driver !== 'object') throw new Error(`The options.driver parameter is required and must be an object.`);
         if (typeof driver.query !== 'function') throw new Error(`The provided driver must expose a .query() function.`);
@@ -21,33 +16,12 @@ export class SQLClient extends AbstractClient {
         this.$.driver = driver;
     }
 
-    /**
-     * @property Driver
-     */
     get driver() { return this.$.driver; }
 
-    /**
-     * Client kind.
-     * 
-     * @property String
-     */
     static kind = 'sql';
 
-    /**
-     * Database class.
-     * 
-     * @property Object
-     */
     static Database = SQLDatabase;
 
-    /**
-     * Returns the application schema structure with specified level if detail.
-     * 
-     * @param Object|Array  params
-     * @param Array         ...rest
-     * 
-     * @return Array
-     */
     async schema(params) {
         return super.schema(async (params) => {
             const sql = this.#composeSchemaSQL(params);
@@ -56,13 +30,6 @@ export class SQLClient extends AbstractClient {
         }, ...arguments);
     }
 
-    /**
-     * Sets or returns the search path for resolving unqualified table references.
-     * 
-     * @param Array|String searchPath
-     * 
-     * @return Array
-     */
     async searchPath(searchPath = []) {
         if (arguments.length) {
             searchPath = [].concat(searchPath).map(name => Identifier.fromJSON(this, name));
@@ -134,9 +101,6 @@ export class SQLClient extends AbstractClient {
      * ----------------
      */
 
-    /**
-     * Initialise the logic for supporting the "RETURNING" clause in MySQL
-     */
     async #mysqlReturningMagic(query) {
         if (query.tables().length > 1) {
             throw new Error(`The support for a "RETURNING" clause for mysql does'nt yet support muilt-table statements.`);
@@ -188,13 +152,6 @@ export class SQLClient extends AbstractClient {
         }];
     }
 
-    /**
-     * Compose the SQL that generates schemas
-     * 
-     * @param Array|Object      params
-     * 
-     * @returns Array
-     */
     #composeSchemaSQL(params = {}) {
         // -- HOW WE MATCH NAMES
         const utils = this.createCommonSQLUtils();
@@ -339,13 +296,6 @@ export class SQLClient extends AbstractClient {
         return sql;
     }
 
-    /**
-     * Formats the result of #composeSchemaSQL().
-     * 
-     * @param Array             result
-     * 
-     * @returns Array
-     */
     #formatSchemasResult(result) {
         // PG likes using verbose data types
         const dataType = val => val === 'character varying' ? 'varchar' : (val === 'integer' ? 'int' : val);

@@ -1,13 +1,6 @@
 import { _last as _arrLast, _from as _arrFrom } from '@webqit/util/arr/index.js';
 import { _isObject } from '@webqit/util/js/index.js';
 
-/**
- * Parses command-line args to a more-usable format
- * 
- * @param array args
- * 
- * @return object
- */
 export function parseArgv(argv) {
     let command = argv[2], args = argv.slice(3), keywords = {}, flags = {}, payload = {}, ellipsis;
     if (_arrLast(args) === '...') {

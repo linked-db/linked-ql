@@ -33,9 +33,9 @@ export const Exprs = [
 	// Operators
 	StrJoin,
 	Condition,
+	Assertion, // Must come before PathRight; think a ~> b IS NOT NULL
 	PathRight,
 	JsonPath,
-	Assertion, // Must come after PathRight
 	Math, // Must come after Assertion
 	// Non-operators
 	RowSpec, // Must come before Parens

@@ -36,7 +36,7 @@ export class CaseConstruct extends AbstractNode {
 	}
 
 	static fromJSON(context, json, callback = null) {
-		if (!Array.isArray(json?.cases)) return;
+		if (!Array.isArray(json?.cases) || Object.keys(json).filter((k) => !['nodeName', 'switchExpr', 'cases', 'defaultExpr'].includes(k)).length) return;
 		return super.fromJSON(context, json, (instance) => {
 			if (json.switchExpr) instance.switchExpr(json.switchExpr);
 			instance.cases(...json.cases);

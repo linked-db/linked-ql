@@ -34,6 +34,7 @@ export class Aggr extends Fn {
 
 	static fromJSON(context, json, callback = null) {
 		if (!this.names.flat().includes(json?.name?.toUpperCase?.())) return;
+		if (Object.keys(json || {}).filter((k) => !['nodeName', 'name', 'args', 'orderByClause', 'overClause', 'flags'].includes(k)).length) return;
 		return super.fromJSON(context, json, (instance) => {
 			if (json.orderByClause) instance.orderBy(json.orderByClause);
 			if (json.overClause) instance.over(json.overClause);

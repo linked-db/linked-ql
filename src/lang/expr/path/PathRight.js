@@ -26,12 +26,10 @@ export class PathRight extends AbstractPath {
 	}
 	
 	static get expose() {
-		return { path: (context, lhs, ...rest) => {
-			if (rest.length === 1) {
-				return this.fromJSON(context, { lhs, operator: '~>', rhs: rest[0] });
-			}
-			return super.expose.path(context, lhs, ...rest);
-		}, };
+		return {
+			path: (context, lhs, operator, rhs) => this.fromJSON(context, { lhs, operator, rhs }),
+			rpath: (context, lhs, rhs) => this.fromJSON(context, { lhs, operator: '~>', rhs }),
+		};
 	}
 
 	schema() {
@@ -62,7 +60,9 @@ export class PathRight extends AbstractPath {
 	}
 
 	stringify() {
-		if (this.operator() === ':') return `${ this.lhs() }: ${ this.rhs() }`;
+		if ([JsonAgg,JsonObjectSpec,JsonArraySpec,ColumnsSpec].some((c) => this.rhs() instanceof c)) {
+			return `${ this.lhs() }: ${ this.rhs() }`;
+		}
 		return super.stringify();
 	}
 }

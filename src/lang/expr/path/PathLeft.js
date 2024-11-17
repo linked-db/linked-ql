@@ -19,6 +19,13 @@ export class PathLeft extends AbstractPath {
 		}
 		return super.$capture(requestName, requestSource);
 	}
+	
+	static get expose() {
+		return {
+			path: (context, lhs, operator, rhs) => this.fromJSON(context, { lhs, operator, rhs }),
+			lpath: (context, lhs, rhs) => this.fromJSON(context, { lhs, operator: '<~', rhs }),
+		};
+	}
 
 	schema() {
 		const fk = this.rhs().schema().foreignKey();

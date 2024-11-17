@@ -114,6 +114,9 @@ export class AbstractNode {
 		// --------------
 		// Handle args
 		const delegatables = new Set;
+		if (args.length > 1 && !Array.isArray($.result)) {
+			while (args.length) delegatables.add(args.shift());
+		}
 		for (let i = 0; i < args.length; i++) {
 			const arg = args[i];
 			// Function args

@@ -39,6 +39,7 @@ export class Window extends AbstractNode {
 	static fromJSON(context, json, callback = null) {
 		if (typeof json === 'string') json = { windowRef: json };
 		else if (!(typeof json === 'object' && json) || !['name', 'windowRef', 'partitionByClause', 'orderByClause'].some(k => k in json)) return;
+		if (Object.keys(json || {}).filter((k) => !['nodeName', 'name', 'windowRef', 'partitionByClause', 'orderByClause'].includes(k)).length) return;
 		return super.fromJSON(context, json, (instance) => {
 			if (json.name) instance.name(json.name);
 			if (json.windowRef) instance.extends(json.windowRef);
@@ -60,7 +61,7 @@ export class Window extends AbstractNode {
 	
 	static parse(context, expr, parseCallback) {
 		const instance = new this(context);
-		const parseEnclosure = async enclosure => {
+		const parseEnclosure = async (enclosure) => {
 			const { tokens: [ definedRef, ...clauses ], matches: clauseTypes } = Lexer.lex(_unwrap(enclosure.trim(), '(', ')'), ['PARTITION\\s+BY', 'ORDER\\s+BY'], { useRegex:'i', preserveDelims: true });
 			if (definedRef.trim()) instance.extends(definedRef.trim());
 			for (const clauseType of clauseTypes) {
@@ -78,7 +79,7 @@ export class Window extends AbstractNode {
 		if (isNamedWindow) {
 			// WINDOW w AS (PARTITION BY country ORDER BY city ASC, state DESC), u AS (...)
 			// NOTICE below the space around "AS", important in view of "city ASC"
-			const [ name, enclosure ] = spec.split(new RegExp(' AS ', 'i'));
+			const [ name, enclosure ] = Lexer.split(expr, [' AS '], { useRegex: 'i' });
 			instance.name(name.trim());
 			parseEnclosure(enclosure);
 		} else if (hasEnclosure) {
