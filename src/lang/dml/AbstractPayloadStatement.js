@@ -171,8 +171,8 @@ export const AbstractPayloadStatement = Class => class extends Class {
 
 	finalizeJSON(json, options) {
 		if (this.#generatedDependencies.size || this.#generatedDependents.size) {
-			json.dependencies = [...this.#generatedDependencies].map(d => d.query.jsonfy(options));
-			json.dependents = [...this.#generatedDependents].map(d => d.query.jsonfy(options));
+			json.dependencies = [...this.#generatedDependencies].map(d => d.query.jsonfy({ ...options, deSugar: false }));
+			json.dependents = [...this.#generatedDependents].map(d => d.query.jsonfy({ ...options, deSugar: false }));
 			this.#generatedDependencies.clear();
 			this.#generatedDependents.clear();
 		}

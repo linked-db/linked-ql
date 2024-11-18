@@ -68,8 +68,7 @@ export class AbstractTable {
 			const json = { into: [table], columns, values: valueMatrix, ...clauses };
 			const query = this.createQuery(json, isUpsert ? UpsertStatement : InsertStatement, `table.${isUpsert ? 'upsert' : 'insert'}()`);
 			buildCallback?.(query);
-			console.log('_______::::::::' + query);
-			const result = await this.database.client.execQuery(query, { inspect: true });
+			const result = await this.database.client.execQuery(query);
 			if (singular) return result[0];
 			return result;
 		});
@@ -89,7 +88,8 @@ export class AbstractTable {
 			const json = await this.resolveWhereClause({ table: [table], set: { entries: columns.map((c, i) => ({ operands: [c, values[i]] })) }, ...clauses });
 			const query = this.createQuery(json, UpdateStatement, `table.update()`);
 			buildCallback?.(query);
-			const result = await this.database.client.execQuery(query);
+			console.log('_______::::::::' + query);
+			const result = await this.database.client.execQuery(query, { inspect: true });
 			if (singular) return result[0];
 			return result;
 		});

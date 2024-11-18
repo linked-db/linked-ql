@@ -42,17 +42,11 @@ const client = new SQLClient({
 }, { dialect });
 
 
-const result = await client.query(
-    `UPDATE public.books
-    SET
-        title = 'Beauty and the Beast',
-        content = '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
-        author ~> email = 'johndoed@example.com'
-    WHERE author ~> role = $1`,
-    ['admin'],
-    { inspect: true }
+const result = await client.database('public').table('books').update(
+    { title: 'Beauty and the Beast', content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...', author: { name: 'johndoed@example.com' } },
+    {}
 );
-//process.exit();
+process.exit();
 
 /*
 */
