@@ -44,9 +44,9 @@ export class UpdateStatement extends AbstractPayloadStatement(
 
 	jsonfy(options = {}, jsonIn = {}) {
 		return super.jsonfy(options, () => ({
-			tables: this.#tables.map(t => t.jsonfy(options)),
+			tables: this.#tables.map((t) => t.jsonfy(options)),
 			...(this.#postgresFromList.length ? { postgresFromList: this.#postgresFromList.map(t => t.jsonfy(options)) } : {}),
-			...jsonIn,
+			...jsonIn
 		}));
 	}
 
@@ -57,8 +57,8 @@ export class UpdateStatement extends AbstractPayloadStatement(
 		const $body = this.mySubstitutePlaceholders(instance, body.trim());
 		// Tokenize
 		const dialect = context?.params?.dialect || 'postgres';
-		const clauses = { ...(dialect === 'postgres' ? { set:SetClause, from: { backtest: '^(?!.*\\s+DISTINCT\\s+$)', test: 'FROM' } } : {}), join:JoinClause, ...(dialect === 'mysql' ? { set:SetClause } : {}), where:WhereClause, ...(dialect === 'mysql' ? { limit:LimitClause } : {}), returning:ReturningClause };
-		const [tableSpec, ...tokens] = Lexer.split($body, Object.values(clauses).map(x => x.REGEX || x.CLAUSE || x), { useRegex: 'i', preserveDelims: true });
+		const clauses = { ...(dialect === 'postgres' ? { set: SetClause, from: { backtest: '^(?!.*\\s+DISTINCT\\s+$)', test: 'FROM' } } : {}), join:JoinClause, ...(dialect === 'mysql' ? { set: SetClause } : {}), where: WhereClause, ...(dialect === 'mysql' ? { limit: LimitClause } : {}), returning: ReturningClause };
+		const [tableSpec, ...tokens] = Lexer.split($body, Object.values(clauses).map(x => x.REGEX || x.CLAUSE && `${x.CLAUSE}(?!\\w)` || x), { useRegex: 'i', preserveDelims: true });
 		// Parse
 		instance.table(...Lexer.split(tableSpec, [',']).map(t => parseCallback(instance, t.trim(), [Table])));
 		main: for (const token of tokens) {

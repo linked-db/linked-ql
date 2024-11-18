@@ -52,7 +52,7 @@ export class InsertStatement extends AbstractPayloadStatement(AbstractDMLStateme
 
 	schema() {
 		const dbSchema = DatabaseSchema.fromJSON(this, { name: '', tables: [] });
-		dbSchema.table(this.#table.schema().jsonfy());
+		dbSchema.table(this.#table.schema().jsonfy({ fullyQualified: true }));
 		return dbSchema;
 	}
 
@@ -115,7 +115,7 @@ export class InsertStatement extends AbstractPayloadStatement(AbstractDMLStateme
 		// Tokenize
 		const dialect = context?.params?.dialect || 'postgres';
 		const clauses = { values: ValuesClause, ...(dialect === 'mysql' ? { set: SetClause } : {}), select: SelectStatement, onConflict: OnConflictClause, returning: ReturningClause };
-		const [tableAndColumnsSpec, ...tokens] = Lexer.split($body, Object.values(clauses).map(x => x.REGEX || x.CLAUSE || x), { useRegex: 'i', preserveDelims: true });
+		const [tableAndColumnsSpec, ...tokens] = Lexer.split($body, Object.values(clauses).map(x => x.REGEX || x.CLAUSE && `${x.CLAUSE}(?!\\w)` || x), { useRegex: 'i', preserveDelims: true });
 		const [tableSpec, columnsSpec = ''] = Lexer.split(tableAndColumnsSpec, []);
 		// Parse
 		instance.into(parseCallback(instance, tableSpec.trim(), [GlobalTableRef]));

@@ -4,6 +4,7 @@ import { ColumnsSpec } from './clauses/ColumnsSpec.js';
 import { ColumnRef } from '../expr/refs/ColumnRef.js';
 import { SetClause } from './clauses/SetClause.js';
 import { ValuesSubClause } from './clauses/ValuesSubClause.js';
+import { ReturningClause } from './clauses/ReturningClause.js';
 import { ForeignBinding } from '../expr/ForeignBinding.js';
 import { RowSpec } from './clauses/RowSpec.js';
 import { Parens } from '../expr/Parens.js';
@@ -72,7 +73,7 @@ export const AbstractPayloadStatement = Class => class extends Class {
 
 	#generatedDependencies = new Set;
 	#generatedDependents = new Set;
-	#generatedReturning = new Set;
+	#generatedReturning = ReturningClause.fromJSON(this, { entries: [] });
 	createDimension(dimensionSpec, options = {}) {
 		if (![ColumnsSpec, ColumnRef, PathRight].some(c => dimensionSpec.rhs() instanceof c)) {
 			throw new Error(`Invalid columns spec: ${dimensionSpec}`);
@@ -104,7 +105,7 @@ export const AbstractPayloadStatement = Class => class extends Class {
 		if (dimensionSpec.lhs() instanceof PathJunction) {
 			query.columns().add(keyRhs_bareIdent.name());
 			const queryPK = keyLhs_bareIdent.name();
-			if (!this.returning()?.has(queryPK)) {
+			if (!this.returning()?.has(queryPK) && !this.#generatedReturning.has(queryPK)) {
 				this.#generatedReturning.add(queryPK);
 			}
 			const offload = (rowOffset, payload) => {
@@ -137,24 +138,34 @@ export const AbstractPayloadStatement = Class => class extends Class {
 	}
 
 	static fromJSON(context, json, callback = null) {
-		if (!json?.table) return;
 		return super.fromJSON(context, json, (instance) => {
 			if (json.setClause) instance.set(json.setClause);
 			if (json.dependencies?.length) {
-				instance.#dependencies = instance.$castInputs(json.dependencies, this.DIMENSIONS_TO, [], );
+				instance.#dependencies = instance.$castInputs(json.dependencies, this.DIMENSIONS_TO, [], 'dependencies' );
 			}
 			if (json.dependents?.length) {
-				instance.#dependents = instance.$castInputs(json.dependents, this.DIMENSIONS_TO, [], );
+				instance.#dependents = instance.$castInputs(json.dependents, this.DIMENSIONS_TO, [], 'dependents' );
+			}
+			if (json.generatedReturning?.length) {
+				instance.#generatedReturning = instance.$castInputs([json.generatedReturning], ReturningClause);
 			}
 			callback?.(instance);
 		});
 	}
 
 	jsonfy(options, jsonInCallback) {
-		const jsonOut = super.jsonfy(options, () => ({
+		let jsonOut = super.jsonfy(options, () => ({
 			...(this.#setClause ? { setClause: this.#setClause?.jsonfy(options) } : {}),
-			...jsonInCallback(),
+			...jsonInCallback()
 		}));
+		if (this.#generatedReturning.length) {
+			if (options.deSugar) {
+				const entries = (jsonOut.returningClause?.entries || []).concat(this.#generatedReturning.jsonfy(options).entries);
+				jsonOut = { ...jsonOut, returningClause: { entries } };
+			} else {
+				jsonOut = { ...jsonOut, generatedReturning: this.#generatedReturning.jsonfy(options) };
+			}
+		}
 		return jsonOut;
 	}
 

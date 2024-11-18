@@ -42,24 +42,17 @@ const client = new SQLClient({
 }, { dialect });
 
 
-const result = await client.database('public').table('books').select(
-    { fields: [
-        (q) => q.expr('title'),
-        (q) => q.expr('content'),
-        (q) => q.expr(
-            (r) => r.path('author', '~>', 'name')
-        ).as('author_name'),
-        (q) => q.expr(
-            (r) => r.path('coauthor', '~>', 'name')
-        ).as('coauthor_name')
-    ], where: [
-        (q) => q.eq(
-            (r) => r.path('author', '~>', 'role'),
-            (r) => r.binding('admin')
-        )
-    ] }
+const result = await client.query(
+    `UPDATE public.books
+    SET
+        title = 'Beauty and the Beast',
+        content = '(C) 2024 johndoed@example.com\nBeauty and the Beast...',
+        author ~> email = 'johndoed@example.com'
+    WHERE author ~> role = $1`,
+    ['admin'],
+    { inspect: true }
 );
-process.exit();
+//process.exit();
 
 /*
 */

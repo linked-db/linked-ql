@@ -72,7 +72,7 @@ export class DeleteStatement extends AbstractQueryStatement(AbstractDMLStatement
 		// Tokenize
 		const dialect = context?.params?.dialect || 'postgres';
 		const clauses = { from: { backtest: '^(?!.*\\s+DISTINCT\\s+$)', test: 'FROM' }, ...(dialect === 'postgres' ? { using: { backtest: '^(?!.*\\s+JOIN\\s+)', test: 'USING' } } : {}), ...(dialect === 'mysql' ? { join:JoinClause } : {}), where:WhereClause, ...(dialect === 'mysql' ? { orderBy:OrderByClause } : {}), limit:LimitClause, returning:ReturningClause };
-		const [ mysqlDeleteList = '', ...tokens ] = Lexer.split($body, Object.values(clauses).map(x => x.REGEX || x.CLAUSE || x), { useRegex: 'i', preserveDelims: true });
+		const [ mysqlDeleteList = '', ...tokens ] = Lexer.split($body, Object.values(clauses).map(x => x.REGEX || x.CLAUSE && `${x.CLAUSE}(?!\\w)` || x), { useRegex: 'i', preserveDelims: true });
 		// Parse
 		if (mysqlDeleteList.trim()) instance.delete(...Lexer.split(mysqlDeleteList, [',']).map(t => parseCallback(instance, t.trim(), [Identifier])));
 		main: for (const token of tokens) {

@@ -40,29 +40,27 @@ export class AbstractTable {
 			const json = await this.resolveWhereClause({ fields, from: [table], ...clauses });
 			const query = this.createQuery(json, SelectStatement, 'table.select()');
 			buildCallback?.(query);
-			console.log('_______::::::::' + query);
-			const result = await this.database.client.execQuery(query, { inspect: true });
+			const result = await this.database.client.execQuery(query);
 			if (singular) return result[0];
 			return result;
 		});
 	}
 
 	async insert(...args) {
-		let isUpsert, columns = [], valueMatrix = [], clauses, buildCallback, singular = false;
+		let isUpsert, payload, columns = [], valueMatrix = [], clauses, buildCallback, singular = false;
 		if (typeof args[0] === 'boolean') isUpsert = args.shift();
 		return this.database.client.withSchema(async () => {
-			if (Array.isArray(args[0]) && /*important*/args[0].every(s => typeof s === 'string') && Array.isArray(args[1])) {
-				if (!args[1].every(s => Array.isArray(s))) throw new TypeError(`Invalid payload format.`);
-				[columns, valueMatrix] = args.splice(0, 2);
+			if (Array.isArray(args[0]) && Array.isArray(args[1])) {
+				[columns, payload] = args.splice(0, 2);
+				valueMatrix = payload.map((values) => ({ row: this.buildValueMatrix(values, columns) }));
 				clauses = (typeof args[0] !== 'function' && args.shift()) || {};
 				buildCallback = (typeof args[0] === 'function' && args.shift()) || null;
 			} else {
 				const _singular = _isObject(args[0]); // Must come before any args.shift()
-				const payload = [].concat(args.shift());
-				if (!_isObject(payload[0])) throw new TypeError(`Invalid payload format.`);
+				payload = [].concat(args.shift());
+				[columns, valueMatrix] = await this.resolvePayload(payload);
 				clauses = (typeof args[0] !== 'function' && args.shift()) || {};
 				buildCallback = (typeof args[0] === 'function' && args.shift()) || null;
-				[columns, valueMatrix] = await this.resolvePayload(payload);
 				singular = _singular && clauses.returning;
 			}
 			// Compose JSON
@@ -70,7 +68,8 @@ export class AbstractTable {
 			const json = { into: [table], columns, values: valueMatrix, ...clauses };
 			const query = this.createQuery(json, isUpsert ? UpsertStatement : InsertStatement, `table.${isUpsert ? 'upsert' : 'insert'}()`);
 			buildCallback?.(query);
-			const result = await this.database.client.execQuery(query);
+			console.log('_______::::::::' + query);
+			const result = await this.database.client.execQuery(query, { inspect: true });
 			if (singular) return result[0];
 			return result;
 		});
@@ -134,47 +133,29 @@ export class AbstractTable {
 	async resolvePayload(payload) {
 		const $$payload = [].concat(payload);
 		if (!_isObject($$payload[0])) throw new TypeError(`Invalid payload format.`);
-		const buildValues = (data, columns) => {
-			const values = [];
-			for (const column of columns) {
-				if (column.rpath) {
-					const [key, { columns }] = column.rpath;
-					if (!_isObject(data[key])) throw new Error(`Irregular payload structure: expected an object of shape ${JSON.stringify(columns)} but got: ${data[key]}`);
-					values.push({ row: buildValues(data[key], columns) });
-				} else if (column.lpath) {
-					const [key, { columns }] = column.lpath[1].rpath;
-					if (!Array.isArray(data[key])) throw new Error(`Irregular payload structure: expected an array of objects of shape ${JSON.stringify(columns)} but got: ${data[key]}`);
-					values.push({ values: data[key].map((data) => ({ row: buildValues(data, columns) })) });
-				} else {
-					values.push(toVal(data[column]));
-				}
-			}
-			return values;
-		};
-		const valueMatrix = [];
-		const columns = await this.buildColumns($$payload[0]);
-		for (const data of $$payload) {
-			valueMatrix.push({ row: buildValues(data, columns) });
-		}
+		const columns = await this.buildShapePath($$payload[0], true);
+		const valueMatrix = $$payload.map((data) => ({ row: this.buildValueMatrix(data, columns, true) }));
 		return [columns, valueMatrix];
 	}
 
-	async buildColumns(data) {
+	async buildShapePath(data, asColumns = false) {
 		const columns = [];
 		const tblSchema = await this.schema();
 		if (!tblSchema) throw new Error(`Table ${this.ident} does not exist.`);
 		for (const key in data) {
 			const colSchema = tblSchema.column(key);
 			const fk = colSchema?.foreignKey();
+			const dimensionType = asColumns ? 'columns' : 'fields';
 			if (fk && _isObject(data[key])) {
 				const targetTable = this.database.client.database(fk.targetTable().prefix(true).name()).table(fk.targetTable().name());
-				columns.push({ rpath: [key, { columns: await targetTable.buildColumns(data[key]) }] });
+				columns.push({ rpath: [key, { [dimensionType]: await targetTable.buildShapePath(data[key], asColumns) }] });
 			} else if (!colSchema) {
 				if (!Array.isArray(data[key])) throw new Error(`Unknown column: ${key}`);
 				const foreignTable = this.database.table(key);
 				const fks = (await foreignTable.schema()).foreignKeys().filter((fk) => fk.targetTable().identifiesAs(this.ident));
 				if (fks.length !== 1) throw new Error(`${fks.length} correletions found between ${this.ident} and ${foreignTable.ident}`);
-				columns.push({ lpath: [fks[0].columns()[0], { rpath: [key, { columns: await foreignTable.buildColumns(data[key][0]) }] }] });
+				const dimension = { [dimensionType]: await foreignTable.buildShapePath(data[key][0], asColumns) };
+				columns.push({ rpath: [{ lpath: [fks[0].columns()[0], [this.database.name, key]] }, asColumns ? dimension : { expr: dimension }] });
 			} else {
 				columns.push(key);
 			}
@@ -182,12 +163,38 @@ export class AbstractTable {
 		return columns;
 	}
 
+	buildValueMatrix(data, columns, asMap = false) {
+		console.log(columns);
+		if ((asMap && !_isObject(data)) || (!asMap && !Array.isArray(data))) throw new Error(`Irregular payload structure: expected an object of shape ${JSON.stringify(columns)} but got: ${data}`);
+		const valueMatrix = [], colsLength = columns.length;
+		for (let i = 0; i < colsLength; i ++) {
+			const column = columns[i];
+			if (column.rpath) {
+				const key = column.rpath[0];
+				const columns = column.rpath[1].columns || [column.rpath[1]];
+				if (key.lpath) {
+					const [, [, table]] = key.lpath;
+					const values = asMap ? data[table] : data[i];
+					if (!Array.isArray(values)) throw new Error(`Irregular payload structure: expected an array of ${table} of shape ${JSON.stringify(columns)} but got: ${values}`);
+					valueMatrix.push({ values: values.map((data) => ({ row: this.buildValueMatrix(data, columns, asMap) })) });
+				} else {
+					const row = asMap ? data[key] : data[i];
+					valueMatrix.push({ row: this.buildValueMatrix(row, columns, asMap) });
+				}
+			} else {
+				const value = asMap ? data[column] : data[i];
+				valueMatrix.push(toValue(value));
+			}
+		}
+		return valueMatrix;
+	}
+
 	$capture(requestName, requestSource) {
 		return this.database.$capture(requestName, requestSource);
 	}
 }
 
-const toVal = (v) => {
+const toValue = (v) => {
 	if (typeof v === 'function') return v;
 	if (v instanceof Date) return (q) => q.value(v.toISOString().split('.')[0]);
 	if (Array.isArray(v) || _isObject(v)) return (q) => q.json(v);

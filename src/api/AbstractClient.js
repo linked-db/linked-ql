@@ -177,6 +177,7 @@ export class AbstractClient {
             // IMPORTANT: The order of the following
             query.renderBindings?.(params.values || []);
             if (query.hasSugars) query = query.deSugar();
+            console.log('\n\n\n_______________', query + '');
             // IMPORTANT: The order of the following
             if (query.isPayloadStatement) {
                 [vars.preHook, vars.postHook] = query.createExecutionPlan($query => this.execQuery($query, { inspect: params.inspect }));
