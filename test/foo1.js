@@ -42,9 +42,11 @@ const client = new SQLClient({
 }, { dialect });
 
 
-const result = await client.database('public').table('books').update(
-    { title: 'Beauty and the Beast', content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...', author: { name: 'johndoed@example.com' } },
-    {}
+const result = await client.database('public').table('users').update(
+    { name: 'John Doe 2025', books: [
+        { title: 'Beauty and the Beast', content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...' }
+    ] },
+    { where: { eq: ['id', { value: 1 }] }}
 );
 process.exit();
 

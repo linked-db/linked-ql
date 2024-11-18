@@ -24,7 +24,7 @@ export const AbstractPayloadStatement = Class => class extends Class {
 
 	set(...args) {
 		if (!arguments.length) return this.#setClause;
-		this.#setClause = this.$castInputs(args, SetClause, this.#setClause, 'set', 'assignment');
+		this.#setClause = this.$castInputs(args, SetClause, this.#setClause, 'set', 'add');
 		return this;
 	}
 

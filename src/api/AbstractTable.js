@@ -85,11 +85,10 @@ export class AbstractTable {
 			// Compose JSON
 			const table = [this.database.name, this.name];
 			const [columns, [{ row: values }]] = await this.resolvePayload(payload);
-			const json = await this.resolveWhereClause({ table: [table], set: { entries: columns.map((c, i) => ({ operands: [c, values[i]] })) }, ...clauses });
+			const json = await this.resolveWhereClause({ table: [table], set: columns.map((c, i) => [c, values[i]]), ...clauses });
 			const query = this.createQuery(json, UpdateStatement, `table.update()`);
 			buildCallback?.(query);
-			console.log('_______::::::::' + query);
-			const result = await this.database.client.execQuery(query, { inspect: true });
+			const result = await this.database.client.execQuery(query, {inspect: true });
 			if (singular) return result[0];
 			return result;
 		});
@@ -164,7 +163,6 @@ export class AbstractTable {
 	}
 
 	buildValueMatrix(data, columns, asMap = false) {
-		console.log(columns);
 		if ((asMap && !_isObject(data)) || (!asMap && !Array.isArray(data))) throw new Error(`Irregular payload structure: expected an object of shape ${JSON.stringify(columns)} but got: ${data}`);
 		const valueMatrix = [], colsLength = columns.length;
 		for (let i = 0; i < colsLength; i ++) {

@@ -36,8 +36,8 @@ export class AbstractOperator1Expr extends AbstractNodeList {
             expr = spec;
         }
 		for (const operator of this.OPERATORS) {
-			const tokens = Lexer.split(expr, [ /^\w+$/.test(operator) ? `\\s+${ operator }\\s+` : operator.split('').map(_operator => `\\${ _operator }`).join('') ], { useRegex: 'i' });
-			if (tokens.length < (this.minEntries || 2)) return;
+			const tokens = Lexer.split(expr, [ /^\w+$/.test(operator) ? `\\s+${ operator }\\s+` : operator.split('').map(_operator => `\\${ _operator }`).join('') ], { useRegex: 'i' }).filter((s) => s.trim());
+			if (tokens.length < (this.minEntries || 2)) continue;
 			const instance = (new this(context)).operator(operator);
 			return instance.add(...tokens.map(token => parseCallback(instance, token.trim())));
 		}

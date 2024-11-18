@@ -16,7 +16,7 @@ export class UpsertStatement extends AbstractSugar(InsertStatement) {
 		const columns = (this.set() ? this.set().columns() : this.columns().entries()).map(c => c.name());
 		const refFn = this.params.dialect === 'mysql' ? col => q => q.fn('VALUES', col) : col => ['EXCLUDED', col];
 		const onConflictClause = OnConflictClause.fromJSON(this, { entries: [] });
-		for (const col of columns) onConflictClause.assignment(col, refFn(col));
+		for (const col of columns) onConflictClause.add([col, refFn(col)]);
 		// Postgres requires conflict conditions to be specified
 		if (this.params.dialect !== 'mysql') {
 			const tblSchema = this.into().schema();

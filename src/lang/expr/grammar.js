@@ -32,7 +32,7 @@ export const Exprs = [
 	CaseConstruct,
 	// Operators
 	StrJoin,
-	Condition,
+	Condition, // Must come before Assertion; think id = 1 or id = 2
 	Assertion, // Must come before PathRight; think a ~> b IS NOT NULL
 	PathRight,
 	JsonPath,

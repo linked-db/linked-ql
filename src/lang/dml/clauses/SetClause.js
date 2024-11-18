@@ -22,8 +22,8 @@ export class SetClause extends AbstractNodeList {
 		}, []);
 	}
 
-	assignment(lhs, rhs) {
-		return this.add(this.$castInputs([lhs, rhs], this.constructor.EXPECTED_TYPES, null, 'assignment', 'operands'));
+	add(...args) {
+		return super.add(...args.map((arg) => Array.isArray(arg) ? { operands: arg } : arg));
 	}
 
 	jsonfy(options = {}, jsonIn = {}, reducer = null) {
