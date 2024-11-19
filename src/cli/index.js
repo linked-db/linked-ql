@@ -11,7 +11,7 @@ import { RootCDL } from '../lang/ddl/RootCDL.js';
 import { Savepoint } from '../api/Savepoint.js';
 
 // Parse argv
-const { command, flags } = parseArgv(process.argv);
+const { command, flags, payload } = parseArgv(process.argv);
 if (flags['with-env']) await import('dotenv/config');
 // Map depreciated commands to corresponding commands
 if (flags['auto']) flags['yes'] = true;
@@ -43,6 +43,8 @@ switch($command) {
     case 'restore': await restore(!!flags['forward']);
     // Replication
     case 'replicate': await replicate();
+    // Config
+    case 'config': await config();
 }
 
 // ------
@@ -72,13 +74,13 @@ async function importClients(dir) {
     const client2 = await imports.remote?.();
     return {
         default: (require = true) => {
-            if (client1 && require) {
+            if (!client1 && require) {
                 throw new Error(`\nNo Linked QL client has been configured at ${driverFile}. Aborting.`);
             }
             return client1;
         },
         remote: (require = true) => {
-            if (client2 && require) {
+            if (!client2 && require) {
                 throw new Error(`\nNo remote Linked QL client has been configured at ${driverFile}. Aborting.`);
             }
             return client2;
@@ -120,14 +122,13 @@ async function prompt(message) {
 // ------
 
 async function showSavepoints() {
-    const savepoints = await clientAPIS.default().getSavepoints({ selector: flags['select']?.split(',').map((s) => s.trim()), lookAhead: !!flags['forward'] });
-    const versionState = flags['forward'] ? 'rollback' : 'commit';
-    console.table(savepoints.map(sv => sv.jsonfy()), ['name', 'version_tag', 'version_tags', 'version_state', `${versionState}_date`, `${versionState}_desc`]);
+    const savepoints = await clientAPIS.default().getSavepoints({ forState: true, selector: flags['select']?.split(',').map((s) => s.trim()), lookAhead: !!flags['forward'] });
+    console.table(savepoints.map(sv => sv.jsonfy()), ['name', 'version_tag', 'version_tags', 'version_state', `commit_date`, `commit_desc`, `rollback_date`, `rollback_desc`]);
     process.exit();
 }
 
 async function dumpHistories() {
-    const historiesJson = await clientAPIS.default().getSavepoints({ histories: true });
+    const historiesJson = await clientAPIS.default().getSavepoints({ forHistories: true });
     console.log(`\nDone.`);
     fileAPIS.histories().write(historiesJson);
     process.exit();
@@ -139,7 +140,7 @@ async function clearHistories() {
         process.exit();
     }
     const utils = clientAPIS.default().createCommonSQLUtils();
-    const savepointsLite = await clientAPIS.default().getSavepoints({ lite: true, selector: flags['select'].split(',').map((s) => s.trim()) });
+    const savepointsLite = await clientAPIS.default().getSavepoints({ forState: true, lite: true, selector: flags['select'].split(',').map((s) => s.trim()) });
     if (!savepointsLite.length) notFoundExit('savepoint records');
     // Confirm and execute...
     const confirmMessage = [`This will permanently erase savepoint records for ${savepointsLite.map((v) => `${utils.ident(v.name)}@${v.version_tag}`).join(', ')}!`];
@@ -155,7 +156,7 @@ async function commit() {
     // Schema selector
     const linkedDB = await clientAPIS.default().linkedDB();
     let localSchema, upstreamSchema;
-    const savepointsLite = await clientAPIS.default().getSavepoints({ lite: true });
+    const savepointsLite = await clientAPIS.default().getSavepoints({ forState: true, lite: true });
     if (flags['select']) {
         const schemaSelector = getResolvedSchemaSelector();
         const [a, b] = [...schemaSelector.values()].reduce(([a, b], s) => {
@@ -177,7 +178,7 @@ async function commit() {
     }
     // Schema diffing
     let commitsCount = 0;
-    const CDL = upstreamSchema.diffWith(localSchema).generateCDL({ cascadeRule: flags['cascade-rule'] });
+    const CDL = upstreamSchema.diffWith(localSchema).generateCDL({ cascadeRule: flags['cascade-rule']?.toUpperCase() });
     for (const dbAction of CDL) {
         // Preview...
         const confirmMessage = [`\n----------\n`];
@@ -239,7 +240,7 @@ async function restore(forward = false) {
 
 async function refresh() {
     const localSchema = RootSchema.fromJSON(clientAPIS.default(), fileAPIS.schema().read() || []);
-    const savepointsLite = await clientAPIS.default().getSavepoints({ lite: true, selector: flags['select']?.split(',').map((s) => s.trim()) });
+    const savepointsLite = await clientAPIS.default().getSavepoints({ forState: true, lite: true, selector: flags['select']?.split(',').map((s) => s.trim()) });
     const selector = [...new Set(localSchema.databases(false).concat(savepointsLite.map((sc) => sc.name)))];
     const upstreamSchema = selector.length && await clientAPIS.default().schema({ depth: 2, selector });
     if (upstreamSchema.length) {
@@ -279,7 +280,7 @@ async function refresh() {
 async function generate() {
     const localSchema = RootSchema.fromJSON(clientAPIS.default(), fileAPIS.schema().read() || []);
     const schemaSelector = getResolvedSchemaSelector();
-    const savepointsLite = await clientAPIS.default().getSavepoints({ lite: true });
+    const savepointsLite = await clientAPIS.default().getSavepoints({ forState: true, lite: true });
     for (const v of savepointsLite) schemaSelector.set(v.name, `!${v.name}`);
     const upstreamSchema = await clientAPIS.default().schema({ depth: 2, selector: [...schemaSelector.values()] });
     if (upstreamSchema.length) {
@@ -296,8 +297,8 @@ async function generate() {
 async function replicate() {
     let historiesJson1, historiesJson2, targetClient;
     if (flags['online']) {
-        historiesJson1 = await clientAPIS.default().getSavepoints({ histories: true });
-        historiesJson2 = await clientAPIS.remote().getSavepoints({ histories: true });
+        historiesJson1 = await clientAPIS.default().getSavepoints({ forHistories: true });
+        historiesJson2 = await clientAPIS.remote().getSavepoints({ forHistories: true });
         let targetClient1 = clientAPIS.default();
         let targetClient2 = clientAPIS.remote();
         if (flags['swap']) {
@@ -306,10 +307,10 @@ async function replicate() {
         targetClient = targetClient2;
     } else if (flags['offline']) {
         historiesJson1 = fileAPIS.histories().read();
-        historiesJson2 = await clientAPIS.default().getSavepoints({ histories: true });
+        historiesJson2 = await clientAPIS.default().getSavepoints({ forHistories: true });
         targetClient = clientAPIS.default();
     } else {
-        console.log(`Neither the --origin flag nor the --histories flag has been specified. Aborting.`);
+        console.log(`Neither the --online flag nor the --offline flag has been specified. Aborting.`);
         process.exit();
     }
     const targetClientLinkedDB = await targetClient.linkedDB();
@@ -438,5 +439,14 @@ async function replicate() {
     console.log(`\n${replications} savepoint records processed.`);
     if (!clientAPIS.remote()) await refresh();
     else console.log(`\nDone.`);
+    process.exit();
+}
+
+async function config() {
+    const linkedDB = await clientAPIS.default().linkedDB();
+    if (Object.keys(payload).length) {
+        await linkedDB.config(payload);
+    }
+    console.table(await linkedDB.config());
     process.exit();
 }

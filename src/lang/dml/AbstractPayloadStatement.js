@@ -41,11 +41,18 @@ export const AbstractPayloadStatement = Class => class extends Class {
 				this.renderForeignBindings(dependencyQuery, dependencyData);
 			}
 		};
-		const postHook = async resultData => {
+		const postHook = async (resultData) => {
 			if (!this.#dependents.length) return resultData;
-			for (const dependentQuery of this.#dependents) {
-				const tt = dependentQuery.renderForeignBindings(this, resultData);
-				const dependentData = await recursionCallback(dependentQuery);
+			if (this.NODE_NAME === 'UPDATE_STATEMENT') {
+				for (const resultRow of resultData) {
+					this.#dependents[0].renderForeignBindings(this, [resultRow]);
+					const dependentData = await recursionCallback(this.#dependents[0]);
+				}
+			} else {
+				for (const dependentQuery of this.#dependents) {
+					dependentQuery.renderForeignBindings(this, resultData);
+					const dependentData = await recursionCallback(dependentQuery);
+				}
 			}
 			return resultData;
 		};

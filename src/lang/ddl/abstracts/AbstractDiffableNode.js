@@ -6,7 +6,7 @@ export class AbstractDiffableNode extends AbstractNode {
 	#status;
 	#CDLIgnoreList = [];
 
-	status() { return this.#status || 'existing'; }
+	status() { return this.#status; }
 
 	CDLIgnoreList() { return this.#CDLIgnoreList.slice(); }
 
@@ -22,19 +22,31 @@ export class AbstractDiffableNode extends AbstractNode {
 		return ['new', 'obsolete'].includes(this.#status) ? ['status'] : [];
 	}
 
+	generateDiff(nodeB, options) {
+		return this.diffMergeJsons({
+			status: this.status()
+		}, {
+			status: nodeB.status()
+		}, options);
+    }
+
 	dirtyCheckProperties(props) {
 		return props.filter(p => !this.$eq(this[p](), this[`$${p}`](), 'ci'));
 	}
 
-	diffMergeJsons(jsonA, jsonB, options) {
+	diffMergeJsons(jsonA, jsonB, options = {}) {
 		for (const k of Object.keys(jsonB)) {
-			if (['nodeName', 'flags', 'CDLIgnoreList', 'status'].includes(k)) continue;
+			if (['nodeName', 'flags', 'CDLIgnoreList'].includes(k)) continue;
 			if (!this.$isDirty(jsonB[k]) || this.$eq(jsonA[k], jsonB[k], 'ci')) continue;
 			if (options.diff === 'reverse') {
-				if (options.honourCDLIgnoreList && jsonA.CDLIgnoreList?.includes(k)) continue;
+				if (k === 'status' || (options.honourCDLIgnoreList && jsonA.CDLIgnoreList?.includes(k))) continue;
 				jsonA = { ...jsonA, [k]: jsonB[k], [`$${k}`]: jsonA[k] };
 			} else {
-				jsonA = { ...jsonA, [options.diff === false ? k : `$${k}`]: jsonB[k] };
+				if (k === 'status') {
+					jsonA = { ...jsonA, status: jsonB[k] };
+				} else {
+					jsonA = { ...jsonA, [options.diff === false ? k : `$${k}`]: jsonB[k] };
+				}
 			}
 		}
 		return jsonA;

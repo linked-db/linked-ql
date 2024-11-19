@@ -16,4 +16,6 @@ export class Add extends AbstractArgumentMixin(AbstractAction) {
 			return instance.argument(parseCallback(instance, argumentExpr, this.EXPECTED_TYPES.CONSTRAINT));
 		}
 	}
+
+	stringify() { return `ADD ${this.argument() }`; }
 }

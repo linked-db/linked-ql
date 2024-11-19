@@ -216,7 +216,7 @@ export class AbstractClient {
         if (!this.params.clientID && !!parseInt(await linkedDB.config('require_client_ids'))) {
             throw new Error(`Operation rejected! Your DB requires all client instances to have a "clientID".`);
         }
-        if (!params.desc && !!parseInt(await linkedDB.config('require_commit_descs'))) {
+        if (!vars.inNativeMode && !params.desc && !!parseInt(await linkedDB.config('require_commit_descs'))) {
             throw new Error(`Operation rejected! Your DB requires all DDL operations to have a "desc".`);
         }
         // IMPORTANT: after having desugared out the returning clause
@@ -334,7 +334,7 @@ export class AbstractClient {
             WHERE master_savepoint = main_savepoint.id
         )) AS cascades`;
         const normalizeJson = (savepointJson) => ({ ...savepointJson, version_tags: savepointJson.version_tags.filter(c => c !== 0).sort(), cascades: savepointJson.cascades || [] });
-        if (params.histories) {
+        if (params.forHistories) {
             return (await this.query(`
                 SELECT ${[...fieldsStd, versionTagsField, cascadesFields].join(', ')} 
                 FROM ${tableIdent} AS main_savepoint 
@@ -351,7 +351,7 @@ export class AbstractClient {
                 ROW_NUMBER() OVER (PARTITION BY database_tag ORDER BY version_state = ${params.lookAhead ? `'rollback'` : `'commit'`} DESC, version_tag ${params.lookAhead ? 'ASC' : 'DESC'}) AS rank_for_target,
                 FROM ${tableIdent}
                 WHERE master_savepoint IS NULL
-            ) AS main_savepoint WHERE version_state = ${params.lookAhead ? `'rollback'` : `'commit'`} AND rank_for_target = 1${params.selector ? (params.lookAhead ? ` AND ${utils.matchSelector('name', schemaSelector)}` : ` AND ${utils.matchSelector(`COALESCE(${utils.ident('$name')}, name)`, schemaSelector)}`) : ''}
+            ) AS main_savepoint WHERE ${!params.forState ? `version_state = ${params.lookAhead ? `'rollback'` : `'commit'`} AND ` : ''}rank_for_target = 1${params.selector ? (params.lookAhead ? ` AND ${utils.matchSelector('name', schemaSelector) || 'TRUE'}` : ` AND ${utils.matchSelector(`COALESCE(${utils.ident('$name')}, name)`, schemaSelector) || 'TRUE'}`) : ''}
         `);
         if (params.lite) return result;
         return result.map((savepointJson) => new Savepoint(this, normalizeJson(savepointJson)));
@@ -542,6 +542,8 @@ export class AbstractClient {
                     const hash = _isObject(args[0])
                         ? Object.keys(args[0]).map((name) => ({ name, value: args[0][name] }))
                         : { name: args[0], value: args[1] };
+                    const invalids = _difference(hash.map((c) => c.name), ['auto_savepoints', 'require_client_ids', 'require_commit_descs', 'database_role']);
+                    if (invalids.length) throw new Error(`Invalid configs: ${invalids.join(', ')}`);
                     if (this.#linkedDBConfig) {
                         for (const e of [].concat(hash)) {
                             this.#linkedDBConfig.set(e.name, e.value);

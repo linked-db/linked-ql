@@ -2,7 +2,6 @@ import { Lexer } from '../../Lexer.js';
 import { _toCamel, _fromCamel } from '@webqit/util/str/index.js';
 import { GlobalTableRef } from '../../expr/refs/GlobalTableRef.js';
 import { AbstractNode } from '../../AbstractNode.js';
-import { AbstractConstraint } from '../constraints/abstracts/AbstractConstraint.js';
 import { AbstractPrefixableNameableNode } from '../abstracts/AbstractPrefixableNameableNode.js'
 import { AbstractLevel2Constraint } from '../constraints/abstracts/AbstractLevel2Constraint.js';
 import { AutoIncrementConstraint } from '../constraints/AutoIncrementConstraint.js';
@@ -103,20 +102,22 @@ export class ColumnSchema extends AbstractPrefixableNameableNode {
         for (const cd of columnCDL) {
             if (cd.CLAUSE === 'ADD') {
                 if (cd.$KIND === 'IDENTITY') {
-                    json = this.diffMergeJsons(json, { identity: { always: cd.argument().always(), ...(options.diff !== false ? { status: 'new' } : {}) } });
+                    if (json.identity) throw new Error(`IDENTITY constraint already exists.`);
+                    json = { ...json, identity: { ...cd.argument().jsonfy(options), ...(options.diff !== false ? { status: 'new' } : {}) } };
                 }
             } else if (cd.CLAUSE === 'SET') {
                 if (cd.KIND === 'DATA_TYPE') {
                     json = this.diffMergeJsons(json, { type: cd.argument().jsonfy(options) });
                 } else if (cd.$KIND === 'IDENTITY') {
-                    json = this.diffMergeJsons(json, { identity: { always: cd.argument().always() } });
+                    json = { ...json, identity: this.diffMergeJsons(json.identity || {}, { always: cd.argument().always() }) };
                 } else if (cd.$KIND === 'EXPRESSION') {
-                    json = this.diffMergeJsons(json, { expression: { expr: cd.argument().expr().jsonfy(options) } });
+                    json = { ...json, expression: this.diffMergeJsons(json.expression || { stored: true }, { expr: cd.argument().expr().jsonfy(options) }) };
                 } else if (cd.$KIND === 'DEFAULT') {
-                    json = this.diffMergeJsons(json, { default: { expr: cd.argument().expr().jsonfy(options) } });
+                    json = { ...json, default: this.diffMergeJsons(json.default || {}, { expr: cd.argument().expr().jsonfy(options) }) };
                 }
             } else if (cd.CLAUSE === 'DROP') {
-                json = options.diff === false ? json : this.diffMergeJsons(json, { [cd.$KIND.toLowerCase()]: { status: 'obsolete' } });
+                if (!json[cd.$KIND.toLowerCase()]) throw new Error(`${cd.$KIND} constraint does not exist.`);
+                json = options.diff === false ? json : { ...json, [cd.$KIND.toLowerCase()]: this.diffMergeJsons(json[cd.$KIND.toLowerCase()], { status: 'obsolete' }) };
             }
         }
         return json;
@@ -130,9 +131,9 @@ export class ColumnSchema extends AbstractPrefixableNameableNode {
         for (const cons of this.#constraints) {
             if (cons.constraintLevel === 2) continue;
             if (cons.status() === 'obsolete') {
-                columnCDL.add('DROP', cons.TYPE);
+                columnCDL.add('DROP', 'CONSTRAINT', cons.TYPE);
             } else if (cons.status() === 'new') {
-                columnCDL.add('ADD', cons.TYPE, (cd) => cd.argument(cons.jsonfy({ ...options, diff: false })));
+                columnCDL.add('ADD', 'CONSTRAINT', cons.TYPE, (cd) => cd.argument(cons.jsonfy({ ...options, diff: false })));
             } else {
                 const dirtyCheck = cons.dirtyCheck();
                 if (!dirtyCheck.length) continue;

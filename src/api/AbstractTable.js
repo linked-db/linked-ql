@@ -82,8 +82,7 @@ export class AbstractTable {
 			const { data: _, shorthands: __, ...$clauses } = { ...(await this.resolveWhereClause(clauses)), table: [[this.database.name, this.name]], set: columns.map((c, i) => [c, values[i]]) };
 			const query = this.createQuery($clauses, UpdateStatement, `table.update()`);
 			buildCallback?.(query);
-			console.log('>>>>>>>' + query);
-			const result = await this.database.client.execQuery(query, {inspect: true });
+			const result = await this.database.client.execQuery(query);
 			if (singular) return result[0];
 			return result;
 		});

@@ -32,6 +32,7 @@ export class AbstractNameableNode extends AbstractDiffableNode {
 
 	generateDiff(nodeB, options) {
 		return this.diffMergeJsons({
+			...super.generateDiff(nodeB, options),
 			name: this.$name()
 		}, {
 			name: nodeB.$name()
