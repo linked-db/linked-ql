@@ -1,10 +1,10 @@
 
-import _arrFrom from '@webqit/util/arr/from.js';
-import _merge from '@webqit/util/obj/merge.js';
-import _each from '@webqit/util/obj/each.js';
-import DuplicateKeyViolationError from '../../engine/DuplicateKeyViolationError.js';
-import AbstractTable from '../AbstractTable.js';
-import ODBCursor from './ODBCursor.js';
+import { _arrFrom } from '@webqit/util/arr/from.js';
+import { _merge } from '@webqit/util/obj/merge.js';
+import { _each } from '@webqit/util/obj/each.js';
+import { DuplicateKeyViolationError } from '../../engine/DuplicateKeyViolationError.js';
+import { AbstractTable } from '../AbstractTable.js';
+import { ODBCursor } from './ODBCursor.js';
 
 /**
  * ---------------------------
@@ -12,7 +12,7 @@ import ODBCursor from './ODBCursor.js';
  * ---------------------------
  */				
 
-export default class ODBStore extends AbstractTable {
+export class ODBStore extends AbstractTable {
 	 
 	constructor(database, tableName, def, params = {}) {
 		super(...arguments);
@@ -64,7 +64,7 @@ export default class ODBStore extends AbstractTable {
 			throw new DuplicateKeyViolationError('Inserting duplicate values on unique key constraint: ' + match.matchingKey);
 		} else {
 			var store = this.def.data;
-			processPrimaryKey(store, rowObj, this.def.schema.primaryKey, this.def.schema.autoIncrement);
+			processPrimaryKeyConstraint(store, rowObj, this.def.schema.primaryKey, this.def.schema.autoIncrement);
 		}
 
 		await super.beforeAdd(rowObj, match);
@@ -95,7 +95,7 @@ export default class ODBStore extends AbstractTable {
 			});
 		} else {
 			var store = this.def.data;
-			processPrimaryKey(store, rowObj, this.def.schema.primaryKey, this.def.schema.autoIncrement);
+			processPrimaryKeyConstraint(store, rowObj, this.def.schema.primaryKey, this.def.schema.autoIncrement);
 		}
 
 		await super.beforePut(rowObj, match);
@@ -159,7 +159,7 @@ var readKeyPath = (rowObj, keyPath) => {
 /**
  * @AutoIncremen
  */
-export function processPrimaryKey(store, rowObj, primaryKey, canAutoIncrement) {
+export function processPrimaryKeyConstraint(store, rowObj, primaryKey, canAutoIncrement) {
 	if (!primaryKey) {
 		return;
 	}

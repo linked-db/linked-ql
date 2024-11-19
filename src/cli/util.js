@@ -1,16 +1,6 @@
-
-/**
- * @imports
- */
 import { _last as _arrLast, _from as _arrFrom } from '@webqit/util/arr/index.js';
+import { _isObject } from '@webqit/util/js/index.js';
 
-/**
- * Parses command-line args to a more-usable format
- * 
- * @param array args
- * 
- * @return object
- */
 export function parseArgv(argv) {
     let command = argv[2], args = argv.slice(3), keywords = {}, flags = {}, payload = {}, ellipsis;
     if (_arrLast(args) === '...') {
@@ -45,4 +35,20 @@ export function parseArgv(argv) {
         flags,
         ellipsis,
     }
+}
+
+export function $eq(a, b) {
+    if (Array.isArray(a) && Array.isArray(b)) {
+        return a.length === b.length && (b = b.slice(0).sort())
+        && a.slice(0).sort().every((x, i) => $eq(x, b[i]));
+    }
+    if (_isObject(a) && _isObject(b)) {
+        const temp = {};
+        return (temp.keys_a = Object.keys(a)).length === (temp.keys_b = Object.keys(b)).length
+        && temp.keys_a.reduce((prev, k) => prev && $eq(a[k], b[k]), true);
+    }
+    if (typeof a === 'string' && typeof b === 'string') {
+        return a.toLowerCase() === b.toLowerCase();
+    }
+    return a === b;
 }

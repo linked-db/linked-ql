@@ -1,277 +1,442 @@
 #!/usr/bin/env node
-
 import fs from 'node:fs';
-import path from 'node:path';
 import url from 'node:url';
 import YAML from 'yaml';
+import path from 'node:path';
 import enquirer from 'enquirer';
-import { parseArgv } from "./util.js";
-import CreateStatement from '../lang/ddl/create/CreateStatement.js';
-import DropStatement from '../lang/ddl/drop/DropStatement.js';
-import DatabaseSchema from '../lang/schema/db/DatabaseSchema.js';
+import { parseArgv, $eq } from "./util.js";
+import { _toTitle } from '@webqit/util/str/index.js';
+import { RootSchema } from '../lang/ddl/RootSchema.js';
+import { RootCDL } from '../lang/ddl/RootCDL.js';
+import { Savepoint } from '../api/Savepoint.js';
 
 // Parse argv
 const { command, flags } = parseArgv(process.argv);
 if (flags['with-env']) await import('dotenv/config');
-
-// flags: --desc --direction --db, --dir, --force, --diffing, --force-new
-if (flags.auto) flags.yes = true;
-
-const yesFlagNotice = flags.yes ? ` (--yes!)` : '';
-if (flags.direction && !['forward','backward'].includes(flags.direction)) throw new Error(`Invalid --direction. Expected: forward|backward`);
-const dir = flags.dir || './database/';
+// Map depreciated commands to corresponding commands
+if (flags['auto']) flags['yes'] = true;
+const deprCommands = {
+    forget: 'clear-histories',
+    leaderboard: 'savepoints',
+    state: 'savepoints',
+    migrate: 'commit',
+}
 
 // ------
-// Load driver
-let driverFile, driver;
-if (!fs.existsSync(driverFile = path.resolve(dir, 'driver.js')) || !(driver = await (await import(url.pathToFileURL(driverFile))).default?.())) {
-    console.log(`\nNo driver has been configured at ${ driverFile }. Aborting.`);
+
+const dir = flags['dir'] || './database/';
+const $command = deprCommands[command] || command;
+const fileAPIS = createFilesAPI(dir);
+const clientAPIS = await importClients(dir);
+switch($command) {
+    // Histories
+    case 'savepoints': await showSavepoints();
+    case 'dump-histories': await dumpHistories();
+    case 'clear-histories': await clearHistories();
+    // Local
+    case 'refresh': await refresh();
+    case 'generate': await generate();
+    // Commit / restore
+    case 'commit': await commit();
+    case 'rollback': await restore();
+    case 'rollforward': await restore(true);
+    case 'restore': await restore(!!flags['forward']);
+    // Replication
+    case 'replicate': await replicate();
+}
+
+// ------
+
+function createFilesAPI(dir) {
+    const fileResolution = (filename) => [['json', JSON], ['yml', YAML]].map(([ext, parser]) => [path.resolve(dir, `${filename}.${ext}`), parser]);
+    const readFile = (filename) => fileResolution(filename).reduce((prev, [file, parser]) => {
+        return prev || (!fs.existsSync(file) ? undefined : parser.parse(fs.readFileSync(file).toString().trim() || 'null'));
+    }, undefined);
+    const writeFile = (filename, json) => {
+        const target = ((ee) => ee.find((e) => fs.existsSync(e[0])) || [...ee[0], true])(fileResolution(filename));
+        fs.writeFileSync(target[0], target[1].stringify(json, null, 3));
+        console.log(`\nLocal ${path.basename(target[0])} file ${!target[2] ? 'updated' : 'generated'}.`);
+    };
+    return {
+        schema: () => ({ read: () => readFile('schema'), write: (json) => writeFile('schema', json) }),
+        histories: () => ({ read: () => readFile('histories'), write: (json) => writeFile('histories', json) }),
+    };
+}
+
+async function importClients(dir) {
+    let driverFile, imports = {};
+    if (fs.existsSync(driverFile = path.resolve(dir, 'driver.js'))) {
+        imports = await import(url.pathToFileURL(driverFile));
+    }
+    const client1 = await imports.default?.();
+    const client2 = await imports.remote?.();
+    return {
+        default: (require = true) => {
+            if (client1 && require) {
+                throw new Error(`\nNo Linked QL client has been configured at ${driverFile}. Aborting.`);
+            }
+            return client1;
+        },
+        remote: (require = true) => {
+            if (client2 && require) {
+                throw new Error(`\nNo remote Linked QL client has been configured at ${driverFile}. Aborting.`);
+            }
+            return client2;
+        },
+    };
+}
+
+function notFoundExit(thing = 'schemas') {
+    console.log(`No ${thing} found for ${flags['select'] ? `the selection "${flags['select'].split(',').map((s) => s.trim()).join('", "')}"` : 'any databases'}. Aborting.`);
     process.exit();
 }
 
-// ------
-// Load schema file
-let schemaFile, schemaDoc, existed = true;
-if ((!fs.existsSync(schemaFile = path.resolve(dir, 'schema.yml')) || !(schemaDoc = YAML.parse(fs.readFileSync(schemaFile).toString().trim())))
-&& (!fs.existsSync(schemaFile = path.resolve(dir, 'schema.json')) || !(schemaDoc = JSON.parse(fs.readFileSync(schemaFile).toString().trim() || 'null')))) {
-    console.log(`\nNo schemas have been defined at ${ dir }, but this may be automatically created for you.`);
-    schemaFile = path.resolve(dir, 'schema.yml');
-    schemaDoc = [];
-    existed = false;
+function getResolvedSchemaSelector() {
+    const schemaSelector = new Map(clientAPIS.default().params.schemaSelector.map((s) => [/^!/.test(s) ? s.slice(1) : s, s]));
+    for (const s of (flags['select']?.split(',') || []).map((s) => s.trim())) {
+        schemaSelector.set(/^!/.test(s) ? s.slice(1) : s, s);
+    }
+    return schemaSelector;
+}
+
+async function confirm(message) {
+    console.log([].concat(message).join('\n'));
+    if (flags['yes']) console.log(`(--yes, auto-proceeding...)`);
+    return flags['yes'] || (await enquirer.prompt({
+        type: 'confirm',
+        name: 'q',
+        message: 'Proceed?'
+    })).q;
+}
+
+async function prompt(message) {
+    return (await enquirer.prompt({
+        type: 'text',
+        name: 'q',
+        message
+    })).q;
 }
 
 // ------
-// Schemas before and after
-let originalSchemaDoc = [].concat(schemaDoc), resultSchemaDoc = [];
-function writeResultSchemaDoc() {
-    fs.writeFileSync(schemaFile, (schemaFile.endsWith('.yml') ? YAML : JSON).stringify(resultSchemaDoc, null, 3));
+
+async function showSavepoints() {
+    const savepoints = await clientAPIS.default().getSavepoints({ selector: flags['select']?.split(',').map((s) => s.trim()), lookAhead: !!flags['forward'] });
+    const versionState = flags['forward'] ? 'rollback' : 'commit';
+    console.table(savepoints.map(sv => sv.jsonfy()), ['name', 'version_tag', 'version_tags', 'version_state', `${versionState}_date`, `${versionState}_desc`]);
+    process.exit();
+}
+
+async function dumpHistories() {
+    const historiesJson = await clientAPIS.default().getSavepoints({ histories: true });
     console.log(`\nDone.`);
-    console.log(`\nLocal schema ${ existed ? 'updated' : 'generated' }: ${ schemaFile }`);
+    fileAPIS.histories().write(historiesJson);
+    process.exit();
 }
 
-// ------
-// Generate/refresh?
-if (['generate', 'refresh'].includes(command)) {
-    resultSchemaDoc.push(...originalSchemaDoc);
-    let recordsFound;
-    const removeEntry = async dbName => {
-        const existing = resultSchemaDoc.findIndex(sch => sch.name === dbName);
-        if (existing > -1) {
-            console.log(`An orphaned database entry "${ dbName }" found in your local schema file and will now be removed!${ yesFlagNotice }`);
-            const proceed = flags.yes || (await enquirer.prompt({
-                type: 'confirm',
-                name: 'proceed',
-                message: 'Proceed?'
-            })).proceed;
-            if (proceed) resultSchemaDoc.splice(existing, 1);
+async function clearHistories() {
+    if (!flags['select']) {
+        console.log(`No databases selected. Aborting.`);
+        process.exit();
+    }
+    const utils = clientAPIS.default().createCommonSQLUtils();
+    const savepointsLite = await clientAPIS.default().getSavepoints({ lite: true, selector: flags['select'].split(',').map((s) => s.trim()) });
+    if (!savepointsLite.length) notFoundExit('savepoint records');
+    // Confirm and execute...
+    const confirmMessage = [`This will permanently erase savepoint records for ${savepointsLite.map((v) => `${utils.ident(v.name)}@${v.version_tag}`).join(', ')}!`];
+    if (await confirm(confirmMessage)) {
+        const linkedDB = await clientAPIS.default().linkedDB();
+        await clientAPIS.default().query(`DELETE FROM ${linkedDB.table('savepoints').ident} WHERE ${utils.matchSelector('database_tag', savepointsLite.map((v) => v.database_tag))}`);
+    }
+    console.log(`\nDone.`);
+    process.exit();
+}
+
+async function commit() {
+    // Schema selector
+    const linkedDB = await clientAPIS.default().linkedDB();
+    let localSchema, upstreamSchema;
+    const savepointsLite = await clientAPIS.default().getSavepoints({ lite: true });
+    if (flags['select']) {
+        const schemaSelector = getResolvedSchemaSelector();
+        const [a, b] = [...schemaSelector.values()].reduce(([a, b], s) => {
+            let negation;
+            if (/^!/.test(s)) {
+                negation = true;
+                s = s.slice(1);
+            }
+            const re = new RegExp(`^${s.replace(/%/g, '(.+)')}$`, 'i');
+            if (negation) return [a, b.concat(re)];
+            return [a.concat(re), b];
+        }, [[], []]);
+        const matchName = (name) => (!b.length || b.every((re) => !re.test(name))) && (!a.length || a.some((re) => re.test(name)));
+        localSchema = RootSchema.fromJSON(clientAPIS.default(), (fileAPIS.schema().read() || []).filter((sc) => matchName(sc.name)));
+        upstreamSchema = await clientAPIS.default().schema({ depth: 2, selector: [...schemaSelector.values()] });
+    } else {
+        localSchema = RootSchema.fromJSON(clientAPIS.default(), fileAPIS.schema().read() || []);
+        upstreamSchema = await clientAPIS.default().schema({ depth: 2, selector: [...new Set(localSchema.databases(false).concat(savepointsLite.map((sc) => sc.name)))] });
+    }
+    // Schema diffing
+    let commitsCount = 0;
+    const CDL = upstreamSchema.diffWith(localSchema).generateCDL({ cascadeRule: flags['cascade-rule'] });
+    for (const dbAction of CDL) {
+        // Preview...
+        const confirmMessage = [`\n----------\n`];
+        const prettyName = dbAction.CLAUSE === 'CREATE'
+            ? `${dbAction.argument().name()}@1`
+            : `${dbAction.reference().name()}@${savepointsLite.find((v) => dbAction.reference().identifiesAs(v.name))?.version_tag || 0}`;
+        if (dbAction.CLAUSE === 'DROP') {
+            confirmMessage.push(`Dropping database ${prettyName}!`);
+        } else if (dbAction.CLAUSE === 'CREATE') {
+            confirmMessage.push(`Creating database ${prettyName}!`);
+        } else if (dbAction.CLAUSE === 'ALTER') {
+            confirmMessage.push(`Altering database ${prettyName}!`);
         }
-        recordsFound = true;
-    };
-    const addEntry = async dbSchema => {
-        const existing = resultSchemaDoc.findIndex(sch => sch.name === dbSchema.name);
-        if (existing > -1) {
-            console.log(`An existing database entry "${ dbSchema.name }" found in your local schema file and will now be overwritten!${ yesFlagNotice }`);
-            const proceed = flags.yes || (await enquirer.prompt({
-                type: 'confirm',
-                name: 'proceed',
-                message: 'Proceed?'
-            })).proceed;
-            if (proceed) { resultSchemaDoc[existing] = dbSchema; }
-        } else resultSchemaDoc.push(dbSchema);
-        recordsFound = true;
-    };
-    const exec = async () => {
-        const svps = await driver.savepoints({ name: flags.db, direction: flags.direction });
-        const rootSchema = await driver.structure({ depth: 2 });
-        for (const svp of svps) {
-            if (svp.keep !== false) {
-                const schema = rootSchema.database(svp.name())?.toJSON();
-                if (!schema) continue; // Savepoint record orphaned as DB may have been droped outside of Linked QL
-                const { name, ...rest } = schema;
-                const newSchema = { name, version: svp.versionTag, ...rest, ...(flags.diffing === 'stateful' ? { keep: true } : {}) };
-                await addEntry(newSchema);
-            } else await removeEntry(svp.name());
+        if (!flags['quiet']) confirmMessage.push(`SQL preview:\n${dbAction}\n`);
+        // Confirm and execute...
+        if (await confirm(confirmMessage)) {
+            const commitDetails = {
+                desc: flags['desc'] || (parseInt(await linkedDB.config('require_commit_descs')) ? await prompt('Enter commit description:') : null),
+            };
+            await clientAPIS.default().query(dbAction, commitDetails);
+            commitsCount ++;
         }
-        if (command === 'generate' && !svps.length && flags.db) {
-            const $schema = rootSchema.database(flags.db)?.toJSON();
-            if ($schema) await addEntry({ name: $schema.name, version: 0, tables: $schema.tables, ...(flags.diffing === 'stateful' ? { keep: true } : {}) });
+    }
+    if (!commitsCount) {
+        if (CDL.length) console.log('\nDone.');
+        else console.log(`\nNo changes have been made.`);
+        process.exit();
+    } else await refresh();
+}
+
+async function restore(forward = false) {
+    const linkedDB = await clientAPIS.default().linkedDB();
+    const savepoints = await clientAPIS.default().getSavepoints({ selector: flags['select']?.split(',').map((s) => s.trim()), lookAhead: !!forward });
+    if (!savepoints.length) notFoundExit(forward ? 'forward savepoint records' : 'savepoint records');
+    let restoreCount = 0;
+    for (const savepoint of savepoints) {
+        // Preview...
+        const confirmMessage = [`\n----------\n`];
+        if (forward) {
+            confirmMessage.push(`Rolling forward database ${savepoint.name()}@${savepoint.versionDown()} to version ${savepoint.versionTag()}.`);
+        } else confirmMessage.push(`Rolling back database ${savepoint.name()}@${savepoint.versionTag()} to version ${savepoint.versionDown()}.`);
+        confirmMessage.push(`This will mean ${savepoint.restoreEffect() === 'DROP' ? 'dropping' : (savepoint.restoreEffect() === 'RECREATE' ? 'recreating' : 'altering')} the database!`);
+        const reverseSQL = savepoint.reverseSQL();
+        if (!flags['quiet']) confirmMessage.push(`SQL preview:\n${reverseSQL}\n`);
+        // Confirm and execute...
+        if (await confirm(confirmMessage)) {
+            const restoreDetails = {
+                desc: flags['desc'] || (parseInt(await linkedDB.config('require_commit_descs')) ? await prompt(`Enter ${forward ? 'recommit' : 'rollback'} description:`) : null),
+            };
+            await savepoint.restore(restoreDetails);
+            restoreCount ++;
         }
-        if (recordsFound) {
-            writeResultSchemaDoc();
-        } else console.log(`No schemas found for${ !flags.db ? ' any' : '' } database${ flags.db ? ` ${ flags.db }` : '' }. Aborting.`);
-    };
-    await exec();
-    if (flags.live) {
-        const ownPid = (await driver.query(`SELECT ${ driver.params.dialect === 'mysql' ? 'connection_id()' : 'pg_backend_pid()' } AS connection_id`))[0]?.connection_id;
-        driver.driver.query('LISTEN savepoints_stream');
-        console.log(`Now on live refresh...`);
-        driver.driver.on('notification', (e) => {
-            if (e.channel !== 'savepoints_stream' || e.processId === ownPid) return;
-            console.log(ownPid, e.processId, JSON.parse(e.payload));
+    }
+    if (!restoreCount) {
+        console.log('\nDone.');
+        process.exit();
+    } else await refresh();
+}
+
+async function refresh() {
+    const localSchema = RootSchema.fromJSON(clientAPIS.default(), fileAPIS.schema().read() || []);
+    const savepointsLite = await clientAPIS.default().getSavepoints({ lite: true, selector: flags['select']?.split(',').map((s) => s.trim()) });
+    const selector = [...new Set(localSchema.databases(false).concat(savepointsLite.map((sc) => sc.name)))];
+    const upstreamSchema = selector.length && await clientAPIS.default().schema({ depth: 2, selector });
+    if (upstreamSchema.length) {
+        for (const dbName of selector) {
+            const upstreamDB = upstreamSchema.database(dbName);
+            if (upstreamDB) {
+                localSchema.database({ ...upstreamDB.jsonfy(), version: savepointsLite.find((v) => upstreamDB.identifiesAs(v.name))?.version_tag || 0 });
+            } else localSchema.database(dbName, false);
+        }
+        console.log(`\nDone.`);
+        const schemaJson = localSchema.jsonfy({ nodeNames: false });
+        fileAPIS.schema().write(schemaJson);
+    } else if (!flags['live']) notFoundExit();
+    // Enter live mode?
+    if (flags['live']) {
+        console.log(`Live refresh active...`);
+        clientAPIS.default().listen('savepoints', (e) => {
+            const payload = JSON.parse(e.payload);
+            if (payload.action === 'DELETE') return;
+            console.log(`\n----------\n`);
+            // ------
+            const version_state = payload.body.version_state;
+            const version_state_title = _toTitle(version_state);
+            const dbNameBeforeChange = version_state === 'rollback' && payload.body.$name || payload.body.name;
+            const { version_tag, [`${version_state}_desc`]: desc, [`${version_state}_client_id`]: client_id, [`${version_state}_client_pid`]: client_pid } = payload.body;
+            console.log(`New ${version_state} event on database "${dbNameBeforeChange}" ${version_state === 'rollback' ? 'from' : 'to'} version ${version_tag}. ${version_state_title} desc: "${desc}". ${version_state_title} Client ID: "${client_id}". ${version_state_title} Client PID: "${client_pid}".`);
+            // ------
+            const savepoint = new Savepoint(clientAPIS.default(), payload.body);
+            const rootCDL = RootCDL.fromJSON(clientAPIS.default(), { actions: [savepoint.querify()] });
+            const rootSchema = RootSchema.fromJSON(clientAPIS.default(), fileAPIS.schema().read() || []);
+            const schemaJson = rootSchema.alterWith(rootCDL, { diff: false }).jsonfy({ nodeNames: false });
+            fileAPIS.schema().write(schemaJson);
         });
     } else process.exit();
 }
 
-// ------
-// Clear histories?
-if (['clear-histories', 'forget'/*depreciated*/].includes(command)) {
-    let dbSavepoint;
-    if (flags.db && !(dbSavepoint = await driver.database(flags.db).savepoint())) {
-        console.log(`No Linked QL records found for database ${ flags.db }. Aborting.`);
-        process.exit();
-    }
-    console.log(`\nThis will permanently erase savepoint records for ${ flags.db ? `${ flags.db }@${ dbSavepoint.versionTag }` : 'all databases' }!${ yesFlagNotice }`);
-    const proceed = flags.yes || (await enquirer.prompt({
-        type: 'confirm',
-        name: 'proceed',
-        message: 'Proceed?'
-    })).proceed;
-    if (!proceed) process.exit();
-    const linkedDB = await driver.linkedDB();
-    await linkedDB.table('savepoints').delete({ where: flags.db ? { database_tag: dbSavepoint.databaseTag } : true });
-    console.log(`\nDone.`);
+async function generate() {
+    const localSchema = RootSchema.fromJSON(clientAPIS.default(), fileAPIS.schema().read() || []);
+    const schemaSelector = getResolvedSchemaSelector();
+    const savepointsLite = await clientAPIS.default().getSavepoints({ lite: true });
+    for (const v of savepointsLite) schemaSelector.set(v.name, `!${v.name}`);
+    const upstreamSchema = await clientAPIS.default().schema({ depth: 2, selector: [...schemaSelector.values()] });
+    if (upstreamSchema.length) {
+        for (const dbSchema of upstreamSchema) {
+            localSchema.database({ ...dbSchema.jsonfy(), version: 0 });
+        }
+        console.log(`\nDone.`);
+        const schemaJson = localSchema.jsonfy({ nodeNames: false });
+        fileAPIS.schema().write(schemaJson);
+    } else notFoundExit();
     process.exit();
 }
 
-// ------
-// State?
-if (['state', 'leaderboard'/*depreciated*/].includes(command)) {
-    const savepoints = await driver.savepoints({ name: flags.db, direction: flags.direction });
-    console.table(savepoints.map(sv => sv.toJSON()), ['name', 'databaseTag', 'versionTag', 'versionMax', 'cursor', 'commitDate', 'commitDesc', 'rollbackDate', 'rollbackDesc', 'rollbackEffect']);
-    process.exit();
-}
-
-// ------
-// Run migrations or rollbacks
-if (['commit', 'migrate'/*depreciated*/].includes(command)) {
-    if (flags.diffing !== 'stateful' && (!flags.db || !originalSchemaDoc.find(sch => sch.name === flags.db))) {
-        const savepoints = await driver.savepoints({ name: flags.db, direction: flags.direction });
-        originalSchemaDoc.push(...savepoints.filter(savepoint => !originalSchemaDoc.find(sch => sch.name === savepoint.name())).map(savepoint => ({ name: savepoint.name(), version: savepoint.versionTag, keep: false })));
-    }
-    const dbList = flags.db ? originalSchemaDoc.filter(sch => sch.name === flags.db) : originalSchemaDoc;
-    if (!dbList.length) {
-        console.log(`No Linked QL ${ flags.direction === 'forward' ? 'roll-forward' : 'rollback' } records found for${ !flags.db ? ' any' : '' } database${ flags.db ? ` ${ flags.db }` : '' }. Aborting.`);
+async function replicate() {
+    let historiesJson1, historiesJson2, targetClient;
+    if (flags['online']) {
+        historiesJson1 = await clientAPIS.default().getSavepoints({ histories: true });
+        historiesJson2 = await clientAPIS.remote().getSavepoints({ histories: true });
+        let targetClient1 = clientAPIS.default();
+        let targetClient2 = clientAPIS.remote();
+        if (flags['swap']) {
+            [historiesJson1, historiesJson2, targetClient1, targetClient2] = [historiesJson2, historiesJson1, targetClient2, targetClient1];
+        }
+        targetClient = targetClient2;
+    } else if (flags['offline']) {
+        historiesJson1 = fileAPIS.histories().read();
+        historiesJson2 = await clientAPIS.default().getSavepoints({ histories: true });
+        targetClient = clientAPIS.default();
+    } else {
+        console.log(`Neither the --origin flag nor the --histories flag has been specified. Aborting.`);
         process.exit();
     }
-    if (!flags.desc && flags.yes) throw new Error(`Command missing the --desc parameter.`);
-    const desc = flags.desc || (await enquirer.prompt({
-        type: 'text',
-        name: 'desc',
-        message: 'Enter commit description:'
-    })).desc;
-    const ref = flags.ref || driver.params.commitRef;
-    const rootSchema = await driver.structure({ depth: 2 });
-    for (const dbSchema of originalSchemaDoc) {
-        if (flags.db && flags.db !== dbSchema.name) {
-            resultSchemaDoc.push(dbSchema);
-            continue;
+    const targetClientLinkedDB = await targetClient.linkedDB();
+    if (!targetClient.params.clientID && !!parseInt(await targetClientLinkedDB.config('require_client_ids'))) {
+        throw new Error(`Operation rejected! Target DB requires all client instances to have a "clientID".`);
+    }
+    const targetSavepointsTable = targetClientLinkedDB.table('savepoints');
+    const historiesByTag1 = byTag(historiesJson1);
+    const historiesByTag2 = byTag(historiesJson2);
+    let replications = 0;
+    await handleTags(historiesByTag1, historiesByTag2, {});
+    // ------------
+    function byTag(histories) {
+        const historiesByTag = new Map;
+        for (const savepointJson of histories) {
+            const savepoint = Savepoint.fromJSON(targetClient, savepointJson);
+            if (!historiesByTag.has(savepoint.databaseTag())) historiesByTag.set(savepoint.databaseTag(), new Map);
+            historiesByTag.get(savepoint.databaseTag()).set(savepoint.versionTag(), savepoint);
         }
-        const postMigration = { name: dbSchema.name, migrateEffect: null, returnValue: undefined };
-        let schemaApi = DatabaseSchema.fromJSON(driver, dbSchema);
-        if (flags.diffing === 'stateful') {
-            // Force "keep" to undefined for new?
-            if (typeof schemaApi.keep() === 'boolean' && flags['force-new']) schemaApi.keep(undefined, true);
-        } else {
-            const schemaExisting = rootSchema.database(dbSchema.name).clone();
-            if (schemaExisting) schemaApi = schemaExisting.keep(true, true).diffWith(schemaApi);
+        return historiesByTag;
+    }
+    async function handleTags(historiesByTag1, historiesByTag2, params) {
+        const databaseTags = $sort('asc', new Set([...historiesByTag1.keys(), ...historiesByTag2.keys()]));
+        for (const dbTag of databaseTags) {
+            const tag1History = historiesByTag1.get(dbTag);
+            const tag2History = historiesByTag2.get(dbTag);
+            if (!tag1History) {
+                await handleUpstreamChanges(dbTag, tag2History);
+            } else await handleVersions(tag1History, tag2History, params);
         }
-        if (schemaApi.keep() === false) {
-            console.log(`\nDropping database ${ dbSchema.name }@${ dbSchema.version }!${ yesFlagNotice }`);
-            const dropQuery = DropStatement.fromJSON(driver, { kind: 'SCHEMA', ident: dbSchema.name });
-            if (driver.params.dialect !== 'mysql') dropQuery.withFlag('CASCADE');
-            if (!flags.quiet) console.log(`\nSQL preview:\n${ dropQuery }\n`);
-            const proceed = flags.yes || (await enquirer.prompt({
-                type: 'confirm',
-                name: 'proceed',
-                message: 'Proceed?'
-            })).proceed;
-            if (proceed) {
-                postMigration.returnValue = await driver.query(dropQuery, { desc, ref });
-                postMigration.migrateEffect = 'DROP';
+    }
+    async function handleVersions(tag1History, tag2History, params) {
+        const tagVersions = $sort('asc', new Set([...tag1History.keys(), ...tag2History.keys()]));
+        const rollbackList = new Set;
+        for (const tagVersion of tagVersions) {
+            replications++;
+            const savepoint1 = tag1History.get(tagVersion);
+            const savepoint2 = tag2History.get(tagVersion);
+            if (!savepoint1) {
+                // Already rollback? Just splice... or save in rollback list
+                if (savepoint2.versionState() === 'rollback') {
+                    await spliceSavepoint(savepoint2);
+                } else if ($versionUp(tagVersion, [...tag1History.keys()])) {
+                    rollbackList.add(savepoint2);
+                } else await handleUpstreamChanges(savepoint2.databaseTag(), savepoint2);
+                continue;
             }
-        }
-        if (schemaApi.keep() === true) {
-            const altQuery = schemaApi.getAlt().with({ resultSchema: schemaApi });
-            if (altQuery.length) {
-                console.log(`\nAltering database ${ dbSchema.name }@${ dbSchema.version }!${ yesFlagNotice }`);
-                if (!flags.quiet) console.log(`\nSQL preview:\n${ altQuery }\n`);
-                const proceed = flags.yes || (await enquirer.prompt({
-                    type: 'confirm',
-                    name: 'proceed',
-                    message: 'Proceed?'
-                })).proceed;
-                if (proceed) {
-                    postMigration.returnValue = await driver.query(altQuery, { desc, ref });
-                    postMigration.name = dbSchema.$name || dbSchema.name;
-                    postMigration.migrateEffect = 'ALTER';
-                }
-            } else console.log(`\nNo alterations have been made to schema: ${ dbSchema.name }. Skipping.`);
-        }
-        if (typeof schemaApi.keep() !== 'boolean'){
-            const createQuery = CreateStatement.fromJSON(driver, { kind: 'SCHEMA', argument: schemaApi });
-            console.log(`\nCreating database ${ dbSchema.name }!${ yesFlagNotice }`);
-            if (!flags.quiet) console.log(`\nSQL preview:\n${ createQuery }\n`);
-            const proceed = flags.yes || (await enquirer.prompt({
-                type: 'confirm',
-                name: 'proceed',
-                message: 'Proceed?'
-            })).proceed;
-            if (proceed) {
-                postMigration.returnValue = await driver.query(createQuery, { desc, ref });
-                postMigration.migrateEffect = 'CREATE';
+            if (!savepoint2) {
+                // Do splicing... before create new savepoint
+                await rollbackSavepoints(rollbackList, true);
+                rollbackList.clear();
+                await createSavepoint(savepoint1);
+                continue;
             }
+            if ($compare(savepoint1, savepoint2)) {
+                if (savepoint1.versionState() === savepoint2.versionState()) continue;
+                // Currently rollback? Rollforward... or save in rollback list
+                if (savepoint2.versionState() === 'rollback') {
+                    await rollforwardSavepoint(savepoint2);
+                } else rollbackList.add(savepoint2);
+            } else await handleUnrelatedHistories(savepoint1, savepoint2);
         }
-        if (['CREATE', 'ALTER'].includes(postMigration.migrateEffect)) {
-            const newSchemaInstance = rootSchema.database(postMigration.name).clone();
-            if (flags.diffing === 'stateful') newSchemaInstance.keep(true, true);
-            const { name, tables, keep } = newSchemaInstance.toJSON();
-            resultSchemaDoc.push({ name, version: postMigration.returnValue.versionTag, tables, keep });
-        } else if (postMigration.migrateEffect !== 'DROP') resultSchemaDoc.push(dbSchema);
+        // Rollback pending savepoints in rollback list
+        await rollbackSavepoints(rollbackList);
+        rollbackList.clear();
     }
-}
-
-// Do rollbacks
-if (['rollback'].includes(command)) {
-    const savepoints = await driver.savepoints({ direction: flags.direction });
-    const dbList = flags.db ? savepoints.filter(svp => svp.name() === flags.db) : savepoints;
-    if (!dbList.length) {
-        console.log(`No Linked QL ${ flags.direction === 'forward' ? 'roll-forward' : 'rollback' } records found for${ !flags.db ? ' any' : '' } database${ flags.db ? ` ${ flags.db }` : '' }. Aborting.`);
-        process.exit();
+    // ------------
+    async function rollforwardSavepoint(savepoint2) {
+        console.log(`Rolling forward ${savepoint2.name()}@${savepoint2.versionDown()} -> ${savepoint2.name(true)}@${savepoint2.versionTag()}`);
+        await savepoint2.recommit();
     }
-    resultSchemaDoc.push(...originalSchemaDoc);
-    const rootSchema = await driver.structure({ depth: 2 });
-    for (const savepoint of savepoints) {
-        if (flags.db && flags.db !== savepoint.name()) {
-            continue;
-        }
-        const postRollback = { versionTag: savepoint.versionTag - (savepoint.direction === 'forward' ? 0 : 1), returnValue: undefined };
-        console.log(`\nRolling ${ flags.direction === 'forward' ? 'forward' : 'back' } database ${ savepoint.name() } to version ${ postRollback.versionTag }. (This will mean ${ savepoint.rollbackEffect === 'DROP' ? 'dropping' : (savepoint.rollbackEffect === 'RECREATE' ? 'recreating' : 'altering') } the database!${ yesFlagNotice })`);
-        if (!flags.quiet) console.log(`\nSQL preview:\n${ savepoint.rollbackQuery }\n`);
-        const proceed = flags.yes || (await enquirer.prompt({
-            type: 'confirm',
-            name: 'proceed',
-            message: 'Proceed?'
-        })).proceed;
-        const desc = flags.desc;
-        const ref = flags.ref || driver.params.commitRef;
-        if (proceed) { postRollback.returnValue = await savepoint.rollback({ desc, ref }); }
-        if (proceed && savepoint.rollbackEffect === 'DROP') {
-            const existing = resultSchemaDoc.findIndex(sch => sch.name === savepoint.name());
-            if (existing > -1) resultSchemaDoc.splice(existing, 1);
-         } else if (proceed) {
-            const newSchemaInstance = rootSchema.database(savepoint.name(true)).clone();
-            if (flags.diffing === 'stateful') newSchemaInstance.keep(true, true);
-            const { name, tables, keep } = newSchemaInstance.toJSON();
-            const $newSchema = { name, version: postRollback.versionTag, tables, keep };
-            const existing = resultSchemaDoc.findIndex(sch => sch.name === savepoint.name());
-            if (existing > -1) resultSchemaDoc[existing] = $newSchema;
-            else resultSchemaDoc.push($newSchema);
+    async function rollbackSavepoints(savepoints, splice = false) {
+        for (const savepoint2 of $sort('desc', savepoints, 'versionTag')) {
+            console.log(`Rolling back ${savepoint2.name(true)}@${savepoint2.versionDown()} <- ${savepoint2.name()}@${savepoint2.versionTag()}`);
+            await savepoint2.rollback();
+            if (splice) await spliceSavepoint(savepoint2);
         }
     }
-}
-
-// Updating schema
-if (['commit', 'migrate'/*depreciated*/, 'rollback'].includes(command)) {
-    writeResultSchemaDoc();
+    async function spliceSavepoint(savepoint2) {
+        console.log(`Splicing ${savepoint2.name()}@${savepoint2.versionTag()}`);
+        await targetSavepointsTable.delete({ where: (q) => q.eq('id', (q) => q.value(savepoint2.id())) });
+    }
+    async function createSavepoint(savepoint1) {
+        console.log(`Creating ${savepoint1.name()}@${savepoint1.versionTag()}`);
+        if (savepoint1.versionState() === 'commit') {
+            await targetClient.withMode('replication', () => targetClient.query(savepoint1.querify()));
+        }
+        const versionState = savepoint1.versionState();
+        const savepointJson = {
+            ...savepoint1.jsonfy(),
+            [`${versionState}_date`]: q => q.now(),
+            [`${versionState}_client_id`]: targetClient.params.clientID || savepoint1[`${versionState}ClientID`](),
+            [`${versionState}_client_pid`]: q => q.fn(targetClient.params.dialect === 'mysql' ? 'connection_id' : 'pg_backend_pid'),
+        };
+        delete savepointJson.version_tags;
+        delete savepointJson.cascades;
+        await targetSavepointsTable.insert({ data: savepointJson });
+    }
+    // ------------
+    async function handleUnrelatedHistories(savepoint1, savepoint2) {
+        throw new Error(`Unrelated histories: ${savepoint1.name()}@${savepoint1.versionTag()}:${savepoint2.name()}@${savepoint2.versionTag()}`);
+    }
+    async function handleUpstreamChanges(dbTag, savepoint_s) {
+        const activeSavepoint = savepoint_s instanceof Map 
+            ? [...savepoint_s].filter((sv) => sv.versionState() === 'commit').reduce((prev, sv) => prev?.versionTag() > sv.versionTag() ? prev : sv, null)
+            : savepoint_s;
+        throw new Error(`Unexpected changes in target database: ${activeSavepoint.name()}@${activeSavepoint.versionTag()} (${dbTag})`);
+    }
+    function $versionUp(v, versions) {
+        return versions.reduce((prev, $v) => prev || ($v > v ? $v : 0), 0);
+    }
+    function $compare(savepoint1, savepoint2) {
+        const getFields = (sv) => {
+            const { name, $name, tables, status } = sv.jsonfy();
+            return { name, $name, tables, status };
+        };
+        const $savepoint1 = getFields(savepoint1);
+        const $savepoint2 = getFields(savepoint2);
+        return $eq($savepoint1, $savepoint2);
+    }
+    function $sort(dir, entries, key) {
+        const compare = (a, b) => typeof a === 'number' ? a - b : a.localeCompare(b);
+        return ((sorted) => dir === 'desc' ? sorted.reverse() : sorted)([...entries].sort((a, b) => key ? compare(a[key](), b[key]()) : compare(a, b)));
+    }
+    // ------------
+    console.log(`\n${replications} savepoint records processed.`);
+    if (!clientAPIS.remote()) await refresh();
+    else console.log(`\nDone.`);
     process.exit();
 }

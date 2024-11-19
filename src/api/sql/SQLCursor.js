@@ -1,6 +1,6 @@
-import AbstractCursor from '../AbstractCursor.js';
+import { AbstractCursor } from '../AbstractCursor.js';
 
-export default class SQLCursor extends AbstractCursor {
+export class SQLCursor extends AbstractCursor {
 	 
 	constructor(store) {
 		super([]);

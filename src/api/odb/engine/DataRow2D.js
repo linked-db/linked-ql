@@ -1,17 +1,17 @@
 
 import { _from as _objFrom, _merge, _get } from '@webqit/util/obj/index.js';
 import { _avg, _unique, _max, _min, _sum, _first, _last, _rand } from '@webqit/util/arr/index.js';
-import Abstraction from '../parser/select/Abstraction.js';
-import Assertion from '../parser/select/Condition.js';
-import Condition from '../parser/select/Condition.js';
-import Condition from '../parser/select/Condition.js';
-import Field from '../parser/select/Field.js';
-import Function from '../parser/select/Func.js';
-import Math from '../parser/select/Math.js';
-import Placeholder from '../parser/select/Placeholder.js';
-import DataRow from './DataRow.js';
+import { Abstraction } from '../parser/select/Abstraction.js';
+import { Assertion } from '../parser/select/Condition.js';
+import { Condition } from '../parser/select/Condition.js';
+import { Condition } from '../parser/select/Condition.js';
+import { Field } from '../parser/select/Field.js';
+import { Function } from '../parser/select/Func.js';
+import { Math } from '../parser/select/Math.js';
+import { Placeholder } from '../parser/select/Placeholder.js';
+import { DataRow } from './DataRow.js';
 
-export default class DataRow2D {
+export class DataRow2D {
 
 	/**
 	 * @constructor

@@ -1,143 +1,245 @@
-import Lexer from './Lexer.js';
+import { _fromCamel } from '@webqit/util/str/index.js';
+import { _isObject } from '@webqit/util/js/index.js';
+import { Lexer } from './Lexer.js';
 
-export default class AbstractNode {
-	
-	/**
-	 * Instance properties
-	 */
-	CONTEXT;
-	FLAGS = [];
+export class AbstractNode {
 
-	/**
-	 * Constructor
-	 */
-	constructor(context) {
-		this.CONTEXT = context;
-		this.CONTEXT?.$trace?.('event:CONNECTED', this);
+	#contextNode;
+	#flags = [];
+	#additionalDetails;
+
+	constructor(contextNode) {
+		this.#contextNode = contextNode;
+		this.#additionalDetails = new Map;
 	}
-    
-	/**
-	 * A generic method for tracing something up the node tree.
-	 * Like a context API.
-	 * 
-	 * @param String request
-	 * @param Array ...args
-     * 
-     * @returns any
-	 */
-	$trace(request, ...args) {
-		if (request === 'get:ROOT_NODE' && !(this.CONTEXT instanceof AbstractNode)) return this;
-		return this.CONTEXT?.$trace?.(request, ...args);
-	}
-    
-	/**
-	 * Recursively accesses global client.
-	 * 
-	 * @returns AbstractClient
-	 */
-	get client() { return this.CONTEXT?.client || this.CONTEXT; }
-	
-	/**
-	 * Recursively accesses global params.
-	 * 
-	 * @returns String
-	 */
-	get params() { return this.CONTEXT?.params || {}; }
+
+	static get NODE_NAME() { return _fromCamel(this.name, '_').toUpperCase(); }
+	get NODE_NAME() { return this.constructor.NODE_NAME; }
 
 	/**
 	 * -----------
-	 * QUOTES and ESCAPING
+	 * NODE TREE
 	 * -----------
 	 */
 
+	get baseClient() { return this.#contextNode?.baseClient || this.#contextNode; }
+
+	get params() { return this.#contextNode?.params || {}; }
+
+	get additionalDetails() { return this.#additionalDetails; }
+
+	get rootNode() { return this.#contextNode?.contextNode || this; }
+
+	get statementNode() { return this.#contextNode?.statementNode; }
+
+	get contextNode() { return this.#contextNode; }
+
+
+	capture(requestName) {
+		if (arguments.length !== 1) throw new Error(`capture() expects exactly 1 parameter.`);
+		return this.#contextNode?.$capture(requestName, this);
+	}
+
+	bubble(eventType) {
+		if (arguments.length !== 1) throw new Error(`bubble() expects exactly 1 parameter.`);
+		return this.#contextNode?.$bubble?.(eventType, this);
+	}
+
+	$capture(requestName, requestSource) {
+		if (arguments.length !== 2) throw new Error(`$capture() expects exactly 2 parameters.`);
+		return this.#contextNode?.$capture?.(requestName, requestSource);
+	}
+
+	$bubble(eventType, eventSource) {
+		if (arguments.length !== 2) throw new Error(`$bubble() expects exactly 2 parameters.`);
+		this.#contextNode?.$bubble?.(eventType, eventSource);
+		if (eventSource === this && eventType === 'DISCONNECTED') { this.#contextNode = null; }
+	}
+
+	$castInputs(args, Type, slot, slotName, delegatesTo = null, dedupeCallback = null) {
+		// --------------
+		const Types = [].concat(Type || []);
+		if (!Types.length) throw new Error(`At least one node type must be defined.`);
+		if (delegatesTo && Types.length !== 1) throw new Error(`Only one Type expected for delegatable operations.`);
+		const $ = { result: slot };
+		// --------------
+		const fromInstanceOrJson = arg => {
+			let instance = Types.reduce((prev, Type) => prev || (arg instanceof Type && arg), null);
+			if (instance) return instance;
+			return Types.reduce((prev, Type) => prev || Type.fromJSON(this, arg), null);
+		};
+		const createFactoryMethodHandler = ({ returnPairs = false, autoThrow = false }) => {
+			const fromFactoryMethod = (methodName, ...args) => Types.reduce((prev, Type) => prev || (() => {
+				if (Type.expose) {
+					const $methodName = Object.keys(Type.expose).find(k => k.split('|').includes(methodName));
+					const instance = $methodName && Type.expose[$methodName](this, ...args);
+					return instance && [instance, instance];
+				}
+				if (typeof Type.prototype[methodName] === 'function') {
+					const instance = new Type(this);
+					return [instance, instance[methodName](...args)];
+				}
+			})(), null);
+			return new Proxy({}, {
+				get: (t, methodName) => (...args) => {
+					const resultPair = fromFactoryMethod(methodName, ...args);
+					if (resultPair) {
+						$.result = adoptNode($.result, resultPair[0]);
+						return returnPairs ? resultPair : resultPair[1];
+					} else if (autoThrow) throw new Error(`[${this.NODE_NAME}::${slotName}]: The ${methodName}(${args}) method is undefined in any of ${Types.map(Type => Type.name).join(', ')}.`);
+				},
+			});
+		};
+		const adoptNode = (slot, instance) => {
+			instance?.bubble('CONNECTED');
+			if (instance && typeof this.params.nodeCallback === 'function') {
+				this.params.nodeCallback(instance);
+			}
+			if (Array.isArray(slot) && instance) {
+				const duplicate = dedupeCallback?.(instance);
+				if (duplicate) {
+					duplicate.bubble('DISCONNECTED');
+					return slot.map((node) => node === duplicate ? instance : node);
+				}
+				return slot.concat(instance);
+			}
+			if (slot && instance !== slot) slot.bubble('DISCONNECTED');
+			return instance;
+		};
+		// --------------
+		if (args.length === 1 && args[0] === undefined) {
+			if (Array.isArray($.result)) throw new Error(`[${this.NODE_NAME}::${slotName}]: Cannot unset array property.`);
+			return adoptNode($.result, undefined);
+		}
+		// --------------
+		// Handle args
+		const delegatables = new Set;
+		if (args.length > 1 && !Array.isArray($.result)) {
+			while (args.length) delegatables.add(args.shift());
+		}
+		for (let i = 0; i < args.length; i++) {
+			const arg = args[i];
+			// Function args
+			if (typeof arg === 'function') {
+				if (delegatesTo) delegatables.add(arg);
+				else arg(createFactoryMethodHandler({ returnPairs: false, autoThrow: true }));
+				continue;
+			}
+			// Instance of JSON hydration
+			if ($.instance = fromInstanceOrJson(arg)) {
+				$.result = adoptNode($.result, $.instance);
+				continue;
+			}
+			// Object factories
+			const $$ = {};
+			if (_isObject(arg) && !arg.nodeName && ($$.keys = Object.keys(arg)).length) {
+				const proxy = createFactoryMethodHandler({ returnPairs: true, autoThrow: !delegatesTo });
+				let baseMethodName = $$.keys.shift(), $nextMethodName;
+				let [instance, chainTarget] = proxy[baseMethodName](...[].concat(arg[baseMethodName])) || [];
+				if (instance) {
+					while ($nextMethodName = $$.keys.shift()) {
+						const nextMethod = chainTarget?.[$nextMethodName];
+						if (typeof nextMethod !== 'function') throw new Error(`[${this.NODE_NAME}::${slotName}][${i + 1}/${args.length}]: The implied chaining: ${chainTarget.NODE_NAME}.${baseMethodName}().${$nextMethodName}() is invalid.`);
+						chainTarget = nextMethod.call(chainTarget, ...[].concat(arg[$nextMethodName]));
+						baseMethodName = $nextMethodName;
+					}
+					continue;
+				}
+			}
+			// Delegable?
+			if (delegatesTo) {
+				delegatables.add(arg);
+				continue;
+			}
+			let content;
+			if (_isObject(arg)) { try { content = JSON.stringify(arg); } catch (e) { content = arg.constructor.name; } }
+			else content = arg + '';//typeof arg;
+			throw new Error(`[${this.NODE_NAME}::${slotName}][${i + 1}/${args.length}]: Arguments must be of type ${Types.map(Type => Type.name).join(', ')} or a JSON equivalent. Recieved: ${content}`);
+		}
+		// --------------
+		// Delegate arguments
+		if (delegatables.size) {
+			let instance;
+			if (Array.isArray($.result)) {
+				instance = new Types[0](this);
+				$.result = adoptNode($.result, instance);
+			} else {
+				$.result = $.result || new Types[0](this);
+				instance = $.result;
+			}
+			instance[delegatesTo](...delegatables);
+			return $.result;
+		}
+		// --------------
+		// Return result
+		return $.result;
+	}
+
 	/**
-	 * @property Array
+	 * -----------
+	 * ESCAPING & QUOTING
+	 * -----------
 	 */
+
+	static getQuoteChars(contextNode, asInputDialect = false) {
+		const dialect = (asInputDialect && contextNode?.params?.inputDialect) || contextNode?.params?.dialect;
+		return dialect === 'mysql' && !contextNode.params.ansiQuotes ? ["'", '"'] : ["'"];
+	}
+
+	static getEscChar(contextNode, asInputDialect = false) {
+		const dialect = (asInputDialect && contextNode?.params?.inputDialect) || contextNode?.params?.dialect;
+		return dialect === 'mysql' && !contextNode.params.ansiQuotes ? '`' : '"';
+	}
+
 	get quoteChars() { return this.constructor.getQuoteChars(this); }
-	
-	/**
-	 * Determines the proper quote characters for the active SQL dialect ascertained from context.
-	 * 
-	 * @param AbstractNode|AbstractClient context 
-	 * 
-	 * @returns Array
-	 */
-	static getQuoteChars(context, asInputDialect = false) {
-		const dialect = (asInputDialect && context?.params?.inputDialect) || context?.params?.dialect;
-		return dialect === 'mysql' && !context.params.ansiQuotes ? ["'", '"'] : ["'"];
-	}
 
-	/**
-	 * @property String
-	 */
 	get escChar() { return this.constructor.getEscChar(this); }
 
-	/**
-	 * An Escape helper
-	 * 
-	 * @param String|Array string_s 
-	 * 
-	 * @returns String
-	 */
-	autoEsc(string_s) {
-		const $strings = (Array.isArray(string_s) ? string_s : [string_s]).map(s => s && !/^(\*|[\w]+)$/.test(s) ? `${ this.escChar }${ s.replace(new RegExp(this.escChar, 'g'), this.escChar.repeat(2)) }${ this.escChar }` : s );
-		return Array.isArray(string_s) ? $strings : $strings[0];
-	}
+	static esc(escChar, expr, quote = false) { return quote || !/^(\*|[\w]+)$/.test(expr)/*not alphanumeric*/ ? `${escChar}${(expr || '').replace(new RegExp(escChar, 'g'), escChar.repeat(2))}${escChar}` : expr; }
 
-	static autoUnesc(context, expr, asInputDialect = false) {
-		const escChar = this.getEscChar(context, asInputDialect);
-		return (expr || '').replace(new RegExp(escChar + escChar, 'g'), escChar);
-	}
+	static unesc(escChar, expr, unquote = false) { return (!unquote || (new RegExp(`^${escChar}.*${escChar}$`)).test(expr) && (expr = expr.slice(1, -1))) && expr.replace(new RegExp(escChar.repeat(2), 'g'), escChar); }
 
-	/**
-	 * Determines the proper escape character for the active SQL dialect ascertained from context.
-	 * 
-	 * @param AbstractNode|AbstractClient context 
-	 * 
-	 * @returns String
-	 */
-	static getEscChar(context, asInputDialect = false) {
-		const dialect = (asInputDialect && context?.params?.inputDialect) || context?.params?.dialect;
-		return dialect === 'mysql' && !context.params.ansiQuotes ? '`' : '"';
-	}
-	
-	static parseIdent(context, expr, asInputDialect = false) {
-		const escChar = this.getEscChar(context, asInputDialect);
+	static parseIdent(contextNode, expr, unquote = false, asInputDialect = true) {
+		const escChar = this.getEscChar(contextNode, asInputDialect);
 		const parts = Lexer.split(expr, ['.']);
-		const parses = parts.map(s => (new RegExp(`^(?:(\\*|[\\w]+)|(${ escChar })((?:\\2\\2|[^\\2])+)\\2)$`)).exec(s.trim())).filter(s => s);
-		if (parses.length !== parts.length) return;
-		const get = x => x?.[1] || this.autoUnesc(context, x?.[3]);
-		return [get(parses.pop()), get(parses.pop())];
+		const parses = parts.map(s => (new RegExp(`^(?:(\\*|[\\w]+)|(${escChar})((?:\\2\\2|[^\\2])+)\\2)$`)).exec(s.trim())).filter(s => s);
+		return parses.length < parts.length ? [] : parses.map(s => s?.[1] || this.unesc(escChar, s?.[3], unquote));
 	}
 
+	stringifyIdent(ident_s, quote = false) {
+		const esc = ident => this.constructor.esc(this.escChar, ident, quote);
+		if (Array.isArray(ident_s)) return ident_s.filter(s => s).map(esc).join('.');
+		return esc(ident_s);
+	}
+
+	static parseString(contextNode, expr, unquote = false, asInputDialect = true) {
+		const quoteChars = this.getQuoteChars(contextNode, asInputDialect), $ = {};
+		while (($.quoteChar = quoteChars.pop()) && ($.resultString = this.unesc($.quoteChar, expr, unquote)) !== false) {
+			return [$.resultString, $.quoteChar];
+		}
+		return [];
+	}
+
+	stringifyString(str, quote = false) { return this.constructor.esc(this.quoteChars[0], str, quote); }
+
 	/**
 	 * -----------
-	 * QUERY BUILDER
+	 * PARSING CONVERSIONS
 	 * -----------
 	 */
 
-	/**
-	 * Helper for adding additional attributes to the instance.
-	 * 
-	 * @params Object meta
-	 * 
-	 * @return this
-	 */
-	with(meta) {
-		for (const attr in meta) { this[attr] = meta[attr]; }
+	withDetail(key, value) {
+		this.#additionalDetails.set(key, value);
 		return this;
 	}
 
-	/**
-	 * Helper for adding flags to the instance.
-	 * 
-	 * @params Array flags
-	 * 
-	 * @return this
-	 */
+	hasDetail(key) { return this.#additionalDetails.has(key); }
+
+	getDetail(key) { return this.#additionalDetails.get(key); }
+
 	withFlag(...flags) {
 		flags = new Set(flags.filter(f => f));
-		this.FLAGS = this.FLAGS.reduce(($flags, $flag) => {
+		this.#flags = this.#flags.reduce(($flags, $flag) => {
 			const a = $flag.split(':');
 			for (const flag of flags) {
 				const b = flag.split(':');
@@ -151,147 +253,75 @@ export default class AbstractNode {
 		return this;
 	}
 
-	/**
-	 * Helper for inspecting flags on the instance.
-	 * 
-	 * @params String flag
-	 * 
-	 * @return String
-	 */
+	hasFlag(flag) { return !!this.getFlag(flag); }
+
 	getFlag(flag) {
+		if (!arguments.length) return this.#flags;
 		const b = flag.toUpperCase().split(':');
-		return this.FLAGS.find($flag => {
+		return this.#flags.find($flag => {
 			const a = $flag.split(':');
 			return b[0] === a[0] && b.every(f => a.includes(f));
 		});
 	}
 
-	/**
-	 * Helper for inspecting flags on the instance.
-	 * 
-	 * @params String flag
-	 * 
-	 * @return Bool
-	 */
-	hasFlag(flag) { return !!this.getFlag(flag); }
-
-	/**
-	 * Helper for adding clauses to the instance.
-	 * 
-	 * @params String LIST
-	 * @params Array args
-	 * @params AbstractNode|Array Type
-	 * @params String delegate
-	 * 
-	 * @return this
-	 */
-	build(attrName, args, Type, delegate) {
-		const Types = Array.isArray(Type) ? Type : (Type ? [Type] : []);
-		if (!Types.length) throw new Error(`At least one node type must be defined.`);
-		// ---------
-		const cast = arg => Types.find(t => arg instanceof t) ? arg : Types.reduce((prev, Type) => prev || Type.fromJSON(this, arg), null);
-		const set = (...args) => {
-			for (const arg of args) {
-				if (Array.isArray(this[attrName])) this[attrName].push(arg);
-				else this[attrName] = arg;
-			}
-		};
-		// ---------
-		// Handle direct child node and json cases
-		if (args.length === 1 && typeof args[0] !== 'function') {
-			const instance = cast(args[0]);
-			if (instance) return set(instance);
+	$eq(a, b, caseMatch = null) {
+		if (Array.isArray(a) && Array.isArray(b)) {
+			return a.length === b.length && (b = b.slice(0).sort())
+			&& a.slice(0).sort().every((x, i) => this.$eq(x, b[i], caseMatch));
 		}
-		// Handle delegation cases
-		if (delegate) {
-			if (Types.length !== 1) throw new Error(`To support argument delegation, number of node types must be 1.`);
-			const instance = this[attrName] && !Array.isArray(this[attrName]) ? this[attrName] : new Types[0](this);
-			set(instance);
-			return instance[delegate](...args);
+		if (a instanceof AbstractNode) a = a.jsonfy();
+		if (b instanceof AbstractNode) b = b.jsonfy();
+		if (_isObject(a) && _isObject(b)) {
+			const temp = {};
+			return (temp.keys_a = Object.keys(a)).length === (temp.keys_b = Object.keys(b)).length
+			&& temp.keys_a.reduce((prev, k) => prev && this.$eq(a[k], b[k], caseMatch), true);
 		}
-		// Handle direct child callback cases
-		for (let arg of args) {
-			// Pass an instance into provided callback for manipulation
-			if (typeof arg === 'function') {
-				// Singleton and already instantiated?
-				if (this[attrName] && !Array.isArray(this[attrName])) {
-					arg(this[attrName]);
-					continue;
-				}
-				// New instance and may be or not be singleton
-				if (Types.length === 1) {
-					const instance = new Types[0](this);
-					set(instance);
-					arg(instance);
-					continue;
-				}
-				// Any!!!
-				const router = methodName => (...args) => {
-					const instance = Types.reduce((prev, Type) => prev || (Type.factoryMethods ? (typeof Type.factoryMethods[methodName] === 'function' && Type.factoryMethods[methodName](this, ...args)) : (typeof Type.prototype[methodName] === 'function' && new Type(this))), null);
-					if (!instance) throw new Error(`Unknow method: ${ methodName }()`);
-					set(instance);
-					if (instance[methodName]) return instance[methodName](...args); // Foward the call
-					for (const f of args) f(instance); // It's just magic method mode
-				};
-				arg(new Proxy({}, { get: (t, name) => router(name) }));
-				continue;
-			}
-			// Attempt to cast to type
-			const instance = cast(arg);
-			if (instance) {
-				set(instance);
-				continue;
-			}
-			let content;
-			if (typeof arg === 'object' && arg) { try { content = JSON.stringify(arg); } catch(e) { content = arg.constructor.name; } }
-			else content = arg+'';//typeof arg;
-			throw new Error(`Arguments must be of type ${ Types.map(Type => Type.name).join(', ') } or a JSON equivalent. Recieved: ${ content }`);
+		if (typeof a === 'string' && typeof b === 'string' && caseMatch === 'ci') {
+			return a.toLowerCase() === b.toLowerCase();
 		}
+		return a === b;
 	}
 
-	/**
-	 * Clones the instance.
-	 */
-	clone() { return this.constructor.fromJSON(this.CONTEXT, this.toJSON()); }
-	
-	/**
-	 * -----------
-	 * PARSING CONVERSIONS
-	 * -----------
-	 */
-	
-	/**
-	 * SAttempts to parse a string into the class instance.
-	 *
-	 * @param Any context
-	 * @param String expr
-	 * @param Function parseCallback
-	 *
-	 * @return AbstractNode
-	 */
-	static parse(context, expr, parseCallback = null) {}
+	identifiesAs(value) {
+		if (typeof value === 'undefined') return false;
+		if (typeof value?.toJSON === 'function') return this.$eq(this.jsonfy(), value.jsonfy(), 'ci');
+	}
 
-	/**
-	 * Serializes the instance.
-	 * 
-	 * @returns String
-	 */
+	contains(possibleChild) {
+		if (!possibleChild) return false;
+		return this === possibleChild.contextNode || this.contains(possibleChild.contextNode);
+	}
+
+	static fromJSON(contextNode, json, callback = null) {
+		if (json instanceof AbstractNode) throw new Error(`Illegal instance passed as JSON: ${json.NODE_NAME}`);
+		if (_isObject(json) && 'nodeName' in json && json.nodeName !== this.NODE_NAME) return;
+		const instance = (new this(contextNode)).withFlag(...(json?.flags || []));
+		if (typeof callback === 'function') callback(instance);
+		return instance;
+	}
+
+	jsonfy(options = {}, jsonIn = {}) {
+		return {
+			...(options.nodeNames !== false ? { nodeName: this.NODE_NAME } : {}),
+			...(typeof jsonIn === 'function' ? jsonIn() : jsonIn),
+			...(this.#flags.length ? { flags: this.#flags.slice(0) } : {}),
+		};
+	}
+
+	static parse(contextNode, expr, parseCallback = null) { }
+
 	toString() { return this.stringify(); }
-	
-	/**
-	 * Attempts to cast a string into the class instance.
-	 *
-	 * @param Any context
-	 * @param Object json
-	 *
-	 * @return AbstractNode
-	 */
-	static fromJSON(context, json) {}
 
-	/**
-	 * Cast the instance to a plain object.
-	 * 
-	 * @returns Object
-	 */
-	toJSON() { return { flags: this.FLAGS.slice(0) }; }
+	toJSON(keyHint = null, options = {}) { return this.jsonfy(options); }
+
+	clone(options = {}) {
+		const json = this.jsonfy(options);
+		const Classes = [this.constructor].concat(this.constructor.DESUGARS_TO || []);
+		return Classes.reduce((prev, C) => prev || C.fromJSON(this.#contextNode, json), undefined);
+	}
+
+	deSugar(options = {}) {
+		options = { ...options, deSugar: true };
+		return this.clone(options);
+	}
 }

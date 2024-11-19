@@ -1,2 +1,2 @@
 
-export default class extends Error {}
+export class extends Error {}

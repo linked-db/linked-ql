@@ -1,6 +1,6 @@
 import grammar from './grammar.js';
 		
-export default class Parser {
+export class Parser {
 
 	/**
 	 * @property Object
@@ -13,7 +13,7 @@ export default class Parser {
 		for (const Node of $grammar) {
 			const node = this.parseOne(context, expr, Node, params);
 			if (!node) continue;
-			if (params.log) console.log('.................', expr, '.................>', node.constructor.name);
+			if (params.inspect) console.log('.................', expr, '.................>', node.constructor.name);
 			return node;
 		}
 		if (params.assert === false) return;

@@ -1,284 +1,247 @@
-import { _intersect } from '@webqit/util/arr/index.js';
-import { _isFunction, _isObject } from '@webqit/util/js/index.js';
+import { _isArray, _isFunction, _isObject } from '@webqit/util/js/index.js';
 import { _beforeLast, _afterLast } from '@webqit/util/str/index.js';
-import InsertStatement from '../lang/dml/insert/InsertStatement.js';
-import UpdateStatement from '../lang/dml/update/UpdateStatement.js';
-import DeleteStatement from '../lang/dml/delete/DeleteStatement.js';
-import SelectStatement from '../lang/dml/select/SelectStatement.js';
-import Identifier from '../lang/components/Identifier.js';
+import { GlobalTableRef } from '../lang/expr/refs/GlobalTableRef.js';
+import { InsertStatement } from '../lang/dml/InsertStatement.js';
+import { UpsertStatement } from '../lang/dml/UpsertStatement.js';
+import { UpdateStatement } from '../lang/dml/UpdateStatement.js';
+import { DeleteStatement } from '../lang/dml/DeleteStatement.js';
+import { SelectStatement } from '../lang/dql/SelectStatement.js';
 
-export default class AbstractTable {
-	 
-	/**
-	 * @constructor
-	 */
+export class AbstractTable {
+
 	constructor(database, tblName, params = {}) {
-        this.$ = { database, name: tblName, params };
+		this.$ = { database, name: tblName, params };
 	}
 
-    /**
-     * @property Database
-     */
-    get database() { return this.$.database; }
+	get database() { return this.$.database; }
 
-    /**
-     * @property String
-     */
-    get name() { return this.$.name; }
+	get name() { return this.$.name; }
 
-	/**
-     * @property Identifier
-     */
-	get ident() { return Identifier.fromJSON(this, [this.database.name, this.name]); }
+	get ident() { return GlobalTableRef.fromJSON(this, [this.database.name, this.name]); }
 
-    /**
-     * @property Object
-     */
-    get params() { return Object.assign({}, this.database.params, this.$.params); }
+	get params() { return Object.assign({}, this.database.params, this.$.params); }
 
-	/**
-	 * Performs any initialization work.
-     */
-	async $init() { await this.database.$init(); }
+	async schema() { return (await this.database.schema(this.name))?.table(this.name); }
 
-    /**
-	 * Returns the table's current savepoint.
-	 * 
-	 * @returns Object
-     */
-    async savepoint() { await this.$init(); /* TODO */ }
-
-    /**
-	 * Returns the table's schema.
-	 * 
-	 * @returns TableSchema
-     */
-    async structure() { return (await this.database.structure(this.name)).table(this.name); }
-
-	/**
-	 * Counts records.
-	 * 
-	 * @param Array 					fields
-	 * 
-	 * @param Number|Object|Function 	modifiers
-	 * 
-	 * @param Array 					fields
-	 * @param Object|Function|Number 	modifiers
-	 */
-	async count(...args) {
-		const fields = [].concat(Array.isArray(args[0]) ? args.shift() : '*');
-		if (fields.length !== 1) throw new Error(`Count expects exactly one field.`);
-		const result = await this.select([ q => q.fn('COUNT', fields[0]).as('c') ], ...args);
-		return !Array.isArray(result)/*for when modifiers.where is an ID*/ ? result.c : result[0].c;
+	async count(expr, clauses = {}) {
+		const result = await this.select({ ...clauses, shorthands: false, fields: [{ expr: { count: [expr] }, as: 'c' }] });
+		return !Array.isArray(result)/*for when clauses.where is an ID*/ ? result.c : result[0].c;
 	}
-	 
-	/**
-	 * Selects record(s).
-	 * 
-	 * @param Array 					fields
-	 * 
-	 * @param Number|Object|Function 	modifiers
-	 * 
-	 * @param Array 					fields
-	 * @param Object|Function|Number 	modifiers
-	 */
+
 	async select(...args) {
-		const query = new SelectStatement(this.database.client);
-		query.from(this.ident.toJSON());
-		// Where and fields
-		const fields = Array.isArray(args[0]) ? args.shift() : ['*'];
-		const modifiers = { fields, ...(args.shift() || {})};
-		query.select(...modifiers.fields);
-		return await this.$applyModifiers(query, modifiers, async () => {
-			const result = await this.database.client.query(query);
-			if (['string', 'number'].includes(typeof modifiers.where)) return result[0];
+		const clauses = (typeof args[0] !== 'function' && args.shift()) || {};
+		const buildCallback = (typeof args[0] === 'function' && args.shift()) || null;
+		const singular = ['string', 'number'].includes(typeof clauses.where);
+		return this.database.client.withSchema(async () => {
+			const { shorthands: __, ...$clauses } = { fields: '*', ...clauses, from: [[this.database.name, this.name]] };
+			if (clauses.shorthands) {
+				$clauses.fields = await this.buildShapePath($clauses.fields, 'fields');
+			}
+			const json = await this.resolveWhereClause($clauses);
+			const query = this.createQuery(json, SelectStatement, 'table.select()');
+			buildCallback?.(query);
+			const result = await this.database.client.execQuery(query);
+			if (singular) return result[0];
 			return result;
 		});
 	}
 
-	/**
-	 * Inserts record(s).
-	 * 
-	 * @param Object 					payload
-	 * @param Object|Function			modifiers
-	 * 
-	 * @param Array 					multilinePayload
-	 * @param Object|Function			modifiers
-	 * 
-	 * @param Array 					columns
-	 * @param Array 					multilineValues
-	 * @param Object|Function			modifiers
-	 */
 	async insert(...args) {
-		// ----
-		let upsertCallback, columns = [], values = [], modifiers, singular;
-		if (typeof args[0] === 'function') upsertCallback = args.shift();
-		// Is cilumns specified separately from values?
-		if (Array.isArray(args[0]) && /*important*/args[0].every(s => typeof s === 'string') && Array.isArray(args[1])) {
-			if (!args[1].every(s => Array.isArray(s))) throw new TypeError(`Invalid payload format.`);
-			[ columns, values, modifiers ] = args.splice(0, 3);
-		} else {
-			// No. It's a columns/values map
-			const _singular = _isObject(args[0]); // Must come before any args.shift()
-			const payload = [].concat(args.shift());
-			if (!_isObject(payload[0])) throw new TypeError(`Invalid payload format.`);
-			columns = Object.keys(payload[0]);
-			values = payload.map(row => Object.values(row));
-			modifiers = args.shift();
-			singular = _singular && modifiers?.returning;
-		}
-		let preHook, postHook;
-		// ----
-		const query = new InsertStatement(this.database.client);
-		query.into(this.ident.toJSON());
-		if (columns.length) query.columns(...columns);
-		for (const row of values) query.values(...row.map(v => toVal(v, this.params.autoBindings)));
-		if (_isObject(modifiers) && modifiers.returning) {
-			query.returning(...[].concat(modifiers.returning));
-		} else if (_isFunction(modifiers)) {
-			modifiers(query);
-		}
-		const willNeedStructure = upsertCallback && this.params.dialect === 'postgres';
-		return await this.database.client.structure(willNeedStructure && { depth: 2, inSearchPathOrder: true }, async () => {
-			if (upsertCallback) await upsertCallback(query);
-			let result = await this.database.client.query(query);
-			if (singular) result = result[0];
-			return result;
-		});
-	}
-		
-	/**
-	 * Upserts record(s); with optional custom onConflict clause.
-	 * 
-	 * @param Object 					payload
-	 * @param Object|Function			modifiers
-	 * 
-	 * @param Array 					multilinePayload
-	 * @param Object|Function			modifiers
-	 * 
-	 * @param Array 					columns
-	 * @param Array 					multilineValues
-	 * @param Object|Function			modifiers
-	 */
-	async upsert(...args) {
-		return await this.insert(async query => {
-			const columns = (query.columns()?.entries() || []).map(c => c.name());
-			const refFn = this.params.dialect === 'postgres' ? col => q => q.expr(['EXCLUDED', col]) : col => q => q.fn('VALUES', col);
-			query.onConflict(...columns.map(col => [col, refFn(col)]));
-			if (this.params.dialect === 'postgres') {
-				const tblSchema = await this.structure();
-				const uniqueKeys = tblSchema.uniqueKeys().map(uk => uk.columns());
-				if (!uniqueKeys.length) throw new Error(`Table has no unique keys defined. You may want to perform a direct INSERT operation.`);
-				const conflictTarget = uniqueKeys.find(keyComp => _intersect(keyComp, columns).length) || uniqueKeys[0];
-				query.onConflict().target(...conflictTarget);
+		let isUpsert, singular = false;
+		if (typeof args[0] === 'boolean') isUpsert = args.shift();
+		const clauses = (typeof args[0] !== 'function' && {...args.shift()}) || {};
+		const buildCallback = (typeof args[0] === 'function' && args.shift()) || null;
+		return this.database.client.withSchema(async () => {
+			if (clauses.columns) {
+				if (clauses.shorthands) {
+					clauses.columns = await this.buildShapePath(clauses.columns, 'columns');
+				}
+				clauses.values = clauses.values.map((row) => ({ row: this.buildValueMatrix(row, clauses.columns, 'value-matrix') }));
+			} else if (clauses.data) {
+				singular = _isObject(clauses.data) && clauses.returning;
+				[clauses.columns, clauses.values] = await this.resolvePayload([].concat(clauses.data), 'payload');
 			}
-		}, ...args);
-	}
-	
-	/**
-	 * Updates record(s).
-	 * 
-	 * @param Object 					payload
-	 * @param Object|Function|Number 	modifiers
-	 */
-	async update(payload, modifiers) {
-		// ----
-		if (!modifiers) throw new Error(`The "modifiers" parameter cannot be ommitted.`);
-		const singular = ['string', 'number'].includes(typeof modifiers.where) && modifiers.returning;
-		let columns = Object.keys(payload),
-			values = Object.values(payload),
-			preHook, postHook;
-		// ----
-		const query = new UpdateStatement(this.database.client);
-		query.table(this.ident.toJSON());
-		columns.forEach((col, i) => query.set(col, toVal(values[i], this.params.autoBindings)));
-		return await this.$applyModifiers(query, modifiers, async () => {
-			let result = await this.database.client.query(query);
-			if (singular) result = result[0];
+			const { data: _, shorthands: __, ...$clauses } = { ...clauses, into: [[this.database.name, this.name]] };
+			const query = this.createQuery($clauses, isUpsert ? UpsertStatement : InsertStatement, `table.${isUpsert ? 'upsert' : 'insert'}()`);
+			buildCallback?.(query);
+			const result = await this.database.client.execQuery(query);
+			if (singular) return result[0];
 			return result;
 		});
 	}
-	 
-	/**
-	 * Deletes record(s).
-	 * 
-	 * @param Object|Function|Number 	modifiers
-	 */
-	async delete(modifiers) {
-		if (!modifiers) throw new Error(`The "modifiers" parameter cannot be ommitted.`);
-		const query = new DeleteStatement(this.database.client);
-		query.from(this.ident.toJSON());
-		return await this.$applyModifiers(query, modifiers, async () => {
-			let result = await this.database.client.query(query);
-			if (['string', 'number'].includes(typeof modifiers.where) && modifiers.returning) result = result[0];
+
+	async upsert(...args) { return await this.insert(true, ...args); }
+
+	async update(...args) {
+		const clauses = (typeof args[0] !== 'function' && args.shift()) || {};
+		const buildCallback = (typeof args[0] === 'function' && args.shift()) || null;
+		const singular = ['string', 'number'].includes(typeof clauses.where) && clauses.returning;
+		return this.database.client.withSchema(async () => {
+			const payload = [clauses.set || clauses.data];
+			const [columns, [{ row: values }]] = await this.resolvePayload(payload, clauses.set ? 'payload-array' : 'payload');
+			const { data: _, shorthands: __, ...$clauses } = { ...(await this.resolveWhereClause(clauses)), table: [[this.database.name, this.name]], set: columns.map((c, i) => [c, values[i]]) };
+			const query = this.createQuery($clauses, UpdateStatement, `table.update()`);
+			buildCallback?.(query);
+			console.log('>>>>>>>' + query);
+			const result = await this.database.client.execQuery(query, {inspect: true });
+			if (singular) return result[0];
 			return result;
 		});
 	}
-	
+
+	async delete(...args) {
+		if (!args.length) throw new Error(`The "clauses" parameter cannot be ommitted.`);
+		const clauses = (typeof args[0] !== 'function' && {...args.shift()}) || {};
+		const buildCallback = (typeof args[0] === 'function' && args.shift()) || null;
+		const singular = ['string', 'number'].includes(typeof clauses.where) && clauses.returning;
+		return this.database.client.withSchema(async () => {
+			// Compose JSON
+			const $clauses = { ...(await this.resolveWhereClause(clauses)), from: [[this.database.name, this.name]] };
+			const query = this.createQuery($clauses, DeleteStatement, `table.delete()`);
+			buildCallback?.(query);
+			const result = await this.database.client.execQuery(query);
+			if (singular) return result[0];
+			return result;
+		});
+	}
+
 	/**
 	 * -------------------------------
 	 */
 
-	/**
-	 * Helps resolve specified where condition for the query.
-	 * 
-	 * @param Statement 					query
-	 * @param Object|Function|Number|Bool 	modifiers
-	 * @param Function						callback
-	 */
-	async $applyModifiers(query, modifiers, callback) {
-		if (modifiers === true) return await callback();
-		const addWheres = wheres => query.where(...Object.entries(wheres).map(([k, v]) => {
-			if (v === null) return q => q.isNull(k);
-			return q => q.equals(k, toVal(v, this.params.autoBindings));
-		}));
-		if (_isObject(modifiers)) {
-			if (modifiers.limit) query.limit(modifiers.limit);
-			if (modifiers.returning) query.returning(...[].concat(modifiers.returning));
-			if (['string', 'number'].includes(typeof modifiers.where)) {
-				// Initialize structure request with potential needs later on in mind
-				return await this.database.client.structure({ depth: 2, inSearchPathOrder: true }, async () => {
-					const tblSchema = await this.structure();
-					addWheres({ [ getPrimaryKey(tblSchema) ]: modifiers.where });
-					return await callback();
-				});
-			}
-			if (_isObject(modifiers.where)) addWheres(modifiers.where);
-			else if (modifiers.where && modifiers.where !== true) query.where(modifiers.where);
-		} else if (_isFunction(modifiers)) {
-			modifiers(query);
-		} else if (/^\d+$/.test(modifiers)) {
-			query.limit(modifiers);
-		}
-		return await callback();
+	createQuery(json, Class, id) {
+		return Class.prototype.$castInputs.call(this.database.client, [json], Class, null, id);
 	}
-    
-	/**
-	 * A generic method for tracing something up the node tree.
-	 * Like a context API.
-	 * 
-	 * @param String request
-	 * @param Array ...args
-     * 
-     * @returns any
-	 */
-	$trace(request, ...args) {
-		if (request === 'get:TABLE_API') return this;
-		if (request === 'get:TABLE_NAME') return this.name;
-        return this.database.$trace(request, ...args);
+
+	async resolveWhereClause(clauses) {
+		if (['string', 'number'].includes(typeof clauses.where)) {
+			const tblSchema = await this.schema();
+			const primaryKey = tblSchema.primaryKey()?.columns()[0];
+			if (!primaryKey) throw new Error(`Cannot resolve primary key name for implied record.`);
+			return { ...clauses, where: { eq: [primaryKey, clauses.where] } };
+		}
+		return clauses;
+	}
+
+	async resolvePayload(payload, payloadType) {
+		if (payloadType === 'payload-array') {
+			if (!Array.isArray(payload) || !Array.isArray(payload[0])) throw new TypeError(`Invalid payload format.`);
+		} else {
+			if (!_isObject(payload[0])) throw new TypeError(`Invalid payload format.`);
+		}
+		const columns = await this.buildShapePath(payload[0], payloadType);
+		const valueMatrix = payload.map((data) => ({ row: this.buildValueMatrix(data, columns, payloadType) }));
+		return [columns, valueMatrix];
+	}
+
+	async buildShapePath(shape, shapeType) {
+		const tblSchema = await this.schema();
+		if (!tblSchema) throw new Error(`Table ${this.ident} does not exist.`);
+		const dimensionType = shapeType === 'fields' ? 'fields' : 'columns';
+		const isPayload = ['payload', 'payload-array'].includes(shapeType);
+		const tbl2BuildShapePath = async (tbl2, shape, fkName = null) => {
+			if (fkName) {
+				const fk = (await tbl2.schema())?.column(fkName)?.foreignKey();
+				if (!fk?.targetTable().identifiesAs(this.ident)) throw new Error(`${tbl2.ident}.${fkName} isn't a reference to ${this.ident}`);
+				return await tbl2.buildShapePath(shape, shapeType);
+			}
+			const fks = (await tbl2.schema()).foreignKeys().filter((fk) => fk.targetTable().identifiesAs(this.ident));
+			if (fks.length !== 1) throw new Error(`${fks.length} correletions found between ${this.ident} and ${tbl2.ident}`);
+			return [fks[0].columns()[0], await tbl2.buildShapePath(shape, shapeType)];
+		};
+		const resolveKey = async (key, value) => {
+			const colSchema = tblSchema.column(key);
+			const fk = colSchema?.foreignKey();
+			if (fk && !isPayload && typeof value === 'string') {
+				return { rpath: [key, value] };
+			}
+			if (fk && (_isObject(value) || Array.isArray(value))) {
+				const targetTable = this.database.client.database(fk.targetTable().prefix(true).name()).table(fk.targetTable().name());
+				return { rpath: [key, { [dimensionType]: await targetTable.buildShapePath(value, shapeType) }] };
+			}
+			if (!colSchema) {
+				if (isPayload) {
+					if (!Array.isArray(value)) throw new Error(`Unknown column: ${key}`);
+				} else if (Array.isArray(value) && (value.some((e) => typeof e === 'string') || value.length > 1)) {
+					value = [value]; // { books: ['key1', 'key2'] } -> { books: [['key1', 'key2']] }, { books: [{ key1: true }, { key2: true }] } -> { books: [[{ key1: true }, { key2: true }]] }
+				} else if (_isObject(value)) {
+					value = [value]; // { books: { key1: true, key2: true } } -> { books: [{ key1: true, key2: true }] }
+				} else if (typeof value === 'string') {
+					value = [[value]]; // { books: 'title' } -> { books: [['title']] }
+				}
+				const tbl2 = this.database.table(key);
+				const [fkName, columns] = await tbl2BuildShapePath(tbl2, value[0]);
+				const dimension = { [dimensionType]: columns };
+				return { rpath: [{ lpath: [fkName, [this.database.name, key]] }, shapeType === 'fields' ? { expr: dimension }/* aggr */ : dimension] };
+			}
+			return key;
+		};
+		const columns = [];
+		if (_isObject(shape)) {
+			for (const key in shape) {
+				if (!isPayload && shape[key] === false) continue;
+				columns.push(await resolveKey(key, shape[key]));
+			}
+			return columns;
+		}
+		for (const key of shape) {
+			if (shapeType === 'payload-array') {
+				if (_isObject(key[0])) {
+					if (!key[0].lpath) throw new Error(`Invalid key spec: ${JSON.stringify(key[0])}`);
+					const tableSpec = [].concat(key[0].lpath[1]);
+					const db2 = tableSpec.length === 2 ? this.database.client.database(tableSpec.shift()) : this.database;
+					const tbl2 = db2.table(tableSpec.shift());
+					columns.push({ rpath: [key[0], { columns: await tbl2BuildShapePath(tbl2, key[1][0], key[0].lpath[0]) }] });
+				} else {
+					columns.push(await resolveKey(key[0], key[1]));
+				}
+			} else if (_isObject(key)) {
+				columns.push(await resolveKey(Object.keys(key)[0], Object.values(key)[0]));
+			} else columns.push(key);
+		}
+		return columns;
+	}
+
+	buildValueMatrix(data, columns, payloadType) {
+		const getValue = (from, key, i) => {
+			if (payloadType === 'payload') return from[key];
+			if (payloadType === 'payload-array') return from[i][1];
+			return from[i]; // 'value-matrix'
+		};
+		const asMap = payloadType === 'payload';
+		if ((asMap && !_isObject(data)) || (!asMap && !Array.isArray(data))) throw new Error(`Irregular payload structure: expected an object of shape ${JSON.stringify(columns)} but got: ${data}`);
+		const valueMatrix = [], colsLength = columns.length;
+		for (let i = 0; i < colsLength; i ++) {
+			const column = columns[i];
+			if (column.rpath) {
+				const key = column.rpath[0];
+				const columns = column.rpath[1].columns || [column.rpath[1]];
+				if (key.lpath) {
+					const [, [, table]] = key.lpath;
+					const values = getValue(data, table, i);
+					if (!Array.isArray(values)) throw new Error(`Irregular payload structure: expected an array of ${table} of shape ${JSON.stringify(columns)} but got: ${values}`);
+					valueMatrix.push({ values: values.map((data) => ({ row: this.buildValueMatrix(data, columns, payloadType) })) });
+				} else {
+					const row = getValue(data, key, i);
+					valueMatrix.push({ row: this.buildValueMatrix(row, columns, payloadType) });
+				}
+			} else {
+				const value = getValue(data, column, i);
+				valueMatrix.push(toValue(value));
+			}
+		}
+		return valueMatrix;
+	}
+
+	$capture(requestName, requestSource) {
+		return this.database.$capture(requestName, requestSource);
 	}
 }
 
-const toVal = (v, autoBindings) => {
+const toValue = (v) => {
 	if (typeof v === 'function') return v;
-	if (v instanceof Date) return q => q.value(v.toISOString().split('.')[0]);
-	if (Array.isArray(v) || _isObject(v)) return q => q.json(v);
-	if ([true,false,null,undefined].includes(v)) return q => q.literal(v === undefined ? null : v);
-	return q => q.value(v);
-};
-
-const getPrimaryKey = schema => {
-	const primaryKey = schema.primaryKey()?.columns()[0];
-	if (!primaryKey) throw new Error(`Cannot resolve primary key name for implied record.`);
-	return primaryKey;
+	if (v instanceof Date) return (q) => q.value(v.toISOString().split('.')[0]);
+	if (Array.isArray(v) || _isObject(v)) return (q) => q.json(v);
+	if ([null, undefined].includes(v)) return (q) => q.literal(null);
+	return (q) => q.value(v);
 };

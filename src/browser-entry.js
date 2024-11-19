@@ -1,7 +1,7 @@
-import SQL from './api/sql/SQLClient.js';
+import { SQLClient } from './api/sql/SQLClient.js';
 
 // As globals
-if (!self.webqit) { self.webqit = {}; }
-self.webqit.ObjectiveSQL = {
-	SQL
+if (!self.linkedDB) { self.linkedDB = {}; }
+self.linkedDB.LinkedQL = {
+	SQLClient
 };

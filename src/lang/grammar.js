@@ -1,29 +1,39 @@
 // Statements
-import CreateStatement from './ddl/create/CreateStatement.js';
-import AlterStatement from './ddl/alter/AlterStatement.js';
-import DropStatement from './ddl/drop/DropStatement.js';
-import RenameStatement from './ddl/rename/RenameStatement.js';
-import DeleteStatement from './dml/delete/DeleteStatement.js';
-import InsertStatement from './dml/insert/InsertStatement.js';
-import SelectStatement from './dml/select/SelectStatement.js';
-import UpdateStatement from './dml/update/UpdateStatement.js';
+import { AlterDatabase } from './ddl/AlterDatabase.js';
+import { CreateDatabase } from './ddl/CreateDatabase.js';
+import { DropDatabase } from './ddl/DropDatabase.js';
+import { RenameDatabase } from './ddl/RenameDatabase.js';
+import { AlterTable } from './ddl/database/actions/AlterTable.js';
+import { CreateTable } from './ddl/database/actions/CreateTable.js';
+import { DropTable } from './ddl/database/actions/DropTable.js';
+import { RenameTable } from './ddl/database/actions/RenameTable.js';
+import { SelectStatement } from './dql/SelectStatement.js';
+import { InsertStatement } from './dml/InsertStatement.js';
+import { UpsertStatement } from './dml/UpsertStatement.js';
+import { UpdateStatement } from './dml/UpdateStatement.js';
+import { DeleteStatement } from './dml/DeleteStatement.js';
+
 // Expressions
-import Expr from './components/Expr.js';
+import { Exprs } from './expr/grammar.js';
 
 /**
  * @var object
  */
 export default [
 	// Statements
-	CreateStatement,
-	AlterStatement,
-	DropStatement,
-	RenameStatement,
+	AlterDatabase,
+	CreateDatabase,
+	DropDatabase,
+	RenameDatabase,
+	AlterTable,
+	CreateTable,
+	DropTable,
+	RenameTable,
+	SelectStatement,
 	InsertStatement,
+	UpsertStatement,
 	UpdateStatement,
 	DeleteStatement,
-	SelectStatement,
 	// Expressions
-	...
-	Expr.Types,
+	...Exprs,
 ]

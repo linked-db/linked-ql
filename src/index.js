@@ -1,11 +1,10 @@
-import Parser from './parser/Parser.js';
-import ODB from './api/odb/ODBClient.js';
+import { SQLClient } from './api/sql/SQLClient.js';
+import { Parser } from './lang/Parser.js';
 
 /**
  * @exports
  */
-export default Parser;
 export {
+	SQLClient,
 	Parser,
-	ODB,
 }

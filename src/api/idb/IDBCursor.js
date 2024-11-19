@@ -1,6 +1,6 @@
 
-import _arrFrom from '@webqit/util/arr/from.js';
-import AbstractCursor from '../AbstractCursor.js';
+import { _arrFrom } from '@webqit/util/arr/from.js';
+import { AbstractCursor } from '../AbstractCursor.js';
 
 
 /**
@@ -9,7 +9,7 @@ import AbstractCursor from '../AbstractCursor.js';
  * ---------------------------
  */				
 
-export default class IDBCursor extends AbstractCursor {
+export class IDBCursor extends AbstractCursor {
 	 
 	constructor(store) {
 		super([]);
