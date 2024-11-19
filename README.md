@@ -37,7 +37,7 @@ Linked QL is a small JS-based database abstraction library that is usable over y
 
 [SELECT](https://github.com/linked-db/linked-ql/wiki/SELECT) • [INSERT](https://github.com/linked-db/linked-ql/wiki/INSERT) • [UPSERT](https://github.com/linked-db/linked-ql/wiki/UPSERT) • [UPDATE](https://github.com/linked-db/linked-ql/wiki/UPDATE) • [DELETE](https://github.com/linked-db/linked-ql/wiki/DELETE) • [CREATE](https://github.com/linked-db/linked-ql/wiki/CREATE) • [RENAME](https://github.com/linked-db/linked-ql/wiki/RENAME) • [ALTER](https://github.com/linked-db/linked-ql/wiki/ALTER) • [DROP](https://github.com/linked-db/linked-ql/wiki/DROP)
 
-[LANG](https://github.com/linked-db/linked-ql/wiki/LANG) • [API](https://github.com/linked-db/linked-ql/wiki/API) • [CLI](https://github.com/linked-db/linked-ql/wiki/CLI) • [Migrations](https://github.com/linked-db/linked-ql/wiki/Migrations)
+[Docs](https://github.com/linked-db/linked-ql/wiki) • [LANG](https://github.com/linked-db/linked-ql/wiki/LANG) • [API](https://github.com/linked-db/linked-ql/wiki/API) • [CLI](https://github.com/linked-db/linked-ql/wiki/CLI) • [Migrations](https://github.com/linked-db/linked-ql/wiki/Migrations)
 
 </div>
 
@@ -461,7 +461,7 @@ All `client` instances above implement the same [interface](https://github.com/l
 
 <div align="center">
 
-[LANG](https://github.com/linked-db/linked-ql/wiki/LANG) • [API](https://github.com/linked-db/linked-ql/wiki/API) • [CLI](https://github.com/linked-db/linked-ql/wiki/CLI) • [Migrations](https://github.com/linked-db/linked-ql/wiki/Migrations)
+[Docs](https://github.com/linked-db/linked-ql/wiki) • [LANG](https://github.com/linked-db/linked-ql/wiki/LANG) • [API](https://github.com/linked-db/linked-ql/wiki/API) • [CLI](https://github.com/linked-db/linked-ql/wiki/CLI) • [Migrations](https://github.com/linked-db/linked-ql/wiki/Migrations)
 
 
 [SELECT](https://github.com/linked-db/linked-ql/wiki/SELECT) • [INSERT](https://github.com/linked-db/linked-ql/wiki/INSERT) • [UPSERT](https://github.com/linked-db/linked-ql/wiki/UPSERT) • [UPDATE](https://github.com/linked-db/linked-ql/wiki/UPDATE) • [DELETE](https://github.com/linked-db/linked-ql/wiki/DELETE) • [CREATE](https://github.com/linked-db/linked-ql/wiki/CREATE) • [RENAME](https://github.com/linked-db/linked-ql/wiki/RENAME) • [ALTER](https://github.com/linked-db/linked-ql/wiki/ALTER) • [DROP](https://github.com/linked-db/linked-ql/wiki/DROP)
