@@ -2,7 +2,7 @@
     
 # Linked QL
 
-_**Get insanely productive with SQL!** Cut through database tooling overheads with ease!_
+_**Get insanely productive with SQL!** Cut through all the complexities with ease!_
 
 [![npm version][npm-version-src]][npm-version-href][![npm downloads][npm-downloads-src]][npm-downloads-href]
 [![bundle][bundle-src]][bundle-href]
