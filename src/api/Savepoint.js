@@ -120,12 +120,15 @@ export class Savepoint {
         // Update record
         const versionState = this.versionState() === 'rollback' ? 'commit' : 'rollback';
         const updatedRecord = await linkedDB.table('savepoints').update({
-            ['version_state']: versionState,
-            [`${versionState}_date`]: q => q.now(),
-            [`${versionState}_desc`]: restoreParams.desc || this[`${versionState}Desc`](),
-            [`${versionState}_client_id`]: this.client.params.clientID || this[`${versionState}ClientID`](),
-            [`${versionState}_client_pid`]: (q) => q.fn(this.client.params.dialect === 'mysql' ? 'connection_id' : 'pg_backend_pid'),
-        }, { where: (q) => q.eq('id', (q) => q.value(this.$.json.id)), returning: ['*'] });
+            data: {
+                ['version_state']: versionState,
+                [`${versionState}_date`]: q => q.now(),
+                [`${versionState}_desc`]: restoreParams.desc || this[`${versionState}Desc`](),
+                [`${versionState}_client_id`]: this.client.params.clientID || this[`${versionState}ClientID`](),
+                [`${versionState}_client_pid`]: (q) => q.fn(this.client.params.dialect === 'mysql' ? 'connection_id' : 'pg_backend_pid'),
+            },
+            where: (q) => q.eq('id', (q) => q.value(this.$.json.id)), returning: ['*']
+        });
         for (const cascade of this.cascades()) {
             await cascade.restore(restoreParams);
         }

@@ -406,7 +406,7 @@ async function replicate() {
         };
         delete savepointJson.version_tags;
         delete savepointJson.cascades;
-        await targetSavepointsTable.insert(savepointJson);
+        await targetSavepointsTable.insert({ data: savepointJson });
     }
     // ------------
     async function handleUnrelatedHistories(savepoint1, savepoint2) {

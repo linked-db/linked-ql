@@ -293,7 +293,7 @@ export class AbstractClient {
             commit_date: q => q.now(),
             commit_desc: details.desc,
             commit_client_id: this.params.clientID,
-            commit_client_pid: q => q.literal(this.params.dialect === 'mysql' ? 'connection_id()' : 'pg_backend_pid()'),
+            commit_client_pid: q => q.fn(this.params.dialect === 'mysql' ? 'connection_id' : 'pg_backend_pid'),
         };
         // -- Find a match first. We're doing forward first to be able to restart an entire history that has been rolled all the way back
         const dbName = dbSchema.name()/* IMPORTANT: not $name() */;
@@ -315,7 +315,7 @@ export class AbstractClient {
             savepointJson.version_tag = details.masterSavepoint ? 0 : 1;
         }
         // -- Create record
-        const insertResult = await savepointsTable.insert(savepointJson, { returning: '*' });
+        const insertResult = await savepointsTable.insert({ data: savepointJson, returning: '*' });
         return new Savepoint(this, insertResult);
     }
 
@@ -548,7 +548,7 @@ export class AbstractClient {
                         }
                     }
                     return this.withSchema({ depth: 2, selector: 'linked_db%' }, async () => {
-                        return await instance.table('config').upsert(hash);
+                        return await instance.table('config').upsert({ data: hash });
                     });
                 }
                 if (!this.#linkedDBConfig) {

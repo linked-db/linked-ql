@@ -41,15 +41,6 @@ const client = new SQLClient({
     on(...args) { return driver.on(...args) }
 }, { dialect });
 
-
-const result = await client.database('public').table('users').update(
-    { name: 'John Doe 2025', books: [
-        { title: 'Beauty and the Beast', content: '(C) 2024 johndoed@example.com\nBeauty and the Beast...' }
-    ] },
-    { where: { eq: ['id', { value: 1 }] }}
-);
-process.exit();
-
 /*
 */
 console.log('---DATABSES BEFORE:', (await client.schema()).databases(false));
@@ -180,8 +171,8 @@ if (spliceForwardHistories) {
         const structure = await client.query(`SELECT name, role <~ author <~ books: { title, author: { name, role: { name } } }[] as posts FROM roles as r`, { inspect: true });
         //const ww = await client.query(`SELECT users.name, roles.name as role_name FROM users LEFT JOIN roles ON roles.id = users.role where roles.name = ${ dialect === 'mysql' ? '?' : '$1' }`, { values: ['admin'] });
         console.table(structure);
-        console.log(await client.database('public').table('users').upsert({ title: 'Untitled', name: 'Jude' }, { returning: '*' }));
-        console.log(await client.database('public').table('users').upsert({ title: 'Untitled', name: 'Jude' }, { returning: '*' }));
+        console.log(await client.database('public').table('users').upsert({ data: { title: 'Untitled', name: 'Jude' }, returning: '*' }));
+        console.log(await client.database('public').table('users').upsert({ data: { title: 'Untitled', name: 'Jude' }, returning: '*' }));
         console.log(await client.database('public').table('users').select({ where: 2 }));
     });
 

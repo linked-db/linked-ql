@@ -23,21 +23,19 @@ export class AbstractTable {
 
 	async schema() { return (await this.database.schema(this.name))?.table(this.name); }
 
-	async count(...args) {
-		const fields = [].concat(Array.isArray(args[0]) || typeof args[0] === 'string' || args.length > 1 ? args.shift() : '*');
-		const result = await this.select([{ expr: { count: fields }, as: 'c' }], ...args);
+	async count(expr, clauses = {}) {
+		const result = await this.select({ ...clauses, explicitPaths: true, fields: [{ expr: { count: [expr] }, as: 'c' }] });
 		return !Array.isArray(result)/*for when clauses.where is an ID*/ ? result.c : result[0].c;
 	}
 
 	async select(...args) {
-		const fields = [].concat(Array.isArray(args[0]) || typeof args[0] === 'string' || args.length > 1 ? args.shift() : '*');
 		const clauses = (typeof args[0] !== 'function' && args.shift()) || {};
 		const buildCallback = (typeof args[0] === 'function' && args.shift()) || null;
 		const singular = ['string', 'number'].includes(typeof clauses.where);
 		return this.database.client.withSchema(async () => {
-			// Compose JSON
-			const table = [this.database.name, this.name];
-			const json = await this.resolveWhereClause({ fields, from: [table], ...clauses });
+			const { explicitPaths: __, ...$clauses } = { fields: '*', ...clauses, from: [[this.database.name, this.name]] };
+			$clauses.fields = await this.buildShapePath($clauses.fields, 'fields', clauses.explicitPaths);
+			const json = await this.resolveWhereClause($clauses);
 			const query = this.createQuery(json, SelectStatement, 'table.select()');
 			buildCallback?.(query);
 			const result = await this.database.client.execQuery(query);
@@ -47,26 +45,20 @@ export class AbstractTable {
 	}
 
 	async insert(...args) {
-		let isUpsert, payload, columns = [], valueMatrix = [], clauses, buildCallback, singular = false;
+		let isUpsert, singular = false;
 		if (typeof args[0] === 'boolean') isUpsert = args.shift();
+		const clauses = (typeof args[0] !== 'function' && {...args.shift()}) || {};
+		const buildCallback = (typeof args[0] === 'function' && args.shift()) || null;
 		return this.database.client.withSchema(async () => {
-			if (Array.isArray(args[0]) && Array.isArray(args[1])) {
-				[columns, payload] = args.splice(0, 2);
-				valueMatrix = payload.map((values) => ({ row: this.buildValueMatrix(values, columns) }));
-				clauses = (typeof args[0] !== 'function' && args.shift()) || {};
-				buildCallback = (typeof args[0] === 'function' && args.shift()) || null;
-			} else {
-				const _singular = _isObject(args[0]); // Must come before any args.shift()
-				payload = [].concat(args.shift());
-				[columns, valueMatrix] = await this.resolvePayload(payload);
-				clauses = (typeof args[0] !== 'function' && args.shift()) || {};
-				buildCallback = (typeof args[0] === 'function' && args.shift()) || null;
-				singular = _singular && clauses.returning;
+			if (clauses.columns) {
+				clauses.columns = await this.buildShapePath(clauses.columns, 'columns', clauses.explicitPaths);
+				clauses.values = clauses.values.map((row) => ({ row: this.buildValueMatrix(row, clauses.columns, 'value-matrix') }));
+			} else if (clauses.data) {
+				singular = _isObject(clauses.data) && clauses.returning;
+				[clauses.columns, clauses.values] = await this.resolvePayload([].concat(clauses.data), 'payload', clauses.explicitPaths);
 			}
-			// Compose JSON
-			const table = [this.database.name, this.name];
-			const json = { into: [table], columns, values: valueMatrix, ...clauses };
-			const query = this.createQuery(json, isUpsert ? UpsertStatement : InsertStatement, `table.${isUpsert ? 'upsert' : 'insert'}()`);
+			const { data: _, explicitPaths: __, ...$clauses } = { ...clauses, into: [[this.database.name, this.name]] };
+			const query = this.createQuery($clauses, isUpsert ? UpsertStatement : InsertStatement, `table.${isUpsert ? 'upsert' : 'insert'}()`);
 			buildCallback?.(query);
 			const result = await this.database.client.execQuery(query);
 			if (singular) return result[0];
@@ -76,18 +68,17 @@ export class AbstractTable {
 
 	async upsert(...args) { return await this.insert(true, ...args); }
 
-	async update(payload, ...args) {
-		if (!args.length) throw new Error(`The "clauses" parameter cannot be ommitted.`);
+	async update(...args) {
 		const clauses = (typeof args[0] !== 'function' && args.shift()) || {};
 		const buildCallback = (typeof args[0] === 'function' && args.shift()) || null;
 		const singular = ['string', 'number'].includes(typeof clauses.where) && clauses.returning;
 		return this.database.client.withSchema(async () => {
-			// Compose JSON
-			const table = [this.database.name, this.name];
-			const [columns, [{ row: values }]] = await this.resolvePayload(payload);
-			const json = await this.resolveWhereClause({ table: [table], set: columns.map((c, i) => [c, values[i]]), ...clauses });
-			const query = this.createQuery(json, UpdateStatement, `table.update()`);
+			const payload = [clauses.set || clauses.data];
+			const [columns, [{ row: values }]] = await this.resolvePayload(payload, clauses.set ? 'payload-array' : 'payload', clauses.explicitPaths);
+			const { data: _, explicitPaths: __, ...$clauses } = { ...(await this.resolveWhereClause(clauses)), table: [[this.database.name, this.name]], set: columns.map((c, i) => [c, values[i]]) };
+			const query = this.createQuery($clauses, UpdateStatement, `table.update()`);
 			buildCallback?.(query);
+			console.log('>>>>>>>' + query);
 			const result = await this.database.client.execQuery(query, {inspect: true });
 			if (singular) return result[0];
 			return result;
@@ -96,14 +87,13 @@ export class AbstractTable {
 
 	async delete(...args) {
 		if (!args.length) throw new Error(`The "clauses" parameter cannot be ommitted.`);
-		const clauses = (typeof args[0] !== 'function' && args.shift()) || {};
+		const clauses = (typeof args[0] !== 'function' && {...args.shift()}) || {};
 		const buildCallback = (typeof args[0] === 'function' && args.shift()) || null;
 		const singular = ['string', 'number'].includes(typeof clauses.where) && clauses.returning;
 		return this.database.client.withSchema(async () => {
 			// Compose JSON
-			const table = [this.database.name, this.name];
-			const json = await this.resolveWhereClause({ from: [table], ...clauses });
-			const query = this.createQuery(json, DeleteStatement, `table.delete()`);
+			const $clauses = { ...(await this.resolveWhereClause(clauses)), from: [[this.database.name, this.name]] };
+			const query = this.createQuery($clauses, DeleteStatement, `table.delete()`);
 			buildCallback?.(query);
 			const result = await this.database.client.execQuery(query);
 			if (singular) return result[0];
@@ -129,40 +119,95 @@ export class AbstractTable {
 		return clauses;
 	}
 
-	async resolvePayload(payload) {
-		const $$payload = [].concat(payload);
-		if (!_isObject($$payload[0])) throw new TypeError(`Invalid payload format.`);
-		const columns = await this.buildShapePath($$payload[0], true);
-		const valueMatrix = $$payload.map((data) => ({ row: this.buildValueMatrix(data, columns, true) }));
+	async resolvePayload(payload, payloadType, explicitPaths = false) {
+		if (payloadType === 'payload-array') {
+			if (!Array.isArray(payload) || !Array.isArray(payload[0])) throw new TypeError(`Invalid payload format.`);
+		} else {
+			if (!_isObject(payload[0])) throw new TypeError(`Invalid payload format.`);
+		}
+		const columns = await this.buildShapePath(payload[0], payloadType, explicitPaths);
+		const valueMatrix = payload.map((data) => ({ row: this.buildValueMatrix(data, columns, payloadType) }));
 		return [columns, valueMatrix];
 	}
 
-	async buildShapePath(data, asColumns = false) {
-		const columns = [];
+	async buildShapePath(shape, shapeType, explicitPaths) {
 		const tblSchema = await this.schema();
 		if (!tblSchema) throw new Error(`Table ${this.ident} does not exist.`);
-		for (const key in data) {
+		const dimensionType = shapeType === 'fields' ? 'fields' : 'columns';
+		const isPayload = ['payload', 'payload-array'].includes(shapeType);
+		const tbl2BuildShapePath = async (tbl2, shape, fkName = null) => {
+			if (fkName) {
+				const fk = (await tbl2.schema())?.column(fkName)?.foreignKey();
+				if (!fk?.targetTable().identifiesAs(this.ident)) throw new Error(`${tbl2.ident}.${fkName} isn't a reference to ${this.ident}`);
+				return await tbl2.buildShapePath(shape, shapeType, explicitPaths);
+			}
+			const fks = (await tbl2.schema()).foreignKeys().filter((fk) => fk.targetTable().identifiesAs(this.ident));
+			if (fks.length !== 1) throw new Error(`${fks.length} correletions found between ${this.ident} and ${tbl2.ident}`);
+			return [fks[0].columns()[0], await tbl2.buildShapePath(shape, shapeType, explicitPaths)];
+		};
+		const resolveKey = async (key, value) => {
 			const colSchema = tblSchema.column(key);
 			const fk = colSchema?.foreignKey();
-			const dimensionType = asColumns ? 'columns' : 'fields';
-			if (fk && _isObject(data[key])) {
-				const targetTable = this.database.client.database(fk.targetTable().prefix(true).name()).table(fk.targetTable().name());
-				columns.push({ rpath: [key, { [dimensionType]: await targetTable.buildShapePath(data[key], asColumns) }] });
-			} else if (!colSchema) {
-				if (!Array.isArray(data[key])) throw new Error(`Unknown column: ${key}`);
-				const foreignTable = this.database.table(key);
-				const fks = (await foreignTable.schema()).foreignKeys().filter((fk) => fk.targetTable().identifiesAs(this.ident));
-				if (fks.length !== 1) throw new Error(`${fks.length} correletions found between ${this.ident} and ${foreignTable.ident}`);
-				const dimension = { [dimensionType]: await foreignTable.buildShapePath(data[key][0], asColumns) };
-				columns.push({ rpath: [{ lpath: [fks[0].columns()[0], [this.database.name, key]] }, asColumns ? dimension : { expr: dimension }] });
-			} else {
-				columns.push(key);
+			if (fk && !isPayload && typeof value === 'string') {
+				return { rpath: [key, value] };
 			}
+			if (fk && (_isObject(value) || Array.isArray(value))) {
+				const targetTable = this.database.client.database(fk.targetTable().prefix(true).name()).table(fk.targetTable().name());
+				return { rpath: [key, { [dimensionType]: await targetTable.buildShapePath(value, shapeType, explicitPaths) }] };
+			}
+			if (!colSchema) {
+				if (isPayload) {
+					if (!Array.isArray(value)) throw new Error(`Unknown column: ${key}`);
+				} else if (Array.isArray(value) && (value.some((e) => typeof e === 'string') || value.length > 1)) {
+					value = [value]; // { books: ['key1', 'key2'] } -> { books: [['key1', 'key2']] }, { books: [{ key1: true }, { key2: true }] } -> { books: [[{ key1: true }, { key2: true }]] }
+				} else if (_isObject(value)) {
+					value = [value]; // { books: { key1: true, key2: true } } -> { books: [{ key1: true, key2: true }] }
+				} else if (typeof value === 'string') {
+					value = [[value]]; // { books: 'title' } -> { books: [['title']] }
+				}
+				const tbl2 = this.database.table(key);
+				const [fkName, columns] = await tbl2BuildShapePath(tbl2, value[0]);
+				const dimension = { [dimensionType]: columns };
+				return { rpath: [{ lpath: [fkName, [this.database.name, key]] }, shapeType === 'fields' ? { expr: dimension }/* aggr */ : dimension] };
+			}
+			return key;
+		};
+		const columns = [];
+		if (_isObject(shape)) {
+			for (const key in shape) {
+				if (!isPayload && shape[key] === false) continue;
+				columns.push(await resolveKey(key, shape[key]));
+			}
+			return columns;
+		}
+		for (const key of shape) {
+			if (shapeType === 'payload-array') {
+				if (_isObject(key[0])) {
+					if (!explicitPaths || !key[0].lpath) throw new Error(`Invalid key spec: ${JSON.stringify(key[0])}`);
+					const tableSpec = [].concat(key[0].lpath[1]);
+					const db2 = tableSpec.length === 2 ? this.database.client.database(tableSpec.shift()) : this.database;
+					const tbl2 = db2.table(tableSpec.shift());
+					columns.push({ rpath: [key[0], { columns: await tbl2BuildShapePath(tbl2, key[1][0], key[0].lpath[0]) }] });
+				} else {
+					columns.push(await resolveKey(key[0], key[1]));
+				}
+			} else if (_isObject(key)) {
+				if (explicitPaths) {
+					if (!key.rpath) throw new Error(`Invalid key spec: ${JSON.stringify(key)}`);
+					columns.push(key);
+				} else columns.push(await resolveKey(Object.keys(key)[0], Object.values(key)[0]));
+			} else columns.push(key);
 		}
 		return columns;
 	}
 
-	buildValueMatrix(data, columns, asMap = false) {
+	buildValueMatrix(data, columns, payloadType) {
+		const getValue = (from, key, i) => {
+			if (payloadType === 'payload') return from[key];
+			if (payloadType === 'payload-array') return from[i][1];
+			return from[i]; // 'value-matrix'
+		};
+		const asMap = payloadType === 'payload';
 		if ((asMap && !_isObject(data)) || (!asMap && !Array.isArray(data))) throw new Error(`Irregular payload structure: expected an object of shape ${JSON.stringify(columns)} but got: ${data}`);
 		const valueMatrix = [], colsLength = columns.length;
 		for (let i = 0; i < colsLength; i ++) {
@@ -172,15 +217,15 @@ export class AbstractTable {
 				const columns = column.rpath[1].columns || [column.rpath[1]];
 				if (key.lpath) {
 					const [, [, table]] = key.lpath;
-					const values = asMap ? data[table] : data[i];
+					const values = getValue(data, table, i);
 					if (!Array.isArray(values)) throw new Error(`Irregular payload structure: expected an array of ${table} of shape ${JSON.stringify(columns)} but got: ${values}`);
-					valueMatrix.push({ values: values.map((data) => ({ row: this.buildValueMatrix(data, columns, asMap) })) });
+					valueMatrix.push({ values: values.map((data) => ({ row: this.buildValueMatrix(data, columns, payloadType) })) });
 				} else {
-					const row = asMap ? data[key] : data[i];
-					valueMatrix.push({ row: this.buildValueMatrix(row, columns, asMap) });
+					const row = getValue(data, key, i);
+					valueMatrix.push({ row: this.buildValueMatrix(row, columns, payloadType) });
 				}
 			} else {
-				const value = asMap ? data[column] : data[i];
+				const value = getValue(data, column, i);
 				valueMatrix.push(toValue(value));
 			}
 		}
