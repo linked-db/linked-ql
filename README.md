@@ -472,7 +472,7 @@ All `client` instances above implement the same [interface](https://github.com/l
 
 > [!IMPORTANT]
 >
-> Note that this a fast-evolving project and a few things around here might change again before we hit `v1`!
+> Note that this a fast-evolving project and a few things around here might change again before we hit `v1`! Note too that support for MySQL isn't yet at par with that of PostgreSQL.
 
 ## Issues
 
