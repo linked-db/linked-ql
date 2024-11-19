@@ -35,7 +35,7 @@
     "test:coverage": "c8 --reporter=text-lcov npm run test | coveralls",
     "build": "esbuild main=src/browser-entry.js sql=src/api/sql/SQLClient.js --bundle --minify --sourcemap --outdir=dist",
     "preversion": "npm run test && npm run build && git add -A dist",
-    "postversion": "npm publish --tag next",
+    "postversion": "npm publish",
     "postpublish": "git push && git push --tags"
   },
   "dependencies": {
