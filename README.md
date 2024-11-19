@@ -169,24 +169,24 @@ const result = await client.query(
 
 ```js
 // (b): Object-Based Query Builder
-const result = await client.database('public').table('users').select(
-    [ 'name', 'email' ],
-    { where: { some: [
+const result = await client.database('public').table('users').select({
+    fields: [ 'name', 'email' ],
+    where: { some: [
         { eq: ['role', { binding: 'admin' }] },
         { eq: ['role', { binding: 'contributor' }] }
-    ] } }
-);
+    ] }
+});
 ```
 
 ```js
 // (c): Function-Based Query Builder
-const result = await client.database('public').table('users').select(
-    [ 'name', 'email' ],
-    { where: (q) => q.some(
+const result = await client.database('public').table('users').select({
+    fields: [ 'name', 'email' ],
+    where: (q) => q.some(
         (r) => r.eq('role', (s) => s.binding('admin')),
         (r) => r.eq('role', (s) => s.binding('contributor')),
-    ) }
-);
+    )
+});
 ```
 
 </details>
@@ -235,19 +235,14 @@ const result = await client.query(
 <tr><td>
 <details _name="features"><summary>Automatic schema versioning</summary>
 
-While the typical database has no concept of versioning, Linked QL comes with it to your database, and along with that, a powerful rollback (and rollforward) mechanism! On each DDL operation you run against your database (`CREATE`, `ALTER`, `DROP`), you get a savepoint automatically created for you and a seamless rollback path you can take anytime! *(See ➞ [Automatic Schema Versioning](https://github.com/linked-db/linked-ql/wiki/Automatic-Schema-Versioning))*
+While the typical database has no concept of versioning, Linked QL comes with it to your database, and along with it a powerful rollback (and rollforward) mechanism! On each DDL operation you make against your database (`CREATE`, `ALTER`, `DROP`), you get a savepoint automatically created for you and a seamless rollback path you can take anytime! *(See ➞ [Automatic Schema Versioning](https://github.com/linked-db/linked-ql/wiki/Automatic-Schema-Versioning))*
 
 ##### └ *Preview:*
 
 *Perform a DDL operation and obtain a reference to the automatically created savepoint:*
 
 ```js
-// (a): Using the database.savepoint() API at any time
-const savepoint = await client.database('public').savepoint();
-```
-
-```js
-// (b): Using the "RETURNING" clause at DDL execution time
+// (a): Using the "RETURNING" clause at DDL execution time
 const savepoint = await client.query(
     `CREATE TABLE public.users (
         id int,
@@ -258,7 +253,12 @@ const savepoint = await client.query(
 );
 ```
 
-*See what you've got there:*
+```js
+// (b): Or using the database.savepoint() API at any time
+const savepoint = await client.database('public').savepoint();
+```
+
+*Either way, see what you got there:*
 
 ```js
 // (a): Some important details about the referenced point in time
@@ -448,7 +448,7 @@ const client = new ODBClient;
 
 <br>
 
-All `client` instances above implement the same [interface](https://github.com/linked-db/linked-ql/wiki/API)! The primary query interface therein is the [`client.query()`](https://github.com/linked-db/linked-ql/wiki/clientquery) method. For a quick list of examples, see [here](https://github.com/linked-db/linked-ql/wiki/Examples).
+All `client` instances above implement the same [interface](https://github.com/linked-db/linked-ql/wiki/API)! The primary query interface therein is the [`client.query()`](https://github.com/linked-db/linked-ql/wiki/clientquery) method. For a quick list of examples, see [here](https://github.com/linked-db/linked-ql/wiki/LANG).
 
 </div>
 
