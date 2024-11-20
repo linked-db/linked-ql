@@ -20,7 +20,7 @@ _**Get insanely productive** with SQL!_
 
 <br>
 
-> Think a better replacement for your ORMs and migration tools (combined)! Linked QL is a next generation database abstraction library that helps you cut through the complexities with ease!
+> Think a better replacement for your ORMs and migration tools (combined)! Linked QL is a next generation database query client and migration wizard that helps you cut through the complexities with ease!
 
 <div align="center">
 
