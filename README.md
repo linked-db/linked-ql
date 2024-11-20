@@ -2,7 +2,7 @@
     
 # Linked QL
 
-_**Get insanely productive with SQL!** Cut through the inherent complexities with ease!_
+_**Get insanely productive** with SQL!_
 
 [![npm version][npm-version-src]][npm-version-href][![npm downloads][npm-downloads-src]][npm-downloads-href]
 [![bundle][bundle-src]][bundle-href]
@@ -20,14 +20,13 @@ _**Get insanely productive with SQL!** Cut through the inherent complexities wit
 
 <br>
 
-> Think a next generation database tool that makes your database interactions and schema management <ins>a breeze</ins>. Linked QL uniquely overcomes known limitations in the typical database system and the SQL language itself to get you <ins>insanely productive</ins>!
+> Think a better replacement for your ORMs and migration tools (combined)! Linked QL is a next generation database abstraction library that helps you cut through the complexities with ease!
 
 <div align="center">
 
 [Follow](https://x.com/LinkedQL) • [Sponsor](https://github.com/sponsors/ox-harris)
 
-Linked QL is a small JS-based database abstraction library that is usable over your DB of choice—from the server-side database system (postgres, MySQL and mariadb) to the client-side [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API)!
-
+Linked QL is JS-based and database-agnostic—supporting PostgreSQL, MySQL and mariadb (on the backend), and [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API) (in the browser)!
 
 </div>
 
@@ -56,7 +55,7 @@ _What we're doing differently?_
 
 Not an ORM like Prisma or Drizzle, and yet, not an ordinary database query client!
 
-Here's what we're building:
+Take the tour:
 
 </div>
 
