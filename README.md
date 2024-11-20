@@ -26,7 +26,7 @@ _**Get insanely productive** with SQL!_
 
 [Follow](https://x.com/LinkedQL) • [Sponsor](https://github.com/sponsors/ox-harris)
 
-Linked QL is JS-based and database-agnostic—supporting PostgreSQL, MySQL and mariadb (on the backend), and [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API) (in the browser)!
+Try a modern approach to database abstraction! Linked QL is JS-based and database-agnostic—supporting PostgreSQL, MySQL and mariadb (on the backend), and [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API) (in the browser)!
 
 </div>
 
@@ -55,7 +55,7 @@ _What we're doing differently?_
 
 Not an ORM like Prisma or Drizzle, and yet, not an ordinary database query client!
 
-Take the tour:
+Here's a breif tour:
 
 </div>
 
