@@ -18,7 +18,7 @@ export class AbstractDatabase {
 
     get params() { return Object.assign({}, this.client.params, this.$.params); }
 
-    async savepoint(params = {}) { return (await this.client.getSavepoints({ ...params, selector: this.name }))[0]; }
+    async savepoint(params = {}) { return (await this.client.getSavepoints({ ...params, forState: true, selector: this.name }))[0]; }
 
     async version() { return (await this.savepoint())?.versionTag() || 0; }
 
