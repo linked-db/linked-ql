@@ -20,13 +20,11 @@ _**Get insanely productive** with SQL!_
 
 <br>
 
-> Think a better replacement for your ORMs and migration tools (combined)!
-
 <div align="center">
 
 [Follow](https://x.com/LinkedQL) • [Sponsor](https://github.com/sponsors/ox-harris)
 
-Linked QL is a next generation databaase query client and migration wizard that helps you cut through the complexities with ease! `v0.3` is our latest iteration yet!
+Linked QL is a next generation databaase query client and migration wizard that helps you cut through the complexities with ease! With our latest iteration—`v0.3`—think a better replacement for your ORMs and migration tools (combined)!
 
 Linked QL is JS-based and database-agnostic—supporting PostgreSQL, MySQL and mariadb (on the backend), and [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API) (in the browser)!
 
@@ -473,7 +471,7 @@ All `client` instances above implement the same [interface](https://github.com/l
 
 > [!IMPORTANT]
 >
-> Note that this a fast-evolving project and a few things around here might change again before we hit `v1`! Note too that support for MySQL isn't yet at par with that of PostgreSQL.
+> Note that this a fast-evolving project and a few things around here might change before `v1`! Note too that support for MySQL isn't yet at par with that of PostgreSQL.
 
 ## Issues
 
