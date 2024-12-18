@@ -332,7 +332,7 @@ export class AbstractClient {
             SELECT ${utils.jsonBuildObject(fieldsStd.reduce(($fields, f) => $fields.concat(`'${f}'`, f), []))} AS cascade
             FROM ${tableIdent}
             WHERE master_savepoint = main_savepoint.id
-        )) AS cascades`;
+        ) AS cascade_tbl_alias_unused_but_for_compat) AS cascades`;
         const normalizeJson = (savepointJson) => ({ ...savepointJson, version_tags: savepointJson.version_tags.filter(c => c !== 0).sort(), cascades: savepointJson.cascades || [] });
         if (params.forHistories) {
             return (await this.query(`

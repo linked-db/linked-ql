@@ -8,9 +8,9 @@ export class Assertion extends AbstractOperator2Expr {
 	static get RHS_TYPES() { return Exprs; }
 	static get OPERATORS() {
 		return [
-			{ test: '<(?!~)' },
-			{ test: '(?<![~-])>', backtest: '^(?!.*[~-]$)'/*For Lexer*/ },
-			{ test: '(?<!<)(?:\\!)?~(?:\\*)?(?!>)', backtest: '^(?!.*<$)'/*For Lexer*/ },
+			{ test: '<(?!~)' }, // Operator: "<"; Not: "<~"
+			{ test: '(?<![~\\->#])>', backtest: '^(?!.*[~\\->#]$)'/*For Lexer*/ }, // Operator: ">"; Not: "~>", "->", "->>", "#>", "#>>"
+			{ test: '(?<!<)(?:\\!)?~(?:\\*)?(?!>)', backtest: '^(?!.*<$)'/*For Lexer*/ }, // Operator: "~", "~*", "!~", "!~*"; Not: "~>", "<~"
 			{ test: '(' + '(?:(?:\\s+)?(=|<=|>=|!=|<>)(?:\\s+)?)' + '|' + 
 				'(?:\\s+IS\\s+(?:NOT\\s+)?(TRUE|FALSE|NULL|UNKNOWN|DISTINCT\\s+FROM\\s+))' + '|' + '(?:\\s+(?:' + 'ANY|ALL' + '|' + '(?:NOT\\s+)?(?:IN|LIKE|EXISTS|SIMILAR\\s+TO|BETWEEN(?:\\s+SYMMETRIC)?)' + 
 			')\\s+)' + ')' },
@@ -60,8 +60,8 @@ export class Assertion extends AbstractOperator2Expr {
 		const { tokens: [lhs, rhs = ''], matches: [operator] } = Lexer.lex(expr, this.OPERATORS, { useRegex: 'i' });
 		if (!operator) return;
 		const instance = (new this(context)).operator(operator.trim().replace(/\s+/, ' ').toUpperCase());
-		instance.lhs(parseCallback(instance, lhs));
-		if (rhs) instance.rhs(parseCallback(instance, rhs));
+		instance.lhs(parseCallback(instance, lhs.trim()));
+		if (rhs.trim()) instance.rhs(parseCallback(instance, rhs.trim()));
 		return instance;
 	}
 }
