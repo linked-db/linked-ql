@@ -9,6 +9,7 @@ export class Parser {
 
 	static parse(context, expr, grammar, params = {}) {
 		if (!expr?.length) return;
+		if (!context.NODE_NAME) expr = expr.trim();
 		const $grammar = grammar?.length ? grammar : this.grammar;
 		for (const Node of $grammar) {
 			const node = this.parseOne(context, expr, Node, params);

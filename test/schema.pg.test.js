@@ -19,7 +19,7 @@ describe(`Postgres Create Table & Alter Table statements`, function() {
                 CONSTRAINT "fk .. "" .. 2" FOREIGN    KEY (ref2) REFERENCES pretest2 (id),
                 UNIQUE (rand2,rand)
             )`;
-            const tblCreateInstance1 = await Parser.parse({ name: 'some_database', params: { inputDialect: 'postgres', dialect: 'mysql' } }, createTableSql, null, { inspect: false });
+            const tblCreateInstance1 = await Parser.parse({ name: 'some_database', params: { inputDialect: 'postgres', dialect: 'mysql' } }, createTableSql, null, { inspect: true });
             const tblCreateInstance2 = CreateTable.fromJSON(tblCreateInstance1.CONTEXT, tblCreateInstance1.toJSON());
             const sql1 = tblCreateInstance1 + '';
             const sql2 = tblCreateInstance2 + '';

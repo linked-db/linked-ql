@@ -225,7 +225,7 @@ export class ForeignKeyConstraint extends AbstractColumnsMixin(AbstractLevel2Con
 			instance = new this(context);
 			const [ , columnsExpr, ...rest ] = Lexer.split($expr, []);
 			instance.columns(this.parseColumns(context, columnsExpr));
-			$expr = rest.join('').trim();
+			$expr = rest.join('').trim().match(/^REFERENCES\s+([\s\S]+)$/i)?.[1];
 		}
         const [ table_maybeQualified, cols, opts = '' ] = Lexer.split($expr, []);
         const targetTable = parseCallback(instance, table_maybeQualified.trim(), [GlobalTableRef]);

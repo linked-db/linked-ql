@@ -78,7 +78,7 @@ export class TableSchema extends AbstractPrefixableNameableNode {
 		}
 		this.#constraints = this.$castInputs([arg1], this.constructor.CONSTRAINT_TYPES, this.#constraints, 'constraints', null, (instance) => {
 			const existing = this.#constraints.find((cons) => cons.identifiesAs(instance.name()));
-			if (!existing && instance.columns().length === 1) this.column(instance.columns()[0]).constraint(instance.TYPE, false);
+			if (!existing && instance.columns().length === 1) this.column(instance.columns()[0])?.constraint(instance.TYPE, false);
 			return existing;
 		});
 		return this;
