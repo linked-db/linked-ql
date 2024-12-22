@@ -12,7 +12,7 @@ export const AbstractStatementNode = Class => class extends Class {
 		if (['CONNECTED', 'DISCONNECTED'].includes(eventType) && eventSource.isSugar) {
 			if (eventType === 'DISCONNECTED') this.#querySugars.delete(eventSource);
 			else this.#querySugars.add(eventSource);
-			return; // Don't bubble beyond this point. think dimensional queries
+			// return; // Don't bubble beyond this point. think dimensional queries
 		}
 		return super.$bubble(eventType, eventSource);
 	}

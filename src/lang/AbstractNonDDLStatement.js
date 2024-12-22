@@ -21,14 +21,16 @@ export const AbstractNonDDLStatement = Class => class extends AbstractStatementN
 		if (['CONNECTED', 'DISCONNECTED'].includes(eventType) && [Binding].some(x => eventSource instanceof x)) {
 			if (eventType === 'DISCONNECTED') this.#queryBindings.delete(eventSource);
 			else this.#queryBindings.add(eventSource);
-			return; // Don't bubble beyond this point. think dimensional queries
+			// return; Don't bubble beyond this point. think dimensional queries
 		}
 		return super.$bubble(eventType, eventSource);
 	}
 
 	$capture(requestName, requestSource) {
 		const result = super.$capture(requestName, requestSource);
-		if (requestName === 'ROOT_SCHEMA' && !result) return RootSchema.fromJSON(this, []);
+		if (requestName === 'ROOT_SCHEMA' && !result) {
+			return RootSchema.fromJSON(this, []);
+		}
 		return result;
 	}
 

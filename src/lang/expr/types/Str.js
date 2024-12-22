@@ -32,6 +32,7 @@ export class Str extends AbstractNode {
 	}
 
 	static fromJSON(context, json, callback = null) {
+		if (typeof json === 'string' && !json.trim()) json = { value: json }; // Empty string or whitespaces
 		if (typeof json?.value !== 'string' || Object.keys(json).filter((k) => !['nodeName', 'value', 'quote'].includes(k)).length || (json.quote && !['"', "'"].includes(json.quote))) return;
 		return super.fromJSON(context, json, (instance) => {
 			instance.value(json.value).quote(json.quote);

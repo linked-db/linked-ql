@@ -168,7 +168,7 @@ export class AbstractClient {
         if (!(query instanceof AbstractNode)) {
             throw new Error(`execQuery() called with invalid arguments.`);
         }
-        const willNeedSchema = query.statementType === 'DDL' || query.hasPaths;
+        const willNeedSchema = query.statementType === 'DDL' || query.hasPaths || query.isSugar/*upsert*/;
         return await this.withSchema(willNeedSchema, async (rootSchema) => {
             if (query.statementType === 'DDL') {
                 return await this.execDDL(query, rootSchema, params);
@@ -183,7 +183,7 @@ export class AbstractClient {
                 await vars.preHook();
             }
             // All non-DDL statements support bindings
-            const queryBindings = query.normalizeBindings?.(true).map(b => b.value()) || [];
+            const queryBindings = query.normalizeBindings?.(true).map((b) => b.value()) || [];
             const $queryBindings = queryBindings.map(value => Array.isArray(value) || typeof value === 'object' && value ? JSON.stringify(value) : value);
             // Visualize? Now!
             if (params.inspect) console.log({ guery: query.stringify(), values: $queryBindings });

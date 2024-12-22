@@ -1,6 +1,7 @@
 import { _unwrap, _wrapped } from '@webqit/util/str/index.js';
 import { ColumnRef } from '../../../expr/refs/ColumnRef.js';
 import { Exprs } from '../../../expr/grammar.js';
+import { Literal } from '../../../expr/Literal.js';
 
 export const AbstractExprMixin = Class => class extends Class {
 
@@ -16,15 +17,21 @@ export const AbstractExprMixin = Class => class extends Class {
 		return super.$bubble(eventType, eventSource);
 	}
 
-	expr(expr) {
-		if (!arguments.length) return this.#expr;
+	expr(value) {
+        if (!arguments.length || typeof value === 'boolean') {
+			let expr = this.#expr;
+			if (!expr && value === true && this.TYPE === 'DEFAULT') {
+                expr = Literal.fromJSON(this, { value: null });
+            }
+            return expr;
+        }
 		if (this.$diffTagHydrate()) {
-            this.#$expr = this.$castInputs([expr], Exprs, this.#$expr, '$expr');
-		} else this.#expr = this.$castInputs([expr], Exprs, this.#expr, 'expr');
+            this.#$expr = this.$castInputs([value], Exprs, this.#$expr, '$expr');
+		} else this.#expr = this.$castInputs([value], Exprs, this.#expr, 'expr');
 		return this;
     }
 
-	$expr() { return this.#$expr ?? this.#expr }
+	$expr(...args) { return this.#$expr ?? this.expr(...args) }
 
     columns() {
         if (arguments.length) throw new Error(`The "columns" attributes for CHECK constraints is implicit.`);
@@ -42,7 +49,7 @@ export const AbstractExprMixin = Class => class extends Class {
     generateDiff(nodeB, options) {
 		return this.diffMergeJsons({
             ...super.generateDiff(nodeB, options),
-			expr: this.$expr()?.jsonfy(options),
+			expr: this.$expr(!!nodeB.$expr())?.jsonfy(options),
 		}, {
 			expr: nodeB.$expr()?.jsonfy(options),
 		}, options);

@@ -66,7 +66,8 @@ export class AbstractNode {
 		const fromInstanceOrJson = arg => {
 			let instance = Types.reduce((prev, Type) => prev || (arg instanceof Type && arg), null);
 			if (instance) return instance;
-			return Types.reduce((prev, Type) => prev || Type.fromJSON(this, arg), null);
+			const contextNode = ['dependencies', 'dependents'].includes(slotName) ? this.baseClient : this;
+			return Types.reduce((prev, Type) => prev || Type.fromJSON(contextNode, arg), null);
 		};
 		const createFactoryMethodHandler = ({ returnPairs = false, autoThrow = false }) => {
 			const fromFactoryMethod = (methodName, ...args) => Types.reduce((prev, Type) => prev || (() => {

@@ -45,7 +45,7 @@ export class UpdateStatement extends AbstractPayloadStatement(
 	jsonfy(options = {}, jsonIn = {}) {
 		return super.jsonfy(options, () => ({
 			tables: this.#tables.map((t) => t.jsonfy(options)),
-			...(this.#postgresFromList.length ? { postgresFromList: this.#postgresFromList.map(t => t.jsonfy(options)) } : {}),
+			...(this.#postgresFromList.length ? { postgresFromList: this.#postgresFromList.map((t) => t.jsonfy(options)) } : {}),
 			...jsonIn
 		}));
 	}

@@ -67,7 +67,7 @@ export class SQLClient extends AbstractClient {
     }
 
     async execDDL(query, rootSchema, params = {}) {
-        return super.execDDL(async (query) => {
+        return await super.execDDL(async (query) => {
             return await this.driver.query(query.toString()); 
         }, ...arguments);
     }

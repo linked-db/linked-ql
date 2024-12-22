@@ -100,20 +100,26 @@ export class ColumnSchema extends AbstractPrefixableNameableNode {
     renderCDL(columnCDL, options) {
         let json = this.jsonfy(options);
         for (const cd of columnCDL) {
+            let argumentJson, argumentJsonNew;
+            if (['ADD', 'SET'].includes(cd.CLAUSE)) {
+                argumentJson = cd.argument().jsonfy(options);
+                argumentJsonNew = { ...argumentJson, ...(options.diff !== false ? { status: 'new' } : {}) };
+            }
             if (cd.CLAUSE === 'ADD') {
                 if (cd.$KIND === 'IDENTITY') {
                     if (json.identity) throw new Error(`IDENTITY constraint already exists.`);
-                    json = { ...json, identity: { ...cd.argument().jsonfy(options), ...(options.diff !== false ? { status: 'new' } : {}) } };
+                    json = { ...json, identity: argumentJsonNew };
                 }
             } else if (cd.CLAUSE === 'SET') {
                 if (cd.KIND === 'DATA_TYPE') {
-                    json = this.diffMergeJsons(json, { type: cd.argument().jsonfy(options) });
+                    json = this.diffMergeJsons(json, { type: argumentJson });
                 } else if (cd.$KIND === 'IDENTITY') {
-                    json = { ...json, identity: this.diffMergeJsons(json.identity || {}, { always: cd.argument().always() }) };
+                    if (!json.identity) throw new Error(`IDENTITY constraint not exists.`);
+                    json = { ...json, identity: this.diffMergeJsons(json.identity, { always: argumentJson.always }, options) };
                 } else if (cd.$KIND === 'EXPRESSION') {
-                    json = { ...json, expression: this.diffMergeJsons(json.expression || { stored: true }, { expr: cd.argument().expr().jsonfy(options) }) };
+                    json = { ...json, expression: json.expression ? this.diffMergeJsons(json.expression, { expr: argumentJson.expr }, options) : argumentJsonNew };
                 } else if (cd.$KIND === 'DEFAULT') {
-                    json = { ...json, default: this.diffMergeJsons(json.default || {}, { expr: cd.argument().expr().jsonfy(options) }) };
+                    json = { ...json, default: json.default ? this.diffMergeJsons(json.default, { expr: argumentJson.expr }, options) : argumentJsonNew };
                 }
             } else if (cd.CLAUSE === 'DROP') {
                 if (!json[cd.$KIND.toLowerCase()]) throw new Error(`${cd.$KIND} constraint does not exist.`);
@@ -132,7 +138,7 @@ export class ColumnSchema extends AbstractPrefixableNameableNode {
             if (cons.constraintLevel === 2) continue;
             if (cons.status() === 'obsolete') {
                 columnCDL.add('DROP', 'CONSTRAINT', cons.TYPE);
-            } else if (cons.status() === 'new') {
+            } else if (cons.status() === 'new' && cons.TYPE === 'IDENTITY') {
                 columnCDL.add('ADD', 'CONSTRAINT', cons.TYPE, (cd) => cd.argument(cons.jsonfy({ ...options, diff: false })));
             } else {
                 const dirtyCheck = cons.dirtyCheck();
