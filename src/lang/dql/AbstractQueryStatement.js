@@ -180,6 +180,10 @@ export const AbstractQueryStatement = Class => class extends Class {
 					const colRefRewrite = `${colRefOriginal}:${rand}`;
 					if (!pgGeneratedFromEntries.has(tblAliasOriginal)) {
 						pgGeneratedFromEntries.set(tblAliasOriginal, {
+							tblAliasOriginal,
+							tblAliasRewrite,
+							colRefOriginal,
+							colRefRewrite,
 							table: { expr: tblRefOriginal },
 							alias: tblAliasRewrite,
 							fields: []
@@ -204,12 +208,20 @@ export const AbstractQueryStatement = Class => class extends Class {
 			}
 			if (pgGeneratedFromEntries.size) {
 				if (!json.postgresFromList) json.postgresFromList = [];
+				if (!json.whereClause) json.whereClause = { nodeName: 'WHERE_CLAUSE', entries: [] };
 				for (const [, derivation] of pgGeneratedFromEntries) {
 					json.postgresFromList.push(
 						Table.fromJSON(this, {
 							expr: (q) => q.select(...derivation.fields).from(derivation.table),
 							alias: derivation.alias
 						}).jsonfy(options),
+					);
+					json.whereClause.entries.unshift(
+						Assertion.fromJSON(this, {
+							operator: '=',
+							lhs: [derivation.tblAliasOriginal, derivation.colRefOriginal],
+							rhs: [derivation.tblAliasRewrite, derivation.colRefRewrite]
+						})
 					);
 				}
 			}
