@@ -302,7 +302,7 @@ export class SQLClient extends AbstractClient {
         const formatRelation = (key, tableScope = false) => ({
             ...(!tableScope ? { name: key.constraint_name } : {}),
             targetTable: [key.referenced_table_schema, key.referenced_table_name],
-            targetColumns: key.referenced_column_name.split(',').map(s => s.trim()),
+            targetColumns: [...new Set(key.referenced_column_name.split(','))].map(s => s.trim()),
             ...(key.match_rule !== 'NONE' ? { matchRule: key.match_rule } : {}),
             updateRule: key.update_rule,
             deleteRule: key.delete_rule,
@@ -329,6 +329,25 @@ export class SQLClient extends AbstractClient {
                         if (key.constraint_type === 'CHECK' && !(this.params.dialect === 'postgres' && /^[\d_]+not_null/.test(key.constraint_name))) return [primarys, uniques, foreigns, checks.concat(normalizeCheckConstraint(key))];
                         return [primarys, uniques, foreigns, checks];
                     }, [[], [], [], []]);
+                    /**
+                     * TODO: Investigate the cause of a structure like this:
+                    console.log(foreignKeys[0])
+                    {
+                        table_schema: 'public',
+                        table_name: 'transactions',
+                        column_name: 'spec,spec',
+                        constraint_name: 'auto_name_21cko',
+                        constraint_type: 'FOREIGN KEY',
+                        check_clause: null,
+                        referenced_column_name: 'id,id',
+                        referenced_table_name: 'transaction_specs',
+                        referenced_table_schema: 'public',
+                        referenced_constraint_name: 'auto_name_2co2s,auto_name_2co2s',
+                        match_rule: 'NONE',
+                        update_rule: 'CASCADE',
+                        delete_rule: 'RESTRICT'
+                    }
+                     */
                     // -----
                     const tableSchema = {
                         name: tbl.table_name,
@@ -343,7 +362,7 @@ export class SQLClient extends AbstractClient {
                                 ...((temp.uKeys = uniqueKeys.filter(key => key.column_name === col.column_name)).length === 1 && (uniqueKeys = uniqueKeys.filter(key => key !== temp.uKeys[0])) ? {
                                     uniqueKey: { name: temp.uKeys[0].constraint_name }
                                 } : {}),
-                                ...((temp.fKeys = foreignKeys.filter(key => key.column_name === col.column_name)).length === 1 && (foreignKeys = foreignKeys.filter(key => key !== temp.fKeys[0])) ? {
+                                ...((temp.fKeys = foreignKeys.filter(key => key.column_name.split(',').pop() === col.column_name)).length === 1 && (foreignKeys = foreignKeys.filter(key => key !== temp.fKeys[0])) ? {
                                     foreignKey: formatRelation(temp.fKeys[0])
                                 } : {}),
                                 ...((temp.cKeys = checks.filter(key => key.check_constraint_level !== 'Table' && key.columns.length === 1 && key.columns[0] === col.column_name)).length === 1 && (checks = checks.filter(key => key !== temp.cKeys[0])) ? {
