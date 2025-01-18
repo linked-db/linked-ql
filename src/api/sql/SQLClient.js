@@ -331,7 +331,9 @@ export class SQLClient extends AbstractClient {
                     }, [[], [], [], []]);
                     /**
                      * TODO: Investigate the cause of a structure like this:
-                    console.log(foreignKeys[0])
+                    if (tbl.table_name === 'transactions') {
+                        console.log(foreignKeys);
+                    }
                     {
                         table_schema: 'public',
                         table_name: 'transactions',
@@ -349,10 +351,11 @@ export class SQLClient extends AbstractClient {
                     }
                      */
                     // -----
-                    const tableSchema = {
+
+                    const temp = {}, tableSchema = {
                         name: tbl.table_name,
                         columns: (tbl.columns || []).reduce((cols, col) => {
-                            const temp = {}, extras = col.extra/*mysql*/?.split(',').map(s => s.trim()) || [];
+                            const extras = col.extra/*mysql*/?.split(',').map(s => s.trim()) || [];
                             return cols.concat({
                                 name: col.column_name,
                                 type: col.character_maximum_length ? [dataType(col.data_type), col.character_maximum_length] : dataType(col.data_type),
@@ -362,7 +365,7 @@ export class SQLClient extends AbstractClient {
                                 ...((temp.uKeys = uniqueKeys.filter(key => key.column_name === col.column_name)).length === 1 && (uniqueKeys = uniqueKeys.filter(key => key !== temp.uKeys[0])) ? {
                                     uniqueKey: { name: temp.uKeys[0].constraint_name }
                                 } : {}),
-                                ...((temp.fKeys = foreignKeys.filter(key => key.column_name.split(',').pop() === col.column_name)).length === 1 && (foreignKeys = foreignKeys.filter(key => key !== temp.fKeys[0])) ? {
+                                ...((temp.fKeys = foreignKeys.filter(key => key.column_name.split(',').map((s) => s.trim()).pop() === col.column_name)).length && (foreignKeys = foreignKeys.filter(key => key !== temp.fKeys[0])) ? {
                                     foreignKey: formatRelation(temp.fKeys[0])
                                 } : {}),
                                 ...((temp.cKeys = checks.filter(key => key.check_constraint_level !== 'Table' && key.columns.length === 1 && key.columns[0] === col.column_name)).length === 1 && (checks = checks.filter(key => key !== temp.cKeys[0])) ? {
@@ -394,7 +397,7 @@ export class SQLClient extends AbstractClient {
                     tableSchema.constraints.push(...[...primaryKey, ...uniqueKeys, ...foreignKeys].map(key => ({
                         name: key.constraint_name,
                         type: key.constraint_type === 'UNIQUE' ? 'UNIQUE_KEY' : key.constraint_type.replace(' ', '_'),
-                        columns: key.column_name.split(',').map(col => col.trim()),
+                        columns: [...new Set(key.column_name.split(',').map((col) => col.trim()))],
                         ...(key.constraint_type === 'FOREIGN KEY' ? formatRelation(key, true) : {}),
                     })));
                     tableSchema.constraints.push(...checks.map(key => ({
