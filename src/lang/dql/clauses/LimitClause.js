@@ -1,35 +1,39 @@
 import { AbstractNode } from '../../AbstractNode.js';
+import { Exprs } from '../../expr/grammar.js';
 
 export class LimitClause extends AbstractNode {
     static get CLAUSE() { return 'LIMIT'; }
 
-    #value;
+    #expr;
 
-    value(value) {
-        if (!arguments.length) return this.#value;
-        if (typeof value !== 'number') throw new SyntaxError(`Invalid OFFSET/LIMIT value: ${ value }`);
-        return (this.#value = value, this);
+    expr(expr) {
+        if (!arguments.length) return this.#expr;
+        this.#expr = this.$castInputs([expr], Exprs, this.#expr, 'limit_expr');
+        return this;
     }
 
-    static fromJSON(context, json, callback = null) {
-        if (!json?.value || Object.keys(json).filter((k) => !['nodeName', 'value'].includes(k)).length) return;
+	static fromJSON(context, json, callback = null) {
+		if (Object.keys(json || {}).filter((k) => !['nodeName', 'expr'].includes(k)).length) return;
 		return super.fromJSON(context, json, (instance) => {
-            instance.value(json.value);
+			if (json.expr) instance.expr(json.expr);
 			callback?.(instance);
 		});
 	}
 
 	jsonfy(options = {}, jsonIn = {}) {
 		return super.jsonfy(options, {
-            value: this.#value,
-            ...jsonIn
+			expr: this.#expr?.jsonfy(options),
+			...jsonIn
 		});
-    }
-	
-    static parse(context, expr) {
-		const [ clauseMatch, value ] = expr.match(new RegExp(`^${ this.CLAUSE }([\\s\\S]*)$`, 'i')) || [];
-		if (clauseMatch) return (new this(context)).value(parseInt(value));
+	}
+
+	static parse(context, expr, parseCallback) {
+        const [ clauseMatch, $expr ] = expr.match(new RegExp(`^${ this.CLAUSE }([\\s\\S]*)$`, 'i')) || [];
+		if (!clauseMatch) return;
+		const instance = new this(context);
+		instance.expr(parseCallback(instance, $expr.trim(), Exprs));
+		return instance;
 	}
 	
-	stringify() { return `${ this.constructor.CLAUSE } ${ this.#value }`; }
+	stringify() { return `${ this.constructor.CLAUSE } ${ this.#expr }`; }
 }
