@@ -122,8 +122,9 @@ export class ColumnSchema extends AbstractPrefixableNameableNode {
                     json = { ...json, default: json.default ? this.diffMergeJsons(json.default, { expr: argumentJson.expr }, options) : argumentJsonNew };
                 }
             } else if (cd.CLAUSE === 'DROP') {
-                if (!json[cd.$KIND.toLowerCase()]) throw new Error(`${cd.$KIND} constraint does not exist.`);
-                json = options.diff === false ? json : { ...json, [cd.$KIND.toLowerCase()]: this.diffMergeJsons(json[cd.$KIND.toLowerCase()], { status: 'obsolete' }) };
+                const attrName = _toCamel(cd.$KIND.toLowerCase().replace('_', ' '));
+                if (!json[attrName]) throw new Error(`${cd.$KIND} constraint does not exist.`);
+                json = options.diff === false ? json : { ...json, [attrName]: this.diffMergeJsons(json[attrName], { status: 'obsolete' }) };
             }
         }
         return json;
@@ -157,7 +158,7 @@ export class ColumnSchema extends AbstractPrefixableNameableNode {
 			type: nodeB.$type()?.jsonfy(options)
 		}, options);
         const constraintsDiff = this.flattenConstraintJsons(this.diffMergeTrees(
-            new Map(this.#constraints.map(cons => [cons.TYPE, cons])),
+            new Map(this.constraints().map(cons => [cons.TYPE, cons])),
             new Map(nodeB.constraints().map(cons => [cons.TYPE, cons])),
             (a, b) => a.generateDiff(b, options)
         ), options);

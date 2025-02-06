@@ -33,7 +33,7 @@ export class AbstractTable {
 		const buildCallback = (typeof args[0] === 'function' && args.shift()) || null;
 		const singular = ['string', 'number'].includes(typeof clauses.where);
 		return this.database.client.withSchema(async () => {
-			const { shorthands: __, ...$clauses } = { fields: '*', ...clauses, from: [[this.database.name, this.name]] };
+			const { shorthands: __, ...$clauses } = { fields: '*', from: [[this.database.name, this.name]], ...clauses };
 			if (clauses.shorthands) {
 				$clauses.fields = await this.buildShapePath($clauses.fields, 'fields');
 			}
