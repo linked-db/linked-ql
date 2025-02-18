@@ -25,6 +25,10 @@ export const AbstractExprMixin = Class => class extends Class {
             }
             return expr;
         }
+        if (typeof value === 'string') {
+            const node = this.parse(value);
+            value = node.NODE_NAME === 'PARENS' ? node.exprUnwrapped() : node;
+        }
 		if (this.$diffTagHydrate()) {
             this.#$expr = this.$castInputs([value], Exprs, this.#$expr, '$expr');
 		} else this.#expr = this.$castInputs([value], Exprs, this.#expr, 'expr');
@@ -68,10 +72,10 @@ export const AbstractExprMixin = Class => class extends Class {
 
 	jsonfy(options = {}, jsonIn = {}) {
 		return super.jsonfy(options, this.diffMergeJsons({
-            expr: this.#expr?.jsonfy(options),
+            expr: options.nodeNames === false ? this.#expr?.stringify() : this.#expr?.jsonfy(options),
 			...jsonIn
         }, {
-            expr: this.#$expr?.jsonfy(options),
+            expr: options.nodeNames === false ? this.#expr?.stringify() : this.#$expr?.jsonfy(options),
 		}, options));
 	}
 

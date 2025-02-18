@@ -307,20 +307,17 @@ export class SQLClient extends AbstractClient {
             updateRule: key.update_rule,
             deleteRule: key.delete_rule,
         });
-        const parseJsonfyExpr = (expr, withColumns = false) => {
-            const columns = new Set;
-            const node = Parser.parse({ params: !withColumns ? this.params : { ...this.params, nodeCallback: (node) => node.NODE_NAME === 'COLUMN_REF' ? columns.add(node.name().toLowerCase()) : null }}, expr, null, { inspect: false });
-            const json = node.NODE_NAME === 'PARENS' ? node.exprUnwrapped().jsonfy({ nodeNames: false }) : node.jsonfy({ nodeNames: false });
-            return withColumns ? { columns: [...columns], json } : json;
-        };
         return result.map(db => {
             const databaseSchema = {
                 name: db.schema_name,
                 tables: (db.tables || []).map(tbl => {
                     // -----
-                    const normalizeCheckConstraint = key => {
-                        if (!key.check_clause) key.check_clause = ''; // Some wired stuff at Supabase
-                        return {...key, ...parseJsonfyExpr(key.check_clause, true)};
+                    const normalizeCheckConstraint = (key) => {
+                        if (!key.check_clause) key.check_clause = ''; // Some wired stuff observed in schema from Supabase
+                        const columns = new Set;
+                        const node = Parser.parse({ params: { ...this.params, nodeCallback: (node) => node.NODE_NAME === 'COLUMN_REF' ? columns.add(node.name().toLowerCase()) : null }}, key.check_clause, null, { inspect: false });
+                        const json = node.NODE_NAME === 'PARENS' ? node.exprUnwrapped().jsonfy({ nodeNames: false }) : node.jsonfy({ nodeNames: false });
+                        return { ...key, columns: [...columns], json };
                     };
                     let [primaryKey, uniqueKeys, foreignKeys, checks] = (tbl.constraints || []).reduce(([primarys, uniques, foreigns, checks], key) => {
                         if (key.constraint_type === 'PRIMARY KEY') return [primarys.concat(key), uniques, foreigns, checks];
@@ -369,13 +366,13 @@ export class SQLClient extends AbstractClient {
                                     foreignKey: formatRelation(temp.fKeys[0])
                                 } : {}),
                                 ...((temp.cKeys = checks.filter(key => key.check_constraint_level !== 'Table' && key.columns.length === 1 && key.columns[0] === col.column_name)).length === 1 && (checks = checks.filter(key => key !== temp.cKeys[0])) ? {
-                                    check: { name: temp.cKeys[0].constraint_name, expr: temp.cKeys[0].json }
+                                    check: { name: temp.cKeys[0].constraint_name, expr: temp.cKeys[0].check_clause, exprJson: temp.cKeys[0].json }
                                 } : {}),
                                 ...(col.is_identity/*postgres*/ === 'YES' ? {
                                     identity: { always: col.identity_generation === 'ALWAYS' }
                                 } : {}),
                                 ...(col.is_generated !== 'NEVER' ? {
-                                    expression: { always: col.is_generated === 'ALWAYS', expr: parseJsonfyExpr(col.generation_expression) }
+                                    expression: { always: col.is_generated === 'ALWAYS', expr: col.generation_expression }
                                 } : {}),
                                 ...(extras.includes('auto_increment')/*mysql*/ ? {
                                     autoIncrement: true
@@ -384,7 +381,7 @@ export class SQLClient extends AbstractClient {
                                     notNull: true
                                 } : {}),
                                 ...(col.column_default && col.column_default !== 'NULL' ? {
-                                    default: { expr: parseJsonfyExpr(col.column_default) }
+                                    default: { expr: col.column_default }
                                 } : {}),
                                 ...(extras.includes('INVISIBLE') ? {
                                     flags: ['INVISIBLE']
@@ -404,7 +401,8 @@ export class SQLClient extends AbstractClient {
                         name: key.constraint_name,
                         type: key.constraint_type,
                         columns: key.columns,
-                        expr: key.json,
+                        expr: key.check_clause,
+                        exprJson: key.json
                     })));
                     return tableSchema;
                 }),

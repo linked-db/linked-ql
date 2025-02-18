@@ -1,5 +1,10 @@
 import grammar from './grammar.js';
-		
+import { AbstractNode } from './AbstractNode.js';
+
+AbstractNode.prototype.parse = function (expr) {
+	return Parser.parse(this, expr);
+}
+
 export class Parser {
 
 	/**

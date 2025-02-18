@@ -15,7 +15,7 @@ export class Num extends AbstractNode {
 	static get expose() {
 		return {
 			'num|int|float': (context, value) => this.fromJSON(context, { value: parseFloat(value) }),
-			value: (context, value) => /^\d+$/.test(value) && this.fromJSON(context, { value: parseFloat(value) })
+			value: (context, value) => /^-?\d+(\.\d+)?$/.test(value) && this.fromJSON(context, { value: parseFloat(value) })
 		};
 	}
 
@@ -37,7 +37,7 @@ export class Num extends AbstractNode {
     }
 	
 	static parse(context, expr) {
-		if (!/^\d+$/.test(expr)) return;
+		if (!/^-?\d+(\.\d+)?$/.test(expr)) return;
 		return (new this(context)).value(parseFloat(expr));
 	}
 	

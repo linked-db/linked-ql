@@ -167,12 +167,17 @@ export class ColumnSchema extends AbstractPrefixableNameableNode {
 
     /* -- UTILS */
 
-    flattenConstraintJsons(constraints) {
+    flattenConstraintJsons(constraints, ) {
         let json = {};
         for (const cons of constraints) {
             const { type, ...rest } = cons;
             const attrName = _toCamel(type.toLowerCase().replace('_', ' '));
-            json = { ...json, [ attrName ]: !Object.keys(rest).filter((k) => rest[k] !== undefined ).length ? true : rest };
+            json = {
+                ...json,
+                [ attrName ]: !Object.keys(rest).filter((k) => rest[k] !== undefined ).length 
+                    ? true 
+                    : rest
+            };
         }
         return json;
     }

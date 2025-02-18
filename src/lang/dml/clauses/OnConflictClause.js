@@ -37,7 +37,7 @@ export class OnConflictClause extends SetClause {
 		}, reducer);
 	}
 
-	static get REGEX() { return 'ON\\s+(?:DUPLICATE\\s+KEY|CONFLICT(?:\\s+([\\s\\S]+))?)\\s+(UPDATE|DO\\s+NOTHING|DO\\s+UPDATE\\s+SET\\s+)'; }
+	static get REGEX() { return 'ON\\s+(?:DUPLICATE\\s+KEY|CONFLICT(?:\\s+([\\s\\S]+?))?)\\s+(DO\\s+NOTHING|DO\\s+UPDATE\\s+SET\\s+|UPDATE)'; }
 	static parse(context, expr, parseCallback) {
 		const [ onConflictMatch, columnsSpec, action, updateSpec ] = expr.match(new RegExp(`^${ this.REGEX }([\\s\\S]*)$`, 'i')) || [];
 		if (!onConflictMatch) return;

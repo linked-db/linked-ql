@@ -60,7 +60,7 @@ export class AbstractNode {
 		// --------------
 		const Types = [].concat(Type || []);
 		if (!Types.length) throw new Error(`At least one node type must be defined.`);
-		if (delegatesTo && Types.length !== 1) throw new Error(`Only one Type expected for delegatable operations.`);
+		//if (delegatesTo && Types.length !== 1) throw new Error(`Only one Type expected for delegatable operations.`);
 		const $ = { result: slot };
 		// --------------
 		const fromInstanceOrJson = arg => {
