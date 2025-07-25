@@ -43,7 +43,7 @@ Linked QL is JS-based and database-agnostic—supporting PostgreSQL, MySQL and m
 <br>
 <br>
 
-<table>
+<table style="table-layout: fixed;">
 <tr><th>
 
 _What we're doing differently?_
@@ -331,7 +331,7 @@ And we've got a few things in the radar: extensive TypeScript support (something
 
 <br>
 
-<table>
+<table style="table-layout: fixed;">
 <tr><th>
 
 _Getting Started_
