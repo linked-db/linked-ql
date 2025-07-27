@@ -1,10 +1,5 @@
-import { SQLClient } from './api/sql/SQLClient.js';
-import { Parser } from './lang/Parser.js';
+import './lang/index.js';
+import { Query } from './lang/Query.js';
 
-/**
- * @exports
- */
-export {
-	SQLClient,
-	Parser,
-}
+//console.log('LinkedQL loaded', (await Query.parse('SELECT * FROM users; INSERT INTO u SELECT *;')) + '');
+export { Query };

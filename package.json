@@ -21,7 +21,7 @@
     "url": "https://github.com/linked-db/linked-ql/issues"
   },
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": true,
   "main": "./src/index.js",
   "exports": {
     ".": "./src/index.js",
@@ -31,9 +31,9 @@
     "linkedql": "src/cli/index.js"
   },
   "scripts": {
-    "test": "mocha --extension .pg.test.js --exit",
+    "test": "mocha --extension .test.js --recursive --timeout 5000",
     "test:coverage": "c8 --reporter=text-lcov npm run test | coveralls",
-    "build": "esbuild main=src/browser-entry.js sql=src/api/sql/SQLClient.js --bundle --minify --sourcemap --outdir=dist",
+    "build": "esbuild main=src/index.js --bundle --minify --sourcemap --outdir=dist",
     "preversion": "npm run test && npm run build && git add -A dist",
     "postversion": "npm publish",
     "postpublish": "git push && git push --tags"
@@ -42,11 +42,13 @@
     "@webqit/util": "^0.8.14",
     "dotenv": "^16.4.5",
     "enquirer": "^2.4.1",
+    "pg-logical-replication": "^2.2.0",
     "yaml": "^2.5.0"
   },
   "devDependencies": {
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
+    "chalk": "^5.4.1",
     "coveralls": "^3.1.0",
     "esbuild": "^0.20.2",
     "mariadb": "^3.3.1",
