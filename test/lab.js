@@ -1,4 +1,3 @@
-import { registry } from '../src/lang/registry.js';
 import { Query } from '../src/lang/Query.js';
 import { TokenStream } from '../src/lang/TokenStream.js';
 import '../src/lang/index.js';
@@ -102,25 +101,25 @@ GROUP BY
   json_data.logins_json, e.level, p.profile_pic_url
 HAVING COUNT(*) FILTER (WHERE ls.login_count > 5) > 0
 ORDER BY ls.login_count DESC NULLS LAST
-OFFSET 20
 LIMIT 100
+OFFSET 20
 FOR UPDATE SKIP LOCKED;
 
 TABLE public.users *;
 `;
 
-sql = `@b := 2`;
+sql = `SELECT * FROM users WHERE id = 1; INSERT INTO "users" (name, email) VALUES ('John Doe', 'Hjdd');`;
 
 //
 /*
 const dd = (await (await TokenStream.create(sql, { structured: true })).next()).value.value;
-*/const dd = await TokenStream.create(sql, { structured: true, dialect: 'mysql' });
+const dd = await TokenStream.create(sql, { structured: true, dialect: 'mysql' });
 
 for await (const f of dd) {
     console.log(f);
 }
 process.exit();
-
+*/
 
 
 let t1b;

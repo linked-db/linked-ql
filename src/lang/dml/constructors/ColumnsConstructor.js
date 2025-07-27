@@ -11,6 +11,8 @@ export class ColumnsConstructor extends AbstractNodeList {
                 {
                     type: 'paren_block',
                     syntax: { type: 'ClassicColumnRef', as: 'entries', arity: Infinity, itemSeparator, autoIndent: 2 },
+                    autoIndent: true,
+                    autoIndentAdjust: -1,
                 },
             ],
         };

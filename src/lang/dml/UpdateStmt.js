@@ -26,43 +26,44 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
 
     static get syntaxRules() {
         const itemSeparator = { type: 'punctuation', value: ',' };
-        return {
-            syntaxes: [
-                {
-                    dialect: 'postgres',
-                    syntax: [
-                        { type: 'keyword', value: 'UPDATE' },
-                        { type: 'BasicTableExpr', as: 'table_expr' },
-                        { type: 'SetClause', as: 'set_clause' },
-                        { type: 'FromClause', as: 'pg_from_clause', optional: true, dialect: 'postgres', autoIndent: true },
-                        { type: 'JoinClause', as: 'join_clause', optional: true, autoIndent: true },
-                        { type: ['PGWhereCurrentClause', 'WhereClause'], as: 'where_clause', optional: true, autoIndent: true },
-                        { type: 'PGReturningClause', as: 'pg_returning_clause', optional: true, autoIndent: true },
-                    ],
-                },
-                {
-                    dialect: 'mysql',
-                    syntax: [
-                        { type: 'keyword', value: 'UPDATE' },
-                        { type: 'BasicTableExpr', as: 'table_expr' },
-                        { type: 'SetClause', as: 'set_clause' },
-                        { type: 'WhereClause', as: 'where_clause', optional: true, autoIndent: true },
-                        { type: 'OrderByClause', as: 'my_order_by_clause', optional: true, autoIndent: true },
-                        { type: 'LimitClause', as: 'my_limit_clause', optional: true, autoIndent: true },
-                    ],
-                },
-                {
-                    dialect: 'mysql',
-                    syntax: [
-                        { type: 'keyword', value: 'UPDATE' },
-                        { type: 'MYStarredTableRef', as: 'my_update_list', arity: { min: 1 }, itemSeparator },
-                        { type: 'JoinClause', as: 'join_clause', optional: true, autoIndent: true },
-                        { type: 'SetClause', as: 'set_clause' },
-                        { type: 'WhereClause', as: 'where_clause', optional: true, autoIndent: true },
-                    ],
-                },
-            ]
-        };
+        return [
+            { type: 'keyword', value: 'UPDATE' },
+            {
+                assert: true,
+                syntaxes: [
+                    {
+                        dialect: 'postgres',
+                        syntax: [
+                            { type: 'BasicTableExpr', as: 'table_expr' },
+                            { type: 'SetClause', as: 'set_clause' },
+                            { type: 'FromClause', as: 'pg_from_clause', optional: true, dialect: 'postgres', autoIndent: true },
+                            { type: 'JoinClause', as: 'join_clause', optional: true, autoIndent: true },
+                            { type: ['PGWhereCurrentClause', 'WhereClause'], as: 'where_clause', optional: true, autoIndent: true },
+                            { type: 'PGReturningClause', as: 'pg_returning_clause', optional: true, autoIndent: true },
+                        ],
+                    },
+                    {
+                        dialect: 'mysql',
+                        syntax: [
+                            { type: 'BasicTableExpr', as: 'table_expr' },
+                            { type: 'SetClause', as: 'set_clause' },
+                            { type: 'WhereClause', as: 'where_clause', optional: true, autoIndent: true },
+                            { type: 'OrderByClause', as: 'my_order_by_clause', optional: true, autoIndent: true },
+                            { type: 'LimitClause', as: 'my_limit_clause', optional: true, autoIndent: true },
+                        ],
+                    },
+                    {
+                        dialect: 'mysql',
+                        syntax: [
+                            { type: 'MYStarredTableRef', as: 'my_update_list', arity: { min: 1 }, itemSeparator },
+                            { type: 'JoinClause', as: 'join_clause', optional: true, autoIndent: true },
+                            { type: 'SetClause', as: 'set_clause' },
+                            { type: 'WhereClause', as: 'where_clause', optional: true, autoIndent: true },
+                        ],
+                    },
+                ]
+            }
+        ];
     }
 
     /* AST API */

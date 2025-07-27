@@ -28,6 +28,7 @@ export class DeleteStmt extends SelectorStmtMixin(
         return [
             { type: 'keyword', value: 'DELETE' },
             {
+                assert: true,
                 syntaxes: [
                     {
                         dialect: 'postgres',

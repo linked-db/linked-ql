@@ -24,45 +24,50 @@ export class InsertStmt extends PayloadStmtMixin(
 			{ type: 'keyword', value: this._clause },
 			{ type: 'keyword', value: 'INTO' },
 			{
-				dialect: 'postgres',
+				assert: true,
 				syntax: [
-					{ type: 'BasicTableExpr', as: 'table_expr' },
-					{ type: 'ColumnsConstructor', as: 'column_list', arity: { min: 1 }, itemSeparator, optional: true, autoIndent: 2 },
 					{
-						syntaxes: [
-							{ type: 'PGDefaultValuesClause', as: 'pg_default_values_clause', autoIndent: true },
-							{ type: 'ValuesConstructor', as: 'values_clause', autoIndent: true },
-							{ type: 'SelectStmt', as: 'select_clause', autoIndent: true },
+						dialect: 'postgres',
+						syntax: [
+							{ type: 'BasicTableExpr', as: 'table_expr' },
+							{ type: 'ColumnsConstructor', as: 'column_list', arity: { min: 1 }, itemSeparator, optional: true, autoIndent: 2 },
+							{
+								syntaxes: [
+									{ type: 'PGDefaultValuesClause', as: 'pg_default_values_clause', autoIndent: true },
+									{ type: 'ValuesConstructor', as: 'values_clause', autoIndent: true },
+									{ type: 'SelectStmt', as: 'select_clause', autoIndent: true },
+								],
+							},
+							...(this._clause === 'INSERT' ? [{ type: 'PGOnConflictClause', as: 'conflict_handling_clause', optional: true, autoIndent: true }] : []),
+							{ type: 'PGReturningClause', as: 'pg_returning_clause', optional: true, autoIndent: true },
 						],
 					},
-					...(this._clause === 'INSERT' ? [{ type: 'PGOnConflictClause', as: 'conflict_handling_clause', optional: true, autoIndent: true }] : []),
-					{ type: 'PGReturningClause', as: 'pg_returning_clause', optional: true, autoIndent: true },
-				],
-			},
-			{
-				dialect: 'mysql',
-				syntax: [
-					{ type: 'ClassicTableRef', as: 'table_expr' },
-					{ type: 'MYPartitionClause', as: 'my_partition_clause', optional: true, autoIndent: true },
 					{
-						syntaxes: [
-							[
-								{ type: 'ColumnsConstructor', as: 'column_list', arity: { min: 1 }, itemSeparator, optional: true, autoIndent: 2 },
-								{
-									syntaxes: [
-										{ type: 'ValuesConstructor', as: 'values_clause', autoIndent: true },
-										{ type: 'SelectStmt', as: 'select_clause', autoIndent: true },
-										{ type: 'TableStmt', as: 'my_table_clause', autoIndent: true },
-									]
-								},
-							],
-							{ type: 'SetClause', as: 'my_set_clause', autoIndent: true },
+						dialect: 'mysql',
+						syntax: [
+							{ type: 'ClassicTableRef', as: 'table_expr' },
+							{ type: 'MYPartitionClause', as: 'my_partition_clause', optional: true, autoIndent: true },
+							{
+								syntaxes: [
+									[
+										{ type: 'ColumnsConstructor', as: 'column_list', arity: { min: 1 }, itemSeparator, optional: true, autoIndent: 2 },
+										{
+											syntaxes: [
+												{ type: 'ValuesConstructor', as: 'values_clause', autoIndent: true },
+												{ type: 'SelectStmt', as: 'select_clause', autoIndent: true },
+												{ type: 'TableStmt', as: 'my_table_clause', autoIndent: true },
+											]
+										},
+									],
+									{ type: 'SetClause', as: 'my_set_clause', autoIndent: true },
+								],
+							},
+							{ ...optional_alias_mysql },
+							...(this._clause === 'INSERT' ? [{ type: 'MYOnDuplicateKeyUpdateClause', as: 'conflict_handling_clause', optional: true, autoIndent: true }] : []),
 						],
 					},
-					{ ...optional_alias_mysql },
-					...(this._clause === 'INSERT' ? [{ type: 'MYOnDuplicateKeyUpdateClause', as: 'conflict_handling_clause', optional: true, autoIndent: true }] : []),
 				],
-			},
+			}
 		];
 	}
 

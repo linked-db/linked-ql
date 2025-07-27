@@ -655,7 +655,7 @@ export class AbstractNode {
 	 * -----------
 	 */
 
-	static async parse(input, { left, minPrecedence = 0, trail = [], ...options } = {}) {
+	static async parse(input, { left, minPrecedence = 0, trail = [], returningTokenStream = false, ...options } = {}) {
 		const tokenStream = !(input instanceof TokenStream)
 			? await TokenStream.create(input, { structured: true, spaces: true, ...options })
 			: input;
@@ -676,12 +676,13 @@ export class AbstractNode {
 			// 2. Resolve full syntax rules
 			const resultAST = await this._parseFromRules(tokenStream, syntaxRules, { left, minPrecedence, trail: trail.concat(this.NODE_NAME), ...options });
 			if (resultAST) {
-				result = resultAST instanceof AbstractNode
-					? resultAST
-					: new this(resultAST, { ...options, dialect: tokenStream.options.dialect });
+				result = new this(resultAST, { ...options, dialect: tokenStream.options.dialect });
 			}
 		}
 		if (!result) tokenStream.restore(savepoint);
+		if (returningTokenStream) {
+			return { result, tokenStream };
+		}
 		return result;
 	}
 
@@ -795,8 +796,8 @@ export class AbstractNode {
 				if (!assert && options.assert !== true && !(options.assert instanceof RegExp && options.assert.test(activeTrailStr))) return;
 				if (tokenStreamPosition) {
 					const current = activeTokenStream.current() || activeTokenStream.previous();
-					const proximityTerm = activeTokenStream.current() ? 'near' : 'by';
-					message += !current ? ` - ${proximityTerm} end of stream` : ` - ${proximityTerm}${typeof current.value === 'string' ? ` "${current.value}" (${current.type})` : ''} <line ${current.line}, column ${current.column}>`;
+					const proximityTerm = activeTokenStream.current() ? (tokenStreamPosition === 1 ? ':' : ' near') : ' by';
+					message += !current ? `${proximityTerm} end of stream` : `${proximityTerm}${typeof current.value === 'string' ? ` "${current.value}" (${current.type})` : ''} at <line ${current.line}, column ${current.column}>`;
 				}
 				throw new Error(`[${activeTrailStr}] ${message}.`);
 			};
@@ -944,7 +945,7 @@ export class AbstractNode {
 			}
 
 			if (result === undefined && !optional) {
-				$decideThrow(activeTokenStream, type ? 'Type mismatch' : null, true);
+				$decideThrow(activeTokenStream, type ? 'Unexpected token' : null, 1);
 				return;
 			}
 
