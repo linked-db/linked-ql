@@ -109,7 +109,7 @@ FOR UPDATE SKIP LOCKED;
 TABLE public.users *;
 `;
 
-sql = `public@3_3.users@3.*`;
+sql = `public.users@^4`;
 
 //
 /*
@@ -124,10 +124,10 @@ process.exit();
 
 
 let t1b;
-t1b = await registry['ColumnRef'].parse(sql, { assert: new RegExp(`COLUMN_REF\\.0\\.syntaxes\\.0\\.0<qufalifier>\\.`) });
+t1b = await registry['TableRef'].parse(sql, { assert: new RegExp(`COLUMN_REF\\.0\\.syntaxes\\.0\\.0<qufalifier>\\.`) });
 //t1b = await Query.parse(sql, { assert: false });
 for (const t of [t1b]) {
-    console.log(t, '----------', normalizeSql(sql).toUpperCase() === t?.stringify?.().toUpperCase(), t?.stringify?.(), '----------', t?.jsonfy?.()/**/);
+    console.log(t, '----------', normalizeSql(sql).toUpperCase() === t?.stringify?.().toUpperCase(), t.clone({ deSugar: true })?.stringify?.(), '----------', t?.jsonfy?.()/**/);
     console.log('\n\n\n\n+++++++++++++++++++++++++++\n\n\n\n');
     console.log(t?.constructor?.fromJSON(t?.jsonfy?.(), t?.options).stringify?.({ prettyPrint: true, autoLineBreakThreshold: 6 }));
 }

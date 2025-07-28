@@ -310,12 +310,22 @@ $describe('Parser - Specialized Operator Expressions', () => {
 
 $describe('Parser - References and Identifiers', () => {
     $describe('Unqualified References', () => {
-        $it('should parse a simple column reference (Identifier)', async () => {
-            await testExprAndNodeEntryPoints('Identifier', 'my_column');
+        $it('should parse a simple column reference (ColumnRef)', async () => {
+            await testExprAndNodeEntryPoints('ColumnRef', 'my_column');
         });
 
-        $it('should parse a star reference (*)', async () => {
-            await testExprAndNodeEntryPoints('AggrCallExpr', 'COUNT(*)');
+        $it('should parse a star reference "*"', async () => {
+            await testExprAndNodeEntryPoints('ColumnRef', '*');
+        });
+
+        $it('should parse a table reference (TableRef)', async () => {
+            await testParseAndStringify('TableRef', 'my_table');
+        });
+
+        $it('should parse a table reference with version spec (TableRef)', async () => {
+            await testParseAndStringify('TableRef', 'my_table@2_1');
+            await testParseAndStringify('TableRef', 'my_table @2_1', { stripSpaces: true });
+            await testParseAndStringify('TableRef', 'my_table @\'2_1\'', { stripSpaces: true, stripQuotes: true });
         });
 
         $it('should parse a database reference (DatabaseRef)', async () => {
@@ -327,26 +337,45 @@ $describe('Parser - References and Identifiers', () => {
             await testParseAndStringify('DatabaseRef', 'my_database @2_1', { stripSpaces: true });
             await testParseAndStringify('DatabaseRef', 'my_database @\'2_1\'', { stripSpaces: true, stripQuotes: true });
         });
-
-        $it('should parse a table reference (TableRef)', async () => {
-            await testParseAndStringify('TableRef', 'my_table');
-        });
     });
 
     $describe('Qualified References', () => {
+
+        // --------- 2-level qualified references ---------
+
         $it('should parse table.column (ColumnRef)', async () => {
             await testExprAndNodeEntryPoints('ColumnRef', 'users.id');
+        });
+
+        $it('should parse qualified star reference (table.*)', async () => {
+            await testParseAndStringify('ColumnRef', 'users.*');
+        });
+
+        $it('should parse schema.table (TableAbstractionRef)', async () => {
+            await testParseAndStringify('TableRef', 'public.users');
+        });
+
+        $it('should parse schema.table@... (TableRef)', async () => {
+            await testParseAndStringify('TableRef', 'public.users@^4');
+            await testParseAndStringify('TableRef', 'public.users@~7_6');
+            await testParseAndStringify('TableRef', 'public.users@=3_4');
+            await testParseAndStringify('TableRef', 'public.users@<3');
+            await testParseAndStringify('TableRef', 'public . "users" @>4', { stripSpaces: true, stripQuotes: true });
+            await testParseAndStringify('TableRef', 'public."us ers"@<=3');
+            await testParseAndStringify('TableRef', 'public.`us ers`@>=4', { dialect: 'mysql' });
+        });
+
+        // --------- 3-level qualified references ---------
+
+        $it('should parse schema.table.column (ColumnRef)', async () => {
+            await testExprAndNodeEntryPoints('ColumnRef', 'public.users.id');
         });
 
         $it('should parse schema.table.column (ColumnRef)', async () => {
             await testExprAndNodeEntryPoints('ColumnRef', 'public.users.id');
         });
 
-        $it('should parse database.schema.table.column (ColumnRef)', async () => {
-            await testExprAndNodeEntryPoints('ColumnRef', 'public.users.id');
-        });
-
-        $it('should parse database.schema.table.column (ColumnRef)', async () => {
+        $it('should parse schema@....table.column (ColumnRef)', async () => {
             await testExprAndNodeEntryPoints('ColumnRef', 'public@^4.users.id');
             await testExprAndNodeEntryPoints('ColumnRef', 'public@~7_6.users.id');
             await testExprAndNodeEntryPoints('ColumnRef', 'public@=3_4.users.id');
@@ -356,12 +385,14 @@ $describe('Parser - References and Identifiers', () => {
             await testExprAndNodeEntryPoints('ColumnRef', 'public@>=4.`us ers`.id', { dialect: 'mysql' });
         });
 
-        $it('should parse schema.table (TableAbstractionRef)', async () => {
-            await testParseAndStringify('TableRef', 'public.users');
-        });
-
-        $it('should parse qualified star reference (table.*)', async () => {
-            await testParseAndStringify('ColumnRef', 'users.*');
+        $it('should parse schema@....table@....column (ColumnRef)', async () => {
+            await testExprAndNodeEntryPoints('ColumnRef', 'public@^4.users@^4.id');
+            await testExprAndNodeEntryPoints('ColumnRef', 'public@~7_6.users@~7_6.id');
+            await testExprAndNodeEntryPoints('ColumnRef', 'public@=3_4.users@=3_4.id');
+            await testExprAndNodeEntryPoints('ColumnRef', 'public@<3.users@<3.id');
+            await testExprAndNodeEntryPoints('ColumnRef', 'public @>4 . "users" @>4 . id', { stripSpaces: true, stripQuotes: true });
+            await testExprAndNodeEntryPoints('ColumnRef', 'public@<=3."us ers"@<=3.id');
+            await testExprAndNodeEntryPoints('ColumnRef', 'public@>=4.`us ers`@>=4.id', { dialect: 'mysql' });
         });
     });
 });
