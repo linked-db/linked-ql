@@ -6,9 +6,9 @@ export class SelectStmt extends AbstractNonDDLStmt {
 
     static get syntaxRules() { return { type: ['CompleteSelectStmt', 'CompositeSelectStmt'], expression: true }; }
 
-    static _getSyntaxRules(full = false) {
+    static buildSyntaxRules(part = null) {
         const itemSeparator = { type: 'punctuation', value: ',' };
-        return [
+        const part1 = (extRules = []) => [
             { type: 'keyword', value: 'SELECT' },
             { type: 'DistinctClause', as: 'distinct_clause', optional: true },
             { type: 'SelectElement', as: 'select_list', arity: { min: 1 }, itemSeparator, assert: true, autoIndent: 2 },
@@ -28,19 +28,19 @@ export class SelectStmt extends AbstractNonDDLStmt {
                     },
                     { type: 'WindowClause', as: 'window_clause', optional: true, autoIndent: true },
                     ...
-                    (full ? this._getSyntaxRulesTail() : [])
+                    extRules
                 ],
             },
         ];
-    }
-
-    static _getSyntaxRulesTail() {
-        return [
+        const part2 = () => [
             { type: 'OrderByClause', as: 'order_by_clause', optional: true, autoIndent: true },
             { type: 'LimitClause', as: 'limit_clause', optional: true, autoIndent: true },
             { type: 'OffsetClause', as: 'offset_clause', optional: true, autoIndent: true },
             { type: 'PGFetchClause', as: 'pg_fetch_clause', optional: true, dialect: 'postgres', autoIndent: true },
             { type: 'ForClause', as: 'for_clause', optional: true, autoIndent: true },
         ];
+        if (part === 1) return part1();
+        if (part === 2) return part2();
+        return part1(part2());
     }
 }

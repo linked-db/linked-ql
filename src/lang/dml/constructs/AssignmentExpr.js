@@ -6,7 +6,7 @@ export class AssignmentExpr extends BinaryExpr {
 
     static get syntaxRules() {
         return [
-            { type: ['LQDeepRef', 'ColumnsConstructor', 'ComputedColumnRef'], as: 'left' },
+            { type: ['LQDeepRef', 'ColumnsConstructor', 'ColumnRef'], as: 'left' },
             { type: 'operator', as: 'operator', value: '=' },
             { type: ['ValuesSetConstructor', 'Expr'], as: 'right' },
         ];

@@ -7,7 +7,7 @@ export class UsingClause extends AbstractNode {
     static get syntaxRules() {
         return [
             { type: 'keyword', value: 'USING' },
-            { type: ['ClassicColumnRef', 'SetConstructor'], as: 'column', assert: true }
+            { type: ['ColumnNameRef', 'ColumnsConstructor'], as: 'column', assert: true }
         ];
     }
 

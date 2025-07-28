@@ -12,7 +12,7 @@ export class CompositeSelectStmt extends SelectStmt {
             { type: 'keyword', as: 'all_or_distinct', value: ['ALL', 'DISTINCT'], optional: true },
             { type: setTypes, as: 'right', assert: true, autoSpacing: '\n' },
             ...
-            this._getSyntaxRulesTail(),
+            this.buildSyntaxRules(2),
         ];
     }
 

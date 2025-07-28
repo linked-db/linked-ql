@@ -229,19 +229,14 @@ export class TokenStream {
         this.#rootSavepoint = null;
     }
 
-    // Factory input -> to stream
-    static toStream(input) {
-        if (typeof input[Symbol.asyncIterator] === 'function') {
-            return typeof input.next === 'function' ? input : input[Symbol.asyncIterator]();
-        }
-        if (typeof input[Symbol.iterator] === 'function' && typeof input !== 'string' && !(input instanceof String)) {
-            return typeof input.next === 'function' ? input : input[Symbol.iterator]();
-        }
-        return (function* () { yield input + ''; })();
-    }
-
     // Returns ToeknStream
     static async create(input, { dialect = 'postgres', state = new TokenStreamState, ...options } = {}) {
+        if (Array.isArray(input) && input.every((s) => typeof s === 'object' && s?.type) && (input = input.slice())) {
+            return new this(
+                input[Symbol.iterator](),
+                { dialect, ...options },
+            );
+        }
         // Normalize options. Consumers of the instance (i.e. parsers) might benefit from it
         if (!options.normalized) {
             options = normalizeOptions({ dialect, ...options, normalized: true });
@@ -252,11 +247,22 @@ export class TokenStream {
         );
     }
 
+    // Factory input -> to stream
+    static toIterator(input) {
+        if (typeof input[Symbol.asyncIterator] === 'function') {
+            return typeof input.next === 'function' ? input : input[Symbol.asyncIterator]();
+        }
+        if (typeof input[Symbol.iterator] === 'function' && typeof input !== 'string' && !(input instanceof String)) {
+            return typeof input.next === 'function' ? input : input[Symbol.iterator]();
+        }
+        return (function* () { yield input + ''; })();
+    }
+
     // Returns Iterator
     static async * createIterator(input, { dialect = 'postgres', state = new TokenStreamState, ...options } = {}) {
 
         // Normalize input to stream
-        const stream = this.toStream(input);
+        const stream = this.toIterator(input);
         // Validate "dialect" and "state" input
         if (!['postgres', 'mysql'].includes(dialect)) {
             throw new Error(`Unknown dialect: ${dialect}`);

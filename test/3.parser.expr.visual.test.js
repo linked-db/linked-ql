@@ -295,11 +295,11 @@ $describe('Parser - Specialized Operator Expressions', () => {
         });
 
         $it('should parse a back-referencing LQBackRefConstructor as column qualifier', async () => {
-            await testExprAndNodeEntryPoints('ComputedColumnRef', '(col <~ tbl).col');
+            await testExprAndNodeEntryPoints('ColumnRef', '(col <~ tbl).col');
         });
 
         $it('should parse a back, back-referencing LQBackRefConstructor as column qualifier', async () => {
-            await testExprAndNodeEntryPoints('ComputedColumnRef', '(fk2 <~ fk1 <~ tbl).col');
+            await testExprAndNodeEntryPoints('ColumnRef', '(fk2 <~ fk1 <~ tbl).col');
         });
 
         $it('should parse a back, back-referencing LQBackRefConstructor as left of LQDeepRef', async () => {
@@ -318,50 +318,50 @@ $describe('Parser - References and Identifiers', () => {
             await testExprAndNodeEntryPoints('AggrCallExpr', 'COUNT(*)');
         });
 
-        $it('should parse a database reference (ClassicDatabaseRef)', async () => {
-            await testParseAndStringify('ClassicDatabaseRef', 'my_database');
+        $it('should parse a database reference (DatabaseRef)', async () => {
+            await testParseAndStringify('DatabaseRef', 'my_database');
         });
 
-        $it('should parse a database reference with version spec (ClassicDatabaseRef)', async () => {
-            await testParseAndStringify('ClassicDatabaseRef', 'my_database@2_1');
-            await testParseAndStringify('ClassicDatabaseRef', 'my_database @2_1', { stripSpaces: true });
-            await testParseAndStringify('ClassicDatabaseRef', 'my_database @\'2_1\'', { stripSpaces: true, stripQuotes: true });
+        $it('should parse a database reference with version spec (DatabaseRef)', async () => {
+            await testParseAndStringify('DatabaseRef', 'my_database@2_1');
+            await testParseAndStringify('DatabaseRef', 'my_database @2_1', { stripSpaces: true });
+            await testParseAndStringify('DatabaseRef', 'my_database @\'2_1\'', { stripSpaces: true, stripQuotes: true });
         });
 
-        $it('should parse a table reference (ClassicTableRef)', async () => {
-            await testParseAndStringify('ClassicTableRef', 'my_table');
+        $it('should parse a table reference (TableRef)', async () => {
+            await testParseAndStringify('TableRef', 'my_table');
         });
     });
 
     $describe('Qualified References', () => {
-        $it('should parse table.column (ComputedColumnRef)', async () => {
-            await testExprAndNodeEntryPoints('ComputedColumnRef', 'users.id');
+        $it('should parse table.column (ColumnRef)', async () => {
+            await testExprAndNodeEntryPoints('ColumnRef', 'users.id');
         });
 
-        $it('should parse schema.table.column (ComputedColumnRef)', async () => {
-            await testExprAndNodeEntryPoints('ComputedColumnRef', 'public.users.id');
+        $it('should parse schema.table.column (ColumnRef)', async () => {
+            await testExprAndNodeEntryPoints('ColumnRef', 'public.users.id');
         });
 
-        $it('should parse database.schema.table.column (ComputedColumnRef)', async () => {
-            await testExprAndNodeEntryPoints('ComputedColumnRef', 'public.users.id');
+        $it('should parse database.schema.table.column (ColumnRef)', async () => {
+            await testExprAndNodeEntryPoints('ColumnRef', 'public.users.id');
         });
 
-        $it('should parse database.schema.table.column (ComputedColumnRef)', async () => {
-            await testExprAndNodeEntryPoints('ComputedColumnRef', 'public@^4.users.id');
-            await testExprAndNodeEntryPoints('ComputedColumnRef', 'public@~7_6.users.id');
-            await testExprAndNodeEntryPoints('ComputedColumnRef', 'public@=3_4.users.id');
-            await testExprAndNodeEntryPoints('ComputedColumnRef', 'public@<3.users.id');
-            await testExprAndNodeEntryPoints('ComputedColumnRef', 'public @>4 . "users" . id', { stripSpaces: true, stripQuotes: true });
-            await testExprAndNodeEntryPoints('ComputedColumnRef', 'public@<=3."us ers".id');
-            await testExprAndNodeEntryPoints('ComputedColumnRef', 'public@>=4.`us ers`.id', { dialect: 'mysql' });
+        $it('should parse database.schema.table.column (ColumnRef)', async () => {
+            await testExprAndNodeEntryPoints('ColumnRef', 'public@^4.users.id');
+            await testExprAndNodeEntryPoints('ColumnRef', 'public@~7_6.users.id');
+            await testExprAndNodeEntryPoints('ColumnRef', 'public@=3_4.users.id');
+            await testExprAndNodeEntryPoints('ColumnRef', 'public@<3.users.id');
+            await testExprAndNodeEntryPoints('ColumnRef', 'public @>4 . "users" . id', { stripSpaces: true, stripQuotes: true });
+            await testExprAndNodeEntryPoints('ColumnRef', 'public@<=3."us ers".id');
+            await testExprAndNodeEntryPoints('ColumnRef', 'public@>=4.`us ers`.id', { dialect: 'mysql' });
         });
 
-        $it('should parse schema.table (ComputedTableRef)', async () => {
-            await testParseAndStringify('ClassicTableRef', 'public.users');
+        $it('should parse schema.table (TableAbstractionRef)', async () => {
+            await testParseAndStringify('TableRef', 'public.users');
         });
 
         $it('should parse qualified star reference (table.*)', async () => {
-            await testParseAndStringify('ComputedColumnRef', 'users.*');
+            await testParseAndStringify('ColumnRef', 'users.*');
         });
     });
 });

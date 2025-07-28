@@ -5,11 +5,11 @@ import { registry } from '../registry.js';
 const {
     FromElement,
     BasicTableExpr,
-    ClassicTableRef,
+    TableRef,
     BasicAlias,
     CompositeAlias,
-    ComputedTableRef,
-    ComputedColumnRef,
+    TableAbstractionRef,
+    ColumnRef,
     SelectElement,
     FromClause,
     CompleteSelectStmt,
@@ -130,14 +130,14 @@ export class DeleteStmt extends SelectorStmtMixin(
             ...resultJson,
             table_expr: {
                 nodeName: BasicTableExpr.NODE_NAME,
-                name: { nodeName: ClassicTableRef.NODE_NAME, value: tblRefOriginal },
+                name: { nodeName: TableRef.NODE_NAME, value: tblRefOriginal },
                 alias: { nodeName: BasicAlias.NODE_NAME, value: tblAliasRewrite }
             },
             where_clause: {
                 nodeName: BinaryExpr.NODE_NAME,
                 left: {
-                    nodeName: ComputedColumnRef.NODE_NAME,
-                    qualifier: { nodeName: ComputedTableRef.NODE_NAME, value: tblAliasRewrite },
+                    nodeName: ColumnRef.NODE_NAME,
+                    qualifier: { nodeName: TableAbstractionRef.NODE_NAME, value: tblAliasRewrite },
                     value: pk,
                 },
                 operator: 'IN',
@@ -148,14 +148,14 @@ export class DeleteStmt extends SelectorStmtMixin(
                         nodeName: CompleteSelectStmt.NODE_NAME,
                         select_list: [{
                             nodeName: SelectElement.NODE_NAME,
-                            expr: { nodeName: ComputedColumnRef.NODE_NAME, value: pk }
+                            expr: { nodeName: ColumnRef.NODE_NAME, value: pk }
                         }],
                         from_clause: {
                             // FROM <tblRefOriginal>
                             nodeName: FromClause.NODE_NAME,
                             entries: [{
                                 nodeName: FromElement.NODE_NAME,
-                                expr: { nodeName: ClassicTableRef.NODE_NAME, value: tblRefOriginal },
+                                expr: { nodeName: TableRef.NODE_NAME, value: tblRefOriginal },
                                 alias: { nodeName: CompositeAlias.NODE_NAME, value: tblAliasOriginal }
                             }]
                         },

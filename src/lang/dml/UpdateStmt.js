@@ -11,10 +11,10 @@ const {
     CompositeAlias,
     FromClause,
     WhereClause,
-    ComputedColumnRef,
-    ComputedTableRef,
+    ColumnRef,
+    TableAbstractionRef,
     BinaryExpr,
-    ClassicTableRef,
+    TableRef,
     FromElement,
 } = registry;
 
@@ -171,7 +171,7 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                                 nodeName: FromClause.NODE_NAME,
                                 entries: [{
                                     nodeName: FromElement.NODE_NAME,
-                                    expr: { nodeName: ClassicTableRef.NODE_NAME, value: tblRefOriginal }
+                                    expr: { nodeName: TableRef.NODE_NAME, value: tblRefOriginal }
                                 }]
                             },
                         },
@@ -186,14 +186,14 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                 const whereClause = {
                     nodeName: BinaryExpr.NODE_NAME,
                     left: {
-                        nodeName: ComputedColumnRef.NODE_NAME,
-                        qualifier: { nodeName: ComputedTableRef.NODE_NAME, value: tblAliasOriginal },
+                        nodeName: ColumnRef.NODE_NAME,
+                        qualifier: { nodeName: TableAbstractionRef.NODE_NAME, value: tblAliasOriginal },
                         value: colRefOriginal
                     },
                     operator: '=',
                     right: {
-                        nodeName: ComputedColumnRef.NODE_NAME,
-                        qualifier: { nodeName: ComputedTableRef.NODE_NAME, value: tblAliasRewrite },
+                        nodeName: ColumnRef.NODE_NAME,
+                        qualifier: { nodeName: TableAbstractionRef.NODE_NAME, value: tblAliasRewrite },
                         value: colRefRewrite
                     }
                 };
@@ -205,14 +205,14 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
             // Select the rewritten ref
             pgGeneratedFromEntry.from.expr.expr.select_list.push({
                 nodeName: SelectElement.NODE_NAME,
-                expr: { nodeName: ComputedColumnRef.NODE_NAME, value: colRefOriginal },
+                expr: { nodeName: ColumnRef.NODE_NAME, value: colRefOriginal },
                 alias: { nodeName: BasicAlias.NODE_NAME, value: colRefRewrite }
             });
 
             // Return the rewritten ref
             return {
-                nodeName: ComputedColumnRef.NODE_NAME,
-                qualifier: { nodeName: ComputedTableRef.NODE_NAME, value: tblAliasRewrite },
+                nodeName: ColumnRef.NODE_NAME,
+                qualifier: { nodeName: TableAbstractionRef.NODE_NAME, value: tblAliasRewrite },
                 value: colRefRewrite,
             };
         };

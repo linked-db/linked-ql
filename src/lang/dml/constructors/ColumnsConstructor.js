@@ -10,7 +10,7 @@ export class ColumnsConstructor extends AbstractNodeList {
             syntax: [
                 {
                     type: 'paren_block',
-                    syntax: { type: 'ClassicColumnRef', as: 'entries', arity: Infinity, itemSeparator, autoIndent: 2 },
+                    syntax: { type: 'ColumnNameRef', as: 'entries', arity: Infinity, itemSeparator, autoIndent: 2 },
                     autoIndent: true,
                     autoIndentAdjust: -1,
                 },

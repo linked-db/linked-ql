@@ -4,7 +4,7 @@ export class CompleteSelectStmt extends BasicSelectStmt {
 
     /* SYNTAX RULES */
 
-    static get syntaxRules() { return this._getSyntaxRules(true); }
+    static get syntaxRules() { return this.buildSyntaxRules(); }
 
     static get syntaxPriority() { return 99; }
 

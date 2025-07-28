@@ -10,13 +10,13 @@ export class LQBackBackRef extends AbstractMagicRef {
 
 	/* SYNTAX RULES */
 
-	static get _leftType() { return ['ComputedColumnRef'/* must come first to prevent left-recursion */, 'LQBackBackRef']; } // for inheritance
+	static get _leftType() { return ['ColumnRef'/* must come first to prevent left-recursion */, 'LQBackBackRef']; } // for inheritance
 
 	static get syntaxRules() {
 		return [
 			{ type: this._leftType, as: 'left', peek: [1, 'operator', '<~'] },
 			{ type: 'operator', value: '<~' },
-			{ type: 'ClassicColumnRef', as: 'right', peek: [1, 'operator', '<~'] },
+			{ type: 'ColumnNameRef', as: 'right', peek: [1, 'operator', '<~'] },
 		];
 	}
 

@@ -18,8 +18,8 @@ const {
     BasicAlias,
 
     // Computed/derived references
-    ComputedTableRef,
-    ComputedColumnRef,
+    TableAbstractionRef,
+    ColumnRef,
 
     // Expressions
     BinaryExpr,
@@ -110,7 +110,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
                     // GROUP BY <rightMask>
                     group_by_clause: asAggr ? {
                         nodeName: GroupByClause.NODE_NAME,
-                        entries: [{ nodeName: ComputedColumnRef.NODE_NAME, value: rightMask }]
+                        entries: [{ nodeName: ColumnRef.NODE_NAME, value: rightMask }]
                     } : undefined,
                 }
             },
@@ -125,8 +125,8 @@ export const SelectorStmtMixin = (Class) => class extends Class {
                     operator: '=',
                     left: left.jsonfy($options),
                     right: {
-                        nodeName: ComputedColumnRef.NODE_NAME,
-                        qualifier: { nodeName: ComputedTableRef.NODE_NAME, value: dimensionID },
+                        nodeName: ColumnRef.NODE_NAME,
+                        qualifier: { nodeName: TableAbstractionRef.NODE_NAME, value: dimensionID },
                         value: rightMask
                     },
                 }
@@ -134,7 +134,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
         };
 
         // Join ALias as Table ref...
-        const alias = () => ({ nodeName: ComputedTableRef.NODE_NAME, value: dimensionID });
+        const alias = () => ({ nodeName: TableAbstractionRef.NODE_NAME, value: dimensionID });
 
         // Add entry...
         const select = (detail) => {
@@ -148,8 +148,8 @@ export const SelectorStmtMixin = (Class) => class extends Class {
                 as_kw: true,
             });
             return {
-                nodeName: ComputedColumnRef.NODE_NAME,
-                qualifier: { nodeName: ComputedTableRef.NODE_NAME, value: dimensionID },
+                nodeName: ColumnRef.NODE_NAME,
+                qualifier: { nodeName: TableAbstractionRef.NODE_NAME, value: dimensionID },
                 value: selectAlias
             };
         };

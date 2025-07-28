@@ -8,9 +8,9 @@ const {
 	// Core references and constructors
 	LQDeepRef,
 	LQBackRefConstructor,
-	ClassicColumnRef,
-	ComputedColumnRef,
-	ClassicTableRef,
+	ColumnNameRef,
+	ColumnRef,
+	TableRef,
 	BasicAlias,
 
 	// Assignment and set/row/column constructors
@@ -209,7 +209,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				payloadDimensions
 					?.add({ type: 'memo', query: cteSelect });
 				// Use that as new base
-				const newBaseSelectFromElement = { nodeName: FromElement.NODE_NAME, expr: { nodeName: ClassicTableRef.NODE_NAME, value: cteAlias } };
+				const newBaseSelectFromElement = { nodeName: FromElement.NODE_NAME, expr: { nodeName: TableRef.NODE_NAME, value: cteAlias } };
 				baseSelect = {
 					nodeName: CompleteSelectStmt.NODE_NAME,
 					from_clause: { nodeName: FromClause.NODE_NAME, entries: [newBaseSelectFromElement] }
@@ -270,7 +270,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		const refRight = LQRefColumn.right();
 		if (refRight instanceof ColumnsConstructor) {
 			columnsConstructorJson = refRight.jsonfy($options);
-		} else if (refRight instanceof ClassicColumnRef || refRight instanceof LQDeepRef) {
+		} else if (refRight instanceof ColumnNameRef || refRight instanceof LQDeepRef) {
 			columnsConstructorJson = { nodeName: ColumnsConstructor.NODE_NAME, entries: [refRight.jsonfy($options)] };
 		} else {
 			throw new Error(`Invalid columns spec: ${LQRefColumn}`);
@@ -304,10 +304,10 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			const innerFilterExpr = typeof innerFilter === 'string' ? ({
 				nodeName: BinaryExpr.NODE_NAME,
 				operator: 'IS',
-				left: { nodeName: ComputedColumnRef.NODE_NAME, value: innerFilter },
+				left: { nodeName: ColumnRef.NODE_NAME, value: innerFilter },
 				right: { nodeName: BoolLiteral.NODE_NAME, value: 'TRUE' },
 			}) : null;
-			const tableSpec = { nodeName: FromElement.NODE_NAME, expr: { nodeName: ClassicTableRef.NODE_NAME, value: sourceUuid } };
+			const tableSpec = { nodeName: FromElement.NODE_NAME, expr: { nodeName: TableRef.NODE_NAME, value: sourceUuid } };
 			const selectStmt = {
 				nodeName: CompleteSelectStmt.NODE_NAME,
 				select_list: [{ nodeName: SelectElement.NODE_NAME, expr: fieldExpr }],
@@ -421,7 +421,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 					const fkField = {
 						nodeName: SelectElement.NODE_NAME,
 						expr: fKBindingJson,
-						alias: right instanceof ComputedColumnRef ? { nodeName: BasicAlias.NODE_NAME, value: right.value() } : undefined
+						alias: right instanceof ColumnRef ? { nodeName: BasicAlias.NODE_NAME, value: right.value() } : undefined
 					};
 					const selectJson = payload.jsonfy($options);
 					query.select_clause = { ...selectJson, select_list: selectJson.select_list.concat(fkField) };
@@ -466,7 +466,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				query.select_clause = payload.jsonfy($options);
 			} else dimensionPushRow(payload);
 			// The binding element...
-			const rightPKJson = { nodeName: ComputedColumnRef.NODE_NAME, value: right.value() };
+			const rightPKJson = { nodeName: ColumnRef.NODE_NAME, value: right.value() };
 			const fKBindingJson = createForeignBinding(query.uuid, rightPKJson, rowOffset);
 			return fKBindingJson;
 		};
@@ -547,7 +547,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			}
 
 			// Derive final body...
-			const tableSpec = { nodeName: FromElement.NODE_NAME, expr: { nodeName: ClassicTableRef.NODE_NAME, value: this.uuid } };
+			const tableSpec = { nodeName: FromElement.NODE_NAME, expr: { nodeName: TableRef.NODE_NAME, value: this.uuid } };
 			cte.body = {
 				nodeName: CompleteSelectStmt.NODE_NAME,
 				select_list: originalPGReturningClause.entries,

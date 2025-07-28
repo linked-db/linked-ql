@@ -3,7 +3,7 @@ import { registry } from '../../registry.js';
 
 const {
     AggrCallExpr,
-    ComputedColumnRef,
+    ColumnRef,
 } = registry;
 
 export class LQObjectProperty extends AbstractNode {
@@ -52,7 +52,7 @@ export class LQObjectProperty extends AbstractNode {
             } else {
                 // Note the below where we derive value, if not specified, from key
                 valueJson = this.value()?.jsonfy(options, transformCallback)
-                    ?? { nodeName: ComputedColumnRef.NODE_NAME, value: this.key() };
+                    ?? { nodeName: ColumnRef.NODE_NAME, value: this.key() };
             }
             // plus, we'll drop the is_aggr flag
             return {

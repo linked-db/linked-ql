@@ -1,6 +1,7 @@
 import { Query } from '../src/lang/Query.js';
 import { TokenStream } from '../src/lang/TokenStream.js';
 import '../src/lang/index.js';
+import { registry } from '../src/lang/registry.js';
 import { normalizeSql } from './0.parser.js';
 
 //console.log('----------', registry.Expr.compileASTSchemaFromSyntaxRules().type);
@@ -108,7 +109,7 @@ FOR UPDATE SKIP LOCKED;
 TABLE public.users *;
 `;
 
-sql = `SELECT * FROM users WHERE id = 1; INSERT INTO "users" (name, email) VALUES ('John Doe', 'Hjdd');`;
+sql = `public@3_3.users@3.*`;
 
 //
 /*
@@ -123,10 +124,10 @@ process.exit();
 
 
 let t1b;
+t1b = await registry['ColumnRef'].parse(sql, { assert: new RegExp(`COLUMN_REF\\.0\\.syntaxes\\.0\\.0<qufalifier>\\.`) });
 //t1b = await Query.parse(sql, { assert: false });
-t1b = await Query.parse(sql, { assert: false });
 for (const t of [t1b]) {
-    console.log(t, '----------', normalizeSql(sql).toUpperCase() === t?.stringify?.().toUpperCase(), t?.stringify?.(), '----------', t?.jsonfy?.().entries[0]/**/);
+    console.log(t, '----------', normalizeSql(sql).toUpperCase() === t?.stringify?.().toUpperCase(), t?.stringify?.(), '----------', t?.jsonfy?.()/**/);
     console.log('\n\n\n\n+++++++++++++++++++++++++++\n\n\n\n');
     console.log(t?.constructor?.fromJSON(t?.jsonfy?.(), t?.options).stringify?.({ prettyPrint: true, autoLineBreakThreshold: 6 }));
 }

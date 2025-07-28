@@ -1,21 +1,31 @@
-import { AbstractClassicRef } from './abstracts/AbstractClassicRef.js';
+import { Identifier } from './Identifier.js';
 
-export class ClassicDatabaseRef extends AbstractClassicRef {
+export class DatabaseRef extends Identifier {
 
-	/* SYNTAX RULES */
+    /* SYNTAX RULES */
 
-	static get syntaxRules() {
-		return [
-            ...[].concat(super.syntaxRules),
+    static get syntaxRules() {
+        return [
+            { type: 'identifier', as: '.' },
             { type: 'LQVersionSpec', as: 'version_spec', optional: true, autoSpacing: false }
         ];
-	}
+    }
 
     static get syntaxPriority() { return -1; }
 
-    /* DESUGARING API */
+    /* AST API */
 
     versionSpec() { return this._get('version_spec'); }
+
+    /* DESUGARING API */
+
+    jsonfy(options = {}, transformCallback = null) {
+		let { version_spec, ...resultJson } = super.jsonfy(options, transformCallback);
+		if (!options.deSugar && version_spec) {
+			resultJson = { version_spec, ...resultJson };
+		}
+		return resultJson;
+	}
 
     /* API */
 

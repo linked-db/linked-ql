@@ -8,7 +8,7 @@ export class MYStarredTableRef extends AbstractNode {
         return {
             dialect: 'mysql',
             syntax: [
-                { type: 'ClassicTableRef', as: 'name' },
+                { type: 'TableRef', as: 'name' },
                 {
                     optional: true,
                     syntax: [

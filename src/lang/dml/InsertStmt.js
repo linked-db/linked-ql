@@ -45,7 +45,7 @@ export class InsertStmt extends PayloadStmtMixin(
 					{
 						dialect: 'mysql',
 						syntax: [
-							{ type: 'ClassicTableRef', as: 'table_expr' },
+							{ type: 'TableRef', as: 'table_expr' },
 							{ type: 'MYPartitionClause', as: 'my_partition_clause', optional: true, autoIndent: true },
 							{
 								syntaxes: [

@@ -76,7 +76,7 @@ export class FromElement extends AbstractNode {
                 ],
                 [
                     { type: 'keyword', as: 'pg_only_kw', value: 'ONLY', optional: true, dialect: 'postgres' },
-                    { type: 'ClassicTableRef', as: 'expr' },
+                    { type: 'TableRef', as: 'expr' },
                     { type: 'StarRef', as: 'pg_star_ref', optional: true, dialect: 'postgres' },
                     { ...optional_alias },
                     { ...optional_table_sample_clause_postgres },

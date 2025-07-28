@@ -13,9 +13,9 @@ export class PGCycleClause extends AbstractNode {
                 {
                     assert: true,
                     syntax: [
-                        { type: 'ComputedColumnRef', as: 'column_names', arity: { min: 1 }, itemSeparator, assert: true, autoIndent: 2 },
+                        { type: 'ColumnRef', as: 'column_names', arity: { min: 1 }, itemSeparator, assert: true, autoIndent: 2 },
                         { type: 'keyword', value: 'SET' },
-                        { type: 'ComputedColumnRef', as: 'mark_col_name' },
+                        { type: 'ColumnRef', as: 'mark_col_name' },
                         {
                             optional: true,
                             syntax: [
@@ -26,7 +26,7 @@ export class PGCycleClause extends AbstractNode {
                             ]
                         },
                         { type: 'keyword', value: 'USING' },
-                        { type: 'ComputedColumnRef', as: 'path_col_name' },
+                        { type: 'ColumnRef', as: 'path_col_name' },
                     ]
                 },
             ]

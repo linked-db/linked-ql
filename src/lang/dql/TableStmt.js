@@ -8,7 +8,7 @@ export class TableStmt extends AbstractStmt {
         return [
             { type: 'keyword', value: 'TABLE' },
             { type: 'keyword', as: 'pg_only_kw', value: 'ONLY', optional: true, dialect: 'postgres' },
-            { type: 'ClassicTableRef', as: 'table_name', assert: true },
+            { type: 'TableRef', as: 'table_name', assert: true },
             { type: 'StarRef', as: 'pg_star_ref', optional: true, dialect: 'postgres' },
         ];
     }

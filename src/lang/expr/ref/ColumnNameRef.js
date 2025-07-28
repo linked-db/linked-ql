@@ -1,6 +1,6 @@
-import { AbstractClassicRef } from './abstracts/AbstractClassicRef.js';
+import { Identifier } from './Identifier.js';
 
-export class ClassicColumnRef extends AbstractClassicRef {
+export class ColumnNameRef extends Identifier {
 
     /* SYNTAX RULES */
 

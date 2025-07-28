@@ -8,7 +8,7 @@ export class PGConflictTargetIndexSpec extends AbstractNode {
         return [
             {
                 syntaxes: [
-                    { type: 'ClassicColumnRef', as: 'column_name' },
+                    { type: 'ColumnNameRef', as: 'column_name' },
                     { type: 'paren_block', syntax: { type: 'Expr', as: 'expr', assert: true }, autoIndent: true },
                     { type: 'CallExpr', as: 'expr' }, // Must come after the parens option
                 ],

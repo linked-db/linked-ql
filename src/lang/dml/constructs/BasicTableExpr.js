@@ -17,7 +17,7 @@ export class BasicTableExpr extends AbstractNode {
         };
         return [
             { type: 'keyword', as: 'pg_only_kw', value: 'ONLY', optional: true, dialect: 'postgres' },
-            { type: 'ClassicTableRef', as: 'name', assert: true },
+            { type: 'TableRef', as: 'name', assert: true },
             { type: 'StarRef', as: 'pg_star_ref', optional: true, dialect: 'postgres' },
             { ...optional_alias },
         ];

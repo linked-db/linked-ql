@@ -5,11 +5,11 @@ export class LQDeepDeepRef extends AbstractMagicRef {
 
 	/* SYNTAX RULES */
 
-	static get _rightType() { return ['LQDeepDeepRef', 'LQObjectLiteral', 'LQArrayLiteral', 'ColumnsConstructor', 'ClassicColumnRef']; } // for inheritance
+	static get _rightType() { return ['LQDeepDeepRef', 'LQObjectLiteral', 'LQArrayLiteral', 'ColumnsConstructor', 'ColumnNameRef']; } // for inheritance
 
 	static get syntaxRules() {
 		return [
-			{ type: 'ClassicColumnRef', as: 'left', peek: [1, 'operator', '~>'] },
+			{ type: 'ColumnNameRef', as: 'left', peek: [1, 'operator', '~>'] },
 			{ type: 'operator', value: '~>' },
 			{ type: this._rightType, as: 'right' },
 		];

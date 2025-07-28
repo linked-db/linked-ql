@@ -14,7 +14,7 @@ export class BasicSelectStmt extends SelectorStmtMixin(
 
     /* SYNTAX RULES */
 
-    static get syntaxRules() { return this._getSyntaxRules(false); }
+    static get syntaxRules() { return this.buildSyntaxRules(1); }
 
     static get syntaxPriority() { return -1; }
 

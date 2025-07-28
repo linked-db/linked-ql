@@ -24,7 +24,7 @@ export class ForClause extends AbstractNode {
                 optional: true,
                 syntax: [
                     { type: 'keyword', value: 'OF' },
-                    { type: 'ComputedTableRef', as: 'table_names', arity: { min: 1 }, itemSeparator, assert: true }
+                    { type: 'TableAbstractionRef', as: 'table_names', arity: { min: 1 }, itemSeparator, assert: true }
                 ],
             },
             {

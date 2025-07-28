@@ -25,7 +25,8 @@ export class Query extends AbstractNodeList {
     /* API */
 
     static async parse(input, options = {}) {
-        const { result, tokenStream } = await super.parse(input, { returningTokenStream: true, ...options });
+        const tokenStream = await this.toStream(input, options);
+        const result = await super.parse(tokenStream, options);
         if (!tokenStream.done && tokenStream.current()) {
             const current = tokenStream.current();
 			const message = `[${this.NODE_NAME}] Unexpected token:${typeof current.value === 'string' ? ` "${current.value}" (${current.type})` : ''} at <line ${current.line}, column ${current.column}>`;

@@ -655,14 +655,19 @@ export class AbstractNode {
 	 * -----------
 	 */
 
-	static async parse(input, { left, minPrecedence = 0, trail = [], returningTokenStream = false, ...options } = {}) {
+	static async toStream(input, options = {}) {
 		const tokenStream = !(input instanceof TokenStream)
 			? await TokenStream.create(input, { structured: true, spaces: true, ...options })
 			: input;
-		const savepoint = tokenStream.savepoint();
 		if (!tokenStream.current() && !tokenStream.done) {
 			await tokenStream.next();
 		}
+		return tokenStream;
+	}
+
+	static async parse(input, { left = undefined, minPrecedence = 0, trail = [], ...options } = {}) {
+		const tokenStream = await this.toStream(input, options);
+		const savepoint = tokenStream.savepoint();
 		const syntaxRules = this.syntaxRules;
 		// 1. Resolve polymorphic interfaces
 		let result, rulesArray;
@@ -680,13 +685,10 @@ export class AbstractNode {
 			}
 		}
 		if (!result) tokenStream.restore(savepoint);
-		if (returningTokenStream) {
-			return { result, tokenStream };
-		}
 		return result;
 	}
 
-	static async _parseAsExpression(tokenStream, types, { left = null, minPrecedence, trail, ...options }) {
+	static async _parseAsExpression(tokenStream, types, { left = undefined, minPrecedence, trail, ...options }) {
 		if (left) throw new Error(`TODO`);
 		left = await this._parseFromTypes(tokenStream, types, { minPrecedence, trail, ...options });
 		while (left) {
@@ -751,7 +753,7 @@ export class AbstractNode {
 			// -----
 			const acquireLeft = async () => {
 				if (!exposure || isTokenRule) return;
-				if (rulesArray[i + 1]?.type !== 'operator') return; // Not necessary but for the purpose of failing faster
+				if (!(rulesArray[i + 1]?.type === 'operator' || (rulesArray[i + 1]?.type === 'punctuation' && rulesArray[i + 1]?.value === '.'))) return;
 				if (Array.isArray(peek) && !await peekToken(-1)) return;
 				for (const name of [].concat(type)) {
 					if (left instanceof registry[name]) {
@@ -806,8 +808,9 @@ export class AbstractNode {
 			// Validation...
 			// -----
 
-			if (left && type) {
-				if (!await acquireLeft()) return;
+			if (left && type || left === false && optional) {
+				// left === false is typically passed from IdentifierPath
+				if (left && !await acquireLeft()) return;
 				left = null;
 				continue;
 			}

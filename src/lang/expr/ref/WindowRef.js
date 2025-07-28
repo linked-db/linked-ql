@@ -1,6 +1,6 @@
-import { AbstractClassicRef } from './abstracts/AbstractClassicRef.js';
+import { Identifier } from './Identifier.js';
 
-export class WindowRef extends AbstractClassicRef {
+export class WindowRef extends Identifier {
     
     /* SYNTAX RULES */
 

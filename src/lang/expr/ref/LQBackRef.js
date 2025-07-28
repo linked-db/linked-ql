@@ -3,8 +3,8 @@ import { ErrorFKInvalid } from './abstracts/ErrorFKInvalid.js';
 import { registry } from '../../registry.js';
 
 const {
-	ComputedColumnRef,
-	ClassicTableRef,
+	ColumnRef,
+	TableRef,
 } = registry;
 
 export class LQBackRef extends LQBackBackRef {
@@ -15,7 +15,7 @@ export class LQBackRef extends LQBackBackRef {
 		return [
 			{ type: this._leftType, as: 'left', peek: [1, 'operator', '<~'] },
 			{ type: 'operator', value: '<~' },
-			{ type: 'ClassicTableRef', as: 'right' }
+			{ type: 'TableRef', as: 'right' }
 		];
 	}
 
@@ -47,7 +47,7 @@ export class LQBackRef extends LQBackBackRef {
 		for (const $col of querySchema/*query*/.columns()) {
 			if (!$col.primaryKey()) continue;
 			if ($col.qualifier(true).identifiesAs(leftEndpointTable)) {
-				const $keyLeft_ref = ComputedColumnRef.fromJSON({
+				const $keyLeft_ref = ColumnRef.fromJSON({
 					qualifier: $col.parentSchema(true).name(),
 					value: $col.name()
 				});
@@ -64,7 +64,7 @@ export class LQBackRef extends LQBackBackRef {
 			? left.clone({ reverseRef: true })
 			: left.clone();
 		const targetTable_schema = this.tableSchema();
-		const targetTable_ref = ClassicTableRef.fromJSON({
+		const targetTable_ref = TableRef.fromJSON({
 			qualifier: targetTable_schema.parentSchema(true).name(),
 			value: targetTable_schema.name()
 		});
