@@ -10,6 +10,7 @@ export class CTEBinding extends AbstractNode {
             { type: 'keyword', value: 'AS' },
             {
                 optional: true,
+                dialect: 'postgres',
                 syntaxes: [
                     [
                         { type: 'operator', as: 'not_materialized_kw', value: 'NOT', booleanfy: true },

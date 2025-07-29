@@ -1,6 +1,6 @@
 import { AbstractNode } from '../../abstracts/AbstractNode.js';
 
-export class MYStarredTableRef extends AbstractNode {
+export class MYStarrableBasicTableExpr extends AbstractNode {
 
     /* SYNTAX RULES */
 
@@ -8,7 +8,7 @@ export class MYStarredTableRef extends AbstractNode {
         return {
             dialect: 'mysql',
             syntax: [
-                { type: 'TableRef', as: 'name' },
+                { type: 'TableRef', as: 'table_ref' },
                 {
                     optional: true,
                     syntax: [
@@ -22,7 +22,7 @@ export class MYStarredTableRef extends AbstractNode {
 
     /* AST API */
 
-    name() { return this._get('name'); }
+    tableRef() { return this._get('table_ref'); }
 
     starRef() { return this._get('star_ref'); }
 }

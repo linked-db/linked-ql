@@ -6,7 +6,7 @@ export class ColumnRef extends IdentifierPath {
 
     static get _domainKind() { return 'column'; }
 
-    static get _qualifierType() { return ['TableAbstractionRef', 'LQBackRefConstructor']; }
+    static get _qualifierType() { return ['TableAbstractionRef'/* must come first being primary */, 'LQBackRefConstructor']; }
 
     static get syntaxRules() {
         return this.buildSyntaxRules({

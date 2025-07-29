@@ -18,8 +18,6 @@ export class TableRef extends IdentifierPath {
 		});
 	}
 
-	static get syntaxPriority() { return -1; }
-
 	/* AST API */
 
 	versionSpec() { return this._get('version_spec'); }

@@ -47,13 +47,13 @@ export class AbstractNode {
 		}
 	}
 
-	#contextNode;
+	#parentNode;
 
-	get contextNode() { return this.#contextNode; }
+	get parentNode() { return this.#parentNode; }
 
-	get statementNode() { return this.#contextNode?.statementNode; }
+	get statementNode() { return this.#parentNode?.statementNode; }
 
-	get rootNode() { return this.#contextNode?.rootNode || this; }
+	get rootNode() { return this.#parentNode?.rootNode || this; }
 
 	get options() { return this.#options; }
 
@@ -185,22 +185,22 @@ export class AbstractNode {
 	_adoptNodes(...nodes) {
 		for (const node of nodes) {
 			if (!(node instanceof AbstractNode)) continue;
-			if (node.#contextNode && node.#contextNode !== this) {
+			if (node.#parentNode && node.#parentNode !== this) {
 				const activeTrailStr = `${this.NODE_NAME}`;
 				throw new Error(`[${activeTrailStr}] Illegal node operation`);
 			}
-			node.#contextNode = this;
+			node.#parentNode = this;
 		}
 	}
 
 	_unadoptNodes(...nodes) {
 		for (const node of nodes) {
 			if (!(node instanceof AbstractNode)) continue;
-			if (node.#contextNode !== this) {
+			if (node.#parentNode !== this) {
 				const activeTrailStr = `${this.NODE_NAME}`;
 				throw new Error(`[${activeTrailStr}] Illegal node operation`);
 			}
-			node.#contextNode = null;
+			node.#parentNode = null;
 		}
 	}
 
@@ -228,34 +228,34 @@ export class AbstractNode {
 		if (arguments.length !== 2) {
 			throw new Error(`_capture() expects exactly 2 parameters.`);
 		}
-		return this.#contextNode?._capture?.(requestName, requestSource);
+		return this.#parentNode?._capture?.(requestName, requestSource);
 	}
 
 	capture(requestName) {
 		if (arguments.length !== 1) {
 			throw new Error(`capture() expects exactly 1 parameter.`);
 		}
-		return this.#contextNode?._capture(requestName, this);
+		return this.#parentNode?._capture(requestName, this);
 	}
 
 	_bubble(eventType, eventSource) {
 		if (arguments.length !== 2) {
 			throw new Error(`_bubble() expects exactly 2 parameters.`);
 		}
-		this.#contextNode?._bubble?.(eventType, eventSource);
-		if (eventSource === this && eventType === 'DISCONNECTED') { this.#contextNode = null; }
+		this.#parentNode?._bubble?.(eventType, eventSource);
+		if (eventSource === this && eventType === 'DISCONNECTED') { this.#parentNode = null; }
 	}
 
 	bubble(eventType) {
 		if (arguments.length !== 1) {
 			throw new Error(`bubble() expects exactly 1 parameter.`);
 		}
-		return this.#contextNode?._bubble?.(eventType, this);
+		return this.#parentNode?._bubble?.(eventType, this);
 	}
 
 	containsNode(possibleChild) {
 		if (!possibleChild) return false;
-		return this === possibleChild.contextNode || this.containsNode(possibleChild.contextNode);
+		return this === possibleChild.parentNode || this.containsNode(possibleChild.parentNode);
 	}
 
 	identifiesAs(value) {
@@ -1247,7 +1247,7 @@ export class AbstractNode {
 	_stringifyKeyword(tok) { return String(tok.value); }
 
 	_stringifyOperator(tok) {
-		if (tok.value === ':' && this.#contextNode?.isProperty) {
+		if (tok.value === ':' && this.#parentNode?.isProperty) {
 			return '\\:';
 		}
 		return String(tok.value);
@@ -1357,7 +1357,7 @@ export class AbstractNode {
 		if (this.options.dialect === 'mysql') {
 			return `${type === 'system_var' ? '@@' : '@'}${value}`;
 		}
-		return `${this.#contextNode?.isProperty ? '\\:' : ':'}${value}`;
+		return `${this.#parentNode?.isProperty ? '\\:' : ':'}${value}`;
 	}
 
 	_stringifyComment(tok, options = {}) {

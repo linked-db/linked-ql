@@ -293,18 +293,18 @@ class Tokenizer {
 
 class Expression {
 
-    #contextNode;
+    #parentNode;
     #start;
     #end;
 
-    constructor(contextNode) {
-        this.#contextNode = contextNode;
+    constructor(parentNode) {
+        this.#parentNode = parentNode;
     }
 
     setStart(pos) { this.#start = pos; return this; }
     setEnd(pos) { this.#end = pos; return this; }
 
-    getContextNode() { return this.#contextNode; }
+    getContextNode() { return this.#parentNode; }
     getStart() { return this.#start; }
     getEnd() { return this.#end; }
 
@@ -325,10 +325,10 @@ class IdentifierExpression extends Expression {
         return this.getName();
     }
 
-    static async parse(contextNode, tokenStream) {
+    static async parse(parentNode, tokenStream) {
         const token = tokenStream.current?.value;
         if (token?.type === 'identifier') {
-            return new this(contextNode)
+            return new this(parentNode)
                 .setName(token.value)
                 .setStart({ line: token.line, column: token.column })
                 .setEnd({ line: token.line, column: token.column + token.value.length });
@@ -356,8 +356,8 @@ class MathExpression extends Expression {
         return `(${this.getLeft()} ${this.getOperator()} ${this.getRight()})`;
     }
 
-    static async parse(contextNode, tokenStream) {
-        const left = await parseExpression(contextNode, tokenStream);
+    static async parse(parentNode, tokenStream) {
+        const left = await parseExpression(parentNode, tokenStream);
         if (!left) return null;
 
         const peek = await tokenStream.peek();
@@ -365,10 +365,10 @@ class MathExpression extends Expression {
         if (token?.type === 'operator') {
             await tokenStream.next(); // consume operator
             await tokenStream.next(); // move to next token
-            const right = await parseExpression(contextNode, tokenStream);
+            const right = await parseExpression(parentNode, tokenStream);
             if (!right) return null;
 
-            return new this(contextNode)
+            return new this(parentNode)
                 .setLeft(left)
                 .setOperator(token.value)
                 .setRight(right)
@@ -387,9 +387,9 @@ const expressionGrammar = [
     IdentifierExpression
 ];
 
-async function parseExpression(contextNode, tokenStream, grammar = expressionGrammar) {
+async function parseExpression(parentNode, tokenStream, grammar = expressionGrammar) {
     for (const ExprClass of grammar) {
-        const result = await ExprClass.parse(contextNode, tokenStream, grammar);
+        const result = await ExprClass.parse(parentNode, tokenStream, grammar);
         if (result) return result;
     }
     return null;

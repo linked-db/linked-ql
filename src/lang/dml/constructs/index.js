@@ -2,7 +2,7 @@ export { AssignmentExpr } from './AssignmentExpr.js';
 export { BasicTableExpr } from './BasicTableExpr.js';
 export { MYOnDuplicateKeyUpdateClause } from './MYOnDuplicateKeyUpdateClause.js';
 export { MYPartitionClause } from './MYPartitionClause.js';
-export { MYStarredTableRef } from './MYStarredTableRef.js';
+export { MYStarrableBasicTableExpr } from './MYStarrableBasicTableExpr.js';
 export { MYVarAssignmentExpr } from './MYVarAssignmentExpr.js';
 export { PGConflictTarget } from './PGConflictTarget.js';
 export { PGConflictTargetIndexSpec } from './PGConflictTargetIndexSpec.js';

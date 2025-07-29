@@ -29,8 +29,8 @@ export class LQDeepDeepRef extends AbstractMagicRef {
 	/* API */
 
 	tableSchema() {
-		const fk = this.left().columnSchema().foreignKey();
-		if (!fk) throw new ErrorFKInvalid(`[${this}]: Column ${this.left().clone({ fullyQualified: true })} is not a foreign key.`);
+		const fk = this.left().columnSchema().fkConstraint();
+		if (!fk) throw new ErrorFKInvalid(`[${this.parentNode || this}]: Column ${this.left()} is not a foreign key.`);
 		return fk.targetTable()/*the table in there*/.tableSchema();
 	}
 

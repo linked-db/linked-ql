@@ -29,7 +29,7 @@ export class InsertStmt extends PayloadStmtMixin(
 					{
 						dialect: 'postgres',
 						syntax: [
-							{ type: 'BasicTableExpr', as: 'table_expr' },
+							{ type: 'BasicTableExpr', as: 'pg_table_expr' },
 							{ type: 'ColumnsConstructor', as: 'column_list', arity: { min: 1 }, itemSeparator, optional: true, autoIndent: 2 },
 							{
 								syntaxes: [
@@ -45,7 +45,7 @@ export class InsertStmt extends PayloadStmtMixin(
 					{
 						dialect: 'mysql',
 						syntax: [
-							{ type: 'TableRef', as: 'table_expr' },
+							{ type: 'TableRef', as: 'my_table_ref' },
 							{ type: 'MYPartitionClause', as: 'my_partition_clause', optional: true, autoIndent: true },
 							{
 								syntaxes: [
@@ -73,8 +73,6 @@ export class InsertStmt extends PayloadStmtMixin(
 
 	/* AST API */
 
-	tableExpr() { return this._get('table_expr'); }
-
 	columnList() { return this._get('column_list'); }
 
 	valuesClause() { return this._get('values_clause'); }
@@ -85,11 +83,15 @@ export class InsertStmt extends PayloadStmtMixin(
 
 	// -- Postgres
 
+	pgTableExpr() { return this._get('pg_table_expr'); }
+
 	pgDefaultValuesClause() { return this._get('pg_default_values_clause'); }
 
 	pgPGReturningClause() { return this._get('pg_returning_clause'); }
 
 	// -- MySQL
+
+	myTableRef() { return this._get('pg_table_ref'); }
 
 	myAlias() { return this._get('my_alias'); }
 
@@ -98,4 +100,23 @@ export class InsertStmt extends PayloadStmtMixin(
 	mySetClause() { return this._get('my_set_clause'); }
 
 	myTableClause() { return this._get('my_table_clause'); }
+
+	/* SCHEMA API */
+
+	querySchemas() {
+		const entries = [];
+		if (this.pgTableExpr()) {
+			// For Postgres, the tableExpr is a BasicTableExpr, which may have an alias
+			const tableExpr = this.pgTableExpr();
+			const tableRef = tableExpr.tableRef();
+			const alias = tableExpr.alias()?.value() || tableRef.value();
+			entries.push([alias, tableRef]);
+		} else if (this.myTableRef()) {
+			// For MySQL, the tableExpr is a TableRef, which may not have an alias
+			const tableRef = this.myTableRef();
+			const alias = this.myAlias()?.value() || tableRef.value();
+			entries.push([alias, tableRef]);
+		}
+		return new Map(entries);
+	}
 }

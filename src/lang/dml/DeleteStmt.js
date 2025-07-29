@@ -36,7 +36,7 @@ export class DeleteStmt extends SelectorStmtMixin(
                             { type: 'keyword', value: 'FROM' },
                             { type: 'BasicTableExpr', as: 'table_expr' },
                             { type: 'UsingFromClause', as: 'using_clause', optional: true, autoIndent: true },
-                            { type: 'JoinClause', as: 'join_clause', optional: true, autoIndent: true },
+                            { type: 'JoinClause', as: 'join_clauses', arity: Infinity, optional: true, autoIndent: true },
                             { type: ['PGWhereCurrentClause', 'WhereClause'], as: 'where_clause', optional: true, autoIndent: true },
                             { type: 'PGReturningClause', as: 'pg_returning_clause', optional: true, autoIndent: true },
                         ],
@@ -44,9 +44,9 @@ export class DeleteStmt extends SelectorStmtMixin(
                     {
                         dialect: 'mysql',
                         syntax: [
-                            { type: 'MYStarredTableRef', as: 'my_delete_list', arity: { min: 1 }, itemSeparator },
+                            { type: 'MYStarrableBasicTableExpr', as: 'my_delete_list', arity: { min: 1 }, itemSeparator },
                             { type: 'FromClause', as: 'my_from_clause', autoIndent: true },
-                            { type: 'JoinClause', as: 'join_clause', optional: true, autoIndent: true },
+                            { type: 'JoinClause', as: 'join_clauses', arity: Infinity, optional: true, autoIndent: true },
                             { type: 'WhereClause', as: 'where_clause', optional: true, autoIndent: true },
                         ],
                     },
@@ -54,9 +54,9 @@ export class DeleteStmt extends SelectorStmtMixin(
                         dialect: 'mysql',
                         syntax: [
                             { type: 'keyword', value: 'FROM' },
-                            { type: 'MYStarredTableRef', as: 'my_delete_list', arity: { min: 1 }, itemSeparator },
+                            { type: 'MYStarrableBasicTableExpr', as: 'my_delete_list', arity: { min: 1 }, itemSeparator },
                             { type: 'UsingFromClause', as: 'using_clause', autoIndent: true },
-                            { type: 'JoinClause', as: 'join_clause', optional: true, autoIndent: true },
+                            { type: 'JoinClause', as: 'join_clauses', arity: Infinity, optional: true, autoIndent: true },
                             { type: 'WhereClause', as: 'where_clause', optional: true, autoIndent: true },
                         ],
                     },
@@ -82,7 +82,7 @@ export class DeleteStmt extends SelectorStmtMixin(
 
     usingClause() { return this._get('using_clause'); }
 
-    joinClause() { return this._get('join_clause'); }
+    joinClauses() { return this._get('join_clauses'); }
 
     whereClause() { return this._get('where_clause'); }
 
@@ -101,6 +101,50 @@ export class DeleteStmt extends SelectorStmtMixin(
     myOrderByClause() { return this._get('my_order_by_clause'); }
 
     myLimitClause() { return this._get('my_limit_clause'); }
+
+    /* SCHEMA API */
+
+    querySchemas() {
+        const entries = [];
+        if (this.tableExpr()) {
+            // Syntaxes 1 & 4
+            const tableExpr = this.tableExpr();
+            const tableRef = tableExpr.tableRef();
+            const alias = tableExpr.alias()?.value() || tableRef.value();
+            entries.push([alias, tableRef]);
+        } else if (this.myDeleteList()?.length) {
+            // Syntaxes 2 & 3
+            for (const myDeleteExpr of this.myDeleteList()) {
+                const tableRef = myDeleteExpr.tableRef();
+                const alias = tableRef.value();
+                entries.push([alias, tableRef]);
+            }
+        }
+        if (this.usingClause()) {
+            // Syntaxes 1 & 3
+            for (const fromElement of this.usingClause()) {
+                const fromExpr = fromElement.expr(); // TableRef or SubqueryConstructor, etc.
+                const alias = fromElement.alias()?.value() || fromExpr.value();
+                entries.push([alias, fromExpr]);
+            }
+        } else if (this.myFromClause()) {
+            // Syntax 2
+            for (const fromElement of this.myFromClause()) {
+                const fromExpr = fromElement.expr();
+                const alias = fromElement.alias()?.value() || fromExpr.value();
+                entries.push([alias, fromExpr]);
+            }
+        }
+        if (this.joinClauses()) {
+            // Syntax 1, 2, & 3
+            for (const fromElement of this.joinClauses()) {
+                const fromExpr = fromElement.expr(); // TableRef or SubqueryConstructor, etc.
+                const alias = fromElement.alias()?.value() || fromExpr.value();
+                entries.push([alias, fromExpr]);
+            }
+        }
+        return new Map(entries);
+    }
 
     /* DESUGARING API */
 

@@ -188,7 +188,6 @@ $describe('Parser - Unary Expressions (UnaryExpr)', () => {
 });
 
 $describe('Parser - CASE Expression', () => {
-
     $it('should parse a simple CaseExpr with a subject and single WHEN clause', async () => {
         await testExprAndNodeEntryPoints('CaseExpr', 'CASE subj1 WHEN eww THEN 44 END');
     });

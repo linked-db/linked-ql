@@ -17,7 +17,7 @@ export class BasicTableExpr extends AbstractNode {
         };
         return [
             { type: 'keyword', as: 'pg_only_kw', value: 'ONLY', optional: true, dialect: 'postgres' },
-            { type: 'TableRef', as: 'name', assert: true },
+            { type: 'TableRef', as: 'table_ref', assert: true },
             { type: 'StarRef', as: 'pg_star_ref', optional: true, dialect: 'postgres' },
             { ...optional_alias },
         ];
@@ -25,7 +25,7 @@ export class BasicTableExpr extends AbstractNode {
 
     /* AST API */
 
-    name() { return this._get('name'); }
+    tableRef() { return this._get('table_ref'); }
 
     alias() { return this._get('alias'); }
 

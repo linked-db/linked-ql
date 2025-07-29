@@ -47,4 +47,15 @@ export class CompositeSelectStmt extends SelectStmt {
     get length() { return this.left()?.selectList()?.length ?? 0; }
 
     [Symbol.iterator]() { return (this.left()?.selectList() || [])[Symbol.iterator](); }
+
+	/* SCHEMA API */
+
+	querySchemas() {
+        const entries = [];
+        for (const stmt of [this.left(), this.right()]) {
+            if (!stmt) continue;
+            entries.push(...stmt.querySchemas().entries())
+        }
+		return new Map(entries);
+	}
 }

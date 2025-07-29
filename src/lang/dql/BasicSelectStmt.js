@@ -46,6 +46,28 @@ export class BasicSelectStmt extends SelectorStmtMixin(
 
     [Symbol.iterator]() { return (this.selectList() || [])[Symbol.iterator](); }
 
+    /* SCHEMA API */
+
+    querySchemas() {
+        const entries = [];
+        if (this.fromClause()) {
+            for (const fromElement of this.fromClause()) {
+                const fromExpr = fromElement.expr(); // TableRef or SubqueryConstructor, etc.
+                const alias = fromElement.alias()?.value() || fromExpr.value();
+                entries.push([alias, fromExpr]);
+            }
+        }
+        if (this.joinClauses()?.length) {
+            // Syntaxes 1 & 3
+            for (const fromElement of this.joinClauses()) {
+                const fromExpr = fromElement.expr();
+                const alias = fromElement.alias()?.value() || fromExpr.value();
+                entries.push([alias, fromExpr]);
+            }
+        }
+        return new Map(entries);
+    }
+
     /* DESUGARING API */
 
     jsonfy(options = {}) {

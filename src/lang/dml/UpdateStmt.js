@@ -37,7 +37,7 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                             { type: 'BasicTableExpr', as: 'table_expr' },
                             { type: 'SetClause', as: 'set_clause' },
                             { type: 'FromClause', as: 'pg_from_clause', optional: true, dialect: 'postgres', autoIndent: true },
-                            { type: 'JoinClause', as: 'join_clause', optional: true, autoIndent: true },
+                            { type: 'JoinClause', as: 'join_clauses', arity: Infinity, optional: true, autoIndent: true },
                             { type: ['PGWhereCurrentClause', 'WhereClause'], as: 'where_clause', optional: true, autoIndent: true },
                             { type: 'PGReturningClause', as: 'pg_returning_clause', optional: true, autoIndent: true },
                         ],
@@ -55,8 +55,8 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                     {
                         dialect: 'mysql',
                         syntax: [
-                            { type: 'MYStarredTableRef', as: 'my_update_list', arity: { min: 1 }, itemSeparator },
-                            { type: 'JoinClause', as: 'join_clause', optional: true, autoIndent: true },
+                            { type: 'MYStarrableBasicTableExpr', as: 'my_update_list', arity: { min: 1 }, itemSeparator },
+                            { type: 'JoinClause', as: 'join_clauses', arity: Infinity, optional: true, autoIndent: true },
                             { type: 'SetClause', as: 'set_clause' },
                             { type: 'WhereClause', as: 'where_clause', optional: true, autoIndent: true },
                         ],
@@ -70,7 +70,7 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
 
     tableExpr() { return this._get('table_expr'); }
 
-    joinClause() { return this._get('join_clause'); }
+    joinClauses() { return this._get('join_clauses'); }
 
     setClause() { return this._get('set_clause'); }
 
@@ -89,6 +89,43 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
     myOrderByClause() { return this._get('my_order_by_clause'); }
 
     myLimitClause() { return this._get('my_limit_clause'); }
+
+    /* SCHEMA API */
+
+    querySchemas() {
+        const entries = [];
+        if (this.tableExpr()) {
+            // Syntaxes 1 & 2
+            const tableExpr = this.tableExpr();
+            const tableRef = tableExpr.tableRef();
+            const alias = tableExpr.alias()?.value() || tableRef.value();
+            entries.push([alias, tableRef]);
+            if (this.pgFromClause()) {
+                // Syntax 1
+                for (const fromElement of this.pgFromClause()) {
+                    const fromExpr = fromElement.expr(); // TableRef or SubqueryConstructor, etc.
+                    const alias = fromElement.alias()?.value() || fromExpr.value();
+                    entries.push([alias, fromExpr]);
+                }
+            }
+        } else if (this.myUpdateList()?.length) {
+            // Syntax 3
+            for (const myUpdateExpr of this.myUpdateList()) {
+                const tableRef = myUpdateExpr.tableRef();
+                const alias = tableRef.value();
+                entries.push([alias, tableRef]);
+            }
+        }
+        if (this.joinClauses()?.length) {
+            // Syntaxes 1 & 3
+            for (const fromElement of this.joinClauses()) {
+                const fromExpr = fromElement.expr();
+                const alias = fromElement.alias()?.value() || fromExpr.value();
+                entries.push([alias, fromExpr]);
+            }
+        }
+        return new Map(entries);
+    }
 
     /* DESUGARING API */
 
@@ -158,7 +195,7 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                 // Compose:
                 // - ( SELECT [] FROM <tblRefOriginal> )
                 // - AS <tblAliasRewrite>
-                const fromEntry = {
+                const fromElement = {
                     nodeName: FromElement.NODE_NAME,
                     expr: {
                         nodeName: SubqueryConstructor.NODE_NAME,
@@ -199,7 +236,7 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                 };
 
                 // Add entry...
-                pgGeneratedFromEntry = { from: fromEntry, where: whereClause };
+                pgGeneratedFromEntry = { from: fromElement, where: whereClause };
             }
 
             // Select the rewritten ref

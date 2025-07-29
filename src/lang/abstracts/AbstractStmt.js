@@ -14,6 +14,8 @@ export class AbstractStmt extends AbstractNode {
         return this.#uuid;
     }
 
+    get statementNode() { return this; }
+
     static fromJSON(inputJson, options = {}) {
         const { uuid, ...restJson } = inputJson;
         const node = super.fromJSON(restJson, options);

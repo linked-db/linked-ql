@@ -33,4 +33,16 @@ export class CTE extends AbstractNonDDLStmt {
     bindings() { return this._get('bindings'); }
 
     body() { return this._get('body'); }
+
+    /* SCHEMA API */
+
+    querySchemas() {
+        const entries = [...(this.body()?.querySchemas().entries() || [])];
+        for (const cteElement of this.bindings()) {
+            const cteExpr = cteElement.expr(); // SubqueryConstructor, ValuesSetConstructor, etc.
+            const alias = cteElement.alias()?.value();
+            entries.push([alias, cteExpr]);
+        }
+        return new Map(entries);
+    }
 }

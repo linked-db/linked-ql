@@ -49,8 +49,8 @@ export class LQBackBackRef extends AbstractMagicRef {
 	/* API */
 
 	tableSchema() {
-		const fk = this.right().columnSchema().foreignKey();
-		if (!fk) throw new ErrorFKInvalid(`[${this}]: Column ${this.right().clone({ fullyQualified: true })} is not a foreign key.`);
+		const fk = this.right().columnSchema().fkConstraint();
+		if (!fk) throw new ErrorFKInvalid(`[${this.parentNode || this}]: Column ${this.right()} is not a foreign key.`);
 		return fk.targetTable()/*the table in there*/.tableSchema();
 	}
 
