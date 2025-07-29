@@ -80,7 +80,7 @@ export class IdentifierPath extends Identifier {
 
 	selectSchema(filter = null) {
 		const name = this.value();
-		const possibleParentSchemas = this.qualifier(true).schema();
+		const possibleParentSchemas = this.qualifier(true).selectSchema();
 		const entriesField = `${this.constructor._domainKind}s`;
 		return possibleParentSchemas.reduce((schemas, possibleParentSchema) => {
 			// "If" we have a name...

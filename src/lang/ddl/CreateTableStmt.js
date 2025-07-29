@@ -24,7 +24,7 @@ export class CreateTableStmt extends AbstractDDLStmt {
                     { type: 'keyword', value: 'EXISTS' },
                 ],
             },
-            { type: 'TableIdent', as: 'ident' },
+            { type: 'TableIdent', as: 'name' },
         ];
     }
 
@@ -34,5 +34,5 @@ export class CreateTableStmt extends AbstractDDLStmt {
 
     ifNotExists() { return this._get('if_not_exists'); }
 
-    ident() { return this._get('ident'); }
+    name() { return this._get('name'); }
 }
