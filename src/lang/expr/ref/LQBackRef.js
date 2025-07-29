@@ -58,7 +58,7 @@ export class LQBackRef extends LQBackBackRef {
 				for (const $col of tableRefOrConstructor.tableSchema().columns()) {
 					if ($col.pkConstraint()) {
 						const $keyLeft_ref = ColumnRef.fromJSON({
-							qualifier: tableRefOrConstructor.jsonfy({ nodeNames: false }),
+							qualifier: tableRefOrConstructor.jsonfy({ nodeNames: false }, null, linkedDb),
 							value: $col.name().value()
 						});
 						if (keyLeft_ref) throw new ErrorRefAmbiguous(`[${this.parentNode || this}]: Target primary key for foreign key ${leftEndpoint} is ambiguous. (Is it ${keyLeft_ref} or ${$keyLeft_ref}?)`);

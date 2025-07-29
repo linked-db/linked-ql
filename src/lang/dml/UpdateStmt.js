@@ -129,8 +129,8 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
 
     /* DESUGARING API */
 
-    jsonfy(options = {}) {
-        if (!options.deSugar) return super.jsonfy(options);
+    jsonfy(options = {}, superTransformCallback = null, linkedDb = null) {
+        if (!options.deSugar) return super.jsonfy(options, superTransformCallback, linkedDb);
 
         // Define our transformer
         const selectorDimensions = new Map;
@@ -153,7 +153,7 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
         };
 
         // Jsonfy with transformCallback as optional visitor
-        let resultJson = super.jsonfy(options, transformCallback);
+        let resultJson = super.jsonfy(options, transformCallback, linkedDb);
 
         // Inject selectorDimensions into resultJson
         if (selectorDimensions.size) {

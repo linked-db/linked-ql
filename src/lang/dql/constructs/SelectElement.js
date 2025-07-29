@@ -32,13 +32,13 @@ export class SelectElement extends AbstractNode {
 
     /* DESUGARING API */
 
-    jsonfy(options = {}, transformCallback = null) {
+    jsonfy(options = {}, transformCallback = null, linkedDb = null) {
         if (options.deSugar && this.alias()?.isAggr()) {
             // Note the below where we wrap value in an aggr call
             const exprJson = {
                 nodeName: AggrCallExpr.NODE_NAME,
                 name: (options.toDialect || this.options.dialect) === 'mysql' ? 'JSON_ARRAYAGG' : 'JSON_AGG',
-                arguments: [this.expr().jsonfy({ ...options, asAggr: true/* for use by any Back/DeefRef */ }, transformCallback)],
+                arguments: [this.expr().jsonfy/* @case1 */({ ...options, asAggr: true/* for use by any Back/DeefRef */ }, transformCallback, linkedDb)],
             };
             // Note the below instead of .jsonfy() as the former would still add the "[]" notation
             const aliasJson = {
@@ -52,6 +52,6 @@ export class SelectElement extends AbstractNode {
                 alias: aliasJson
             };
         }
-        return super.jsonfy(options, transformCallback);
+        return super.jsonfy(options, transformCallback, linkedDb);
     }
 }

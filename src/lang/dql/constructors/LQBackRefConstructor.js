@@ -38,14 +38,14 @@ export class LQBackRefConstructor extends ParenShape {
 		return expr.tableSchema();
 	}
 
-	jsonfy(options = {}, transformCallback = null) {
+	jsonfy(options = {}, transformCallback = null, linkedDb = null) {
 		if (options.deSugar) {
 			const expr = this.expr();
 			if (!(expr instanceof LQBackRef)) {
 				throw new Error(`[${this.constructor.name}.<expr>] Expects an instance of LQBackRef but got ${expr?.constructor.name}`);
 			}
-			return expr.jsonfy(options, transformCallback);
+			return expr.jsonfy(options, transformCallback, linkedDb);
 		}
-		return super.jsonfy(options, transformCallback);
+		return super.jsonfy(options, transformCallback, linkedDb);
 	}
 }

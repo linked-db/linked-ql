@@ -39,7 +39,7 @@ export class LQObjectProperty extends AbstractNode {
 
     /* DESUGARING API */
 
-    jsonfy(options = {}, transformCallback = null) {
+    jsonfy(options = {}, transformCallback = null, linkedDb = null) {
         if (options.deSugar) {
             let valueJson;
             if (this.isAggr()) {
@@ -47,11 +47,11 @@ export class LQObjectProperty extends AbstractNode {
                 valueJson = {
                     nodeName: AggrCallExpr.NODE_NAME,
                     name: (options.toDialect || this.options.dialect) === 'mysql' ? 'JSON_ARRAYAGG' : 'JSON_AGG',
-                    arguments: [this.value().jsonfy({ ...options, asAggr: true/* for use by any Back/DeefRef */ }, transformCallback)],
+                    arguments: [this.value().jsonfy/* @case1 */({ ...options, asAggr: true/* for use by any Back/DeefRef */ }, transformCallback, linkedDb)],
                 };
             } else {
                 // Note the below where we derive value, if not specified, from key
-                valueJson = this.value()?.jsonfy(options, transformCallback)
+                valueJson = this.value()?.jsonfy/* @case1 */(options, transformCallback, linkedDb)
                     ?? { nodeName: ColumnRef.NODE_NAME, value: this.key() };
             }
             // plus, we'll drop the is_aggr flag
@@ -62,6 +62,6 @@ export class LQObjectProperty extends AbstractNode {
                 value: valueJson
             };
         }
-        return super.jsonfy(options, transformCallback);
+        return super.jsonfy(options, transformCallback, linkedDb);
     }
 }

@@ -56,8 +56,8 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 
 	/* DESUGARING API */
 
-	jsonfy(options = {}, superTransformCallback = null) {
-		if (!options.deSugar) return super.jsonfy(options);
+	jsonfy(options = {}, superTransformCallback = null, linkedDb = null) {
+		if (!options.deSugar) return super.jsonfy(options, superTransformCallback, linkedDb);
 		const payloadDimensions = new Set;
 
 		const specials = ['columns_list', 'default_values_clause', 'values_clause', 'select_clause'].map((s) => this._get(s));
@@ -89,6 +89,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 					[[node.right()]],
 					payloadDimensions,
 					$$options,
+					linkedDb,
 				);
 				if (!deSugaredLeft) return; // Exclude in output
 				return {
@@ -113,6 +114,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 						[node.right().entries()],
 						payloadDimensions,
 						$$options,
+						linkedDb,
 					);
 					deSugaredRight = { nodeName: RowConstructor.NODE_NAME/* To be really formal */, entries: deSugaredRight };
 				} else if (node.right() instanceof SubqueryConstructor) {
@@ -121,6 +123,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 						node.right().expr(),
 						payloadDimensions,
 						$$options,
+						linkedDb,
 					);
 					deSugaredRight = { nodeName: SubqueryConstructor.NODE_NAME, expr: deSugaredRight };
 				} else {
@@ -129,6 +132,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 						[[node.right()]],
 						payloadDimensions,
 						$$options,
+						linkedDb,
 					);
 				}
 
@@ -143,7 +147,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		};
 
 		// Base JSON
-		let resultJson = super.jsonfy(options, transformCallback);
+		let resultJson = super.jsonfy(options, transformCallback, linkedDb);
 
 		// --- TOP-LEVEL COLUMNS:VALUES/SELECT ---------------
 
@@ -153,7 +157,8 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				columnsList,
 				selectClause || valuesClause.entries().map((rowSet) => rowSet.entries()),
 				payloadDimensions,
-				options
+				options,
+				linkedDb
 			);
 			resultJson = {
 				...resultJson,
@@ -177,27 +182,27 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		return resultJson;
 	}
 
-	deSugarPayload(columns, values, payloadDimensions, { onConflictClauseContext = false, deSugar, ...$options } = {}) {
+	deSugarPayload(columns, values, payloadDimensions, { onConflictClauseContext = false, deSugar, ...$options } = {}, linkedDb = null) {
 
 		// (1): Columns
 		const deSugarColumnsList = (columnsList, dimensionsMap) => {
 			return columnsList.reduce(columnsList, (columnRef, columnOffset) => {
 				if (columnRef instanceof LQDeepRef) {
-					const dimension = this.createPayloadDimension(columnRef, payloadDimensions, { onConflictClauseContext, ...$options });
+					const dimension = this.createPayloadDimension(columnRef, payloadDimensions, { onConflictClauseContext, ...$options }, linkedDb);
 					dimensionsMap.set(columnOffset, dimension);
 					if (dimension.type === 'dependency' && dimension.leftJson) {
 						return columnsList.concat(dimension.leftJson);
 					}
 					return columnsList;
 				}
-				return columnsList.concat(columnRef.jsonfy({ deSugar, ...$options }));
+				return columnsList.concat(columnRef.jsonfy/* @case1 */({ deSugar, ...$options }, null, linkedDb));
 			}, []);
 		};
 
 		// (2.a): Select
 		const deSugarValuesFromSelect = (selectStmt, dimensionsMap) => {
 			// Declare base SELECT and select list
-			let baseSelect = selectStmt.jsonfy($options);
+			let baseSelect = selectStmt.jsonfy/* @case1 */($options, null, linkedDb);
 			let baseSelectList = baseSelect.select_list;
 			if (baseSelectList[0].expr.nodeName === StarRef.NODE_NAME) {
 				baseSelectList/* = infer from schema */; throw new Error(`TODO`);
@@ -240,7 +245,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				return valuesRow.reduce((valuesRow, valueNode, columnOffset) => {
 					const valueJson = dimensionsMap.has(columnOffset)
 						? dimensionsMap.get(columnOffset).offload(valueNode, rowOffset)
-						: valueNode.jsonfy({ deSugar, ...$options });
+						: valueNode.jsonfy/* @case1 */({ deSugar, ...$options }, null, linkedDb);
 					if (valueJson) return valuesRow.concat(valueJson);
 					return valuesRow;
 				}, []);
@@ -258,20 +263,20 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		return [deSugaredColumns, deSugaredValues];
 	}
 
-	createPayloadDimension(LQRefColumn, payloadDimensions = null, { onConflictClauseContext = false, ...$options } = {}) {
+	createPayloadDimension(LQRefColumn, payloadDimensions = null, { onConflictClauseContext = false, ...$options } = {}, linkedDb = null) {
 		const { left, right, table } = LQRefColumn.getOperands();
 
 		const dimensionID = `dimension${onConflictClauseContext ? '/c' : ''}::${[left, right, table].join('/')}`;
-		const leftJson = left.jsonfy($options);
-		const rightJson = right.jsonfy($options);
+		const leftJson = left.jsonfy/* @case1 */($options, null, linkedDb);
+		const rightJson = right.jsonfy/* @case1 */($options, null, linkedDb);
 
 		// Figure the expected payload structure
 		let columnsConstructorJson;
 		const refRight = LQRefColumn.right();
 		if (refRight instanceof ColumnsConstructor) {
-			columnsConstructorJson = refRight.jsonfy($options);
+			columnsConstructorJson = refRight.jsonfy/* @case1 */($options, null, linkedDb);
 		} else if (refRight instanceof ColumnNameRef || refRight instanceof LQDeepRef) {
-			columnsConstructorJson = { nodeName: ColumnsConstructor.NODE_NAME, entries: [refRight.jsonfy($options)] };
+			columnsConstructorJson = { nodeName: ColumnsConstructor.NODE_NAME, entries: [refRight.jsonfy/* @case1 */($options, null, linkedDb)] };
 		} else {
 			throw new Error(`Invalid columns spec: ${LQRefColumn}`);
 		}
@@ -342,7 +347,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			const query = {
 				uuid: this._rand('query'),
 				nodeName: UpdateStmt.NODE_NAME,
-				tables: [{ nodeName: FromElement.NODE_NAME, expr: table.jsonfy($options) }],
+				tables: [{ nodeName: FromElement.NODE_NAME, expr: table.jsonfy/* @case1 */($options, null, linkedDb) }],
 				set_clause: { nodeName: SetClause.NODE_NAME, entries: [] },
 				where_clause: whereClause,
 			};
@@ -355,7 +360,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 					throw new Error(`Unexpected offload() call on ${LQRefColumn}`);
 				}
 				dimensionValidateRowLength(payload);
-				let payloadJson = payload.jsonfy($options);
+				let payloadJson = payload.jsonfy/* @case1 */($options, null, linkedDb);
 				if (payload instanceof SelectStmt) {
 					payloadJson = { nodeName: SubqueryConstructor.NODE_NAME, expr: payloadJson };
 				} else if (!(payload instanceof SetConstructor)) {
@@ -389,7 +394,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		const query = {
 			uuid: this._rand('query'),
 			nodeName: this.NODE_NAME,
-			table: table.jsonfy($options),
+			table: table.jsonfy/* @case1 */($options, null, linkedDb),
 			columns_list: columnsConstructorJson,
 			values_clause: { nodeName: ValuesConstructor.NODE_NAME, entries: [] },
 		};
@@ -397,8 +402,8 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		const dimensionPushRow = (payload, fKBindingJson = null) => {
 			dimensionValidateRowLength(payload);
 			const rowJson = payload instanceof SetConstructor
-				? payload.jsonfy($options)
-				: { nodeName: RowConstructor.NODE_NAME/* most formal */, entries: [payload.jsonfy($options)] };
+				? payload.jsonfy/* @case1 */($options, null, linkedDb)
+				: { nodeName: RowConstructor.NODE_NAME/* most formal */, entries: [payload.jsonfy/* @case1 */($options, null, linkedDb)] };
 			if (fKBindingJson) {
 				query.values_clause.entries.push({ ...rowJson, entries: rowJson.entries.concat(fKBindingJson) });
 			} else query.values_clause.entries.push(rowJson);
@@ -423,7 +428,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 						expr: fKBindingJson,
 						alias: right instanceof ColumnRef ? { nodeName: BasicAlias.NODE_NAME, value: right.value() } : undefined
 					};
-					const selectJson = payload.jsonfy($options);
+					const selectJson = payload.jsonfy/* @case1 */($options, null, linkedDb);
 					query.select_clause = { ...selectJson, select_list: selectJson.select_list.concat(fkField) };
 					return;
 				}
@@ -463,7 +468,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			if (payload instanceof CompleteSelectStmt) {
 				dimensionValidateRowLength(payload);
 				delete query.values_clause;
-				query.select_clause = payload.jsonfy($options);
+				query.select_clause = payload.jsonfy/* @case1 */($options, null, linkedDb);
 			} else dimensionPushRow(payload);
 			// The binding element...
 			const rightPKJson = { nodeName: ColumnRef.NODE_NAME, value: right.value() };
@@ -525,7 +530,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				continue;
 			}
 			// Desugar query and flatten if itself a CTE
-			toBinding(dimensionID, fromJSON(query, this.options).jsonfy(options));
+			toBinding(dimensionID, fromJSON(query, this.options).jsonfy/* @case2 */(options, null, linkedDb));
 		}
 
 		// (2): Rewrite resultJson as a CTEBinding?
@@ -543,7 +548,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 
 			// Process dependents... after having done the above
 			for (const { id: dimensionID, query } of dependents) {
-				toBinding(dimensionID, fromJSON(query, this.options).jsonfy(options));
+				toBinding(dimensionID, fromJSON(query, this.options).jsonfy/* @case2 */(options, null, linkedDb));
 			}
 
 			// Derive final body...

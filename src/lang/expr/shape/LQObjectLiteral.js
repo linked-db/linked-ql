@@ -24,8 +24,8 @@ export class LQObjectLiteral extends AbstractLQShapeLiteral {
 
     /* DESUGARING API */
 
-    jsonfy(options = {}, transformCallback = null) {
-        let resultJson = super.jsonfy(options, transformCallback);
+    jsonfy(options = {}, transformCallback = null, linkedDb = null) {
+        let resultJson = super.jsonfy(options, transformCallback, linkedDb);
         if (options.deSugar) {
             resultJson = {
                 nodeName: CallExpr.NODE_NAME,

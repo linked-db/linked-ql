@@ -26,15 +26,15 @@ export class LQBackBackRef extends AbstractMagicRef {
 
 	/* DESUGARING API */
 	
-	jsonfy(options = {}, transformCallback = null) {
+	jsonfy(options = {}, transformCallback = null, linkedDb = null) {
 		if (options.reverseRef) {
 			return {
 				nodeName: LQDeepRef.NODE_NAME,
-				left: this.right().jsonfy(options, transformCallback),
-				right: this.left().jsonfy(options, transformCallback),
+				left: this.right().jsonfy(options, null, linkedDb),
+				right: this.left().jsonfy(options, null, linkedDb),
 			};
 		}
-		return super.jsonfy(options, transformCallback);
+		return super.jsonfy(options, transformCallback, linkedDb);
 	}
 
 	/* SYSTEM HOOKS */

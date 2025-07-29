@@ -23,14 +23,14 @@ export class LQArrayLiteral extends AbstractLQShapeLiteral {
 
     /* DESUGARING API */
 
-    jsonfy(options = {}, transformCallback = null) {
+    jsonfy(options = {}, transformCallback = null, linkedDb = null) {
         if (options.deSugar) {
             return {
                 nodeName: CallExpr.NODE_NAME,
                 name: (options.toDialect || this.options.dialect) === 'mysql' ? 'JSON_ARRAY' : 'JSON_BUILD_ARRAY',
-                entries: this.entries().map((e) => e.jsonfy(options, transformCallback)),
+                entries: this.entries().map((e) => e.jsonfy/* @case1 */(options, transformCallback, linkedDb)),
             };
         }
-        return super.jsonfy(options, transformCallback);
+        return super.jsonfy(options, transformCallback, linkedDb);
     }
 }

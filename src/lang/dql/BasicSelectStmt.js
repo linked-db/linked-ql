@@ -70,8 +70,8 @@ export class BasicSelectStmt extends SelectorStmtMixin(
 
     /* DESUGARING API */
 
-    jsonfy(options = {}) {
-        let resultJson = super.jsonfy(options);
+    jsonfy(options = {}, superTransformCallback = null, linkedDb = null) {
+        let resultJson = super.jsonfy(options, superTransformCallback, linkedDb);
 
         // Normalize special case LQObjectLiteral
         let selectList;

@@ -16,6 +16,18 @@ export class AbstractStmt extends AbstractNode {
 
     get statementNode() { return this; }
 
+    /* SCHEMA API */
+    
+	_capture(requestName, requestSource) {
+		const result = super._capture(requestName, requestSource);
+		if (requestName === 'CONTEXT.ROOT_SCHEMA' && !result) {
+			return new Set;
+		}
+		return result;
+	}
+
+    /* API */
+
     static fromJSON(inputJson, options = {}) {
         const { uuid, ...restJson } = inputJson;
         const node = super.fromJSON(restJson, options);
@@ -23,8 +35,8 @@ export class AbstractStmt extends AbstractNode {
         return node;
     }
 
-    jsonfy(options = {}) {
-        const resultJson = super.jsonfy(options);
+    jsonfy(options = {}, transformCallback = null, linkedDb = null) {
+        const resultJson = super.jsonfy(options, transformCallback, linkedDb);
         return { ...resultJson, uuid: this.#uuid };
     }
 }

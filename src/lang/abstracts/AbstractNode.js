@@ -260,7 +260,7 @@ export class AbstractNode {
 
 	identifiesAs(value) {
 		if (typeof value === 'undefined') return false;
-		if (typeof value?.toJSON === 'function') return _eq(this.jsonfy(), value.jsonfy(), 'ci');
+		if (typeof value?.jsonfy === 'function') return _eq(this.jsonfy(), value.jsonfy(), 'ci', ['nodeName']);
 	}
 
 	/**
@@ -281,8 +281,8 @@ export class AbstractNode {
 		return this.clone(options);
 	}
 
-	clone(options = {}) {
-		const resultJson = this.jsonfy(options);
+	clone(options = {}, transformCallback = null, linkedDb = null) {
+		const resultJson = this.jsonfy(options, transformCallback, linkedDb);
 		const Classes = [].concat(this.constructor.morphsTo());
 		return Classes.reduce((prev, C) => prev || C.fromJSON(resultJson, { dialect: options.toDialect || this.options.dialect }), undefined);
 	}
@@ -622,16 +622,20 @@ export class AbstractNode {
 
 	// -----------
 
-	toJSON(indexHint = null, options = {}) { return this.jsonfy(options); }
+	toJSON() { return this.jsonfy(); }
 
-	jsonfy(options = {}, transformCallback = null) {
+	jsonfy(options = {}, transformCallback = null, linkedDb = null) {
 		const jsonfy = (value, key) => {
 			const originalValue = value;
 			if (transformCallback) {
 				value = transformCallback(value, key, options);
 			}
 			if (value instanceof AbstractNode) {
-				value = value.jsonfy(options, transformCallback);
+				if (value.statementNode === value) {
+					value = value.jsonfy(options, null/* IMPORTANT */, linkedDb);
+				} else {
+					value = value.jsonfy(options, transformCallback, linkedDb);
+				}
 			} else if (Array.isArray(originalValue) && Array.isArray(value) && value.every((n) => n instanceof AbstractNode)) {
 				value = value.reduce((entries, value, i) => {
 					const result = jsonfy(value, i);

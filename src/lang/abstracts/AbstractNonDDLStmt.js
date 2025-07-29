@@ -5,14 +5,6 @@ import { AbstractStmt } from './AbstractStmt.js';
 
 export class AbstractNonDDLStmt extends AbstractStmt {
 
-	_capture(requestName, requestSource) {
-		const result = super._capture(requestName, requestSource);
-		if (requestName === 'CONTEXT.ROOT_SCHEMA' && !result) {
-			return RootSchema.fromJSON(this, []);
-		}
-		return result;
-	}
-
 	renderBindings(values) {
 		if (!Array.isArray(values)) throw new Error(`Values must be an array`);
 		const queryBindings = [...this.queryBindings()];

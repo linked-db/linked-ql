@@ -36,4 +36,14 @@ export class Query extends AbstractNodeList {
     }
 
     stringify(options = {}) { return `${super.stringify(options)};`; }
+
+    /* SCHEMA API */
+    
+	_capture(requestName, requestSource) {
+		const result = super._capture(requestName, requestSource);
+		if (requestName === 'CONTEXT.ROOT_SCHEMA' && !result) {
+			return new Set;
+		}
+		return result;
+	}
 }

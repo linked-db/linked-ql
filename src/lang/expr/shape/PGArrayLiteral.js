@@ -26,14 +26,14 @@ export class PGArrayLiteral extends AbstractNodeList {
 
     /* DESUGARING API */
 
-    jsonfy(options = {}, transformCallback = null) {
+    jsonfy(options = {}, transformCallback = null, linkedDb = null) {
         if ((options.toDialect || this.options.dialect) === 'mysql') {
             return {
                 nodeName: CallExpr.NODE_NAME,
                 name: 'JSON_ARRAY',
-                arguments: this.entries().map((e) => e.jsonfy(options, transformCallback)),
+                arguments: this.entries().map((e) => e.jsonfy/* @case1 */(options, transformCallback, linkedDb)),
             };
         }
-        return super.jsonfy(options, transformCallback);
+        return super.jsonfy(options, transformCallback, linkedDb);
     }
 }

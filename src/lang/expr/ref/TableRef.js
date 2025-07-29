@@ -24,8 +24,8 @@ export class TableRef extends IdentifierPath {
 
     /* DESUGARING API */
 
-    jsonfy(options = {}, transformCallback = null) {
-		let { version_spec, ...resultJson } = super.jsonfy(options, transformCallback);
+    jsonfy(options = {}, transformCallback = null, linkedDb = null) {
+		let { version_spec, ...resultJson } = super.jsonfy(options, transformCallback, linkedDb);
 		if (!options.deSugar && version_spec) {
 			resultJson = { version_spec, ...resultJson };
 		}

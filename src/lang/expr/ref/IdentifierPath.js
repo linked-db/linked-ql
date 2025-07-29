@@ -30,7 +30,7 @@ export class IdentifierPath extends Identifier {
 
 	/* AST API */
 
-	qualifier(init = null) {
+	qualifier(init = null, linkedDb = null) {
 		const qualifier = this._get('qualifier');
 		if (!arguments.length) return qualifier;
 		// Return a fresh instance
@@ -45,7 +45,7 @@ export class IdentifierPath extends Identifier {
 		if (!QualifierClass) {
 			throw new TypeError(`Unknown qualifier type "${this._qualifierType}".`);
 		}
-		let qualifierNode = QualifierClass.fromJSON(init === true && qualifier?.jsonfy() || { value: init === true ? '' : init });
+		let qualifierNode = QualifierClass.fromJSON(init === true && qualifier?.jsonfy({ fullyQualified: true }, null, linkedDb) || { value: init === true ? '' : init });
 		this._adoptNodes(qualifierNode); // so that events/contexts are properly set up
 		// If typeof init === 'string'
 		// - it becomes value of qualifierNode, and that's all
@@ -54,15 +54,15 @@ export class IdentifierPath extends Identifier {
 		// - if not qualifier, then qualifierNode is initially empty
 		if (init === true && !qualifier) {
 			const entriesField = `${this.constructor._domainKind}s`;
-			const possibleQualifierSchemas = qualifierNode.selectSchema((possibleQualifierSchema) => possibleQualifierSchema._has(entriesField, name));
+			const possibleQualifierSchemas = qualifierNode.selectSchema((possibleQualifierSchema) => possibleQualifierSchema._has(entriesField, name), linkedDb);
 			if (possibleQualifierSchemas.length > 1) {
-				const refs = possibleQualifierSchemas.map((s) => this.constructor.fromJSON({ qualifier: s.name().jsonfy({ nodeNames: false }), value: name }));
+				const refs = possibleQualifierSchemas.map((s) => this.constructor.fromJSON({ qualifier: s.name().jsonfy({ nodeNames: false, fullyQualified: true }, null, linkedDb), value: name }));
 				throw new ErrorRefAmbiguous(`[${this.parentNode || this}] "${name}" is ambiguous. (Is it ${refs.join(' or ')}?)`);
 			} else if (!possibleQualifierSchemas.length) {
 				throw new ErrorRefUnknown(`[${this.parentNode || this}]: "${name}" is unknown.`);
 			}
 			this._unadoptNodes(qualifierNode);
-			qualifierNode = QualifierClass.fromJSON(possibleQualifierSchemas[0].name().jsonfy({ nodeNames: false, fullyQualified: true }));
+			qualifierNode = QualifierClass.fromJSON(possibleQualifierSchemas[0].name().jsonfy({ nodeNames: false, fullyQualified: true }, null, linkedDb));
 			this._adoptNodes(qualifierNode); // so that events/contexts are properly set up
 		}
 		return qualifierNode;
@@ -96,10 +96,10 @@ export class IdentifierPath extends Identifier {
 
 	/* DESUGARING API */
 
-	jsonfy(options = {}, transformCallback = null) {
-		let resultJson = super.jsonfy(options, transformCallback);
+	jsonfy(options = {}, transformCallback = null, linkedDb = null) {
+		let resultJson = super.jsonfy(options, transformCallback, linkedDb);
 		if (!resultJson.qualifier && (options.deSugar || options.fullyQualified)) {
-			const qualifier = this.qualifier(true).jsonfy(options, transformCallback);
+			const qualifier = this.qualifier(true, linkedDb).jsonfy(options, transformCallback, linkedDb);
 			resultJson = {
 				...resultJson,
 				qualifier: qualifier.value ? qualifier : undefined
