@@ -6,13 +6,14 @@ export class TableSchema extends AbstractSchema {
 
     static get syntaxRules() {
         const itemSeparator = { type: 'punctuation', value: ',' };
+        const type = ['ChecKConstraint', 'TableFKConstraint', 'TablePKConstraint', 'TableUKConstraint', 'IndexSchema', 'ColumnSchema'/* must come last */];
         return [
             { type: 'TableIdent', as: 'name' },
             {
                 type: 'paren_block',
                 syntaxes: [
-                    { type: ['ConstraintSchema', 'IndexSchema', 'ColumnSchema'/* must come last */], as: 'entries', arity: Infinity, itemSeparator, dialect: 'postgres', autoIndent: true },
-                    { type: ['ConstraintSchema', 'IndexSchema', 'ColumnSchema'/* must come last */], as: 'entries', arity: { min: 1 }, itemSeparator, dialect: 'mysql', autoIndent: true },
+                    { type, as: 'entries', arity: Infinity, itemSeparator, dialect: 'postgres', autoIndent: true },
+                    { type, as: 'entries', arity: { min: 1 }, itemSeparator, dialect: 'mysql', autoIndent: true },
                 ],
                 autoIndent: true
             },
