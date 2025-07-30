@@ -1,9 +1,9 @@
 import { _isObject } from '@webqit/util/js/index.js';
 
-export function _eq(a, b, caseMatch = null, ignoreList = null) {
+export function _eq(a, b, cs = false, ignoreList = null) {
     if (Array.isArray(a) && Array.isArray(b)) {
         return a.length === b.length && (b = b.slice(0).sort())
-            && a.slice(0).sort().every((x, i) => _eq(x, b[i], caseMatch, ignoreList));
+            && a.slice(0).sort().every((x, i) => _eq(x, b[i], cs, ignoreList));
     }
     if (typeof a?.jsonfy === 'function') a = a.jsonfy();
     if (typeof b?.jsonfy === 'function') b = b.jsonfy();
@@ -18,9 +18,9 @@ export function _eq(a, b, caseMatch = null, ignoreList = null) {
             temp.indexs_b = temp.indexs_b.filter((k) => !$ignoreList.includes(k));
         }
         return temp.indexs_a.length === temp.indexs_b.length
-            && temp.indexs_a.reduce((prev, k) => prev && _eq(a[k], b[k], caseMatch, ignoreList), true);
+            && temp.indexs_a.reduce((prev, k) => prev && _eq(a[k], b[k], cs, ignoreList), true);
     }
-    if (typeof a === 'string' && typeof b === 'string' && caseMatch === 'ci') {
+    if (typeof a === 'string' && typeof b === 'string' && cs === false) {
         return a.toLowerCase() === b.toLowerCase();
     }
     return a === b;

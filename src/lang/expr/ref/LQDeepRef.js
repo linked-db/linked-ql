@@ -33,23 +33,20 @@ export class LQDeepRef extends LQDeepDeepRef {
 
 	/* API */
 
-	tableSchema() {
+	deriveSchema(linkedDb) {
 		if (this.left() instanceof LQBackRefConstructor) {
-			return this.left().tableSchema();
+			return this.left().deriveSchema(linkedDb)/* TableSchema */;
 		}
-		return super.tableSchema();
+		return super.deriveSchema(linkedDb);
 	}
 
-	getOperands() {
-		const targetTable_schema = this.tableSchema();
-		const keyLeft_ref = this.left().clone({ fullyQualified: true });
+	getOperands(linkedDb) {
+		const targetTable_schema = this.deriveSchema(linkedDb)/* TableSchema */;
+		const keyLeft_ref = this.left().clone({ fullyQualified: true }, null, linkedDb);
 		const keyRight_ref = ColumnNameRef.fromJSON({
-			value: targetTable_schema.primaryKey().columns()[0]
+			value: targetTable_schema.pkConstraint().columns()[0]
 		});
-		const targetTable_ref = TableRef.fromJSON({
-			qualifier: targetTable_schema.parentSchema(true).name(),
-			value: targetTable_schema.name()
-		});
+		const targetTable_ref = TableRef.fromJSON(targetTable_schema.name().jsonfy({ nodeNames: false, fullyQualified: true }, null, linkedDb));
 		return {
 			table: targetTable_ref,
 			left: keyLeft_ref,

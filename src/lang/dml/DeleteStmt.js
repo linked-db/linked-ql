@@ -148,10 +148,10 @@ export class DeleteStmt extends SelectorStmtMixin(
 
     /* DESUGARING API */
 
-    applySelectorDimensions(resultJson, selectorDimensions, options) {
+    applySelectorDimensions(resultJson, selectorDimensions, options, linkedDb = null) {
         // This is Postgres-specific
         if (this.options.dialect !== 'postgres') {
-            return super/* SelectorStmtMixin */.applySelectorDimensions(resultJson, selectorDimensions, options);
+            return super/* SelectorStmtMixin */.applySelectorDimensions(resultJson, selectorDimensions, options, linkedDb);
         }
 
         if (resultJson.where_clause?.cursor_name) {
@@ -167,7 +167,7 @@ export class DeleteStmt extends SelectorStmtMixin(
         const tblAliasOriginal = resultJson.table_expr.alias ? resultJson.table_expr.alias.value : resultJson.table_expr.name.value;
         const tblAliasRewrite = `${rand}::${tblAliasOriginal}`;
         const whereClauseOriginal = resultJson.where_clause;
-        const pk = this.table().tableSchema().primaryKey().columns()[0];
+        const pk = this.table().deriveSchema(linkedDb)/* TableSchema */.pkConstraint().columns()[0];
 
         // The re-write...
         resultJson = {

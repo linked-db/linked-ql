@@ -5,7 +5,6 @@ export class CreateTableStmt extends AbstractDDLStmt {
     /* SYNTAX RULES */
 
     static get syntaxRules() {
-        const itemSeparator = { type: 'punctuation', value: ',' };
         return [
             { type: 'keyword', value: 'CREATE' },
             {
@@ -24,7 +23,7 @@ export class CreateTableStmt extends AbstractDDLStmt {
                     { type: 'keyword', value: 'EXISTS' },
                 ],
             },
-            { type: 'TableIdent', as: 'name' },
+            { type: 'TableSchema', as: 'argument' }
         ];
     }
 
@@ -34,5 +33,5 @@ export class CreateTableStmt extends AbstractDDLStmt {
 
     ifNotExists() { return this._get('if_not_exists'); }
 
-    name() { return this._get('name'); }
+    argument() { return this._get('argument'); }
 }

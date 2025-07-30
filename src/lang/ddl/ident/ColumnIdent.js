@@ -4,7 +4,7 @@ export class ColumnIdent extends IdentifierPath {
 
     /* SYNTAX RULES */
 
-    static get _domainKind() { return 'column'; }
+    static get _objectKind() { return 'column'; }
 
     static get _qualifierType() { return 'TableRef'; }
 }

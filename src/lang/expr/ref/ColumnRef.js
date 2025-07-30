@@ -4,7 +4,7 @@ export class ColumnRef extends IdentifierPath {
 
     /* SYNTAX RULES */
 
-    static get _domainKind() { return 'column'; }
+    static get _objectKind() { return 'Column'; }
 
     static get _qualifierType() { return ['TableAbstractionRef'/* must come first being primary */, 'LQBackRefConstructor']; }
 

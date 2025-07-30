@@ -177,7 +177,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 
 		// Apply payloadDimensions
 		if (payloadDimensions.size) {
-			resultJson = this.applyPayloadDimensions(resultJson, payloadDimensions, options);
+			resultJson = this.applyPayloadDimensions(resultJson, payloadDimensions, options, linkedDb);
 		}
 		return resultJson;
 	}
@@ -264,7 +264,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 	}
 
 	createPayloadDimension(LQRefColumn, payloadDimensions = null, { onConflictClauseContext = false, ...$options } = {}, linkedDb = null) {
-		const { left, right, table } = LQRefColumn.getOperands();
+		const { left, right, table } = LQRefColumn.getOperands(linkedDb);
 
 		const dimensionID = `dimension${onConflictClauseContext ? '/c' : ''}::${[left, right, table].join('/')}`;
 		const leftJson = left.jsonfy/* @case1 */($options, null, linkedDb);
@@ -490,7 +490,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		return payloadDimension;
 	}
 
-	applyPayloadDimensions(resultJson, payloadDimensions, options) {
+	applyPayloadDimensions(resultJson, payloadDimensions, options, linkedDb = null) {
 		const cte = { nodeName: CTE.NODE_NAME, bindings: [], body: null };
 
 		// Promote a query to a CTEBinding

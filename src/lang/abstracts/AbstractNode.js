@@ -35,27 +35,24 @@ export class AbstractNode {
 	get NODE_NAME() { return this.constructor.NODE_NAME; }
 
 	#ast;
-	#options;
-	#astSchema;
 
-	constructor(ast = {}, options = {}) {
-		this.#ast = ast;
-		this.#options = options;
-		this.#astSchema = this.constructor.compileASTSchemaFromSyntaxRules(this.options);
-		for (const node_s of Object.values(this.#ast)) {
-			this._adoptNodes(...[].concat(node_s));
-		}
-	}
+	#options;
+	get options() { return this.#options; }
 
 	#parentNode;
-
 	get parentNode() { return this.#parentNode; }
 
 	get statementNode() { return this.#parentNode?.statementNode; }
 
 	get rootNode() { return this.#parentNode?.rootNode || this; }
 
-	get options() { return this.#options; }
+	constructor(ast = {}, options = {}) {
+		this.#ast = ast;
+		this.#options = options;
+		for (const node_s of Object.values(this.#ast)) {
+			this._adoptNodes(...[].concat(node_s));
+		}
+	}
 
 	/**
 	 * -----------
@@ -63,87 +60,60 @@ export class AbstractNode {
 	 * -----------
 	 */
 
-	get _astSchema() { return this.#ast; }
-
-	_fieldSchema(fieldName, index = undefined) {
-		const fieldSchema = this.#astSchema[fieldName] || {};
-		if (typeof index !== 'undefined') {
-			const activeTrailStr = `${this.NODE_NAME}.<${fieldName}>.<${index}>`;
-			if ([undefined, null].includes(fieldSchema.arity)) {
-				throw new Error(`[${activeTrailStr}] Can't use index on "${fieldName}". Not index-based.`);
-			}
-			if (!fieldSchema.keyed && typeof index !== 'number') {
-				throw new Error(`[${activeTrailStr}] Can't use non-numeric index on "${fieldName}". Not keyed.`);
-			}
+	_has(fieldName, index = undefined, cs = undefined) {
+		if (!(fieldName in this.#ast)) return false;
+		if (typeof index === 'number') {
+			return typeof this.#ast[fieldName][index] !== 'undefined';
 		}
-		return fieldSchema;
+		if (index) {
+			return this.#ast[fieldName].some((n) => n.identifiesAs?.(index, cs));
+		}
+		return true;
 	}
 
-	_set(fieldName, indexOrValue, valueOnIndex = undefined) {
+	_get(fieldName, index = undefined, cs = undefined) {
+		if (!(fieldName in this.#ast)) return;
+		if (typeof index !== 'undefined' && !Array.isArray(this.#ast[fieldName])) {
+			throw new Error(`Can't use index in field "${fieldName}"; not an array.`)
+		}
+		let value = this.#ast[fieldName];
+		if (typeof index === 'number') {
+			value = value[index];
+		} else if (index) {
+			value = value.find((n) => n.identifiesAs?.(index, cs));
+		}
+		return value;
+	}
+
+	_set(fieldName, indexOrValue, valueOnIndex = undefined, cs = undefined) {
 		const index = arguments.length > 2 ? indexOrValue : undefined;
 		const value = arguments.length > 2 ? valueOnIndex : indexOrValue;
-		const fieldSchema = this._fieldSchema(fieldName, index);
-		const existing = this._get(fieldName, index);
-		const activeTrailStr = `${this.NODE_NAME}.<${fieldName}>`;
+		const existing = this._get(fieldName, index, cs);
 		if (existing) {
 			this._unadoptNodes(...[].concat(existing));
 		}
 		if (typeof index !== 'undefined') {
-			this.#ast[fieldName] = !existing ? this.#ast[fieldName].concat(value) : this.#ast[fieldName].reduce((all, n) => {
-				if (n === existing) return all;
-				return all.concat(n);
-			}, []);
+			this.#ast[fieldName] = !existing
+				? this.#ast[fieldName].concat(value)
+				: this.#ast[fieldName].reduce((all, n) => {
+					if (n === existing) return all.concat(value);
+					return all.concat(n);
+				}, []);
 		} else {
-			if (![undefined, null].includes(fieldSchema.arity)) {
-				if (!Array.isArray(value)) {
-					throw new Error(`[${activeTrailStr}] Invalid "${fieldName}" type provided. Array expected.`);
-				}
-				if (fieldSchema.arity !== Infinity) {
-					const count = value.length;
-					if (_isObject(fieldSchema.arity)) {
-						if ('min' in fieldSchema.arity && count < fieldSchema.arity.min) {
-							throw new Error(`[${activeTrailStr}] A minimum of ${fieldSchema.arity.min} argument(s) expected but got ${count}.`);
-						}
-						if ('max' in fieldSchema.arity && count > fieldSchema.arity.max) {
-							throw new Error(`[${activeTrailStr}] A maximum of ${fieldSchema.arity.max} argument(s) expected but got ${count}.`);
-						}
-					} else if (![].concat(fieldSchema.arity).includes(count)) {
-						throw new Error(`[${activeTrailStr}] Exactly ${[].concat(fieldSchema.arity).join(' or ')} argument(s) expected but got ${count}.`);
-					}
-				}
-			}
 			this.#ast[fieldName] = value;
 		}
 		this._adoptNodes(...[].concat(value));
 		return true;
 	}
 
-	_get(fieldName, index = undefined) {
-		//const fieldSchema = this._fieldSchema(fieldName, index); TODO
-		if (fieldName in this.#ast) {
-			// Return value, optionally deeply
-			let value = this.#ast[fieldName];
-			if (typeof index === 'number') {
-				value = value[index];
-			} else if (index) {
-				value = value.find((n) => n.identifiesAs?.(index));
-			}
-			return value;
-		}
-		if (typeof index === 'undefined') {
-			// Return default
-			//return ![undefined, null].includes(fieldSchema.arity) ? [] : fieldSchema.default;
-		}
-	}
-
-	_delete(fieldName, index = undefined) {
-		this._fieldSchema(fieldName, index);
+	_delete(fieldName, index = undefined, cs = undefined) {
 		if (!(fieldName in this.#ast)) return false;
+		if (typeof index !== 'undefined' && !Array.isArray(this.#ast[fieldName])) {
+			throw new Error(`Can't use index in field "${fieldName}"; not an array.`)
+		}
 		if (typeof index !== 'undefined') {
 			this.#ast[fieldName] = this.#ast[fieldName].reduce((all, n, i) => {
-				const matches = typeof index === 'number'
-					? i === index
-					: n.identifiesAs?.(index);
+				const matches = typeof index === 'number' ? i === index : n.identifiesAs?.(index, cs);
 				if (matches) {
 					this._unadoptNodes(n);
 					return all;
@@ -152,30 +122,14 @@ export class AbstractNode {
 			}, []);
 		} else {
 			this._unadoptNodes(...[].concat(this.#ast[fieldName]));
-			this.#ast[fieldName] = this._default(fieldName);
+			this.#ast[fieldName] = Array.isArray(this.#ast[fieldName]) ? [] : undefined;
 		}
 		return true;
 	}
 
-	_has(fieldName, index = undefined) {
-		this._fieldSchema(fieldName, index);
-		if (fieldName in this.#ast) {
-			if (typeof index === 'number') {
-				return typeof this.#ast[fieldName][index] !== 'undefined';
-			}
-			if (index) {
-				return this.#ast[fieldName].some((n) => n.identifiesAs?.(index));
-			}
-			return true;
-		}
-		return false;
-	}
-
 	_add(fieldName, ...args) {
-		const fieldSchema = this._fieldSchema(fieldName);
-		if ([undefined, null].includes(fieldSchema.arity)) {
-			const activeTrailStr = `${this.NODE_NAME}.<${fieldName}>`;
-			throw new Error(`[${activeTrailStr}] Can't perform add() on "${fieldName}". Not item-based.`);
+		if (!Array.isArray(this.#ast[fieldName])) {
+			throw new Error(`Can't add on field "${fieldName}"; not an array.`)
 		}
 		this._adoptNodes(...args);
 		this.#ast[fieldName] = this.#ast[fieldName].concat(args);
@@ -204,53 +158,30 @@ export class AbstractNode {
 		}
 	}
 
-	_walk(visitor) {
-		for (const value of Object.values(this.#ast)) {
-			for (const possibleNode of [].concat(value)) {
-				if (possibleNode?._walk) possibleNode._walk(visitor);
+	climbTree(visitor) {
+		if (!this.#parentNode) return;
+		return visitor(this.#parentNode, () => {
+			return this.#parentNode.climbTree(visitor);
+		});
+	}
+
+	walkTree(visitor) {
+		const visit = (value, key) => {
+			if (!(value instanceof AbstractNode)
+				&& !Array.isArray(value)) return;
+
+			const result = visitor(value, key);
+			if (result !== value) return;
+
+			if (Array.isArray(value)) {
+				value.map(visit);
+			} else if (value.statementNode !== value) {
+				value.walkTree(visitor);
 			}
+		};
+		for (const [key, value] of Object.entries(this.#ast)) {
+			visit(value, key);
 		}
-		if (visitor?.visit) {
-			return visitor.visit(this);
-		}
-		if (typeof visitor === 'function') {
-			return visitor(this);
-		}
-	}
-
-	/**
-	 * -----------
-	 * CONTEXT API
-	 * -----------
-	 */
-
-	_capture(requestName, requestSource) {
-		if (arguments.length !== 2) {
-			throw new Error(`_capture() expects exactly 2 parameters.`);
-		}
-		return this.#parentNode?._capture?.(requestName, requestSource);
-	}
-
-	capture(requestName) {
-		if (arguments.length !== 1) {
-			throw new Error(`capture() expects exactly 1 parameter.`);
-		}
-		return this.#parentNode?._capture(requestName, this);
-	}
-
-	_bubble(eventType, eventSource) {
-		if (arguments.length !== 2) {
-			throw new Error(`_bubble() expects exactly 2 parameters.`);
-		}
-		this.#parentNode?._bubble?.(eventType, eventSource);
-		if (eventSource === this && eventType === 'DISCONNECTED') { this.#parentNode = null; }
-	}
-
-	bubble(eventType) {
-		if (arguments.length !== 1) {
-			throw new Error(`bubble() expects exactly 1 parameter.`);
-		}
-		return this.#parentNode?._bubble?.(eventType, this);
 	}
 
 	containsNode(possibleChild) {
@@ -258,9 +189,9 @@ export class AbstractNode {
 		return this === possibleChild.parentNode || this.containsNode(possibleChild.parentNode);
 	}
 
-	identifiesAs(value) {
+	identifiesAs(value, cs = false) {
 		if (typeof value === 'undefined') return false;
-		if (typeof value?.jsonfy === 'function') return _eq(this.jsonfy(), value.jsonfy(), 'ci', ['nodeName']);
+		if (typeof value?.jsonfy === 'function') return _eq(this.jsonfy({ nodeNames: false }), value.jsonfy({ nodeNames: false }), cs);
 	}
 
 	/**
@@ -271,20 +202,20 @@ export class AbstractNode {
 
 	static morphsTo() { return this; }
 
-	deSugar(options = {}) {
-		options = { ...options, deSugar: true };
-		return this.clone(options);
-	}
-
-	toDialect(dialect, options = {}) {
-		options = { ...options, toDialect: dialect };
-		return this.clone(options);
-	}
-
 	clone(options = {}, transformCallback = null, linkedDb = null) {
 		const resultJson = this.jsonfy(options, transformCallback, linkedDb);
 		const Classes = [].concat(this.constructor.morphsTo());
 		return Classes.reduce((prev, C) => prev || C.fromJSON(resultJson, { dialect: options.toDialect || this.options.dialect }), undefined);
+	}
+
+	deSugar(options = {}, transformCallback = null, linkedDb = null) {
+		options = { ...options, deSugar: true };
+		return this.clone(options, transformCallback, linkedDb);
+	}
+
+	toDialect(dialect, options = {}, transformCallback = null, linkedDb = null) {
+		options = { ...options, toDialect: dialect };
+		return this.clone(options, transformCallback, linkedDb);
 	}
 
 	/**
@@ -1242,7 +1173,9 @@ export class AbstractNode {
 			? tok.delim // Choose this one
 			: delimChars[0];
 		// ------------
-		const shouldQuote = /^\d/.test(value) || !/^(\*|[\w]+)$/.test(value);
+		const shouldQuote = tok.delim && value !== value.toLowerCase() 
+			|| /^\d/.test(value) 
+			|| !/^(\*|[\w]+)$/.test(value);
 		return shouldQuote
 			? `${delimChar}${(value || '').replace(new RegExp(delimChar, 'g'), delimChar.repeat(2))}${delimChar}`
 			: value;

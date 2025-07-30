@@ -1,12 +1,12 @@
 export { ColumnNameRef } from './ColumnNameRef.js';
 export { ColumnRef } from './ColumnRef.js';
-export { DatabaseRef } from './DatabaseRef.js';
 export { Identifier } from './Identifier.js';
 export { IdentifierPath } from './IdentifierPath.js';
 export { LQBackBackRef } from './LQBackBackRef.js';
 export { LQBackRef } from './LQBackRef.js';
 export { LQDeepDeepRef } from './LQDeepDeepRef.js';
 export { LQDeepRef } from './LQDeepRef.js';
+export { SchemaRef } from './SchemaRef.js';
 export { StarRef } from './StarRef.js';
 export { TableAbstractionRef } from './TableAbstractionRef.js';
 export { TableRef } from './TableRef.js';

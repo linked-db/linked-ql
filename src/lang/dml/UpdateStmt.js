@@ -129,43 +129,10 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
 
     /* DESUGARING API */
 
-    jsonfy(options = {}, superTransformCallback = null, linkedDb = null) {
-        if (!options.deSugar) return super.jsonfy(options, superTransformCallback, linkedDb);
-
-        // Define our transformer
-        const selectorDimensions = new Map;
-        const transformCallback = (node, keyHint, { deSugar/* IMPORTANT */, ...$options }) => {
-            // LQDeepRef
-            if (deSugar && node instanceof LQDeepRef) {
-                const { select } = this.deSugarLQRef(selectorDimensions, node, $options);
-                return select(node.right());
-            }
-            // LQBackRef, LQBackRefConstructor
-            if (deSugar && (node instanceof LQBackRef || node instanceof LQBackRefConstructor)) {
-                if (node instanceof LQBackRefConstructor) {
-                    node = node.expr();
-                }
-                const { alias } = this.deSugarLQRef(selectorDimensions, node, $options);
-                return alias();
-            }
-            // Other
-            return node;
-        };
-
-        // Jsonfy with transformCallback as optional visitor
-        let resultJson = super.jsonfy(options, transformCallback, linkedDb);
-
-        // Inject selectorDimensions into resultJson
-        if (selectorDimensions.size) {
-            resultJson = this.applySelectorDimensions(resultJson, selectorDimensions, options);
-        }
-        return resultJson;
-    }
-
-    applySelectorDimensions(resultJson, selectorDimensions, options) {
+    applySelectorDimensions(resultJson, selectorDimensions, options, linkedDb = null) {
         // This is Postgres-specific
         if (this.options.dialect !== 'postgres') {
-            return super/* SelectorStmtMixin */.applySelectorDimensions(resultJson, selectorDimensions, options);
+            return super/* SelectorStmtMixin */.applySelectorDimensions(resultJson, selectorDimensions, options, linkedDb);
         }
 
         if (resultJson.where_clause?.cursor_name) {

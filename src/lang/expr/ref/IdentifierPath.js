@@ -8,6 +8,8 @@ export class IdentifierPath extends Identifier {
 
 	/* SYNTAX RULES */
 
+	static get _schemaType() { return 'AbstractSchema'; }
+
 	static get _qualifierType() { return 'Identifier'; }
 
 	static buildSyntaxRules(baseRule = null) {
@@ -32,12 +34,16 @@ export class IdentifierPath extends Identifier {
 
 	qualifier(init = null, linkedDb = null) {
 		const qualifier = this._get('qualifier');
+
 		if (!arguments.length) return qualifier;
+
 		// Return a fresh instance
 		if (init !== true && typeof init !== 'string') {
 			throw new TypeError('"init" must be true or a string.');
 		}
+
 		const name = this._get('value');
+
 		if (!name && !qualifier && init === true) {
 			throw new TypeError('Can\'t auto-derive qualifier for anonymous ident.');
 		}
@@ -45,53 +51,94 @@ export class IdentifierPath extends Identifier {
 		if (!QualifierClass) {
 			throw new TypeError(`Unknown qualifier type "${this._qualifierType}".`);
 		}
+
 		let qualifierNode = QualifierClass.fromJSON(init === true && qualifier?.jsonfy({ fullyQualified: true }, null, linkedDb) || { value: init === true ? '' : init });
 		this._adoptNodes(qualifierNode); // so that events/contexts are properly set up
+
 		// If typeof init === 'string'
 		// - it becomes value of qualifierNode, and that's all
 		// If init === true:
 		// - if qualifier, qualifierNode is first a clone of qualifier
 		// - if not qualifier, then qualifierNode is initially empty
-		if (init === true && !qualifier) {
-			const entriesField = `${this.constructor._domainKind}s`;
-			const possibleQualifierSchemas = qualifierNode.selectSchema((possibleQualifierSchema) => possibleQualifierSchema._has(entriesField, name), linkedDb);
-			if (possibleQualifierSchemas.length > 1) {
-				const refs = possibleQualifierSchemas.map((s) => this.constructor.fromJSON({ qualifier: s.name().jsonfy({ nodeNames: false, fullyQualified: true }, null, linkedDb), value: name }));
-				throw new ErrorRefAmbiguous(`[${this.parentNode || this}] "${name}" is ambiguous. (Is it ${refs.join(' or ')}?)`);
-			} else if (!possibleQualifierSchemas.length) {
-				throw new ErrorRefUnknown(`[${this.parentNode || this}]: "${name}" is unknown.`);
+
+		if (init === true && !qualifier && linkedDb) {
+			const cs = this._has('delim');
+
+			const objectKind = this.constructor._objectKind;
+			const SchemaClass = registry[`${objectKind}Schema`];
+			if (!SchemaClass) {
+				throw new TypeError(`No corresponding schema class "${objectKind}Schema" found for object type "${objectKind}".`);
 			}
+
+			const potentialQualifierSchemas = qualifierNode.selectSchema((potentialQualifierSchema) => potentialQualifierSchema._get('entries', name, cs) instanceof SchemaClass, linkedDb);
+
+			if (potentialQualifierSchemas.length > 1) {
+				const refs = potentialQualifierSchemas.map((s) => this.constructor.fromJSON({ qualifier: s.name().jsonfy({ nodeNames: false }, null, linkedDb), value: name }));
+				throw new ErrorRefAmbiguous(`[${this.parentNode || this}] ${objectKind} ${this} is ambiguous. (Is it ${refs.join(' or ')}?)`);
+			} else if (!potentialQualifierSchemas.length) {
+				throw new ErrorRefUnknown(`[${this.parentNode || this}] ${objectKind} ${this} is unknown.`);
+			}
+
 			this._unadoptNodes(qualifierNode);
-			qualifierNode = QualifierClass.fromJSON(possibleQualifierSchemas[0].name().jsonfy({ nodeNames: false, fullyQualified: true }, null, linkedDb));
+
+			qualifierNode = QualifierClass.fromJSON(potentialQualifierSchemas[0].name().jsonfy({ nodeNames: false }, null, linkedDb));
 			this._adoptNodes(qualifierNode); // so that events/contexts are properly set up
 		}
+
 		return qualifierNode;
+	}
+
+	/* SCHEMA API */
+
+	selectSchema(filter = null, linkedDb = null) {
+		const name = this.value();
+		const cs = this._has('delim');
+
+		const potentialParentSchemas = this.qualifier(true).selectSchema(null, linkedDb);
+		const resultSchemas = [];
+
+		const objectKind = this.constructor._objectKind;
+		const SchemaClass = registry[`${objectKind}Schema`];
+		if (!SchemaClass) {
+			throw new TypeError(`No corresponding schema class "${objectKind}Schema" found for object type "${objectKind}".`);
+		}
+
+		for (const potentialParentSchema of potentialParentSchemas) {
+			for (const childSchema of potentialParentSchema._get('entries')) {
+				if (!(childSchema instanceof SchemaClass)) continue;
+				if (name && !childSchema.identifiesAs(name, cs)) continue;
+				if (filter && !filter(childSchema)) continue;
+				resultSchemas.push(childSchema);
+			}
+		}
+
+		return resultSchemas;
+	}
+
+	deriveSchema(linkedDb) {
+		const name = this.value();
+		const objectKind = this.constructor._objectKind;
+
+		const potentialSchemas = this.selectSchema(null, linkedDb);
+
+		if (potentialSchemas.length > 1) {
+			const refs = potentialSchemas.map((s) => s.name().clone({ fullyQualified: true }, null, linkedDb));
+			throw new ErrorRefAmbiguous(`[${this.parentNode || this}] ${objectKind} ${this} is ambiguous. (Is it ${refs.join(' or ')}?)`);
+		} else if (!potentialSchemas.length) {
+			throw new ErrorRefUnknown(`[${this.parentNode || this}] ${objectKind} ${this} is unknown.`);
+		}
+
+		return potentialSchemas[0];
 	}
 
 	/* API */
 
-	identifiesAs(ident) {
-		if (ident instanceof Class) {
-			return this._eq(this.value(), ident.value(), 'ci')
-				&& (!ident.qualifier() || !!this.qualifier(true).identifiesAs(ident.qualifier()));
+	identifiesAs(ident, ci = undefined) {
+		if (ident instanceof Identifier) {
+			return this._eq(this.value(), ident.value(), ci)
+				&& (!ident.qualifier() || !this.qualifier() || !!this.qualifier().identifiesAs(ident.qualifier(), ci));
 		}
-		return super.identifiesAs(ident);
-	}
-
-	selectSchema(filter = null) {
-		const name = this.value();
-		const possibleParentSchemas = this.qualifier(true).selectSchema();
-		const entriesField = `${this.constructor._domainKind}s`;
-		return possibleParentSchemas.reduce((schemas, possibleParentSchema) => {
-			// "If" we have a name...
-			const matches = name
-				// narrow down to us within possibleParentSchema
-				? [].concat(possibleParentSchema._get(entriesField, name) || [])
-				// otherwise, select all children of our kind
-				: possibleParentSchema._get(entriesField);
-			// Optionally further filter matches
-			return schemas.concat(filter ? matches.filter(filter) : matches);
-		}, []);
+		return super.identifiesAs(ident, ci);
 	}
 
 	/* DESUGARING API */
@@ -99,7 +146,7 @@ export class IdentifierPath extends Identifier {
 	jsonfy(options = {}, transformCallback = null, linkedDb = null) {
 		let resultJson = super.jsonfy(options, transformCallback, linkedDb);
 		if (!resultJson.qualifier && (options.deSugar || options.fullyQualified)) {
-			const qualifier = this.qualifier(true, linkedDb).jsonfy(options, transformCallback, linkedDb);
+			const qualifier = this.qualifier(true, linkedDb).jsonfy(options, null, linkedDb);
 			resultJson = {
 				...resultJson,
 				qualifier: qualifier.value ? qualifier : undefined

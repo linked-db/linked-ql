@@ -23,26 +23,17 @@ export class LQBackRef extends LQBackBackRef {
 
 	static get syntaxPriority() { return 0; }
 
-	/* SYSTEM HOOKS */
+	/* SCHEMA API */
 
-	_capture(requestName, requestSource) {
-		if (requestName === 'CONTEXT.TABLE_SCHEMA') {
-			return this.tableSchema();
-		}
-		return super._capture(requestName, requestSource);
-	}
+	deriveSchema(linkedDb) { return this.right().deriveSchema(linkedDb)/* TableSchema */; }
 
-	/* API */
-
-	tableSchema() { return this.right().tableSchema(); }
-
-	getOperands() {
+	getOperands(linkedDb) {
 		const left = this.left();
 
 		const leftEndpoint = left instanceof LQBackBackRef
 			? left.endpoint()
 			: left;
-		const leftFk = leftEndpoint.columnSchema().fkConstraint();
+		const leftFk = leftEndpoint.deriveSchema(linkedDb)/* ColumnSchema */.fkConstraint();
 		if (!leftFk) throw new ErrorFKInvalid(`[${this.parentNode || this}]: Column ${leftEndpoint} is not a foreign key.`);
 		const leftEndpointTable = leftFk.targetTable();
 
@@ -54,18 +45,15 @@ export class LQBackRef extends LQBackBackRef {
             const querySchemasSchemaInScope = statementNode.querySchemas();
 			for (const [/*alias*/, tableRefOrConstructor] of querySchemasSchemaInScope) {
 				if (!(tableRefOrConstructor instanceof TableRef)) continue;
-				if (!tableRefOrConstructor.identifiesAs(leftEndpointTable)) continue;
-				for (const $col of tableRefOrConstructor.tableSchema().columns()) {
-					if ($col.pkConstraint()) {
-						const $keyLeft_ref = ColumnRef.fromJSON({
-							qualifier: tableRefOrConstructor.jsonfy({ nodeNames: false }, null, linkedDb),
-							value: $col.name().value()
-						});
-						if (keyLeft_ref) throw new ErrorRefAmbiguous(`[${this.parentNode || this}]: Target primary key for foreign key ${leftEndpoint} is ambiguous. (Is it ${keyLeft_ref} or ${$keyLeft_ref}?)`);
-						keyLeft_ref = $keyLeft_ref;
-					}
-				}
-
+				if (!tableRefOrConstructor.identifiesAs(leftEndpointTable, leftEndpoint._has('delim'))) continue;
+				const pkColumnName = tableRefOrConstructor.deriveSchema(linkedDb)/* TableSchema */.pkConstraint()?.columns()[0];
+				if (!pkColumnName) continue;
+				const $keyLeft_ref = ColumnRef.fromJSON({
+					qualifier: tableRefOrConstructor.jsonfy({ nodeNames: false }, null, linkedDb),
+					value: pkColumnName
+				});
+				if (keyLeft_ref) throw new ErrorRefAmbiguous(`[${this.parentNode || this}]: Target primary key for foreign key ${leftEndpoint} is ambiguous. (Is it ${keyLeft_ref} or ${$keyLeft_ref}?)`);
+				keyLeft_ref = $keyLeft_ref;
 			}
         } while (!keyLeft_ref && (statementNode = statementNode.parentNode?.statementNode));
 
@@ -73,7 +61,7 @@ export class LQBackRef extends LQBackBackRef {
 			throw new ErrorRefUnknown(`LQBackRef ${this.parentNode || this} could not be resolved against table query.`);
 		}
 
-		const targetTable_ref = this.right().clone({ fullyQualified: true });
+		const targetTable_ref = this.right().clone({ fullyQualified: true }, null, linkedDb);
 		const keyRight_ref = left instanceof LQBackBackRef
 			? left.clone({ reverseRef: true })
 			: left.clone();

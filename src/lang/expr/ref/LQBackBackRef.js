@@ -37,21 +37,12 @@ export class LQBackBackRef extends AbstractMagicRef {
 		return super.jsonfy(options, transformCallback, linkedDb);
 	}
 
-	/* SYSTEM HOOKS */
+	/* SCHEMA API */
 
-	_capture(requestName, requestSource) {
-		if (requestName === 'CONTEXT.TABLE_SCHEMA' && requestSource === this.left()) {
-			return this.tableSchema();
-		}
-		return super._capture(requestName, requestSource);
-	}
-
-	/* API */
-
-	tableSchema() {
-		const fk = this.right().columnSchema().fkConstraint();
+	deriveSchema(linkedDb) {
+		const fk = this.right().deriveSchema(linkedDb)/* ColumnSchema */.fkConstraint();
 		if (!fk) throw new ErrorFKInvalid(`[${this.parentNode || this}]: Column ${this.right()} is not a foreign key.`);
-		return fk.targetTable()/*the table in there*/.tableSchema();
+		return fk.targetTable()/*the table in there*/.deriveSchema(linkedDb)/* TableSchema */;
 	}
 
 	endpoint() { return this.left() instanceof LQBackBackRef ? this.left().endpoint() : this.left(); }

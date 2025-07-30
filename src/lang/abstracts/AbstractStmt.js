@@ -16,16 +16,6 @@ export class AbstractStmt extends AbstractNode {
 
     get statementNode() { return this; }
 
-    /* SCHEMA API */
-    
-	_capture(requestName, requestSource) {
-		const result = super._capture(requestName, requestSource);
-		if (requestName === 'CONTEXT.ROOT_SCHEMA' && !result) {
-			return new Set;
-		}
-		return result;
-	}
-
     /* API */
 
     static fromJSON(inputJson, options = {}) {

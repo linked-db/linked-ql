@@ -17,21 +17,12 @@ export class LQDeepDeepRef extends AbstractMagicRef {
 
 	static get syntaxPriority() { return -1; }
 
-	/* SYSTEM HOOKS */
+	/* SCHEMA API */
 
-	_capture(requestName, requestSource) {
-		if (requestName === 'CONTEXT.TABLE_SCHEMA' && requestSource === this.right()) {
-			return this.tableSchema();
-		}
-		return super._capture(requestName, requestSource);
-	}
-
-	/* API */
-
-	tableSchema() {
-		const fk = this.left().columnSchema().fkConstraint();
+	deriveSchema(linkedDb) {
+		const fk = this.left().deriveSchema(linkedDb)/* ColumnSchema */.fkConstraint();
 		if (!fk) throw new ErrorFKInvalid(`[${this.parentNode || this}]: Column ${this.left()} is not a foreign key.`);
-		return fk.targetTable()/*the table in there*/.tableSchema();
+		return fk.targetTable()/*the table in there*/.deriveSchema(linkedDb)/* TableSchema */;
 	}
 
 	endpoint() { return this.right() instanceof LQDeepDeepRef ? this.right().endpoint() : this.right(); }

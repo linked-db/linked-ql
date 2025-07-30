@@ -47,7 +47,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
             }
             // LQDeepRef
             if (deSugar && node instanceof LQDeepRef) {
-                const { select } = this.createSelectorDimension(node, selectorDimensions, $options);
+                const { select } = this.createSelectorDimension(node, selectorDimensions, $options, linkedDb);
                 return select(node.right());
             }
             // LQBackRef, LQBackRefConstructor
@@ -55,7 +55,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
                 if (node instanceof LQBackRefConstructor) {
                     node = node.expr();
                 }
-                const { alias } = this.createSelectorDimension(node, selectorDimensions, $options);
+                const { alias } = this.createSelectorDimension(node, selectorDimensions, $options, linkedDb);
                 return alias();
             }
             // Other
@@ -67,13 +67,13 @@ export const SelectorStmtMixin = (Class) => class extends Class {
 
         // Apply selectorDimensions
         if (selectorDimensions.size) {
-            resultJson = this.applySelectorDimensions(resultJson, selectorDimensions, options);
+            resultJson = this.applySelectorDimensions(resultJson, selectorDimensions, options, linkedDb);
         }
         return resultJson;
     }
 
-    createSelectorDimension(LQRef, selectorDimensions = null, { asAggr = false, ...$options } = {}) {
-        const { left, right, table } = LQRef.getOperands();
+    createSelectorDimension(LQRef, selectorDimensions = null, { asAggr = false, ...$options } = {}, linkedDb = null) {
+        const { left, right, table } = LQRef.getOperands(linkedDb);
         
         const dimensionID = `dimension${asAggr ? '/g' : ''}::${[left, right, table].join('/')}`;
         if (selectorDimensions?.has(dimensionID)) {
@@ -161,7 +161,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
         return selectorDimension;
     }
 
-    applySelectorDimensions(resultJson, selectorDimensions, options) {
+    applySelectorDimensions(resultJson, selectorDimensions, options, linkedDb = null) {
         resultJson = {
             ...resultJson,
             join_clauses: resultJson.join_clauses?.slice(0) || [],

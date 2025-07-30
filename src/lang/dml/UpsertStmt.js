@@ -10,7 +10,7 @@ export class UpsertStmt extends SugarMixin(InsertStmt) {
 	/* DESUGARING API */
 	
     jsonfy(options = {}, superTransformCallback = null, linkedDb = null) {
-		if (!options.deSugar) return super.jsonfy(options, superTransformCallback, linkedDb);
+		if (!options.deSugar || true/* TODO */) return super.jsonfy(options, superTransformCallback, linkedDb);
 
 		if (this.conflictHandlingClause()) {
 			throw new Error(`A redundanct "ON CONFLICT" clause in query.`);

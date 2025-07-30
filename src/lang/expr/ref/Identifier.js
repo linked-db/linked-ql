@@ -14,10 +14,10 @@ export class Identifier extends AbstractNode {
 
     /* API */
 
-    identifiesAs(value) {
+    identifiesAs(value, ci = false) {
         if (typeof value === 'string') {
-            return this._eq(this._get('value'), value, 'ci');
+            return this._eq(this._get('value'), value, ci);
         }
-        return super.identifiesAs(value);
+        return super.identifiesAs(value, ci);
     }
 }
