@@ -167,8 +167,9 @@ export class DeleteStmt extends SelectorStmtMixin(
         const tblAliasOriginal = resultJson.table_expr.alias ? resultJson.table_expr.alias.value : resultJson.table_expr.name.value;
         const tblAliasRewrite = `${rand}::${tblAliasOriginal}`;
         const whereClauseOriginal = resultJson.where_clause;
-        const pk = this.table().deriveSchema(linkedDb)/* TableSchema */.pkConstraint().columns()[0];
-
+        const pk = this.table().deriveSchema(linkedDb)/* TableSchema */.pkConstraint(true)?.columns()[0];
+        if (!pk) throw new Error(``);
+        
         // The re-write...
         resultJson = {
             ...resultJson,

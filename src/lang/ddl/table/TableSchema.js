@@ -1,4 +1,5 @@
 import { AbstractSchema } from '../../abstracts/AbstractSchema.js';
+import { registry } from '../../registry.js';
 
 export class TableSchema extends AbstractSchema {
 
@@ -6,17 +7,89 @@ export class TableSchema extends AbstractSchema {
 
     static get syntaxRules() {
         const itemSeparator = { type: 'punctuation', value: ',' };
-        const type = ['ChecKConstraint', 'TableFKConstraint', 'TablePKConstraint', 'TableUKConstraint', 'IndexSchema', 'ColumnSchema'/* must come last */];
+        const type = ['TablePKConstraint', 'TableFKConstraint', 'TableUKConstraint', 'PGTableEXConstraint', 'CheckConstraint', 'ColumnSchema'/* must come last */, 'IndexSchema'];
         return [
             { type: 'TableIdent', as: 'name' },
             {
                 type: 'paren_block',
                 syntaxes: [
-                    { type, as: 'entries', arity: Infinity, itemSeparator, dialect: 'postgres', autoIndent: true },
-                    { type, as: 'entries', arity: { min: 1 }, itemSeparator, dialect: 'mysql', autoIndent: true },
+                    { type, as: 'entries', arity: Infinity, itemSeparator, singletons: 'BY_KEY', dialect: 'postgres', autoIndent: true },
+                    { type, as: 'entries', arity: { min: 1 }, itemSeparator, singletons: 'BY_KEY', dialect: 'mysql', autoIndent: true },
                 ],
-                autoIndent: true
+                autoIndent: true,
+                autoIndentAdjust: -1,
             },
         ];
+    }
+
+    /* API */
+
+    columns() {
+        const result = [];
+        for (const entry of this) {
+            if (!(entry instanceof registry.ColumnSchema)) continue;
+            result.push(entry);
+        }
+        return result;
+    }
+
+    pkConstraint(deeply = false) {
+        for (const entry of this) {
+            if (entry instanceof registry.TablePKConstraint) return entry;
+            let pk;
+            if (deeply
+                && entry instanceof registry.ColumnSchema
+                && (pk = entry.pkConstraint())) {
+                return pk;
+            }
+        }
+    }
+
+    fkConstraints(deeply = false) {
+        const result = [];
+        for (const entry of this) {
+            if (entry instanceof registry.TableFKConstraint) {
+                result.push(entry);
+            }
+            let fk;
+            if (deeply
+                && entry instanceof registry.ColumnSchema
+                && (fk = entry.fkConstraint())) {
+                result.push(pk);
+            }
+        }
+        return result;
+    }
+
+    ukConstraint(deeply = false) {
+        const result = [];
+        for (const entry of this) {
+            if (entry instanceof registry.TableUKConstraint) {
+                result.push(entry);
+            }
+            let uk;
+            if (deeply
+                && entry instanceof registry.ColumnSchema
+                && (uk = entry.ukConstraint())) {
+                result.push(uk);
+            }
+        }
+        return result;
+    }
+
+    ckConstraints(deeply = false) {
+        const result = [];
+        for (const entry of this) {
+            if (entry instanceof registry.CheckConstraint) {
+                result.push(entry);
+            }
+            let ck;
+            if (deeply
+                && entry instanceof registry.ColumnSchema
+                && (ck = entry.ckConstraint())) {
+                result.push(ck);
+            }
+        }
+        return result;
     }
 }

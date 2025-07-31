@@ -1,4 +1,4 @@
-import { ConstraintSchema } from './abstracts/ConstraintSchema.js';
+import { ConstraintSchema } from './ConstraintSchema.js';
 
 export class CheckConstraint extends ConstraintSchema {
 
@@ -11,7 +11,6 @@ export class CheckConstraint extends ConstraintSchema {
                 type: 'paren_block',
                 syntax: { type: 'Expr', as: 'expr', assert: true },
                 assert: true,
-                autoIndex: true,
             },
             { type: 'keyword', as: 'no_inherit_kw', value: 'NO INHERIT', optional: true }
         ]);

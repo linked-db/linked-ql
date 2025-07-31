@@ -46,7 +46,7 @@ export class LQBackRef extends LQBackBackRef {
 			for (const [/*alias*/, tableRefOrConstructor] of querySchemasSchemaInScope) {
 				if (!(tableRefOrConstructor instanceof TableRef)) continue;
 				if (!tableRefOrConstructor.identifiesAs(leftEndpointTable, leftEndpoint._has('delim'))) continue;
-				const pkColumnName = tableRefOrConstructor.deriveSchema(linkedDb)/* TableSchema */.pkConstraint()?.columns()[0];
+				const pkColumnName = tableRefOrConstructor.deriveSchema(linkedDb)/* TableSchema */.pkConstraint(true)?.columns()[0];
 				if (!pkColumnName) continue;
 				const $keyLeft_ref = ColumnRef.fromJSON({
 					qualifier: tableRefOrConstructor.jsonfy({ nodeNames: false }, null, linkedDb),

@@ -1,4 +1,4 @@
-import { ConstraintSchema } from './abstracts/ConstraintSchema.js';
+import { ConstraintSchema } from './ConstraintSchema.js';
 
 export class ColumnNullConstraint extends ConstraintSchema {
 
@@ -10,9 +10,9 @@ export class ColumnNullConstraint extends ConstraintSchema {
                 syntaxes: [
                     [
                         { type: 'operator', as: '.', value: 'NOT' },
-                        { type: 'keyword', value: 'NULL' },
+                        { type: 'null_literal', value: 'NULL' },
                     ],
-                    { type: 'keyword', as: '.', value: 'NULL' },
+                    { type: 'null_literal', as: '.', value: 'NULL' },
                 ]
             }
         ]);

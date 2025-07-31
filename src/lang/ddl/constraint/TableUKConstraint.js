@@ -1,4 +1,4 @@
-import { ConstraintSchema } from './abstracts/ConstraintSchema.js';
+import { ConstraintSchema } from './ConstraintSchema.js';
 
 export class TableUKConstraint extends ConstraintSchema {
 
@@ -8,35 +8,38 @@ export class TableUKConstraint extends ConstraintSchema {
         const itemSeparator = { type: 'punctuation', value: ',' };
         return this.buildSyntaxRules([
             { type: 'operator', value: 'UNIQUE' },
-            { type: 'keyword', as: '.', value: ['KEY', 'INDEX'], optional: true, dialect: 'mysql' },
+            { type: 'keyword', as: 'my_key_kw', value: ['KEY', 'INDEX'], optional: true, dialect: 'mysql' },
             {
                 optional: true,
+                dialect: 'postgres',
                 syntaxes: [
                     [
                         { type: 'keyword', value: 'NULLS' },
-                        { type: 'operator', as: 'nulls_distinct', value: 'NOT' },
+                        { type: 'operator', as: 'pg_nulls_distinct', value: 'NOT' },
                         { type: 'keyword', value: 'DISTINCT' },
                     ],
                     [
                         { type: 'keyword', value: 'NULLS' },
-                        { type: 'keyword', as: 'nulls_distinct', value: 'DISTINCT' },
+                        { type: 'keyword', as: 'pg_nulls_distinct', value: 'DISTINCT' },
                     ],
                 ]
             },
             {
                 type: 'paren_block',
-                syntax: { type: 'ColumnNameRef', as: 'columns', arity: { min: 1 }, itemSeparator, assert: true },
+                syntax: { type: 'ColumnNameRef', as: 'columns', arity: { min: 1 }, itemSeparator, singletons: 'BY_KEY', assert: true },
                 assert: true,
-                autoIndex: true,
-            }
+            },
+            { type: 'PGIndexParameters', as: 'pg_index_parameters', optional: true, dialect: 'postgres' }
         ]);
     }
 
     /* AST API */
 
-    value() { return this._get('value'); }
+    myKeyKW() { return this._get('my_key_kw'); }
 
-    nullsDistinct() { return this._get('nulls_distinct'); }
+    pgNullsDistinct() { return this._get('pg_nulls_distinct'); }
 
     columns() { return this._get('columns'); }
+
+    pgIndexParameters() { return this._get('pg_index_parameters'); }
 }

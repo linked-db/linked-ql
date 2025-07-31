@@ -1,4 +1,4 @@
-import { ConstraintSchema } from './abstracts/ConstraintSchema.js';
+import { ConstraintSchema } from './ConstraintSchema.js';
 
 export class TablePKConstraint extends ConstraintSchema {
 
@@ -11,14 +11,16 @@ export class TablePKConstraint extends ConstraintSchema {
             { type: 'keyword', value: 'KEY', assert: true },
             {
                 type: 'paren_block',
-                syntax: { type: 'ColumnNameRef', as: 'columns', arity: { min: 1 }, itemSeparator, assert: true },
+                syntax: { type: 'ColumnNameRef', as: 'columns', arity: { min: 1 }, itemSeparator, singletons: 'BY_KEY', assert: true },
                 assert: true,
-                autoIndex: true,
-            }
+            },
+            { type: 'PGIndexParameters', as: 'pg_index_parameters', optional: true, dialect: 'postgres' },
         ]);
     }
 
     /* AST API */
 
     columns() { return this._get('columns'); }
+    
+    pgIndexParameters() { return this._get('pg_index_parameters'); }
 }

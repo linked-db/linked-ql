@@ -13,7 +13,8 @@ export class Query extends AbstractNodeList {
             'UpdateStmt',
             'DeleteStmt',
             'MYSetStmt',
-            'CTE'
+            'CTE',
+            'CreateTableStmt',
         ];
     }
 
@@ -29,7 +30,7 @@ export class Query extends AbstractNodeList {
         const result = await super.parse(tokenStream, options);
         if (!tokenStream.done && tokenStream.current()) {
             const current = tokenStream.current();
-			const message = `[${this.NODE_NAME}] Unexpected token:${typeof current.value === 'string' ? ` "${current.value}" (${current.type})` : ''} at <line ${current.line}, column ${current.column}>`;
+			const message = `[${this.NODE_NAME}] Unexpected ${current.type} token:${typeof current.value === 'string' ? ` "${current.value}"` : ''} at <line ${current.line}, column ${current.column}>`;
             throw new Error(message);
         }
         return result;

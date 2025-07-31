@@ -1,4 +1,4 @@
-import { ConstraintSchema } from './abstracts/ConstraintSchema.js';
+import { ConstraintSchema } from './ConstraintSchema.js';
 
 export class TableFKConstraint extends ConstraintSchema {
 
@@ -11,17 +11,22 @@ export class TableFKConstraint extends ConstraintSchema {
             { type: 'keyword', value: 'KEY', assert: true },
             {
                 type: 'paren_block',
-                syntax: { type: 'ColumnNameRef', as: 'columns', arity: { min: 1 }, itemSeparator },
-                autoIndex: true,
+                syntax: { type: 'ColumnNameRef', as: 'columns', arity: { min: 1 }, itemSeparator, assert: true, singletons: 'BY_KEY' },
             },
             { type: 'keyword', value: 'REFERENCES' },
             { type: 'TableRef', as: 'target_table', assert: true },
             {
+                dialect: 'postgres',
+                optional: true,
                 type: 'paren_block',
-                syntax: { type: 'Identifier', as: 'target_columns', arity: { min: 1 }, itemSeparator, assert: true },
-                autoIndex: true,
+                syntax: { type: 'Identifier', as: 'target_columns', arity: { min: 1 }, itemSeparator, singletons: 'BY_KEY', assert: true },
             },
-            { type: ['MatchRule', 'DeleteRule', 'UpdateRule'], as: 'referential_rules', arity: Infinity, singletons: true },
+            {
+                dialect: 'mysql',
+                type: 'paren_block',
+                syntax: { type: 'Identifier', as: 'target_columns', arity: { min: 1 }, itemSeparator, singletons: 'BY_KEY', assert: true },
+            },
+            { type: ['FKMatchRule', 'FKDeleteRule', 'FKUpdateRule'], as: 'referential_rules', arity: Infinity, assert: true, singletons: true },
         ]);
     }
 

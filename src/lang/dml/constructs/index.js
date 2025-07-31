@@ -1,5 +1,8 @@
 export { AssignmentExpr } from './AssignmentExpr.js';
 export { BasicTableExpr } from './BasicTableExpr.js';
+export { ConfigAssignmentExpr } from './ConfigAssignmentExpr.js';
+export { ConfigAssignmentExprAlt1 } from './ConfigAssignmentExprAlt1.js';
+export { ConfigAssignmentExprAlt2 } from './ConfigAssignmentExprAlt2.js';
 export { MYOnDuplicateKeyUpdateClause } from './MYOnDuplicateKeyUpdateClause.js';
 export { MYPartitionClause } from './MYPartitionClause.js';
 export { MYStarrableBasicTableExpr } from './MYStarrableBasicTableExpr.js';

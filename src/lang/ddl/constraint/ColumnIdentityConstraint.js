@@ -1,5 +1,5 @@
 import { MYAutoIncrementConstraint } from './MYAutoIncrementConstraint.js';
-import { ConstraintSchema } from './abstracts/ConstraintSchema.js';
+import { ConstraintSchema } from './ConstraintSchema.js';
 
 export class ColumnIdentityConstraint extends ConstraintSchema {
 

@@ -1,4 +1,9 @@
 export { FKMatchRule } from './FKMatchRule.js';
 export { FKDeleteRule } from './FKDeleteRule.js';
 export { FKUpdateRule } from './FKUpdateRule.js';
+export { PGIndexParameters } from './PGIndexParameters.js';
+export { PGIndexParamInclude } from './PGIndexParamInclude.js';
+export { PGIndexParamUsing } from './PGIndexParamUsing.js';
+export { PGIndexParamWith } from './PGIndexParamWith.js';
+export { PGTableEXConstraintItem } from './PGTableEXConstraintItem.js';
 export { ReferentialAction } from './ReferentialAction.js';

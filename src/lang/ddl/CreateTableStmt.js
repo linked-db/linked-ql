@@ -5,6 +5,7 @@ export class CreateTableStmt extends AbstractDDLStmt {
     /* SYNTAX RULES */
 
     static get syntaxRules() {
+        const itemSeparator = { type: 'punctuation', value: ',' };
         return [
             { type: 'keyword', value: 'CREATE' },
             {
@@ -18,12 +19,13 @@ export class CreateTableStmt extends AbstractDDLStmt {
             {
                 optional: true,
                 syntax: [
-                    { type: 'keyword', as: 'if_not_exists', value: 'IF' },
+                    { type: 'keyword', as: 'if_not_exists', value: 'IF', booleanfy: true },
                     { type: 'operator', value: 'NOT' },
-                    { type: 'keyword', value: 'EXISTS' },
+                    { type: 'operator', value: 'EXISTS' },
                 ],
             },
-            { type: 'TableSchema', as: 'argument' }
+            { type: 'TableSchema', as: 'argument' },
+            { type: 'ConfigAssignmentExprAlt1', as: 'my_create_options', arity: Infinity, itemSeparator, dialect: 'mysql' }
         ];
     }
 
@@ -34,4 +36,6 @@ export class CreateTableStmt extends AbstractDDLStmt {
     ifNotExists() { return this._get('if_not_exists'); }
 
     argument() { return this._get('argument'); }
+
+    myCreateOptions() { return this._get('my_create_options'); }
 }

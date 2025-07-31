@@ -257,6 +257,7 @@ export class AbstractNode {
 				if: inference = assertionTrail.inference,
 				value,
 				arity,
+				singletons,
 				modifier,
 				booleanfy,
 				optional = assertionTrail.optional,
@@ -307,6 +308,7 @@ export class AbstractNode {
 				if (modifier) fieldSchema.modifier = modifier;
 				if (booleanfy) fieldSchema.booleanfy = booleanfy;
 				if (![undefined, null].includes(arity)) fieldSchema.arity = arity;
+				if (singletons) fieldSchema.singletons = singletons;
 				if (optional) fieldSchema.optional = true;
 				if (assert) fieldSchema.assert = assert;
 				if (inference) fieldSchema.if = inference;
@@ -484,6 +486,19 @@ export class AbstractNode {
 					}
 					$decideThrow(`Inconsistent "${fieldName}" argument(s)`, fieldSchema.rulePath, assertsGrep);
 					return false; // API mismatch
+				}
+				if (fieldSchema.singletons) {
+					const havingDuplicate = resultArray.find((e, i) => {
+						return resultArray.slice(i + 1).some((_e) => {
+							return fieldSchema.singletons === 'BY_KEY'
+								? _e.identifiesAs?.(e)
+								: _e instanceof e.constructor;
+						});
+					});
+					if (havingDuplicate) {
+						$decideThrow(`Duplicate entry of type "${havingDuplicate.constructor.name}"`, fieldSchema.rulePath, assertsGrep);
+						return false; // API mismatch
+					}
 				}
 				resultAST[fieldName] = resultArray;
 				return true;
@@ -668,6 +683,7 @@ export class AbstractNode {
 				as: exposure,
 				if: inference,
 				arity,
+				singletons,
 				itemSeparator,
 				optional = false,
 				assert = false,
@@ -729,8 +745,8 @@ export class AbstractNode {
 				if (!NodeClass) throw new Error(`[${activeTrailStr}] Unknown node type <${type}>.`);
 				return await NodeClass.parse(activeTokenStream, { minPrecedence: newMinPrecedence, trail: activeTrail, ...options });
 			};
-			const $decideThrow = (activeTokenStream, message, tokenStreamPosition = false) => {
-				if (!assert && options.assert !== true && !(options.assert instanceof RegExp && options.assert.test(activeTrailStr))) return;
+			const $decideThrow = (activeTokenStream, message, tokenStreamPosition = false, forceThrow = false) => {
+				if (!assert && !forceThrow && options.assert !== true && !(options.assert instanceof RegExp && options.assert.test(activeTrailStr))) return;
 				if (tokenStreamPosition) {
 					const current = activeTokenStream.current() || activeTokenStream.previous();
 					const proximityTerm = activeTokenStream.current() ? (tokenStreamPosition === 1 ? ':' : ' near') : ' by';
@@ -817,6 +833,15 @@ export class AbstractNode {
 					}
 				}
 				while ((entry = await parseNode(activeTokenStream, itemMinPrecedence))) {
+					if (singletons) {
+						const isDuplicate = singletons === 'BY_KEY'
+							? entries.some((e) => e.identifiesAs?.(entry))
+							: entries.some((e) => e instanceof entry.constructor);
+						if (isDuplicate) {
+							$decideThrow(activeTokenStream, `Duplicate entry of type "${entry.constructor.name}"`, true, true);
+							return;
+						}
+					}
 					entries.push(entry);
 					if (_isObject(arity) && arity.eager === false && entries.length === arity.max) {
 						break;
@@ -885,6 +910,14 @@ export class AbstractNode {
 			if (result === undefined && !optional) {
 				$decideThrow(activeTokenStream, type ? 'Unexpected token' : null, 1);
 				return;
+			}
+
+			if (typeof type === 'string' && type.endsWith('_block')
+				&& !activeTokenStream.done
+				&& activeTokenStream.current()) {
+				const current = activeTokenStream.current();
+				const message = `[${this.NODE_NAME}] Unexpected ${current.type} token${typeof current.value === 'string' ? ` "${current.value}"` : ''} at <line ${current.line}, column ${current.column}>`;
+				throw new Error(message);
 			}
 
 			if (exposure) {
@@ -1173,8 +1206,8 @@ export class AbstractNode {
 			? tok.delim // Choose this one
 			: delimChars[0];
 		// ------------
-		const shouldQuote = tok.delim && value !== value.toLowerCase() 
-			|| /^\d/.test(value) 
+		const shouldQuote = tok.delim && value !== value.toLowerCase()
+			|| /^\d/.test(value)
 			|| !/^(\*|[\w]+)$/.test(value);
 		return shouldQuote
 			? `${delimChar}${(value || '').replace(new RegExp(delimChar, 'g'), delimChar.repeat(2))}${delimChar}`
@@ -1348,6 +1381,7 @@ const supportedRuleAttrs = new Set([
 	// 4. Variadic fields
 	'arity',
 	'itemSeparator',
+	'singletons',
 	'keyed',
 	// 5. Other attributes
 	'requiredSpacing',

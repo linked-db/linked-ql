@@ -13,6 +13,7 @@ export class ReferentialAction extends AbstractNode {
                     { type: 'keyword', as: 'value', value: ['SET NULL', 'SET DEFAULT'] },
                     {
                         optional: true,
+                        dialect: 'postgres',
                         type: 'paren_block',
                         syntax: { type: 'Identifier', as: 'columns', arity: { min: 1 }, itemSeparator },
                     }

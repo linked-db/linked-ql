@@ -3,6 +3,7 @@ import { ErrorRefAmbiguous } from './abstracts/ErrorRefAmbiguous.js';
 import { ErrorRefUnknown } from './abstracts/ErrorRefUnknown.js';
 import { Identifier } from './Identifier.js';
 import { registry } from '../../registry.js';
+import { _eq } from '../../util.js';
 
 export class IdentifierPath extends Identifier {
 
@@ -22,7 +23,7 @@ export class IdentifierPath extends Identifier {
 				],
 			},
 			baseRule ||
-			{ ...[].concat(super.syntaxRules), autoSpacing: false },
+			{ ...[].concat(super.syntaxRules)[0], autoSpacing: false },
 		];
 	}
 
@@ -135,7 +136,7 @@ export class IdentifierPath extends Identifier {
 
 	identifiesAs(ident, ci = undefined) {
 		if (ident instanceof Identifier) {
-			return this._eq(this.value(), ident.value(), ci)
+			return _eq(this.value(), ident.value(), ci)
 				&& (!ident.qualifier() || !this.qualifier() || !!this.qualifier().identifiesAs(ident.qualifier(), ci));
 		}
 		return super.identifiesAs(ident, ci);

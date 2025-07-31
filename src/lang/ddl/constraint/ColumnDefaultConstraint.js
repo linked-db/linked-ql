@@ -1,4 +1,4 @@
-import { ConstraintSchema } from './abstracts/ConstraintSchema.js';
+import { ConstraintSchema } from './ConstraintSchema.js';
 
 export class ColumnDefaultConstraint extends ConstraintSchema {
 
@@ -7,7 +7,8 @@ export class ColumnDefaultConstraint extends ConstraintSchema {
     static get syntaxRules() {
         return this.buildSyntaxRules([
             { type: 'keyword', value: 'DEFAULT' },
-            { type: 'Expr', as: 'expr', assert: true },
+            { type: 'Expr', as: 'expr', assert: true, dialect: 'postgres' },
+            { type: ['NumberLiteral', 'StringLiteral', 'NullLiteral', 'BoolLiteral', 'SetConstructor'], as: 'expr', assert: true, dialect: 'mysql' },
         ]);
     }
 

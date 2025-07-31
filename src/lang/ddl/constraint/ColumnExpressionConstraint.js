@@ -1,4 +1,4 @@
-import { ConstraintSchema } from './abstracts/ConstraintSchema.js';
+import { ConstraintSchema } from './ConstraintSchema.js';
 
 export class ColumnExpressionConstraint extends ConstraintSchema {
 
@@ -6,19 +6,45 @@ export class ColumnExpressionConstraint extends ConstraintSchema {
 
 	static get syntaxRules() {
 		return this.buildSyntaxRules([
-			{ type: 'keyword', value: 'GENERATED' },
-			{ type: 'keyword', value: 'ALWAYS' },
-			{ type: 'keyword', value: 'AS' },
 			{
-                type: 'paren_block',
-                syntax: { type: 'Expr', as: 'expr', assert: true },
-                autoIndex: true,
-            },
-			{ type: 'keyword', value: 'STORED', assert: true },
+				dialect: 'postgres',
+				syntax: [
+					{ type: 'keyword', value: 'GENERATED' },
+					{ type: 'keyword', value: 'ALWAYS' },
+					{ type: 'keyword', value: 'AS' },
+					{
+						type: 'paren_block',
+						syntax: { type: 'Expr', as: 'expr', assert: true },
+					},
+					{ type: 'keyword', as: 'stored', value: 'STORED', assert: true },
+				],
+			},
+			{
+				dialect: 'mysql',
+				syntax: [
+					{
+						optional: true,
+						syntax: [
+							{ type: 'keyword', as: 'my_generated_kw', value: 'GENERATED', booleanfy: true },
+							{ type: 'keyword', value: 'ALWAYS' },
+						],
+					},
+					{ type: 'keyword', value: 'AS' },
+					{
+						type: 'paren_block',
+						syntax: { type: 'Expr', as: 'expr', assert: true },
+					},
+					{ type: 'keyword', as: 'stored', value: ['STORED', 'VIRTUAL'], optional: true },
+				],
+			},
 		]);
 	}
 
 	/* AST API */
 
+	myGeneratedKW() { return this._get('my_generated_kw'); }
+
 	expr() { return this._get('expr'); }
+
+	stored() { return this._get('stored'); }
 }
