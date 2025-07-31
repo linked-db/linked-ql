@@ -9,7 +9,7 @@ export class PGTableEXConstraint extends ConstraintSchema {
         return {
             dialect: 'postgres',
             syntax: this.buildSyntaxRules([
-                { type: 'operator', value: 'EXCLUDE' },
+                { type: 'keyword', value: 'EXCLUDE' },
                 {
                     optional: true,
                     syntax: [

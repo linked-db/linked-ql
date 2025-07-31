@@ -6,8 +6,8 @@ export class UnaryExpr extends AbstractNode {
 
     static get syntaxRules() {
         return [
-            { type: 'operator', as: 'operator', value: ['-', '+', 'NOT', 'EXISTS'] },
-            { type: 'Expr', as: 'operand', autoSpacing: ['NOT', 'EXISTS'] },
+            { type: 'operator', as: 'operator', value: ['-', '+', 'NOT'] },
+            { type: 'Expr', as: 'operand', autoSpacing: ['NOT'] },
         ];
     }
 

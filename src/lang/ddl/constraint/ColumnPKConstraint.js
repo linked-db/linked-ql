@@ -7,8 +7,7 @@ export class ColumnPKConstraint extends ConstraintSchema {
 
     static get syntaxRules() {
         return this.buildSyntaxRules([
-            { type: 'keyword', as: '.', value: 'PRIMARY', dialect: 'postgres' },
-            { type: 'keyword', as: '.', value: 'PRIMARY', optional: true, dialect: 'mysql' },
+            { type: 'keyword', as: '.', value: 'PRIMARY' },
             { type: 'keyword', value: 'KEY', assert: true },
             { type: 'PGIndexParameters', as: 'pg_index_parameters', optional: true, dialect: 'postgres' },
         ]);
@@ -16,7 +15,7 @@ export class ColumnPKConstraint extends ConstraintSchema {
 
     /* AST API */
 
-    value() { return this._get('value'); }
+    primaryKW() { return this._get('primary_kw'); }
 
     pgIndexParameters() { return this._get('pg_index_parameters'); }
 

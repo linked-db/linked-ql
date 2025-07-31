@@ -5,7 +5,6 @@ export class CreateTableStmt extends AbstractDDLStmt {
     /* SYNTAX RULES */
 
     static get syntaxRules() {
-        const itemSeparator = { type: 'punctuation', value: ',' };
         return [
             { type: 'keyword', value: 'CREATE' },
             {
@@ -21,11 +20,11 @@ export class CreateTableStmt extends AbstractDDLStmt {
                 syntax: [
                     { type: 'keyword', as: 'if_not_exists', value: 'IF', booleanfy: true },
                     { type: 'operator', value: 'NOT' },
-                    { type: 'operator', value: 'EXISTS' },
+                    { type: 'keyword', value: 'EXISTS' },
                 ],
             },
             { type: 'TableSchema', as: 'argument' },
-            { type: 'ConfigAssignmentExprAlt1', as: 'my_create_options', arity: Infinity, itemSeparator, dialect: 'mysql' }
+            { type: ['ConfigAssignmentExprAlt1', 'ConfigAssignmentExprAlt2'], as: 'my_create_options', arity: Infinity, dialect: 'mysql' }
         ];
     }
 

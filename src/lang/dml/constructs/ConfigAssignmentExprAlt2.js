@@ -6,6 +6,7 @@ export class ConfigAssignmentExprAlt2 extends BinaryExpr {
 
     static get syntaxRules() {
         return [
+            { type: 'keyword', as: 'default_kw', value: 'DEFAULT', booleanfy: true, optional: true },
             {
                 syntaxes: [
                     { type: 'keyword', as: 'left' },
@@ -18,12 +19,16 @@ export class ConfigAssignmentExprAlt2 extends BinaryExpr {
                     { type: 'operator', as: 'operator', value: '=' },
                     {
                         syntaxes: [
-                            { type: 'keyword', as: 'right' },
                             { type: 'Expr', as: 'right' },
+                            { type: 'keyword', as: 'right' },
                         ],
                     },
                 ],
             }
         ];
     }
+
+    /* API */
+
+    myDefaultKW() { return this._get('my_default_kw'); }
 }

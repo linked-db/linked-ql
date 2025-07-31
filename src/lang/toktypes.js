@@ -243,31 +243,31 @@ export const statements = {
 export const keywords = {
   common: [
     'ALL', 'ON', 'NO', 'KEY', 'ANY', 'AS', 'BY', 'ASC', 'CASE', 'CAST',
-    'DEFAULT', 'DESC', 'DO', 'DISTINCT', 'ELSE', 'END', 'ESCAPE',
-    'FIRST', 'LAST', 'FOLLOWING', 'FOR', 'HAVING', 'FILTER', 'SHARE',
+    'DEFAULT', 'DESC', 'DO', 'DISTINCT', 'ELSE', 'END', 'ESCAPE', 'EXISTS',
+    'FIRST', 'LAST', 'FOLLOWING', 'FOR', 'HAVING', 'FILTER', 'SHARE', 'UNIQUE',
     'JOIN', 'SEPARATOR', 'SKIP', 'LOCKED', 'NOWAIT', 'OF', 'RECURSIVE',
     'LIMIT', 'LOAD', 'NEXT', 'NOTHING', 'NULLS', 'OFFSET', 'ONLY', 'TIES',
     'OVER', 'PARTITION', 'PRECEDING', 'RANGE', 'RETURNING', 'ROW', 'ROWS', 'INCLUDE', 'EXCLUDE',
     'SET', 'SOME', 'THEN', 'USING', 'MATERIALIZED', 'MODE', 'TEMPORARY', 'MATCH', 'PARTIAL', 'SIMPLE',
-    'WITHIN', 'BOTH', 'CHECK', 'PRIMARY', 'FOREIGN', 'CONSTRAINT', 'REFERENCES', 
+    'WITHIN', 'BOTH', 'CHECK', 'PRIMARY', 'FOREIGN', 'CONSTRAINT', 'REFERENCES', 'INHERITS',
     'DATABASE', 'TABLE', 'COLUMN', 'INDEX', 'SEQUENCE', 'TRIGGER', 'VIEW', 'SAVEPOINT',
     'VALUES', 'WHEN', 'WHERE', 'WINDOW', 'WITH', 'WITHOUT', 'TO', 'TABLESPACE', 'INTO',
     'FROM', 'GROUP', 'ORDER', 'PARTITION', 'BREADTH', 'DEPTH', 'GENERATED', 'ALWAYS',
     'INNER', 'LEFT', 'RIGHT', 'OUTER', 'FULL', 'CROSS', 'NATURAL', 'NO OTHERS', 'NO INHERIT',
     'ROLLUP', 'UNBOUNDED', 'CURRENT ROW', 'GROUPS', 'IGNORE', 'RESPECT', 'CHARACTER SET',
-    'NO ACTION', 'SET NULL', 'SET DEFAULT', 'RESTRICT', 'CASCADE', 'STORED'
+    'NO ACTION', 'SET NULL', 'SET DEFAULT', 'RESTRICT', 'CASCADE', 'STORED', 'GIST'
   ],
   postgres: [
     'ARRAY', 'GROUPING SETS', 'CUBE', 'TABLESAMPLE', 'REPEATABLE', 'SEARCH',
     'LATERAL', 'ORDINALITY', 'OVERLAPS', 'SIMILAR', 'BERNOULLI', 'SYSTEM',
-    'UNLOGGED', 'PERFORM', 'CURRENT OF', 'TYPE', 'EXTENSION', 'GIST',
+    'UNLOGGED', 'PERFORM', 'CURRENT OF', 'TYPE', 'EXTENSION',
     'IMMUTABLE', 'STABLE', 'VOLATILE', 'CYCLE', 'CONFLICT', 'TEMP',
     'TIME ZONE', 'FETCH', 'LOCAL', 'IDENTITY', 'DEFERRABLE', 'INITIALLY', 'DEFERRED', 'IMMEDIATE'
   ],
   mysql: [
-    'LOCK', 'RENAME', 'REPLACE', 'SHOW', 'UNLOCK', 'VIRTUAL',
-    'HIGH_PRIORITY', 'CACHE', 'SQL_CACHE', 'SQL_NO_CACHE', 'STRAIGHT_JOIN',
-    'DATABASES', 'TABLES', 'COLUMNS', 'STATUS', 'PROCEDURE', 'FUNCTION',
+    'LOCK', 'RENAME', 'REPLACE', 'SHOW', 'UNLOCK', 'VIRTUAL', 'VISIBLE', 'INVISIBLE',
+    'HIGH_PRIORITY', 'CACHE', 'SQL_CACHE', 'SQL_NO_CACHE', 'STRAIGHT_JOIN', 'COMMENT',
+    'DATABASES', 'TABLES', 'COLUMNS', 'PROCEDURE', 'FUNCTION',
     'AUTO_INCREMENT', 'CHARACTER SET', 'ENGINE', 'VALUE', 'DUPLICATE',
   ]
 };
@@ -333,7 +333,8 @@ export const dataTypes = {
     'CHAR', 'CHARACTER', 'VARCHAR', 'TEXT',
     'BINARY', 'VARBINARY', 'BOOLEAN', 'JSON',
     'GEOMETRY', 'POINT', 'LINESTRING', 'POLYGON',
-    'DOUBLE PRECISION', 'CHARACTER VARYING'
+    'DOUBLE PRECISION', 'CHARACTER VARYING', 'BYTEA',
+    'ENUM',
   ],
   postgres: [
     'SERIAL', 'BIGSERIAL', 'MONEY', 'BIT',
@@ -342,13 +343,12 @@ export const dataTypes = {
     'INT4RANGE', 'INT8RANGE', 'NUMRANGE',
     'TSRANGE', 'TSTZRANGE', 'DATERANGE',
     'BOX', 'PATH', 'CIRCLE', 'LINE', 'LSEG', 'POLYGON',
-    'OID', 'BIT VARYING', 'JSONB'/*, TODO'NAME'*/, 'REGCLASS'
+    'OID', 'BIT VARYING', 'JSONB'/*, TODO'NAME'*/, 'REGCLASS',
   ],
   mysql: [
     'TINYINT', 'MEDIUMINT', 'BIT', 'YEAR', 'DATETIME',
     'TINYTEXT', 'QUERY', 'MEDIUMTEXT', 'LONGTEXT',
     'TINYBLOB', 'BLOB', 'MEDIUMBLOB', 'LONGBLOB',
-    'ENUM',
     'GEOMETRYCOLLECTION', 'MULTIPOINT', 'MULTILINESTRING', 'MULTIPOLYGON',
     'BOOL'
   ]
@@ -360,8 +360,6 @@ export const operators = {
     ['<~', { prec: 90, assoc: 'left' }],
     ['~>', { prec: 90, assoc: 'right' }],
     ['BETWEEN', { prec: 85/* Higher than NOT */, assoc: 'left' }],
-    ['EXISTS', { prec: 83/* Higher than NOT */, assoc: 'left' }],
-    ['UNIQUE', { prec: 83/* Higher than NOT */, assoc: 'left' }],
     ['NOT', { prec: 80, assoc: 'right' }],
     // Arithmetic
     ['*', { prec: 70, assoc: 'left' }],

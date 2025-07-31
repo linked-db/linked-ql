@@ -359,7 +359,7 @@ $describe('Parser - References and Identifiers', () => {
             await testParseAndStringify('TableRef', 'public.users@~7_6');
             await testParseAndStringify('TableRef', 'public.users@=3_4');
             await testParseAndStringify('TableRef', 'public.users@<3');
-            await testParseAndStringify('TableRef', 'public . "users" @>4', { stripSpaces: true, stripQuotes: true });
+            await testParseAndStringify('TableRef', 'public . "users" @>4', { stripSpaces: true });
             await testParseAndStringify('TableRef', 'public."us ers"@<=3');
             await testParseAndStringify('TableRef', 'public.`us ers`@>=4', { dialect: 'mysql' });
         });
@@ -379,7 +379,7 @@ $describe('Parser - References and Identifiers', () => {
             await testExprAndNodeEntryPoints('ColumnRef', 'public@~7_6.users.id');
             await testExprAndNodeEntryPoints('ColumnRef', 'public@=3_4.users.id');
             await testExprAndNodeEntryPoints('ColumnRef', 'public@<3.users.id');
-            await testExprAndNodeEntryPoints('ColumnRef', 'public @>4 . "users" . id', { stripSpaces: true, stripQuotes: true });
+            await testExprAndNodeEntryPoints('ColumnRef', 'public @>4 . "users" . id', { stripSpaces: true });
             await testExprAndNodeEntryPoints('ColumnRef', 'public@<=3."us ers".id');
             await testExprAndNodeEntryPoints('ColumnRef', 'public@>=4.`us ers`.id', { dialect: 'mysql' });
         });
@@ -389,7 +389,7 @@ $describe('Parser - References and Identifiers', () => {
             await testExprAndNodeEntryPoints('ColumnRef', 'public@~7_6.users@~7_6.id');
             await testExprAndNodeEntryPoints('ColumnRef', 'public@=3_4.users@=3_4.id');
             await testExprAndNodeEntryPoints('ColumnRef', 'public@<3.users@<3.id');
-            await testExprAndNodeEntryPoints('ColumnRef', 'public @>4 . "users" @>4 . id', { stripSpaces: true, stripQuotes: true });
+            await testExprAndNodeEntryPoints('ColumnRef', 'public @>4 . "users" @>4 . id', { stripSpaces: true });
             await testExprAndNodeEntryPoints('ColumnRef', 'public@<=3."us ers"@<=3.id');
             await testExprAndNodeEntryPoints('ColumnRef', 'public@>=4.`us ers`@>=4.id', { dialect: 'mysql' });
         });

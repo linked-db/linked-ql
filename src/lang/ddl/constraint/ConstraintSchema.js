@@ -10,7 +10,6 @@ export class ConstraintSchema extends AbstractSchema {
     /* SYNTAX RULES */
 
     static buildSyntaxRules(rules) {
-        // [ DEFERRABLE | NOT DEFERRABLE ] [ INITIALLY DEFERRED | INITIALLY IMMEDIATE ]
         return [
             {
                 optional: true,
@@ -59,7 +58,6 @@ export class ConstraintSchema extends AbstractSchema {
                 'ColumnNullConstraint',
                 'ColumnPKConstraint',
                 'ColumnUKConstraint',
-                'MYAutoIncrementConstraint',
             ],
         };
     }

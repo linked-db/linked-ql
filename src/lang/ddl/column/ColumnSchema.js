@@ -15,7 +15,10 @@ export class ColumnSchema extends AbstractSchema {
             'ColumnNullConstraint',
             'ColumnPKConstraint',
             'ColumnUKConstraint',
-            'MYAutoIncrementConstraint',
+            'MYColumnAutoIncrementModifier',
+            'MYColumnCommentModifier',
+            'MYColumnOnUpdateModifier',
+            'MYColumnVisibilityModifier',
         ];
         return [
             { type: 'ColumnIdent', as: 'name' },

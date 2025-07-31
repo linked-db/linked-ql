@@ -7,7 +7,12 @@ export class DataType extends AbstractNode {
     static get syntaxRules() {
         const itemSeparator = { type: 'punctuation', value: ',' };
         return [
-            { type: 'data_type', as: '.' },
+            {
+                syntaxes: [
+                    { type: 'data_type', as: '.' },
+                    { type: 'keyword', as: '.', value: ['SET'] },
+                ]
+            },
             {
                 type: 'paren_block',
                 syntax: { type: 'Expr', as: 'specificity', arity: Infinity, itemSeparator, assert: true },

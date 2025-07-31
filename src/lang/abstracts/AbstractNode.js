@@ -683,6 +683,7 @@ export class AbstractNode {
 				as: exposure,
 				if: inference,
 				arity,
+				optionalParens,
 				singletons,
 				itemSeparator,
 				optional = false,
@@ -1206,7 +1207,7 @@ export class AbstractNode {
 			? tok.delim // Choose this one
 			: delimChars[0];
 		// ------------
-		const shouldQuote = tok.delim && value !== value.toLowerCase()
+		const shouldQuote = tok.delim
 			|| /^\d/.test(value)
 			|| !/^(\*|[\w]+)$/.test(value);
 		return shouldQuote

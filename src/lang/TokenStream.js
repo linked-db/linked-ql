@@ -929,16 +929,20 @@ function finalizeIdentifier(token, { options, state, localState }, forceYield = 
 
     let multiwordMatched = false;
     let [tokenCategory, matchResult] = findInBranch('compound');
-    if (matchResult?.value === wordSoFar || (forceYield && matchResult)) {
+    if (matchResult?.value === wordSoFar) {
         processExactMatch();
         multiwordMatched = true;
     } else if (matchResult) {
-        /* first (e.g. DISTINCT kw vs DISTINCT FROM op) */
+        // first (e.g. DISTINCT kw vs DISTINCT FROM op)
         const [tokenCategory2, matchResult2] = findInBranch('classic');
         if (matchResult2 && tokenCategory2 !== tokenCategory) {
             [tokenCategory, matchResult] = [tokenCategory2, matchResult2];
         }
-        processPartialMatch();
+        if (forceYield) {
+            processExactMatch();
+        } else {
+            processPartialMatch();
+        }
         multiwordMatched = true;
     } else {
         [tokenCategory, matchResult] = findInBranch('classic');
@@ -957,7 +961,8 @@ function finalizeIdentifier(token, { options, state, localState }, forceYield = 
         const { type: _, ...tok } = token;
         finalToken = [{
             type: /UNKNOWN/.test(token.value) ? 'unknown_literal' : (/NULL/i.test(token.value) ? 'null_literal' : 'bool_literal'),
-            ...tok
+            ...tok,
+            value: token.value.toUpperCase(),
         }];
     }
     return finalToken;

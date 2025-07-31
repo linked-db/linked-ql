@@ -6,7 +6,7 @@ export class QuantifiedExpr extends AbstractNode {
 
     static get syntaxRules() {
         return [
-            { type: 'keyword', as: 'quantifier', value: ['ALL', 'ANY', 'SOME'] },
+            { type: 'keyword', as: 'quantifier', value: ['ALL', 'ANY', 'SOME', 'EXISTS'] },
             { type: ['SubqueryConstructor', 'SetConstructor'], as: 'expr' },
         ];
     }

@@ -12,7 +12,7 @@ export class ColumnUKConstraint extends ConstraintSchema {
 
     static get syntaxRules() {
         return this.buildSyntaxRules([
-            { type: 'operator', value: 'UNIQUE' },
+            { type: 'keyword', value: 'UNIQUE' },
             { type: 'keyword', as: 'my_key_kw', value: ['KEY', 'INDEX'], optional: true, dialect: 'mysql' },
             {
                 optional: true,
@@ -21,11 +21,11 @@ export class ColumnUKConstraint extends ConstraintSchema {
                     [
                         { type: 'keyword', value: 'NULLS' },
                         { type: 'operator', as: 'pg_nulls_distinct', value: 'NOT' },
-                        { type: 'keyword', value: 'DISTINCT' },
+                        { type: 'keyword', value: 'DISTINCT', assert: true },
                     ],
                     [
                         { type: 'keyword', value: 'NULLS' },
-                        { type: 'keyword', as: 'pg_nulls_distinct', value: 'DISTINCT' },
+                        { type: 'keyword', as: 'pg_nulls_distinct', value: 'DISTINCT', assert: true },
                     ],
                 ]
             },

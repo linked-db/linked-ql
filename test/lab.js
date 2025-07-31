@@ -109,27 +109,23 @@ FOR UPDATE SKIP LOCKED;
 TABLE public.users *;
 `;
 
-sql = `NO INHERIT`;
+sql = `CURRENT_TIMESTAMP`;
 
 //
 /*
 const dd = (await (await TokenStream.create(sql, { structured: true })).next()).value.value;
-*/const dd = await TokenStream.create(sql, { structured: true, dialect: 'mysql' });
+const dd = await TokenStream.create(sql, { structured: true });
 
 for await (const f of dd) {
     console.log(f);
 }
 process.exit();
 
-
+*/
 
 let t1b;
 //t1b = await Query.parse(sql, { assert: new RegExp(`COLUMN_REF\\.0\\.syntaxes\\.0\\.0<qufalifier>\\.`) });
-t1b = await registry['CreateTableStmt'].parse(sql, { assert: false });
-
-
-
-console.log(t1b.argument().ckConstraints(true) + '', t1b.argument().pkConstraint(true).columns());
+t1b = await registry['CallExpr'].parse(sql, { assert: false, dialect: 'mysql' });
 
 
 

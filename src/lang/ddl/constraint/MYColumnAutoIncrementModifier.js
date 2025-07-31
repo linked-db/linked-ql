@@ -1,7 +1,7 @@
-import { ConstraintSchema } from './ConstraintSchema.js';
+import { AbstractNode } from '../../abstracts/AbstractNode.js';
 import { ColumnIdentityConstraint } from './ColumnIdentityConstraint.js';
 
-export class MYAutoIncrementConstraint extends ConstraintSchema {
+export class MYColumnAutoIncrementModifier extends AbstractNode {
 
     /* SYNTAX RULES */
 

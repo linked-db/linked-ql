@@ -1,4 +1,4 @@
-import { MYAutoIncrementConstraint } from './MYAutoIncrementConstraint.js';
+import { MYColumnAutoIncrementModifier } from './MYColumnAutoIncrementModifier.js';
 import { ConstraintSchema } from './ConstraintSchema.js';
 
 export class ColumnIdentityConstraint extends ConstraintSchema {
@@ -41,7 +41,7 @@ export class ColumnIdentityConstraint extends ConstraintSchema {
 
 	jsonfy(options = {}, transformCallback = null, linkedDb = null) {
 		return (options.toDialect || this.options.dialect) === 'mysql'
-			? (new MYAutoIncrementConstraint).jsonfy(options, transformCallback, linkedDb)
+			? (new MYColumnAutoIncrementModifier).jsonfy(options, transformCallback, linkedDb)
 			: super.jsonfy(options, transformCallback, linkedDb);
 	}
 }
