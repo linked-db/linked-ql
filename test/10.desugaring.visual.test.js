@@ -200,6 +200,17 @@ $describe('Parser - Refs Resolution Using a Test Linked DB Instance', () => {
             await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDB);
         });
     });
+
+    $describe('LQDeepRef', () => {
+        $it('should parse an in-query "LQDeepRef" to a fully-resolved ColumnRef', async () => {
+            const inputSql =
+                `SELECT
+  order_id, parent_order_id ~> parent_order_id ~> status 
+  FROM orders AS o`;
+            const outputSql = `SELECT o.order_id, "dimension::o.parent_order_id|order_id|public.orders"."ref::1" FROM public.orders AS o LEFT JOIN (SELECT orders.order_id AS "rand::0", "dimension::orders.parent_order_id|order_id|public.orders"."ref::1" AS "ref::1" FROM public.orders LEFT JOIN (SELECT orders.order_id AS "rand::0", orders.status AS "ref::1" FROM public.orders) AS "dimension::orders.parent_order_id|order_id|public.orders" ON orders.parent_order_id = "dimension::orders.parent_order_id|order_id|public.orders"."rand::0") AS "dimension::o.parent_order_id|order_id|public.orders" ON o.parent_order_id = "dimension::o.parent_order_id|order_id|public.orders"."rand::0"`;
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDB);
+        });
+    });
 });
 
 /*

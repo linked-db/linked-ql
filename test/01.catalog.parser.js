@@ -17,10 +17,12 @@ const sql =
   ),
   orders (
     order_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    parent_order_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,
     order_total NUMERIC(10, 2) NOT NULL CHECK (order_total >= 0),
     status TEXT NOT NULL CHECK (status IN ('pending', 'paid', 'cancelled', 'shipped')),
     placed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_parent_order_id FOREIGN KEY (parent_order_id) REFERENCES orders (order_id) ON DELETE CASCADE,
     CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE
   ),
   products (
