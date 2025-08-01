@@ -58,27 +58,51 @@ export class ColumnSchema extends AbstractSchema {
         }
     }
 
-    pkConstraint() {
+    pkConstraint(smartly = false) {
         for (const cons of this) {
             if (cons instanceof registry.ColumnPKConstraint) return cons;
         }
+        if (smartly && this.parentNode instanceof registry.TableSchema) {
+            return this.parentNode.pkConstraints().find((c) => {
+                const columns = c.columns();
+                return columns.length = 1 && columns[0].identifiesAs(this.name());
+            });
+        }
     }
 
-    fkConstraint() {
+    fkConstraint(smartly = false) {
         for (const cons of this) {
             if (cons instanceof registry.ColumnFKConstraint) return cons;
         }
-    }
-
-    ukConstraint() {
-        for (const cons of this) {
-            if (cons instanceof registry.ColumnUKConstraint) return cons;
+        if (smartly && this.parentNode instanceof registry.TableSchema) {
+            return this.parentNode.fkConstraints().find((c) => {
+                const columns = c.columns();
+                return columns.length = 1 && columns[0].identifiesAs(this.name());
+            });
         }
     }
 
-    ckConstraint() {
+    ukConstraint(smartly = false) {
+        for (const cons of this) {
+            if (cons instanceof registry.ColumnUKConstraint) return cons;
+        }
+        if (smartly && this.parentNode instanceof registry.TableSchema) {
+            return this.parentNode.ukConstraints().find((c) => {
+                const columns = c.columns();
+                return columns.length = 1 && columns[0].identifiesAs(this.name());
+            });
+        }
+    }
+
+    ckConstraint(smartly = false) {
         for (const cons of this) {
             if (cons instanceof registry.CheckConstraint) return cons;
+        }
+        if (smartly && this.parentNode instanceof registry.TableSchema) {
+            return this.parentNode.ckConstraints().find((c) => {
+                const columns = c.columns();
+                return columns.length = 1 && columns[0].identifiesAs(this.name());
+            });
         }
     }
 }

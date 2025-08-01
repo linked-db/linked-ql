@@ -191,7 +191,9 @@ export class AbstractNode {
 
 	identifiesAs(value, cs = false) {
 		if (typeof value === 'undefined') return false;
-		if (typeof value?.jsonfy === 'function') return _eq(this.jsonfy({ nodeNames: false }), value.jsonfy({ nodeNames: false }), cs);
+		if (typeof value?.jsonfy === 'function') {
+			return _eq(this.jsonfy({ nodeNames: false }), value.jsonfy({ nodeNames: false }), cs);
+		}
 	}
 
 	/**

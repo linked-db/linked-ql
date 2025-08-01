@@ -33,11 +33,11 @@ export class TableSchema extends AbstractSchema {
         return result;
     }
 
-    pkConstraint(deeply = false) {
+    pkConstraint(smartly = false) {
         for (const entry of this) {
             if (entry instanceof registry.TablePKConstraint) return entry;
             let pk;
-            if (deeply
+            if (smartly
                 && entry instanceof registry.ColumnSchema
                 && (pk = entry.pkConstraint())) {
                 return pk;
@@ -45,14 +45,14 @@ export class TableSchema extends AbstractSchema {
         }
     }
 
-    fkConstraints(deeply = false) {
+    fkConstraints(smartly = false) {
         const result = [];
         for (const entry of this) {
             if (entry instanceof registry.TableFKConstraint) {
                 result.push(entry);
             }
             let fk;
-            if (deeply
+            if (smartly
                 && entry instanceof registry.ColumnSchema
                 && (fk = entry.fkConstraint())) {
                 result.push(pk);
@@ -61,14 +61,14 @@ export class TableSchema extends AbstractSchema {
         return result;
     }
 
-    ukConstraint(deeply = false) {
+    ukConstraint(smartly = false) {
         const result = [];
         for (const entry of this) {
             if (entry instanceof registry.TableUKConstraint) {
                 result.push(entry);
             }
             let uk;
-            if (deeply
+            if (smartly
                 && entry instanceof registry.ColumnSchema
                 && (uk = entry.ukConstraint())) {
                 result.push(uk);
@@ -77,14 +77,14 @@ export class TableSchema extends AbstractSchema {
         return result;
     }
 
-    ckConstraints(deeply = false) {
+    ckConstraints(smartly = false) {
         const result = [];
         for (const entry of this) {
             if (entry instanceof registry.CheckConstraint) {
                 result.push(entry);
             }
             let ck;
-            if (deeply
+            if (smartly
                 && entry instanceof registry.ColumnSchema
                 && (ck = entry.ckConstraint())) {
                 result.push(ck);

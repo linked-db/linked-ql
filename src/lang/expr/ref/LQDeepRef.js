@@ -38,15 +38,20 @@ export class LQDeepRef extends LQDeepDeepRef {
 		const targetTable_schema = this.deriveSchema(linkedDb)/* TableSchema */;
 
 		const keyLeft_ref = this.left().clone({ fullyQualified: true }, null, linkedDb);
-		const keyRight_ref = targetTable_schema.pkConstraint(true)?.columns()[0];
+		let keyRight_ref = targetTable_schema.pkConstraint(true)?.columns()[0];
 
-		if (!keyRight_ref) throw new Error('Primary key not found in target table schema');
-		
+		if (!keyRight_ref) throw new Error(`[${this.parentNode || this}] Primary key not found in target table schema`);
+		keyRight_ref = registry.ColumnRef.fromJSON({ value: keyRight_ref.value() });
+		const detail = this.right() instanceof registry.ColumnNameRef
+			? registry.ColumnRef.fromJSON({ value: this.right().value() })
+			: this.right();
+
 		const targetTable_ref = registry.TableRef.fromJSON(targetTable_schema.name().jsonfy({ nodeNames: false, fullyQualified: true }, null, linkedDb));
 		return {
 			table: targetTable_ref,
 			left: keyLeft_ref,
 			right: keyRight_ref,
+			detail
 		};
 	}
 }

@@ -33,7 +33,7 @@ export class LQBackRef extends LQBackBackRef {
 		const leftEndpoint = left instanceof LQBackBackRef
 			? left.endpoint()
 			: left;
-		const leftFk = leftEndpoint.deriveSchema(linkedDb)/* ColumnSchema */.fkConstraint();
+		const leftFk = leftEndpoint.deriveSchema(linkedDb)/* ColumnSchema */.fkConstraint(true);
 		if (!leftFk) throw new ErrorFKInvalid(`[${this.parentNode || this}] Column ${leftEndpoint} is not a foreign key.`);
 		const leftEndpointTable = leftFk.targetTable();
 
@@ -45,7 +45,7 @@ export class LQBackRef extends LQBackBackRef {
 			const querySchemasSchemaInScope = statementNode.querySchemas();
 			for (const [/*alias*/, tableRefOrConstructor] of querySchemasSchemaInScope) {
 				if (!(tableRefOrConstructor instanceof TableRef)) continue; // We support only TableRef for now
-				if (!tableRefOrConstructor.identifiesAs(leftEndpointTable, leftEndpoint._has('delim'))) continue;
+				if (!tableRefOrConstructor.identifiesAs(leftEndpointTable)) continue;
 				const pkColumnNameRef = tableRefOrConstructor.deriveSchema(linkedDb)/* TableSchema */.pkConstraint(true)?.columns()[0];
 				if (!pkColumnNameRef) continue;
 				const $keyLeft_ref = ColumnRef.fromJSON({

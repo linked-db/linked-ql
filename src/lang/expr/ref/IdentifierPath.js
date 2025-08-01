@@ -3,7 +3,6 @@ import { ErrorRefAmbiguous } from './abstracts/ErrorRefAmbiguous.js';
 import { ErrorRefUnknown } from './abstracts/ErrorRefUnknown.js';
 import { Identifier } from './Identifier.js';
 import { registry } from '../../registry.js';
-import { _eq } from '../../util.js';
 
 export class IdentifierPath extends Identifier {
 
@@ -93,7 +92,6 @@ export class IdentifierPath extends Identifier {
 
 	selectSchema(filter = null, linkedDb = null) {
 		const name = this.value();
-		const cs = this._has('delim');
 
 		const potentialParentSchemas = this.qualifier(true).selectSchema(null, linkedDb);
 		const resultSchemas = [];
@@ -107,7 +105,7 @@ export class IdentifierPath extends Identifier {
 		for (const potentialParentSchema of potentialParentSchemas) {
 			for (const childSchema of potentialParentSchema._get('entries')) {
 				if (!(childSchema instanceof SchemaClass)) continue;
-				if (name && !childSchema.identifiesAs(name, cs)) continue;
+				if (name && !childSchema.identifiesAs(this)) continue;
 				if (filter && !filter(childSchema)) continue;
 				resultSchemas.push(childSchema);
 			}
@@ -134,12 +132,12 @@ export class IdentifierPath extends Identifier {
 
 	/* API */
 
-	identifiesAs(ident, ci = undefined) {
-		if (ident instanceof Identifier) {
-			return _eq(this.value(), ident.value(), ci)
-				&& (!ident.qualifier() || !this.qualifier() || !!this.qualifier().identifiesAs(ident.qualifier(), ci));
+	identifiesAs(ident, cs = undefined) {
+		const result = super.identifiesAs(ident, cs);
+		if (result && ident instanceof IdentifierPath && ident.qualifier() && this.qualifier()) {
+			return this.qualifier().identifiesAs(ident.qualifier(), cs);
 		}
-		return super.identifiesAs(ident, ci);
+		return result;
 	}
 
 	/* DESUGARING API */

@@ -36,8 +36,8 @@ export class LQBackBackRef extends AbstractMagicRef {
 	/* SCHEMA API */
 
 	deriveSchema(linkedDb) {
-		const fk = this.right().deriveSchema(linkedDb)/* ColumnSchema */.fkConstraint();
-		if (!fk) throw new ErrorFKInvalid(`[${this.parentNode || this}]: Column ${this.right()} is not a foreign key.`);
+		const fk = this.right().deriveSchema(linkedDb)/* ColumnSchema */.fkConstraint(true);
+		if (!fk) throw new ErrorFKInvalid(`[${this.parentNode || this}] Column ${this.right()} is not a foreign key.`);
 		return fk.targetTable()/*the table in there*/.deriveSchema(linkedDb)/* TableSchema */;
 	}
 

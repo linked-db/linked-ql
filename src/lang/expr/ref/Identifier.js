@@ -15,10 +15,13 @@ export class Identifier extends AbstractNode {
 
     /* API */
 
-    identifiesAs(value, ci = false) {
-        if (typeof value === 'string') {
-            return _eq(this._get('value'), value, ci);
+    identifiesAs(ident, cs = undefined) {
+        if (ident instanceof Identifier) {
+			return _eq(this.value(), ident.value(), cs === undefined ? (this._has('delim') || ident._has('delim')) : cs);
+		}
+        if (typeof ident === 'string') {
+            return _eq(this._get('value'), ident, cs === undefined ? this._has('delim') : cs);
         }
-        return super.identifiesAs(value, ci);
+        return super.identifiesAs(ident, cs);
     }
 }

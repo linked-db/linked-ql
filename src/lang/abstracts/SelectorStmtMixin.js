@@ -23,8 +23,8 @@ export const SelectorStmtMixin = (Class) => class extends Class {
             }
             // LQDeepRef
             if (deSugar && node instanceof LQDeepRef) {
-                const { select } = this.createSelectorDimension(node, selectorDimensions, $options, linkedDb);
-                return select(node.right());
+                const { select, detail } = this.createSelectorDimension(node, selectorDimensions, $options, linkedDb);
+                return select(detail);
             }
             // LQBackRef, LQBackRefConstructor
             if (deSugar && (node instanceof LQBackRef || node instanceof LQBackRefConstructor)) {
@@ -49,7 +49,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
     }
 
     createSelectorDimension(LQRef, selectorDimensions = null, { asAggr = false, ...$options } = {}, linkedDb = null) {
-        const { left, right, table } = LQRef.getOperands(linkedDb);
+        const { left, right, table, detail } = LQRef.getOperands(linkedDb);
 
         const {
             CompleteSelectStmt,
@@ -67,7 +67,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
             BinaryExpr,
         } = registry;
 
-        const dimensionID = `dimension${asAggr ? '/g' : ''}::${[left, right, table].join('/')}`;
+        const dimensionID = `dimension${asAggr ? '/g' : ''}::${[left, right, table].join('|')}`;
         if (selectorDimensions?.has(dimensionID)) {
             return selectorDimensions.get(dimensionID);
         }
@@ -146,7 +146,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
             };
         };
 
-        const selectorDimension = { id: dimensionID, type: 'join', query: joinJson, alias, select };
+        const selectorDimension = { id: dimensionID, type: 'join', query: joinJson, alias, select, detail };
         selectorDimensions
             ?.set(dimensionID, selectorDimension);
 
@@ -164,10 +164,13 @@ export const SelectorStmtMixin = (Class) => class extends Class {
             join_clauses: resultJson.join_clauses?.slice(0) || [],
         };
         for (const [, { query: joinJson }] of selectorDimensions) {
+            const joinInstance = JoinClause.fromJSON(joinJson, this.options);
+            this._adoptNodes(joinInstance);
             resultJson.join_clauses.push(
-                JoinClause.fromJSON(joinJson, this.options).jsonfy/* @case2 */(options, null, linkedDb)
+                joinInstance.jsonfy/* @case2 */(options, null, linkedDb)
             );
         }
+
         return resultJson;
     }
 }

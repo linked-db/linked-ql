@@ -1,3 +1,4 @@
+import { registry } from '../../registry.js';
 import { ConstraintSchema } from './ConstraintSchema.js';
 
 export class CheckConstraint extends ConstraintSchema {
@@ -21,4 +22,16 @@ export class CheckConstraint extends ConstraintSchema {
     expr() { return this._get('expr'); }
 
     noInheritKW() { return this._get('no_inherit_kw'); }
+
+    /* API */
+
+    columns() {
+        const columns = [];
+        this.expr()?.walkTree((node) => {
+            if (node instanceof registry.ColumnRef) {
+                columns.push(registry.ColumnNameRef.fromJSON({ value: node.value() }))
+            } else return node;
+        });
+        return columns;
+    }
 }

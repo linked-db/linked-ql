@@ -12,6 +12,7 @@ const sql =
     password_hash TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
+    CHECK (password_hash LIKE '3...'),
     status VARCHAR(10) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'banned'))
   ),
   orders (

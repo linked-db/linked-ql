@@ -13,7 +13,6 @@ export class ColumnNameRef extends Identifier {
 
     selectSchema(filter = null, linkedDb = null) {
         const name = this.value();
-        const cs = this._get('delim');
 
         const tableSchemaInScope = this.climbTree((parentNode, up) => {
             if (typeof parentNode.deriveSchema === 'function') {
@@ -26,7 +25,7 @@ export class ColumnNameRef extends Identifier {
 
         for (const childSchema of tableSchemaInScope) {
             if (!(childSchema instanceof registry.ColumnSchema)) continue;
-            if (name && !childSchema.identifiesAs(name, cs)) continue;
+            if (name && !childSchema.identifiesAs(this)) continue;
             if (filter && !filter(childSchema)) continue;
             resultSchemas.push(childSchema);
         }

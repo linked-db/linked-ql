@@ -5,10 +5,10 @@ import { registry } from '../src/lang/registry.js';
 
 // Select list being an object
 // PGArrayLiteral|LQObjectLiteral|LQArrayLiteral|LQObjectProperty|SelectElement - with [],
-// SchemaRef|TableRef @v
+// SchemaRef | TableRef @version_specs
 
-// IdentifierPath (fullyQualified), PayloadStmtMixin, SelectorStmtMixin, UpsertStmt,
-// REFS, LQBackRefConstructor
+// IdentifierPath (fullyQualified),
+// REFS, LQBackRefConstructor, SelectorStmtMixin, PayloadStmtMixin, UpsertStmt,
 
 
 $describe('Parser - Expr DeSugaring', () => {
@@ -144,6 +144,16 @@ $describe('Parser - Refs Resolution Using a Test Linked DB Instance', () => {
     $it('should establish the linkedDB object with test catalog', async () => {
         const { catalog } = await import('./01.catalog.parser.js');
         linkedDB = new LinkedDB({ catalog });
+
+        /*
+        const tblSchemaUsers = [...linkedDB.catalog].find((s) => s.name().value() === 'public')._get('entries', 'users');
+        const emailColumn = tblSchemaUsers._get('entries', 'email');
+        const passwordHashColumn = tblSchemaUsers._get('entries', 'password_hash');
+        console.log([
+            emailColumn.ckConstraint(true).columns(),
+            passwordHashColumn.ckConstraint(true).columns()
+        ]);
+        */
     });
 
     $describe('TableRef', () => {
@@ -179,4 +189,30 @@ $describe('Parser - Refs Resolution Using a Test Linked DB Instance', () => {
             await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true }, linkedDB);
         });
     });
+
+    $describe('LQDeepRef', () => {
+        $it('should parse an in-query "LQDeepRef" to a fully-resolved ColumnRef', async () => {
+            const inputSql =
+                `SELECT
+  order_id, user_id ~> email 
+  FROM orders AS o`;
+            const outputSql = `SELECT o.order_id, "dimension::o.user_id|user_id|public.users"."ref::1" FROM public.orders AS o LEFT JOIN (SELECT users.user_id AS "rand::0", users.email AS "ref::1" FROM public.users) AS "dimension::o.user_id|user_id|public.users" ON o.user_id = "dimension::o.user_id|user_id|public.users"."rand::0"`;
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDB);
+        });
+    });
 });
+
+/*
+
+SELECT
+    o.order_id,
+    "dimension::o.user_id|user_id|public.users"."ref::1"
+    
+    FROM public.orders AS o
+    
+    LEFT JOIN (
+        SELECT user_id AS "rand::0", email AS "ref::1" FROM public.users
+    ) AS "dimension::o.user_id|user_id|public.users"
+    ON o.user_id = "dimension::o.user_id|user_id|public.users"."rand::0"
+
+*/
