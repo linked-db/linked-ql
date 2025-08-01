@@ -41,7 +41,7 @@ export class TableAbstractionRef extends TableRef {
 	/* DESUGARING API */
 
 	jsonfy(options = {}, transformCallback = null, linkedDb = null) {
-		if (this.value() && (options.deSugar || options.fullyQualified)) {
+		if ((options.deSugar || options.fullyQualified) && this.value() && this.statementNode) {
             options = { deSugar: false, fullyQualified: false };
 		}
 		return super.jsonfy(options, transformCallback, linkedDb);

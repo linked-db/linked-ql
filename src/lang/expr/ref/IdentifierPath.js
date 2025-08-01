@@ -81,7 +81,7 @@ export class IdentifierPath extends Identifier {
 
 			this._unadoptNodes(qualifierNode);
 
-			qualifierNode = QualifierClass.fromJSON(potentialQualifierSchemas[0].name().jsonfy({ nodeNames: false, fullyQualified: true }, null, linkedDb));
+			qualifierNode = QualifierClass.fromJSON(potentialQualifierSchemas[0].name().jsonfy({ nodeNames: false }, null, linkedDb));
 			this._adoptNodes(qualifierNode); // so that events/contexts are properly set up
 		}
 
@@ -145,7 +145,7 @@ export class IdentifierPath extends Identifier {
 	jsonfy(options = {}, transformCallback = null, linkedDb = null) {
 		let resultJson = super.jsonfy(options, transformCallback, linkedDb);
 		if (!resultJson.qualifier && (options.deSugar || options.fullyQualified)) {
-			const qualifier = this.qualifier(true, linkedDb).jsonfy({ ...options, deSugar: false, fullyQualified: false }/* take whatever was resolved */, null, linkedDb);
+			const qualifier = this.qualifier(true, linkedDb).jsonfy(options, null, linkedDb);
 			resultJson = {
 				...resultJson,
 				qualifier: qualifier.value ? qualifier : undefined
