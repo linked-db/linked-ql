@@ -24,7 +24,7 @@ export function $it(text, callback) {
             const $log = log;
             done();
 
-            for (const { entryPoint, nodeName, sql, options, resultNode } of $log) {
+            for (const { entryPoint, nodeName, sql, options, resultNode, desugaredResultNode } of $log) {
                 const formattingOptions = { prettyPrint: options.prettyPrint, indentation };
                 console.log(
                     baseIndentation + ('  '.repeat(indentation))
@@ -32,36 +32,54 @@ export function $it(text, callback) {
                     chalk.gray(entryPoint) + ' '.repeat(Math.max(0, 15 - entryPoint.length - 2)) + chalk.gray(`.parse(`)
                     + chalk.green(formatSql(sql, formattingOptions))
                     + chalk.gray(`)`),
-                    chalk.gray(formatSql(`<${nodeName}>`, formattingOptions)),
+                    chalk.gray(formatSql(`--> ${nodeName}:`, formattingOptions)),
                     chalk.green(formatSql(resultNode?.stringify(options), formattingOptions)),
+                    ...(desugaredResultNode !== resultNode ? [
+                        chalk.gray(formatSql(`--> ${desugaredResultNode.constructor.name}:`, formattingOptions)),
+                        chalk.blue(formatSql(desugaredResultNode?.stringify(options), formattingOptions)),
+                    ] : [])
                 );
             }
         }).catch(done);
     });
 }
 
-export async function testParseAndStringify(entryPoint, sql, options = {}) {
+export async function testParseAndStringify(entryPoint, sql, options = {}, linkedDB = null) {
     let nodeName = entryPoint;
     if (Array.isArray(entryPoint)) {
         [entryPoint, nodeName] = entryPoint;
     }
+    let expectedSql = sql;
+    if (Array.isArray(sql)) {
+        [sql, expectedSql] = sql;
+    }
 
     const resultNode = await registry[entryPoint].parse(sql, options);
-    log?.add({ entryPoint, nodeName, sql, options, resultNode });
-
     expect(resultNode).to.be.instanceOf(registry[nodeName]);
 
+    let desugaredResultNode = resultNode;
+    if (options.deSugar || options.toDialect) {
+        desugaredResultNode = resultNode.deSugar({ dialect: options.dialect, toDialect: options.toDialect }, null, linkedDB);
+    }
+
+    log?.add({ entryPoint, nodeName, sql, options, resultNode, desugaredResultNode });
     const normalizerOptions = { stripSpaces: options.stripSpaces, stripQuotes: options.stripQuotes };
+
     expect(
-        normalizeSql(resultNode.stringify(options))
-    ).to.equal(normalizeSql(sql, normalizerOptions));
+        normalizeSql(desugaredResultNode.stringify(options))
+    ).to.equal(normalizeSql(expectedSql, normalizerOptions));
 
     const resultClone = registry[entryPoint].fromJSON(resultNode.jsonfy(), resultNode.options);
     expect(resultClone).to.be.instanceOf(registry[nodeName]);
 
+    let desugaredResultClone = resultClone;
+    if (options.deSugar || options.toDialect) {
+        desugaredResultClone = resultClone.deSugar({ dialect: options.dialect, toDialect: options.toDialect }, null, linkedDB);
+    }
+
     expect(
-        normalizeSql(resultClone.stringify(options))
-    ).to.equal(normalizeSql(sql, normalizerOptions));
+        normalizeSql(desugaredResultClone.stringify(options))
+    ).to.equal(normalizeSql(expectedSql, normalizerOptions));
 
     return resultNode;
 }

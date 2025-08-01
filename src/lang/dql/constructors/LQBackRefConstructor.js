@@ -1,10 +1,6 @@
 import { ParenShape } from '../../expr/shape/ParenShape.js';
 import { registry } from '../../registry.js';
 
-const {
-	LQBackRef,
-} = registry;
-
 export class LQBackRefConstructor extends ParenShape {
 
 	/* SYNTAX RULES */
@@ -25,7 +21,7 @@ export class LQBackRefConstructor extends ParenShape {
 
 	deriveSchema(linkedDb) {
 		const expr = this.expr();
-		if (!(expr instanceof LQBackRef)) {
+		if (!(expr instanceof registry.LQBackRef)) {
 			throw new Error(`[${this.constructor.name}.<expr>] Expects an instance of LQBackRef but got ${expr?.constructor.name}`);
 		}
 		return expr.deriveSchema(linkedDb)/* TableSchema */;
@@ -36,7 +32,7 @@ export class LQBackRefConstructor extends ParenShape {
 	jsonfy(options = {}, transformCallback = null, linkedDb = null) {
 		if (options.deSugar) {
 			const expr = this.expr();
-			if (!(expr instanceof LQBackRef)) {
+			if (!(expr instanceof registry.LQBackRef)) {
 				throw new Error(`[${this.constructor.name}.<expr>] Expects an instance of LQBackRef but got ${expr?.constructor.name}`);
 			}
 			return expr.jsonfy(options, transformCallback, linkedDb);

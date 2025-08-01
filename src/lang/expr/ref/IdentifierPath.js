@@ -45,12 +45,12 @@ export class IdentifierPath extends Identifier {
 
 		const name = this._get('value');
 
-		if (!name && !qualifier && init === true) {
+		if (!name && !qualifier && init === true && linkedDb) {
 			throw new TypeError('Can\'t auto-derive qualifier for anonymous ident.');
 		}
-		const QualifierClass = registry[[].concat(this._qualifierType)[0]];
+		const QualifierClass = registry[[].concat(this.constructor._qualifierType)[0]];
 		if (!QualifierClass) {
-			throw new TypeError(`Unknown qualifier type "${this._qualifierType}".`);
+			throw new TypeError(`Unknown qualifier type "${this.constructor._qualifierType}".`);
 		}
 
 		let qualifierNode = QualifierClass.fromJSON(init === true && qualifier?.jsonfy({ fullyQualified: true }, null, linkedDb) || { value: init === true ? '' : init });
@@ -82,7 +82,7 @@ export class IdentifierPath extends Identifier {
 
 			this._unadoptNodes(qualifierNode);
 
-			qualifierNode = QualifierClass.fromJSON(potentialQualifierSchemas[0].name().jsonfy({ nodeNames: false }, null, linkedDb));
+			qualifierNode = QualifierClass.fromJSON(potentialQualifierSchemas[0].name().jsonfy({ nodeNames: false, fullyQualified: true }, null, linkedDb));
 			this._adoptNodes(qualifierNode); // so that events/contexts are properly set up
 		}
 
@@ -147,7 +147,7 @@ export class IdentifierPath extends Identifier {
 	jsonfy(options = {}, transformCallback = null, linkedDb = null) {
 		let resultJson = super.jsonfy(options, transformCallback, linkedDb);
 		if (!resultJson.qualifier && (options.deSugar || options.fullyQualified)) {
-			const qualifier = this.qualifier(true, linkedDb).jsonfy(options, null, linkedDb);
+			const qualifier = this.qualifier(true, linkedDb).jsonfy({ ...options, deSugar: false, fullyQualified: false }/* take whatever was resolved */, null, linkedDb);
 			resultJson = {
 				...resultJson,
 				qualifier: qualifier.value ? qualifier : undefined

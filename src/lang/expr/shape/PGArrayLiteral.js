@@ -1,10 +1,6 @@
 import { AbstractNodeList } from '../../abstracts/AbstractNodeList.js';
 import { registry } from '../../registry.js';
 
-const {
-    CallExpr,
-} = registry;
-
 export class PGArrayLiteral extends AbstractNodeList {
 
     /* SYNTAX RULES */
@@ -24,12 +20,14 @@ export class PGArrayLiteral extends AbstractNodeList {
         };
     }
 
+    static morphsTo() { return registry.CallExpr; }
+
     /* DESUGARING API */
 
     jsonfy(options = {}, transformCallback = null, linkedDb = null) {
         if ((options.toDialect || this.options.dialect) === 'mysql') {
             return {
-                nodeName: CallExpr.NODE_NAME,
+                nodeName: registry.CallExpr.NODE_NAME,
                 name: 'JSON_ARRAY',
                 arguments: this.entries().map((e) => e.jsonfy/* @case1 */(options, transformCallback, linkedDb)),
             };

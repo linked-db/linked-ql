@@ -1,4 +1,5 @@
 import { AbstractNode } from '../../abstracts/AbstractNode.js';
+import { _eq } from '../../util.js';
 
 export class Identifier extends AbstractNode {
 
@@ -16,7 +17,7 @@ export class Identifier extends AbstractNode {
 
     identifiesAs(value, ci = false) {
         if (typeof value === 'string') {
-            return this._eq(this._get('value'), value, ci);
+            return _eq(this._get('value'), value, ci);
         }
         return super.identifiesAs(value, ci);
     }

@@ -2,10 +2,6 @@ import { registry } from '../../registry.js';
 import { ErrorRefUnknown } from './abstracts/ErrorRefUnknown.js';
 import { Identifier } from './Identifier.js';
 
-const {
-    SchemaSchema,
-} = registry;
-
 export class SchemaRef extends Identifier {
 
     /* SYNTAX RULES */
@@ -35,7 +31,7 @@ export class SchemaRef extends Identifier {
             : linkedDb.searchPath;
 
         for (const schemaName of searchPath) {
-            const schemaSchema = [...linkedDb.catalog].find((s) => s instanceof SchemaSchema && s.identifiesAs(schemaName, cs));
+            const schemaSchema = [...linkedDb.catalog].find((s) => s instanceof registry.SchemaSchema && s.identifiesAs(schemaName, cs));
             if (!schemaSchema) {
                 if (explicitEchemaName) throw new ErrorRefUnknown(`[${this.parentNode || this}] Unknown schema name ${this}.`);
                 continue;

@@ -2,20 +2,37 @@ import { Query } from '../src/lang/Query.js';
 import { TokenStream } from '../src/lang/TokenStream.js';
 import '../src/lang/index.js';
 import { registry } from '../src/lang/registry.js';
-import { normalizeSql } from './0.parser.js';
+import { normalizeSql } from './00.parser.js';
 
-//console.log('----------', registry.Expr.compileASTSchemaFromSyntaxRules().type);
-//process.exit();
+
+/*
+// -----------------------------
+import 'dotenv/config';
+import pg from 'pg';
+// Obtain pg client
+let client = new pg.Client({
+    connectionString: process.env.DATABASE_URL,
+    database: 'postgres',
+});
+// Connect
+await client.connect();
+// -----------------------------
+const dbsSQL = `
+SELECT datname FROM pg_database WHERE datistemplate = false;`;
+const tblsSQL = `
+SELECT table_schema, table_name
+FROM information_schema.tables
+WHERE table_type = 'BASE TABLE' AND table_schema NOT IN ('pg_catalog', 'information_schema');`;
+console.log('________________________', (await client.query(dbsSQL)).rows);
+console.log('________________________', (await client.query('SELECT * FROM pg_database CROSS JOIN pg_database as r')).rows);
+*/
+
 
 let sql;
 //sql = 'cccc <~ bbbb <~ tbl ~> col2 ~> col2 ~> col2 ~> col2';
-
 //sql = 'ccccc + bbbb * tbl - col2 / col2 + col2 * col2';
-
 //sql = '(SELECT 1) UNION ALL (SELECT 3); SELECT CASE WHEN 1 THEN 2 END';
-
 //sql = 'SUM(val) OVER (ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)';
-
 //sql = `dd WITH ORDINALITY AS a(alias)`;
 
 sql = `WITH RECURSIVE employee_hierarchy AS NOT MATERIALIZED (
@@ -109,7 +126,7 @@ FOR UPDATE SKIP LOCKED;
 TABLE public.users *;
 `;
 
-sql = `CURRENT_TIMESTAMP`;
+sql = `SELECT username FROM users AS u`;
 
 //
 /*
@@ -125,12 +142,11 @@ process.exit();
 
 let t1b;
 //t1b = await Query.parse(sql, { assert: new RegExp(`COLUMN_REF\\.0\\.syntaxes\\.0\\.0<qufalifier>\\.`) });
-t1b = await registry['CallExpr'].parse(sql, { assert: false, dialect: 'mysql' });
-
-
+t1b = await registry['SelectStmt'].parse(sql, { assert: false, dialect: 'mysql', prettyPrint: true, autoLineBreakThreshold: 40000 });
+console.log('______________::::', t1b.clone({ deSugar: true })?.stringify?.());
 
 for (const t of [t1b]) {
-    console.log(t, '----------', normalizeSql(sql).toUpperCase() === t?.stringify?.().toUpperCase(), t.clone({ deSugar: false })?.stringify?.(), '----------', t?.jsonfy?.()/**/);
-    console.log('\n\n\n\n+++++++++++++++++++++++++++\n\n\n\n');
-    console.log(t?.constructor?.fromJSON(t?.jsonfy?.(), t?.options).stringify?.({ prettyPrint: true, autoLineBreakThreshold: 6 }));
+  console.log(t, '----------', normalizeSql(sql).toUpperCase() === t?.stringify?.().toUpperCase(), t.clone({ deSugar: true })?.stringify?.(), '----------', t?.jsonfy?.()/**/);
+  console.log('\n\n\n\n+++++++++++++++++++++++++++\n\n\n\n');
+  console.log(t?.constructor?.fromJSON(t?.jsonfy?.(), t?.options).stringify?.({ prettyPrint: true, autoLineBreakThreshold: 6 }));
 }

@@ -2,21 +2,6 @@ import { SelectorStmtMixin } from '../abstracts/SelectorStmtMixin.js';
 import { AbstractNonDDLStmt } from '../abstracts/AbstractNonDDLStmt.js';
 import { registry } from '../registry.js';
 
-const {
-    FromElement,
-    BasicTableExpr,
-    TableRef,
-    BasicAlias,
-    CompositeAlias,
-    TableAbstractionRef,
-    ColumnRef,
-    SelectElement,
-    FromClause,
-    CompleteSelectStmt,
-    SubqueryConstructor,
-    BinaryExpr,
-} = registry;
-
 export class DeleteStmt extends SelectorStmtMixin(
     AbstractNonDDLStmt
 ) {
@@ -154,6 +139,21 @@ export class DeleteStmt extends SelectorStmtMixin(
             return super/* SelectorStmtMixin */.applySelectorDimensions(resultJson, selectorDimensions, options, linkedDb);
         }
 
+        const {
+            FromElement,
+            BasicTableExpr,
+            TableRef,
+            BasicAlias,
+            CompositeAlias,
+            TableAbstractionRef,
+            ColumnRef,
+            SelectElement,
+            FromClause,
+            CompleteSelectStmt,
+            SubqueryConstructor,
+            BinaryExpr,
+        } = registry;
+
         if (resultJson.where_clause?.cursor_name) {
             throw new Error(`Deep/Back Refs are currently not supported with a "WHERE CURRENT OF..." statement`);
         }
@@ -169,7 +169,7 @@ export class DeleteStmt extends SelectorStmtMixin(
         const whereClauseOriginal = resultJson.where_clause;
         const pk = this.table().deriveSchema(linkedDb)/* TableSchema */.pkConstraint(true)?.columns()[0];
         if (!pk) throw new Error(``);
-        
+
         // The re-write...
         resultJson = {
             ...resultJson,

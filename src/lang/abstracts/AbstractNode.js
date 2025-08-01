@@ -204,12 +204,12 @@ export class AbstractNode {
 
 	clone(options = {}, transformCallback = null, linkedDb = null) {
 		const resultJson = this.jsonfy(options, transformCallback, linkedDb);
-		const Classes = [].concat(this.constructor.morphsTo());
+		const Classes = [this.constructor].concat(this.constructor.morphsTo());
 		return Classes.reduce((prev, C) => prev || C.fromJSON(resultJson, { dialect: options.toDialect || this.options.dialect }), undefined);
 	}
 
 	deSugar(options = {}, transformCallback = null, linkedDb = null) {
-		options = { ...options, deSugar: true };
+		options = { ...options, deSugar: true/* overrridingly */ };
 		return this.clone(options, transformCallback, linkedDb);
 	}
 
@@ -426,7 +426,7 @@ export class AbstractNode {
 				if (isTokenRule) {
 					if (matchTokenRule(fieldSchema, { value: fieldValue }) === true) return fieldValue;
 				} else {
-					const node = registry[type].fromJSON(fieldValue, options);
+					const node = registry[type].fromJSON(fieldValue, { ...options, assert: false });
 					if (node) return node;
 				}
 			}
@@ -449,7 +449,7 @@ export class AbstractNode {
 				if (inputJson[fieldName] === undefined) {
 					// Undefined at all or empty
 					if (fieldSchema.optional) {
-						resultAST[fieldName] = []; // Optional empty array
+						resultAST[fieldName] = undefined; // Show up
 						return true;
 					}
 					$decideThrow(`Missing required field "${fieldName}"`, fieldSchema.rulePath, assertsGrep);
@@ -550,6 +550,9 @@ export class AbstractNode {
 			for (const fieldName of new Set(Object.keys($inputJson).concat(...astSchema.keys()))) {
 				// Handle early mismatch
 				if (!astSchema.has(fieldName)) {
+					if (inputJson[fieldName] === undefined) {
+						continue;
+					}
 					continue paths_loop; // To next schema; API mismatch
 				}
 				const fieldSchema = astSchema.get(fieldName);

@@ -1,11 +1,6 @@
 import { AbstractNode } from '../../abstracts/AbstractNode.js';
 import { registry } from '../../registry.js';
 
-const {
-    AggrCallExpr,
-    ColumnRef,
-} = registry;
-
 export class LQObjectProperty extends AbstractNode {
 
     /* SYNTAX RULES */
@@ -45,14 +40,14 @@ export class LQObjectProperty extends AbstractNode {
             if (this.isAggr()) {
                 // Note the below where we wrap value in an aggr call
                 valueJson = {
-                    nodeName: AggrCallExpr.NODE_NAME,
+                    nodeName: registry.AggrCallExpr.NODE_NAME,
                     name: (options.toDialect || this.options.dialect) === 'mysql' ? 'JSON_ARRAYAGG' : 'JSON_AGG',
                     arguments: [this.value().jsonfy/* @case1 */({ ...options, asAggr: true/* for use by any Back/DeefRef */ }, transformCallback, linkedDb)],
                 };
             } else {
                 // Note the below where we derive value, if not specified, from key
                 valueJson = this.value()?.jsonfy/* @case1 */(options, transformCallback, linkedDb)
-                    ?? { nodeName: ColumnRef.NODE_NAME, value: this.key() };
+                    ?? { nodeName: registry.ColumnRef.NODE_NAME, value: this.key() };
             }
             // plus, we'll drop the is_aggr flag
             return {

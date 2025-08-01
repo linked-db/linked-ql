@@ -1,10 +1,6 @@
 import { AbstractSchema } from '../../abstracts/AbstractSchema.js';
 import { registry } from '../../registry.js';
 
-const {
-    ColumnSchema,
-} = registry;
-
 export class ConstraintSchema extends AbstractSchema {
 
     /* SYNTAX RULES */
@@ -63,7 +59,7 @@ export class ConstraintSchema extends AbstractSchema {
     }
 
     get isColumnLevel() {
-        return this.parentNode instanceof ColumnSchema;
+        return this.parentNode instanceof registry.ColumnSchema;
     }
 
     /* AST API */

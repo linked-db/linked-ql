@@ -2,12 +2,6 @@ import { SelectorStmtMixin } from '../abstracts/SelectorStmtMixin.js';
 import { SelectStmt } from './SelectStmt.js';
 import { registry } from '../registry.js';
 
-const {
-    LQObjectLiteral,
-    BasicAlias,
-    SelectElement,
-} = registry;
-
 export class BasicSelectStmt extends SelectorStmtMixin(
     SelectStmt
 ) {
@@ -73,6 +67,12 @@ export class BasicSelectStmt extends SelectorStmtMixin(
     jsonfy(options = {}, superTransformCallback = null, linkedDb = null) {
         let resultJson = super.jsonfy(options, superTransformCallback, linkedDb);
 
+        const {
+            LQObjectLiteral,
+            BasicAlias,
+            SelectElement,
+        } = registry;
+
         // Normalize special case LQObjectLiteral
         let selectList;
         if (options.deSugar
@@ -81,8 +81,8 @@ export class BasicSelectStmt extends SelectorStmtMixin(
             && !selectList[0].alias()
         ) {
             // Make pairs of arguments
-            const [argPairs] = resultJson.select_list[0].arguments.reduce(([argPairs, key], arg) => {
-                if (key) return [...argPairs, [{ nodeName: BasicAlias.NODE_NAME, value: key.value }, arg]];
+            const [argPairs] = resultJson.select_list[0].expr.arguments.reduce(([argPairs, key], arg) => {
+                if (key) return [[...argPairs, [{ nodeName: BasicAlias.NODE_NAME, value: key.value }, arg]]];
                 return [argPairs, arg];
             }, [[]]);
             resultJson = {

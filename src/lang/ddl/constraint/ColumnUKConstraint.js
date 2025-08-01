@@ -1,11 +1,6 @@
 import { ConstraintSchema } from './ConstraintSchema.js';
 import { registry } from '../../registry.js';
 
-const {
-    ColumnSchema,
-    ColumnNameRef,
-} = registry;
-
 export class ColumnUKConstraint extends ConstraintSchema {
 
     /* SYNTAX RULES */
@@ -44,6 +39,10 @@ export class ColumnUKConstraint extends ConstraintSchema {
     /* API */
 
     columns() {
+        const {
+            ColumnSchema,
+            ColumnNameRef,
+        } = registry;
         return this.parentNode instanceof ColumnSchema
             ? [ColumnNameRef.fromJSON({ value: this.parentNode.name().value() })]
             : [];

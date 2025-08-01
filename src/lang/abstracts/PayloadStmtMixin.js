@@ -1,63 +1,27 @@
-import { registry } from '../registry.js';
 import { _eq } from '../util.js';
-
-// AssignmentExpr and others
-// UpsertStmt
-
-const {
-	// Core references and constructors
-	LQDeepRef,
-	LQBackRefConstructor,
-	ColumnNameRef,
-	ColumnRef,
-	TableRef,
-	BasicAlias,
-
-	// Assignment and set/row/column constructors
-	AssignmentExpr,
-	ColumnsConstructor,
-	RowConstructor,
-	SetConstructor,
-	ValuesConstructor,
-	ValuesSetConstructor,
-
-	// Query and clause nodes
-	SelectStmt,
-	CompleteSelectStmt,
-	SubqueryConstructor,
-	SelectElement,
-	FromElement,
-	CompositeAlias,
-	FromClause,
-	SetClause,
-	PGReturningClause,
-
-	// Operators and literals
-	BinaryExpr,
-	BoolLiteral,
-	NumberLiteral,
-
-	// Special references
-	StarRef,
-
-	// Statement types
-	CTE,
-	CTEBinding,
-	UpdateStmt,
-	InsertStmt,
-	UpsertStmt
-} = registry;
+import { registry } from '../registry.js';
 
 export const PayloadStmtMixin = (Class) => class extends Class {
 
 	get isPayloadStmt() { return true; }
 
-	static morphsTo() { return CTE; }
+	static morphsTo() { return registry.CTE; }
 
 	/* DESUGARING API */
 
 	jsonfy(options = {}, superTransformCallback = null, linkedDb = null) {
 		if (!options.deSugar) return super.jsonfy(options, superTransformCallback, linkedDb);
+
+		const {
+			LQDeepRef,
+			AssignmentExpr,
+			SubqueryConstructor,
+			ColumnsConstructor,
+			ValuesConstructor,
+			RowConstructor,
+			SetConstructor,
+		} = registry;
+
 		const payloadDimensions = new Set;
 
 		const specials = ['columns_list', 'default_values_clause', 'values_clause', 'select_clause'].map((s) => this._get(s));
@@ -184,6 +148,18 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 
 	deSugarPayload(columns, values, payloadDimensions, { onConflictClauseContext = false, deSugar, ...$options } = {}, linkedDb = null) {
 
+		const {
+			LQDeepRef,
+			TableRef,
+			RowConstructor,
+			SelectStmt,
+			CompleteSelectStmt,
+			SelectElement,
+			FromElement,
+			FromClause,
+			StarRef,
+		} = registry;
+
 		// (1): Columns
 		const deSugarColumnsList = (columnsList, dimensionsMap) => {
 			return columnsList.reduce(columnsList, (columnRef, columnOffset) => {
@@ -265,6 +241,32 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 
 	createPayloadDimension(LQRefColumn, payloadDimensions = null, { onConflictClauseContext = false, ...$options } = {}, linkedDb = null) {
 		const { left, right, table } = LQRefColumn.getOperands(linkedDb);
+
+		const {
+			LQDeepRef,
+			LQBackRefConstructor,
+			ColumnNameRef,
+			ColumnRef,
+			TableRef,
+			BasicAlias,
+			AssignmentExpr,
+			ColumnsConstructor,
+			RowConstructor,
+			SetConstructor,
+			ValuesConstructor,
+			ValuesSetConstructor,
+			SelectStmt,
+			CompleteSelectStmt,
+			SubqueryConstructor,
+			SelectElement,
+			FromElement,
+			FromClause,
+			SetClause,
+			BinaryExpr,
+			BoolLiteral,
+			NumberLiteral,
+			UpdateStmt,
+		} = registry;
 
 		const dimensionID = `dimension${onConflictClauseContext ? '/c' : ''}::${[left, right, table].join('/')}`;
 		const leftJson = left.jsonfy/* @case1 */($options, null, linkedDb);
@@ -492,6 +494,20 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 
 	applyPayloadDimensions(resultJson, payloadDimensions, options, linkedDb = null) {
 		const cte = { nodeName: CTE.NODE_NAME, bindings: [], body: null };
+
+		const {
+			TableRef,
+			CompleteSelectStmt,
+			FromElement,
+			CompositeAlias,
+			FromClause,
+			PGReturningClause,
+			CTE,
+			CTEBinding,
+			UpdateStmt,
+			InsertStmt,
+			UpsertStmt
+		} = registry;
 
 		// Promote a query to a CTEBinding
 		const toBinding = (dimensionID, queryJson) => {

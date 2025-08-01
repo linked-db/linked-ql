@@ -2,10 +2,6 @@ import { AbstractMagicRef } from './abstracts/AbstractMagicRef.js';
 import { ErrorFKInvalid } from './abstracts/ErrorFKInvalid.js';
 import { registry } from '../../registry.js';
 
-const {
-	LQDeepRef,
-} = registry;
-
 export class LQBackBackRef extends AbstractMagicRef {
 
 	/* SYNTAX RULES */
@@ -22,16 +18,16 @@ export class LQBackBackRef extends AbstractMagicRef {
 
 	static get syntaxPriority() { return 1; }
 
-	static morphsTo() { return LQDeepRef; }
+	static morphsTo() { return registry.LQDeepRef; }
 
 	/* DESUGARING API */
 	
 	jsonfy(options = {}, transformCallback = null, linkedDb = null) {
 		if (options.reverseRef) {
 			return {
-				nodeName: LQDeepRef.NODE_NAME,
-				left: this.right().jsonfy(options, null, linkedDb),
-				right: this.left().jsonfy(options, null, linkedDb),
+				...(options.nodeNames === false ? {} : { nodeName: registry.LQDeepRef.NODE_NAME }),
+				left: this.right().jsonfy({ ...options, nodeNames: false }, null, linkedDb),
+				right: this.left().jsonfy({ ...options, nodeNames: false }, null, linkedDb),
 			};
 		}
 		return super.jsonfy(options, transformCallback, linkedDb);

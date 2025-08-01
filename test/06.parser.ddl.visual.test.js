@@ -1,4 +1,4 @@
-import { $describe, $it, testParseAndStringify } from './0.parser.js';
+import { $describe, $it, testParseAndStringify } from './00.parser.js';
 
 $describe('Parser - DDL Constraints', () => {
 
@@ -103,14 +103,14 @@ $describe('Parser - DDL Constraints', () => {
       await testParseAndStringify('PGTableEXConstraint', 'EXCLUDE USING GIST (c WITH &&)');
       await testParseAndStringify('PGTableEXConstraint', 'EXCLUDE USING GIST ((lower(col)) WITH =, other_col WITH &&)');
       const sql =
-        `EXCLUDE USING GIST (
+`EXCLUDE USING GIST (
   (lower(col1)) WITH =, col2 WITH &&
 )
 INCLUDE (extra)
 WITH (fillfactor = 80)
 USING INDEX TABLESPACE fastspace
 WHERE (col3 IS NOT NULL)`;
-      await testParseAndStringify('PGTableEXConstraint', sql);
+      await testParseAndStringify('PGTableEXConstraint', sql, { prettyPrint: true, autoLineBreakThreshold: 5 });
     });
   });
 
@@ -135,7 +135,7 @@ WHERE (col3 IS NOT NULL)`;
 
     $it('should parse CREATE TABLE with all constraint types', async () => {
       const sql =
-        `CREATE TABLE users (
+`CREATE TABLE users (
   id INT PRIMARY KEY,
   email VARCHAR(255) UNIQUE,
   age INT CHECK (age > 0),
@@ -153,171 +153,171 @@ WHERE (col3 IS NOT NULL)`;
 
     $it('should parse CREATE TABLE with multiple foreign keys', async () => {
       const sql =
-        `CREATE TABLE order_items (
-    id INT PRIMARY KEY,
-    order_id INT,
-    product_id INT,
-    CONSTRAINT fk_order FOREIGN KEY (order_id) REFERENCES orders (id),
-    CONSTRAINT fk_product FOREIGN KEY (product_id) REFERENCES products (id)
-  )`;
-      await testParseAndStringify('CreateTableStmt', sql);
+`CREATE TABLE order_items (
+  id INT PRIMARY KEY,
+  order_id INT,
+  product_id INT,
+  CONSTRAINT fk_order FOREIGN KEY (order_id) REFERENCES orders (id),
+  CONSTRAINT fk_product FOREIGN KEY (product_id) REFERENCES products (id)
+)`;
+      await testParseAndStringify('CreateTableStmt', sql, { prettyPrint: true, autoLineBreakThreshold: 5 });
     });
 
     $it('should parse CREATE TABLE with CHECK constraints and expressions', async () => {
       const sql =
-        `CREATE TABLE employees (
-    id INT PRIMARY KEY,
-    salary DECIMAL(10, 2),
-    CHECK (salary > 0),
-    CHECK (salary < 100000)
-  )`;
-      await testParseAndStringify('CreateTableStmt', sql);
+`CREATE TABLE employees (
+  id INT PRIMARY KEY,
+  salary DECIMAL(10, 2),
+  CHECK (salary > 0),
+  CHECK (salary < 100000)
+)`;
+      await testParseAndStringify('CreateTableStmt', sql, { prettyPrint: true, autoLineBreakThreshold: 5 });
     });
 
     $it('should parse CREATE TABLE with DEFERRABLE constraints', async () => {
       const sql =
-        `CREATE TABLE payments (
-    id INT PRIMARY KEY,
-    user_id INT,
-    CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users (id) DEFERRABLE INITIALLY DEFERRED
-  )`;
-      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'postgres' });
+`CREATE TABLE payments (
+  id INT PRIMARY KEY,
+  user_id INT,
+  CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users (id) DEFERRABLE INITIALLY DEFERRED
+)`;
+      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'postgres', prettyPrint: true, autoLineBreakThreshold: 5 });
     });
 
     $it('should parse CREATE TABLE with all constraint clauses and options', async () => {
       const sql =
-        `CREATE TABLE inventory (
-    id INT GENERATED ALWAYS AS IDENTITY,
-    sku VARCHAR(50) NOT NULL UNIQUE,
-    quantity INT DEFAULT 0 CHECK (quantity >= 0),
-    price DECIMAL(10, 2) DEFAULT 0.00,
-    location_id INT,
-    CONSTRAINT pk_inventory PRIMARY KEY (id),
-    CONSTRAINT fk_location FOREIGN KEY (location_id) REFERENCES locations (id) ON DELETE SET NULL ON UPDATE CASCADE,
-    CONSTRAINT uq_sku UNIQUE NULLS DISTINCT (sku)
-  )`;
-      await testParseAndStringify('CreateTableStmt', sql, { prettyPrint: true });
+`CREATE TABLE inventory (
+  id INT GENERATED ALWAYS AS IDENTITY,
+  sku VARCHAR(50) NOT NULL UNIQUE,
+  quantity INT DEFAULT 0 CHECK (quantity >= 0),
+  price DECIMAL(10, 2) DEFAULT 0.00,
+  location_id INT,
+  CONSTRAINT pk_inventory PRIMARY KEY (id),
+  CONSTRAINT fk_location FOREIGN KEY (location_id) REFERENCES locations (id) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT uq_sku UNIQUE NULLS DISTINCT (sku)
+)`;
+      await testParseAndStringify('CreateTableStmt', sql, { prettyPrint: true, autoLineBreakThreshold: 5 });
     });
 
     $it('should parse CREATE TABLE with quoted identifiers and reserved words', async () => {
       const sql =
-        `CREATE TABLE "select" (
-    "from" INT PRIMARY KEY,
-    "to" VARCHAR(100) NOT NULL,
-    "order" INT
-  )`;
-      await testParseAndStringify('CreateTableStmt', sql);
+`CREATE TABLE "select" (
+  "from" INT PRIMARY KEY,
+  "to" VARCHAR(100) NOT NULL,
+  "order" INT
+)`;
+      await testParseAndStringify('CreateTableStmt', sql, { prettyPrint: true, autoLineBreakThreshold: 5 });
     });
 
     $it('should parse CREATE TABLE with column comments and table comments', async () => {
       const sql =
-        `CREATE TABLE products (
-    id INT PRIMARY KEY COMMENT 'Product ID',
-    name VARCHAR(100) COMMENT 'Product name',
-    price DECIMAL(10, 2) COMMENT 'Product price'
-  ) COMMENT = 'Products table'`;
-      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'mysql' });
+`CREATE TABLE products (
+  id INT PRIMARY KEY COMMENT 'Product ID',
+  name VARCHAR(100) COMMENT 'Product name',
+  price DECIMAL(10, 2) COMMENT 'Product price'
+) COMMENT = 'Products table'`;
+      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'mysql', prettyPrint: true, autoLineBreakThreshold: 5 });
     });
 
     $it('should parse CREATE TABLE with VISIBLE and INVISIBLE column modifiers (MySQL)', async () => {
       const sql =
-        `CREATE TABLE t1 (
-    a INT VISIBLE,
-    b INT INVISIBLE,
-    c VARCHAR(100) INVISIBLE
-    )`;
-      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'mysql' });
+`CREATE TABLE t1 (
+  a INT VISIBLE,
+  b INT INVISIBLE,
+  c VARCHAR(100) INVISIBLE
+)`;
+      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'mysql', prettyPrint: true, autoLineBreakThreshold: 5 });
     });
 
     $it('should parse CREATE TABLE with generated columns (MySQL)', async () => {
       const sql =
-        `CREATE TABLE t1 (
-    a INT,
-    b INT GENERATED ALWAYS AS (a + 1) STORED,
-    c INT GENERATED ALWAYS AS (a * 2) VIRTUAL
-  )`;
-      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'mysql' });
+`CREATE TABLE t1 (
+  a INT,
+  b INT GENERATED ALWAYS AS (a + 1) STORED,
+  c INT GENERATED ALWAYS AS (a * 2) VIRTUAL
+)`;
+      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'mysql', prettyPrint: true, autoLineBreakThreshold: 5 });
     });
 
     $it('should parse CREATE TABLE with ENUM and SET types (MySQL)', async () => {
       const sql =
-        `CREATE TABLE enums (
-    status ENUM('active', 'inactive', 'pending'),
-    flags SET('a', 'b', 'c')
-  )`;
-      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'mysql' });
+`CREATE TABLE enums (
+  status ENUM('active', 'inactive', 'pending'),
+  flags SET('a', 'b', 'c')
+)`;
+      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'mysql', prettyPrint: true, autoLineBreakThreshold: 5 });
     });
 
     $it('should parse CREATE TABLE with composite foreign keys and actions', async () => {
       const sql =
-        `CREATE TABLE child (
-    id INT,
-    parent_id1 INT,
-    parent_id2 INT,
-    CONSTRAINT fk_parent FOREIGN KEY (parent_id1, parent_id2) REFERENCES parent (id1, id2) ON DELETE CASCADE ON UPDATE SET NULL
-  )`;
-      await testParseAndStringify('CreateTableStmt', sql);
+`CREATE TABLE child (
+  id INT,
+  parent_id1 INT,
+  parent_id2 INT,
+  CONSTRAINT fk_parent FOREIGN KEY (parent_id1, parent_id2) REFERENCES parent (id1, id2) ON DELETE CASCADE ON UPDATE SET NULL
+)`;
+      await testParseAndStringify('CreateTableStmt', sql, { prettyPrint: true, autoLineBreakThreshold: 5 });
     });
 
     $it('should parse CREATE TABLE with multiple constraints and mixed syntax', async () => {
       const sql =
-        `CREATE TABLE test_mix (
-    id INT PRIMARY KEY,
-    code VARCHAR(10) UNIQUE,
-    value INT,
-    CONSTRAINT chk_value CHECK (value > 0),
-    UNIQUE (code, value),
-    FOREIGN KEY (value) REFERENCES ref_table (ref_col)
-  )`;
-      await testParseAndStringify('CreateTableStmt', sql);
+`CREATE TABLE test_mix (
+  id INT PRIMARY KEY,
+  code VARCHAR(10) UNIQUE,
+  value INT,
+  CONSTRAINT chk_value CHECK (value > 0),
+  UNIQUE (code, value),
+  FOREIGN KEY (value) REFERENCES ref_table (ref_col)
+)`;
+      await testParseAndStringify('CreateTableStmt', sql, { prettyPrint: true, autoLineBreakThreshold: 5 });
     });
 
     $it('should parse CREATE TABLE with default expressions and functions', async () => {
       const sql =
-        `CREATE TABLE logs (
-    id SERIAL PRIMARY KEY,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT NOW()
-  )`;
-      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'postgres' });
+`CREATE TABLE logs (
+  id SERIAL PRIMARY KEY,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT NOW()
+)`;
+      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'postgres', prettyPrint: true, autoLineBreakThreshold: 5 });
     });
 
     $it('should parse CREATE TABLE with array types and constraints', async () => {
       const sql =
-        `CREATE TABLE arr_test (
-    id INT PRIMARY KEY,
-    tags TEXT[],
-    scores INT[] CHECK (array_length(scores, 1) > 0)
-  )`;
-      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'postgres' });
+`CREATE TABLE arr_test (
+  id INT PRIMARY KEY,
+  tags TEXT[],
+  scores INT[] CHECK (array_length(scores, 1) > 0)
+)`;
+      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'postgres', prettyPrint: true, autoLineBreakThreshold: 5 });
     });
 
     $it('should parse CREATE TABLE with identity columns and sequences', async () => {
       const sql =
-        `CREATE TABLE seq_test (
-    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    val INT
-  )`;
-      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'postgres' });
+`CREATE TABLE seq_test (
+  id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  val INT
+)`;
+      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'postgres', prettyPrint: true, autoLineBreakThreshold: 5 });
     });
 
     $it('should parse CREATE TABLE with partitioning (Postgres)', async () => {
       const sql =
-        `CREATE TABLE measurement (
-    city_id         INT NOT NULL,
-    logdate         DATE NOT NULL,
-    peaktemp        INT,
-    unitsales       INT
-  )`;
-      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'postgres' });
+`CREATE TABLE measurement (
+  city_id INT NOT NULL,
+  logdate DATE NOT NULL,
+  peaktemp INT,
+  unitsales INT
+)`;
+      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'postgres', prettyPrint: true, autoLineBreakThreshold: 5 });
     });
 
     $it('should parse CREATE TABLE with character set (MySQL)', async () => {
       const sql =
-        `CREATE TABLE collate_test (
-    name VARCHAR(100)
-  ) ENGINE = InnoDB DEFAULT CHARSET = utf8 COLLATE = utf8_unicode_ci`;
-      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'mysql' });
+`CREATE TABLE collate_test (
+  name VARCHAR(100)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8 COLLATE = utf8_unicode_ci`;
+      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'mysql', prettyPrint: true, autoLineBreakThreshold: 5 });
     });
 
     $it('should parse CREATE TABLE with schema-qualified name and options', async () => {
@@ -350,39 +350,39 @@ WHERE (col3 IS NOT NULL)`;
 
     $it('should parse CREATE TABLE with AUTO_INCREMENT (MySQL)', async () => {
       const sql =
-      `CREATE TABLE users (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          name VARCHAR(100)
-        )`;
-      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'mysql' });
+`CREATE TABLE users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100)
+)`;
+      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'mysql', prettyPrint: true, autoLineBreakThreshold: 5 });
     });
 
     $it('should parse CREATE TABLE with generated columns and VIRTUAL/STORED (MySQL)', async () => {
       const sql =
-      `CREATE TABLE t1 (
-          a INT,
-          b INT GENERATED ALWAYS AS (a + 1) STORED,
-          c INT GENERATED ALWAYS AS (a * 2) VIRTUAL
-        )`;
-      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'mysql' });
+`CREATE TABLE t1 (
+  a INT,
+  b INT GENERATED ALWAYS AS (a + 1) STORED,
+  c INT GENERATED ALWAYS AS (a * 2) VIRTUAL
+)`;
+      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'mysql', prettyPrint: true, autoLineBreakThreshold: 5 });
     });
 
     $it('should parse CREATE TABLE with AS expression (MySQL)', async () => {
       const sql =
-      `CREATE TABLE t2 (
-          a INT,
-          b INT AS (a * 2)
-        )`;
-      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'mysql' });
+`CREATE TABLE t2 (
+  a INT,
+  b INT AS (a * 2)
+)`;
+      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'mysql', prettyPrint: true, autoLineBreakThreshold: 5 });
     });
 
     $it('should parse CREATE TABLE with ON UPDATE CURRENT_TIMESTAMP (MySQL)', async () => {
       const sql =
-      `CREATE TABLE logs (
-          id INT PRIMARY KEY AUTO_INCREMENT,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        )`;
-      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'mysql' });
+`CREATE TABLE logs (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+)`;
+      await testParseAndStringify('CreateTableStmt', sql, { dialect: 'mysql', prettyPrint: true, autoLineBreakThreshold: 5 });
     });
   });
 

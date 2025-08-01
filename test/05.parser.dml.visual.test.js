@@ -1,4 +1,4 @@
-import { $describe, $it, testParseAndStringify } from './0.parser.js';
+import { $describe, $it, testParseAndStringify } from './00.parser.js';
 
 $describe('Parser - DML Clauses', () => {
     $describe('SetClause', () => {

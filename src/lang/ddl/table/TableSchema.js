@@ -9,7 +9,7 @@ export class TableSchema extends AbstractSchema {
         const itemSeparator = { type: 'punctuation', value: ',' };
         const type = ['TablePKConstraint', 'TableFKConstraint', 'TableUKConstraint', 'PGTableEXConstraint', 'CheckConstraint', 'ColumnSchema'/* must come last */, 'IndexSchema'];
         return [
-            { type: 'TableIdent', as: 'name' },
+            { type: ['TableIdent', 'Identifier'/* to support TableAbstractionRef's <TableSchema>.jsonfy({ renameTo: <Identifier> }) */], as: 'name' },
             {
                 type: 'paren_block',
                 syntaxes: [

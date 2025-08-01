@@ -4,7 +4,7 @@ export class TableIdent extends IdentifierPath {
 
 	/* SYNTAX RULES */
 
-	static get _objectKind() { return 'table'; }
+	static get _objectKind() { return 'Table'; }
 
 	static get _qualifierType() { return 'SchemaRef'; }
 }

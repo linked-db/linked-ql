@@ -19,4 +19,13 @@ export class ColumnRef extends IdentifierPath {
     }
 
     static get syntaxPriority() { return 51; } // above LQBackRefConstructor
+
+	/* DESUGARING API */
+
+	jsonfy(options = {}, transformCallback = null, linkedDb = null) {
+		if (this.value() === '*' && (options.deSugar || options.fullyQualified)) {
+            options = { deSugar: false, fullyQualified: false };
+		}
+		return super.jsonfy(options, transformCallback, linkedDb);
+	}
 }

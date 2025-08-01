@@ -1,35 +1,5 @@
 import { registry } from '../registry.js';
 
-const {
-    // Statement and clause nodes
-    CompleteSelectStmt,
-    SubqueryConstructor,
-    FromClause,
-    JoinClause,
-    OnClause,
-    GroupByClause,
-
-    // Table and field specification
-    FromElement,
-    SelectElement,
-
-    // Alias nodes
-    CompositeAlias,
-    BasicAlias,
-
-    // Computed/derived references
-    TableAbstractionRef,
-    ColumnRef,
-
-    // Expressions
-    BinaryExpr,
-
-    // Logical query references
-    LQDeepRef,
-    LQBackRef,
-    LQBackRefConstructor,
-} = registry;
-
 export const SelectorStmtMixin = (Class) => class extends Class {
 
     get isSelectorStmt() { return true; }
@@ -38,6 +8,12 @@ export const SelectorStmtMixin = (Class) => class extends Class {
 
     jsonfy(options = {}, superTransformCallback = null, linkedDb = null) {
         if (!options.deSugar) return super.jsonfy(options, superTransformCallback, linkedDb);
+
+        const {
+            LQBackRefConstructor,
+            LQDeepRef,
+            LQBackRef,
+        } = registry;
 
         const selectorDimensions = new Map;
         const transformCallback = (node, keyHint, { deSugar/* IMPORTANT */, ...$options }) => {
@@ -74,7 +50,23 @@ export const SelectorStmtMixin = (Class) => class extends Class {
 
     createSelectorDimension(LQRef, selectorDimensions = null, { asAggr = false, ...$options } = {}, linkedDb = null) {
         const { left, right, table } = LQRef.getOperands(linkedDb);
-        
+
+        const {
+            CompleteSelectStmt,
+            SubqueryConstructor,
+            FromClause,
+            JoinClause,
+            OnClause,
+            GroupByClause,
+            FromElement,
+            SelectElement,
+            CompositeAlias,
+            BasicAlias,
+            TableAbstractionRef,
+            ColumnRef,
+            BinaryExpr,
+        } = registry;
+
         const dimensionID = `dimension${asAggr ? '/g' : ''}::${[left, right, table].join('/')}`;
         if (selectorDimensions?.has(dimensionID)) {
             return selectorDimensions.get(dimensionID);
@@ -162,6 +154,11 @@ export const SelectorStmtMixin = (Class) => class extends Class {
     }
 
     applySelectorDimensions(resultJson, selectorDimensions, options, linkedDb = null) {
+
+        const {
+            JoinClause,
+        } = registry;
+
         resultJson = {
             ...resultJson,
             join_clauses: resultJson.join_clauses?.slice(0) || [],

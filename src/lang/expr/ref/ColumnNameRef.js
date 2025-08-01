@@ -3,10 +3,6 @@ import { ErrorRefUnknown } from './abstracts/ErrorRefUnknown.js';
 import { Identifier } from './Identifier.js';
 import { registry } from '../../registry.js';
 
-const {
-    ColumnSchema,
-} = registry;
-
 export class ColumnNameRef extends Identifier {
 
     /* SYNTAX RULES */
@@ -29,7 +25,7 @@ export class ColumnNameRef extends Identifier {
         const resultSchemas = [];
 
         for (const childSchema of tableSchemaInScope) {
-            if (!(childSchema instanceof ColumnSchema)) continue;
+            if (!(childSchema instanceof registry.ColumnSchema)) continue;
             if (name && !childSchema.identifiesAs(name, cs)) continue;
             if (filter && !filter(childSchema)) continue;
             resultSchemas.push(childSchema);

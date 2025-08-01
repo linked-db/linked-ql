@@ -1,12 +1,6 @@
 import { LQDeepDeepRef } from './LQDeepDeepRef.js';
 import { registry } from '../../registry.js';
 
-const {
-	LQBackRefConstructor,
-	ColumnNameRef,
-	TableRef,
-} = registry;
-
 export class LQDeepRef extends LQDeepDeepRef {
 
 	/* SYNTAX RULES */
@@ -34,7 +28,7 @@ export class LQDeepRef extends LQDeepDeepRef {
 	/* API */
 
 	deriveSchema(linkedDb) {
-		if (this.left() instanceof LQBackRefConstructor) {
+		if (this.left() instanceof registry.LQBackRefConstructor) {
 			return this.left().deriveSchema(linkedDb)/* TableSchema */;
 		}
 		return super.deriveSchema(linkedDb);
@@ -42,11 +36,13 @@ export class LQDeepRef extends LQDeepDeepRef {
 
 	getOperands(linkedDb) {
 		const targetTable_schema = this.deriveSchema(linkedDb)/* TableSchema */;
+
 		const keyLeft_ref = this.left().clone({ fullyQualified: true }, null, linkedDb);
-		const keyRight_ref = ColumnNameRef.fromJSON({
-			value: targetTable_schema.pkConstraint(true).columns()[0]
-		});
-		const targetTable_ref = TableRef.fromJSON(targetTable_schema.name().jsonfy({ nodeNames: false, fullyQualified: true }, null, linkedDb));
+		const keyRight_ref = targetTable_schema.pkConstraint(true)?.columns()[0];
+
+		if (!keyRight_ref) throw new Error('Primary key not found in target table schema');
+		
+		const targetTable_ref = registry.TableRef.fromJSON(targetTable_schema.name().jsonfy({ nodeNames: false, fullyQualified: true }, null, linkedDb));
 		return {
 			table: targetTable_ref,
 			left: keyLeft_ref,

@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { $describe, $it, testParseAndStringify, testExprAndNodeEntryPoints } from './0.parser.js';
+import { $describe, $it, testParseAndStringify, testExprAndNodeEntryPoints } from './00.parser.js';
 import { registry } from '../src/lang/registry.js';
 
 $describe('Parser - Function Calls (CallExpr)', () => {

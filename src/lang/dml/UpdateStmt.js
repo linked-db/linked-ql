@@ -3,21 +3,6 @@ import { PayloadStmtMixin } from '../abstracts/PayloadStmtMixin.js';
 import { AbstractNonDDLStmt } from '../abstracts/AbstractNonDDLStmt.js';
 import { registry } from '../registry.js';
 
-const {
-    SubqueryConstructor,
-    CompleteSelectStmt,
-    SelectElement,
-    BasicAlias,
-    CompositeAlias,
-    FromClause,
-    WhereClause,
-    ColumnRef,
-    TableAbstractionRef,
-    BinaryExpr,
-    TableRef,
-    FromElement,
-} = registry;
-
 export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to a CTE */(SelectorStmtMixin(
     AbstractNonDDLStmt
 )) {
@@ -138,6 +123,21 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
         if (resultJson.where_clause?.cursor_name) {
             throw new Error(`Deep/Back Refs are currently not supported with a "WHERE CURRENT OF..." statement`);
         }
+
+        const {
+            SubqueryConstructor,
+            CompleteSelectStmt,
+            SelectElement,
+            BasicAlias,
+            CompositeAlias,
+            FromClause,
+            WhereClause,
+            ColumnRef,
+            TableAbstractionRef,
+            BinaryExpr,
+            TableRef,
+            FromElement,
+        } = registry;
 
         const rand = this._rand('rand');
 
