@@ -347,7 +347,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			};
 
 			const query = {
-				uuid: this._rand('query'),
+				uuid: this._rand('cte'),
 				nodeName: UpdateStmt.NODE_NAME,
 				tables: [{ nodeName: FromElement.NODE_NAME, expr: table.jsonfy/* @case1 */($options, null, linkedDb) }],
 				set_clause: { nodeName: SetClause.NODE_NAME, entries: [] },
@@ -394,7 +394,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		// --- INSERT/UPSERT -------------
 
 		const query = {
-			uuid: this._rand('query'),
+			uuid: this._rand('cte'),
 			nodeName: this.NODE_NAME,
 			table: table.jsonfy/* @case1 */($options, null, linkedDb),
 			columns_list: columnsConstructorJson,

@@ -58,6 +58,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
             JoinClause,
             OnClause,
             GroupByClause,
+            GroupingElement,
             FromElement,
             SelectElement,
             CompositeAlias,
@@ -67,16 +68,18 @@ export const SelectorStmtMixin = (Class) => class extends Class {
             BinaryExpr,
         } = registry;
 
-        const dimensionID = `dimension${asAggr ? '/g' : ''}::${[left, right, table].join('|')}`;
+        const $dimensionID = `dimension${asAggr ? '/g' : ''}|${[left, right, table].join('|')}`;
+        const dimensionID = this._hash($dimensionID, 'join', $options);
         if (selectorDimensions?.has(dimensionID)) {
             return selectorDimensions.get(dimensionID);
         }
 
         // Mask "right"
-        const rightMask = this._rand('rand');
+        const rightMask = this._rand('key', $options);
+        const rightJson = right.jsonfy({ ...$options, deSugar: false }, null, linkedDb);
         const fieldSpec = {
             nodeName: SelectElement.NODE_NAME,
-            expr: right.jsonfy/* @case1 */($options, null, linkedDb),
+            expr: rightJson,
             alias: { nodeName: BasicAlias.NODE_NAME, value: rightMask },
             as_kw: true,
         };
@@ -97,12 +100,12 @@ export const SelectorStmtMixin = (Class) => class extends Class {
                     // FROM <table>
                     from_clause: {
                         nodeName: FromClause.NODE_NAME,
-                        entries: [{ nodeName: FromElement.NODE_NAME, expr: table.jsonfy/* @case1 */($options, null, linkedDb) }]
+                        entries: [{ nodeName: FromElement.NODE_NAME, expr: table.jsonfy({ ...$options, deSugar: false }, null, linkedDb) }]
                     },
                     // GROUP BY <rightMask>
                     group_by_clause: asAggr ? {
                         nodeName: GroupByClause.NODE_NAME,
-                        entries: [{ nodeName: ColumnRef.NODE_NAME, value: rightMask }]
+                        entries: [{ nodeName: GroupingElement.NODE_NAME, expr: { nodeName: ColumnRef.NODE_NAME, value: rightMask } }]
                     } : undefined,
                 }
             },
@@ -115,7 +118,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
                 expr: {
                     nodeName: BinaryExpr.NODE_NAME,
                     operator: '=',
-                    left: left.jsonfy/* @case1 */($options, null, linkedDb),
+                    left: left.jsonfy({ ...$options, deSugar: false }, null, linkedDb),
                     right: {
                         nodeName: ColumnRef.NODE_NAME,
                         qualifier: { nodeName: TableAbstractionRef.NODE_NAME, value: dimensionID },
@@ -130,12 +133,12 @@ export const SelectorStmtMixin = (Class) => class extends Class {
 
         // Add entry...
         const select = (detail) => {
-            const selectAlias = this._rand('ref');
+            const selectAlias = this._rand('ref', $options);
             // Compose:
             // - [...detail] AS <selectAlias>
             joinJson.expr.expr.select_list.push({
                 nodeName: SelectElement.NODE_NAME,
-                expr: detail.jsonfy/* @case1 */($options, null, linkedDb),
+                expr: detail.jsonfy({ ...$options, deSugar: false }, null, linkedDb),
                 alias: { nodeName: BasicAlias.NODE_NAME, value: selectAlias },
                 as_kw: true,
             });
@@ -167,7 +170,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
             const joinInstance = JoinClause.fromJSON(joinJson, this.options);
             this._adoptNodes(joinInstance);
             resultJson.join_clauses.push(
-                joinInstance.jsonfy/* @case2 */(options, null, linkedDb)
+                joinInstance.jsonfy(options, null, linkedDb)
             );
         }
 

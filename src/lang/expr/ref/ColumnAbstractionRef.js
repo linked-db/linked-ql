@@ -1,7 +1,7 @@
 import { registry } from '../../registry.js';
-import { TableRef } from './TableRef.js';
+import { ColumnRef } from './ColumnRef.js';
 
-export class TableAbstractionRef extends TableRef {
+export class ColumnAbstractionRef extends ColumnRef {
 
     /* API */
 
@@ -16,20 +16,19 @@ export class TableAbstractionRef extends TableRef {
         const cs = this._has('delim');
         const resultSchemas = [];
 
-        do {
-            const querySchemasSchemaInScope = statementNode.querySchemas();
-            for (const [alias, tableRefOrConstructor] of querySchemasSchemaInScope) {
+        const selectElements = statementNode.selectList();
+        for (const selectElement of selectElements) {
 
-                if (name && !this.identifiesAs(alias, cs)) continue;
-                const schema = tableRefOrConstructor.deriveSchema(linkedDb)/* TableSchema */;
-                if (filter && !filter(schema)) continue;
+            const outputName = selectElement.alias() || selectElement.expr();
+            
+            if (name && !this.identifiesAs(outputName, cs)) continue;
+            const schema = selectElement.expr().deriveSchema?.(linkedDb);
+            if (!schema || filter && !filter(schema)) continue;
 
-                const clonedRenamed = schema.clone({ renameTo: registry.Identifier.fromJSON({ value: alias }) });
+            const clonedRenamed = schema.clone({ renameTo: registry.ColumnIdent.fromJSON({ value: outputName.value() }) });
 
-                resultSchemas.push(clonedRenamed);
-            }
-        } while (!resultSchemas.length && (statementNode = statementNode.parentNode?.statementNode));
-
+            resultSchemas.push(clonedRenamed);
+        }
 
         if (!resultSchemas.length) {
             return super.selectSchema(filter, linkedDb);

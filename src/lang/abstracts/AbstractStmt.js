@@ -2,15 +2,25 @@ import { AbstractNode } from './AbstractNode.js';
 
 export class AbstractStmt extends AbstractNode {
 
-    #rand = 0;
-    _rand(key) {
-        return `${key}::${this.#rand++}`;
-        return `${key}::${(0 | Math.random() * 9e6).toString(36)}`;
+    #rands = new Map;
+    _rand(type, { rands = this.#rands } = {}) {
+        rands.set(type, !rands.has(type) ? 0 : rands.get(type) + 1);
+        return `$${type}${rands.get(type)}`;
+    }
+
+    #hashes = new Map;
+    _hash(value, type = undefined, { hashes = this.#hashes, rands } = {}) {
+        if (!hashes.has(value)) {
+            hashes.set(value, this._rand(type, { rands }));
+        }
+        return hashes.get(value);
     }
 
     #uuid;
     get uuid() {
-        if (!this.#uuid) this.#uuid = this._rand('query');
+        if (!this.#uuid) {
+            this.#uuid = this._rand('query');
+        }
         return this.#uuid;
     }
 

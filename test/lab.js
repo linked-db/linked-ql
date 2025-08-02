@@ -23,8 +23,8 @@ const tblsSQL = `
 SELECT table_schema, table_name
 FROM information_schema.tables
 WHERE table_type = 'BASE TABLE' AND table_schema NOT IN ('pg_catalog', 'information_schema');`;
-console.log('________________________', (await client.query(dbsSQL)).rows);
-console.log('________________________', (await client.query('SELECT * FROM pg_database CROSS JOIN pg_database as r')).rows);
+//console.log('________________________', (await client.query(dbsSQL)).rows);
+console.log('________________________', (await client.query('SELECT datname AS f FROM pg_database AS t ORDER BY t.datname LIMIT 2')).rows);
 */
 
 

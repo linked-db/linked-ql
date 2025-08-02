@@ -64,7 +64,15 @@ export class BasicSelectStmt extends SelectorStmtMixin(
 
     /* DESUGARING API */
 
+
+	/* JSON API */
+
     jsonfy(options = {}, superTransformCallback = null, linkedDb = null) {
+        if (options.deSugar) {
+            const rands = options.rands || new Map;
+            const hashes = new Map;
+            options = { ...options, rands, hashes };
+        }
         let resultJson = super.jsonfy(options, superTransformCallback, linkedDb);
 
         const {

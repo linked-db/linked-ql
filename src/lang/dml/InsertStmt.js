@@ -119,4 +119,15 @@ export class InsertStmt extends PayloadStmtMixin(
 		}
 		return new Map(entries);
 	}
+
+	/* JSON API */
+
+    jsonfy(options = {}, transformCallback = null, linkedDB = null) {
+        if (options.deSugar) {
+            const rands = options.rands || new Map;
+            const hashes = new Map;
+            options = { ...options, rands, hashes };
+        }
+        return super.jsonfy(options, transformCallback, linkedDB);
+    }
 }

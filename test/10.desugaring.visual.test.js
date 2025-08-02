@@ -184,8 +184,8 @@ $describe('Parser - Refs Resolution Using a Test Linked DB Instance', () => {
         });
 
         $it('should parse an in-query bare "ColumnRef" to a fully-qualified ColumnRef', async () => {
-            const inputSql = `SELECT order_id FROM orders AS o`;
-            const outputSql = `SELECT o.order_id FROM public.orders AS o`;
+            const inputSql = `SELECT id FROM orders AS o`;
+            const outputSql = `SELECT o.id FROM public.orders AS o`;
             await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true }, linkedDB);
         });
     });
@@ -194,36 +194,93 @@ $describe('Parser - Refs Resolution Using a Test Linked DB Instance', () => {
         $it('should parse an in-query "LQDeepRef" to a fully-resolved ColumnRef', async () => {
             const inputSql =
                 `SELECT
-  order_id, user_id ~> email 
+  id, user ~> email 
   FROM orders AS o`;
-            const outputSql = `SELECT o.order_id, "dimension::o.user_id|user_id|public.users"."ref::1" FROM public.orders AS o LEFT JOIN (SELECT users.user_id AS "rand::0", users.email AS "ref::1" FROM public.users) AS "dimension::o.user_id|user_id|public.users" ON o.user_id = "dimension::o.user_id|user_id|public.users"."rand::0"`;
+            const outputSql = `SELECT o.id, "$join0"."$ref0" FROM public.orders AS o LEFT JOIN (SELECT users.id AS "$key0", users.email AS "$ref0" FROM public.users) AS "$join0" ON o.user = "$join0"."$key0"`;
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDB);
+        });
+
+        $it('should parse an in-query "LQDeepRef" to a fully-resolved ColumnRef', async () => {
+            const inputSql =
+                `SELECT
+  id, parent_order ~> parent_order ~> status 
+  FROM orders AS o`;
+            const outputSql = `SELECT o.id, "$join0"."$ref0" FROM public.orders AS o LEFT JOIN (SELECT orders.id AS "$key0", "$join1"."$ref1" AS "$ref0" FROM public.orders LEFT JOIN (SELECT orders.id AS "$key1", orders.status AS "$ref1" FROM public.orders) AS "$join1" ON orders.parent_order = "$join1"."$key1") AS "$join0" ON o.parent_order = "$join0"."$key0"`;
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDB);
+        });
+
+        $it('should parse multiple in-query "LQDeepRef" to a fully-resolved ColumnRef - multiple but resolved from a shared JOIN', async () => {
+            const inputSql =
+                `SELECT
+  id, parent_order ~> parent_order ~> status, parent_order ~> parent_order
+  FROM orders AS o`;
+            const outputSql = `SELECT o.id, "$join0"."$ref0", "$join0"."$ref1" FROM public.orders AS o LEFT JOIN (SELECT orders.id AS "$key0", "$join1"."$ref2" AS "$ref0", "$join1"."$ref3" AS "$ref1" FROM public.orders LEFT JOIN (SELECT orders.id AS "$key1", orders.status AS "$ref2", orders.status AS "$ref3" FROM public.orders) AS "$join1" ON orders.parent_order = "$join1"."$key1") AS "$join0" ON o.parent_order = "$join0"."$key0"`;
             await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDB);
         });
     });
 
-    $describe('LQDeepRef', () => {
-        $it('should parse an in-query "LQDeepRef" to a fully-resolved ColumnRef', async () => {
+    $describe('LQBackRef', () => {
+        $it('should parse an in-query "(Back) LQDeepRef" to a fully-resolved ColumnRef', async () => {
             const inputSql =
                 `SELECT
-  order_id, parent_order_id ~> parent_order_id ~> status 
+  id, (parent_order <~ orders) ~> status
   FROM orders AS o`;
-            const outputSql = `SELECT o.order_id, "dimension::o.parent_order_id|order_id|public.orders"."ref::1" FROM public.orders AS o LEFT JOIN (SELECT orders.order_id AS "rand::0", "dimension::orders.parent_order_id|order_id|public.orders"."ref::1" AS "ref::1" FROM public.orders LEFT JOIN (SELECT orders.order_id AS "rand::0", orders.status AS "ref::1" FROM public.orders) AS "dimension::orders.parent_order_id|order_id|public.orders" ON orders.parent_order_id = "dimension::orders.parent_order_id|order_id|public.orders"."rand::0") AS "dimension::o.parent_order_id|order_id|public.orders" ON o.parent_order_id = "dimension::o.parent_order_id|order_id|public.orders"."rand::0"`;
+            const outputSql = `SELECT o.id, "$join0"."$ref0" FROM public.orders AS o LEFT JOIN (SELECT orders.parent_order AS "$key0", orders.status AS "$ref0" FROM public.orders) AS "$join0" ON orders.id = "$join0"."$key0"`;
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDB);
+        });
+
+        $it('should parse an in-query "(Back Back) LQDeepRef" to a fully-resolved ColumnRef', async () => {
+            const inputSql =
+                `SELECT
+  id, (parent_order <~ parent_order <~ orders) ~> status
+  FROM orders AS o`;
+            const outputSql = `SELECT o.id, "$join0"."$ref0" FROM public.orders AS o LEFT JOIN (SELECT "$join1"."$ref1" AS "$key0", orders.status AS "$ref0" FROM public.orders LEFT JOIN (SELECT orders.id AS "$key1", orders.parent_order AS "$ref1" FROM public.orders) AS "$join1" ON orders.parent_order = "$join1"."$key1") AS "$join0" ON orders.id = "$join0"."$key0"`;
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDB);
+        });
+
+        $it('should parse an in-query "(Back) LQDeepRef" being column qualifier to a fully-resolved ColumnRef', async () => {
+            const inputSql =
+                `SELECT
+  id, (parent_order <~ orders).status
+  FROM orders AS o`;
+            const outputSql = `SELECT o.id, "$join0".status FROM public.orders AS o LEFT JOIN (SELECT orders.parent_order AS "$key0" FROM public.orders) AS "$join0" ON orders.id = "$join0"."$key0"`;
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDB);
+        });
+
+        $it('should parse an in-query "(Back Back) LQDeepRef" being column qualifier to a fully-resolved ColumnRef', async () => {
+            const inputSql =
+                `SELECT
+  id, (parent_order <~ parent_order <~ orders).status
+  FROM orders AS o`;
+            const outputSql = `SELECT o.id, "$join0".status FROM public.orders AS o LEFT JOIN (SELECT "$join1"."$ref0" AS "$key0" FROM public.orders LEFT JOIN (SELECT orders.id AS "$key1", orders.parent_order AS "$ref0" FROM public.orders) AS "$join1" ON orders.parent_order = "$join1"."$key1") AS "$join0" ON orders.id = "$join0"."$key0"`;
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDB);
+        });
+
+        $it('should parse multiple in-query "(Back Back) LQDeepRef" being column qualifier to a fully-resolved ColumnRef - multiple but resolved from a shared JOIN', async () => {
+            const inputSql =
+                `SELECT
+  id, (parent_order <~ parent_order <~ orders).status as status, (parent_order <~ parent_order <~ orders).status
+  FROM orders AS o`;
+            const outputSql = `SELECT o.id, "$join0".status AS status, "$join0".status FROM public.orders AS o LEFT JOIN (SELECT "$join1"."$ref0" AS "$key0" FROM public.orders LEFT JOIN (SELECT orders.id AS "$key1", orders.parent_order AS "$ref0" FROM public.orders) AS "$join1" ON orders.parent_order = "$join1"."$key1") AS "$join0" ON orders.id = "$join0"."$key0"`;
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDB);
+        });
+
+        $it('should parse multiple in-query "(Back Back) LQDeepRef" being column qualifier to a fully-resolved ColumnRef - multiple and resolved from distinct JOINS', async () => {
+            const inputSql =
+                `SELECT
+  id, (parent_order <~ parent_order <~ orders).status as status[], (parent_order <~ parent_order <~ orders).status
+  FROM orders AS o`;
+            const outputSql = `SELECT o.id, JSON_AGG("$join0".status) AS status, "$join1".status FROM public.orders AS o LEFT JOIN (SELECT "$join2"."$ref0" AS "$key0" FROM public.orders LEFT JOIN (SELECT orders.id AS "$key2", orders.parent_order AS "$ref0" FROM public.orders) AS "$join2" ON orders.parent_order = "$join2"."$key2" GROUP BY "$key0") AS "$join0" ON orders.id = "$join0"."$key0" LEFT JOIN (SELECT "$join3"."$ref1" AS "$key1" FROM public.orders LEFT JOIN (SELECT orders.id AS "$key3", orders.parent_order AS "$ref1" FROM public.orders) AS "$join3" ON orders.parent_order = "$join3"."$key3") AS "$join1" ON orders.id = "$join1"."$key1"`;
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDB);
+        });
+
+        $it('should parse multiple in-query "(Back Back) LQDeepRef" being column qualifier to a fully-resolved ColumnRef - multiple and resolved from distinct JOINS', async () => {
+            const inputSql =
+                `SELECT
+  id, (parent_order <~ parent_order <~ orders).status as status[], (parent_order <~ parent_order <~ orders).order_total as order_total[], (parent_order <~ parent_order <~ orders).status
+  FROM orders AS o`;
+            const outputSql = `SELECT o.id, JSON_AGG("$join0".status) AS status, JSON_AGG("$join0".order_total) AS order_total, "$join1".status FROM public.orders AS o LEFT JOIN (SELECT "$join2"."$ref0" AS "$key0" FROM public.orders LEFT JOIN (SELECT orders.id AS "$key2", orders.parent_order AS "$ref0" FROM public.orders) AS "$join2" ON orders.parent_order = "$join2"."$key2" GROUP BY "$key0") AS "$join0" ON orders.id = "$join0"."$key0" LEFT JOIN (SELECT "$join3"."$ref1" AS "$key1" FROM public.orders LEFT JOIN (SELECT orders.id AS "$key3", orders.parent_order AS "$ref1" FROM public.orders) AS "$join3" ON orders.parent_order = "$join3"."$key3") AS "$join1" ON orders.id = "$join1"."$key1"`;
             await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDB);
         });
     });
 });
-
-/*
-
-SELECT
-    o.order_id,
-    "dimension::o.user_id|user_id|public.users"."ref::1"
-    
-    FROM public.orders AS o
-    
-    LEFT JOIN (
-        SELECT user_id AS "rand::0", email AS "ref::1" FROM public.users
-    ) AS "dimension::o.user_id|user_id|public.users"
-    ON o.user_id = "dimension::o.user_id|user_id|public.users"."rand::0"
-
-*/
