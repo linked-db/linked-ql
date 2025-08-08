@@ -341,13 +341,10 @@ export class TokenStream {
                 // this block must run before the generic whitespace-handling block below
                 // Meanhwile, we're also using the opportunity to handle delimited ones's ending
                 if (localState.token?.type === 'version_spec') {
-                    const isEndTag = localState.token.delim ? char === localState.token.delim : (char === '.' || charIsWhitespace);
+                    const isEndTag = localState.token.delim ? char === localState.token.delim : (charIsWhitespace || char === '.' || char === ',' || char === ';' || char === ')');
                     if (isEndTag) {
                         yield* $finalizeToken(localState.token);
                         localState.token = null;
-                        if (charIsWhitespace && options.spaces) {
-                            localState.nextTokenSpaceBefore += char;
-                        }
                     } else if (localState.token.value) {
                         if (char === '=') {
                             // "=" only allowed as @=2_4, @<=4, @>=2
@@ -360,7 +357,7 @@ export class TokenStream {
                     } else {
                         localState.token.value += char;
                     }
-                    if (char !== '.') {
+                    if (!isEndTag) {
                         state.next();
                         continue;
                     }
@@ -649,6 +646,8 @@ export class TokenStream {
                         const groupToken = {
                             type: { '{': 'brace_block', '[': 'bracket_block', '(': 'paren_block' }[char],
                             value: await this[options.extendedAPI ? 'create' : 'createIterator'](stream, { state, ...options }),
+                            line: state.line,
+                            column: state.column,
                         };
                         yield* $finalizeToken(groupToken);
                         if (options.extendedAPI) {

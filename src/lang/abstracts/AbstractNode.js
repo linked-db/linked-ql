@@ -35,6 +35,7 @@ export class AbstractNode {
 	get NODE_NAME() { return this.constructor.NODE_NAME; }
 
 	#ast;
+	get _ast() { return this.#ast; }
 
 	#options;
 	get options() { return this.#options; }
@@ -204,20 +205,20 @@ export class AbstractNode {
 
 	static morphsTo() { return this; }
 
-	clone(options = {}, transformCallback = null, linkedDb = null) {
-		const resultJson = this.jsonfy(options, transformCallback, linkedDb);
+	clone(options = {}, linkedContext = null, linkedDb = null) {
+		const resultJson = this.jsonfy(options, linkedContext, linkedDb);
 		const Classes = [this.constructor].concat(this.constructor.morphsTo());
 		return Classes.reduce((prev, C) => prev || C.fromJSON(resultJson, { dialect: options.toDialect || this.options.dialect }), undefined);
 	}
 
-	deSugar(options = {}, transformCallback = null, linkedDb = null) {
+	deSugar(options = {}, linkedContext = null, linkedDb = null) {
 		options = { ...options, deSugar: true/* overrridingly */ };
-		return this.clone(options, transformCallback, linkedDb);
+		return this.clone(options, linkedContext, linkedDb);
 	}
 
-	toDialect(dialect, options = {}, transformCallback = null, linkedDb = null) {
-		options = { ...options, toDialect: dialect };
-		return this.clone(options, transformCallback, linkedDb);
+	toDialect(dialect, linkedContext = null, linkedDb = null) {
+		const options = { toDialect: dialect };
+		return this.clone(options, linkedContext, linkedDb);
 	}
 
 	/**
@@ -386,13 +387,13 @@ export class AbstractNode {
 		// 1. Handle pre-formed nodes
 		if (inputJson instanceof AbstractNode) {
 			if (inputJson instanceof this) return inputJson;
-			return; // API mismatch
+			inputJson = inputJson.jsonfy();
 		}
 		// 2. Handle typed JSON objects
 		if (!_isObject(inputJson)) return;
 		let hardCodedNodeName = null;
 		if ('nodeName' in inputJson) {
-			if (inputJson.nodeName !== this.NODE_NAME) {
+			if (inputJson.nodeName && inputJson.nodeName !== this.NODE_NAME) {
 				return; // API mismatch
 			}
 			({ nodeName: hardCodedNodeName, ...inputJson } = inputJson);
@@ -575,7 +576,50 @@ export class AbstractNode {
 
 	toJSON() { return this.jsonfy(); }
 
-	jsonfy(options = {}, transformCallback = null, linkedDb = null) {
+	jsonfy(options = {}, linkedContext = null, linkedDb = null) {
+
+		const jsonfy = (key, value, relevantLinkedContext) => {
+
+			const defaultTransform = (options1 = options, childLinkedContext = relevantLinkedContext) => {
+				if (Array.isArray(value)) {
+					return value.reduce((entries, value, i) => {
+						const result = jsonfy(i, value, childLinkedContext);
+						if (result === undefined) return entries;
+						return entries.concat(result);
+					}, []);
+				}
+				if (value instanceof AbstractNode) {
+					return value.jsonfy(options1, childLinkedContext, linkedDb);
+				}
+				return value;
+			};
+
+			if (value === undefined) return;
+
+			const result = relevantLinkedContext
+				? relevantLinkedContext.transform(value, defaultTransform, key, options)
+				: defaultTransform();
+
+			if (result instanceof AbstractNode) {
+				throw new Error(`"jsonfy" transforms must return plain JSON objects.`);
+			}
+
+			return result;
+		};
+
+		return {
+			...(options.nodeNames !== false ? { nodeName: this.NODE_NAME } : {}),
+			...Object.fromEntries(Object.entries(this.#ast).reduce((resultEntries, [fieldName, value]) => {
+
+				const result = jsonfy(fieldName, value, linkedContext);
+				if (result === undefined) return resultEntries;
+
+				return [...resultEntries, [fieldName, result]];
+			}, [])),
+		};
+	}
+
+	jsonfy____(options = {}, transformCallback = null,) {
 		const jsonfy = (value, key) => {
 			const originalValue = value;
 			if (transformCallback) {
@@ -583,9 +627,9 @@ export class AbstractNode {
 			}
 			if (value instanceof AbstractNode) {
 				if (value.statementNode === value) {
-					value = value.jsonfy(options, null/* IMPORTANT */, linkedDb);
+					value = value.jsonfy(options, null/* IMPORTANT */, transformer);
 				} else {
-					value = value.jsonfy(options, transformCallback, linkedDb);
+					value = value.jsonfy(options, transformer);
 				}
 			} else if (Array.isArray(originalValue) && Array.isArray(value) && value.every((n) => n instanceof AbstractNode)) {
 				value = value.reduce((entries, value, i) => {
@@ -704,13 +748,14 @@ export class AbstractNode {
 				throw new Error(`[${activeTrailStr}] Unsupported attributes in rule: "${unsupportedAttrs.join('", "')}".`);
 			}
 			const isTokenRule = typeof type === 'string' && type[0] === type[0].toLowerCase();
-
 			// -----
 			// Definitions...
 			// -----
 			const acquireLeft = async () => {
 				if (!exposure || isTokenRule) return;
-				if (!(rulesArray[i + 1]?.type === 'operator' || (rulesArray[i + 1]?.type === 'punctuation' && rulesArray[i + 1]?.value === '.'))) return;
+				if (!(rulesArray[i + 1]?.type === 'operator' || (rulesArray[i + 1]?.type === 'punctuation' && rulesArray[i + 1]?.value === '.'))) {
+					return;
+				}
 				if (Array.isArray(peek) && !await peekToken(-1)) return;
 				for (const name of [].concat(type)) {
 					if (left instanceof registry[name]) {
@@ -752,11 +797,13 @@ export class AbstractNode {
 				return await NodeClass.parse(activeTokenStream, { minPrecedence: newMinPrecedence, trail: activeTrail, ...options });
 			};
 			const $decideThrow = (activeTokenStream, message, tokenStreamPosition = false, forceThrow = false) => {
-				if (!assert && !forceThrow && options.assert !== true && !(options.assert instanceof RegExp && options.assert.test(activeTrailStr))) return;
+				if (!assert && !forceThrow && options.assert !== true && !(options.assert instanceof RegExp && options.assert.test(activeTrailStr))) {
+					return;
+				}
 				if (tokenStreamPosition) {
 					const current = activeTokenStream.current() || activeTokenStream.previous();
 					const proximityTerm = activeTokenStream.current() ? (tokenStreamPosition === 1 ? ':' : ' near') : ' by';
-					message += !current ? `${proximityTerm} end of stream` : `${proximityTerm}${typeof current.value === 'string' ? ` "${current.value}" (${current.type})` : ''} at <line ${current.line}, column ${current.column}>`;
+					message += !current ? `${proximityTerm} end of stream` : `${proximityTerm}${typeof current.value === 'string' ? ` "${current.value}"` : ''} (${current.type}) at <line ${current.line}, column ${current.column}>`;
 				}
 				throw new Error(`[${activeTrailStr}] ${message}.`);
 			};
@@ -766,7 +813,7 @@ export class AbstractNode {
 			// -----
 
 			if (left && type || left === false && optional) {
-				// left === false is typically passed from IdentifierPath
+				// left === false is typically passed from PathMixin()
 				if (left && !await acquireLeft()) return;
 				left = null;
 				continue;
@@ -800,8 +847,8 @@ export class AbstractNode {
 					$decideThrow(tokenStream, `Token of type "${type}"${value ? ` and value "${value}"` : ''} expected but got "${tokenStream.current()?.type}"`, true);
 					return;
 				}
-				let _type, line, column, spaceBefore, prec, assoc, rest;
-				({ type: _type, line, column, spaceBefore, prec, assoc, ...rest } = tok);
+				let _type, line, column, spaceBefore, prec, assoc, resultType, rest;
+				({ type: _type, line, column, spaceBefore, prec, assoc, resultType, ...rest } = tok);
 				Object.assign(resultAST, rest);
 				continue; // To next rule
 			}
@@ -921,9 +968,7 @@ export class AbstractNode {
 			if (typeof type === 'string' && type.endsWith('_block')
 				&& !activeTokenStream.done
 				&& activeTokenStream.current()) {
-				const current = activeTokenStream.current();
-				const message = `[${this.NODE_NAME}] Unexpected ${current.type} token${typeof current.value === 'string' ? ` "${current.value}"` : ''} at <line ${current.line}, column ${current.column}>`;
-				throw new Error(message);
+				return;
 			}
 
 			if (exposure) {

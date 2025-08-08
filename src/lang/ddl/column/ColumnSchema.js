@@ -21,9 +21,9 @@ export class ColumnSchema extends AbstractSchema {
             'MYColumnVisibilityModifier',
         ];
         return [
-            { type: 'ColumnIdent', as: 'name' },
+            { type: ['ColumnIdent', 'Identifier'/* to support mock names */], as: 'name' },
             { type: 'DataType', as: 'data_type', assert: true },
-            { type, as: 'entries', arity: Infinity, singletons: true },
+            { type, as: 'entries', arity: Infinity, singletons: true, optional: true },
 
         ];
     }
@@ -58,51 +58,79 @@ export class ColumnSchema extends AbstractSchema {
         }
     }
 
-    pkConstraint(smartly = false) {
+    pkConstraint(normalized = false) {
         for (const cons of this) {
             if (cons instanceof registry.ColumnPKConstraint) return cons;
         }
-        if (smartly && this.parentNode instanceof registry.TableSchema) {
-            return this.parentNode.pkConstraints().find((c) => {
-                const columns = c.columns();
-                return columns.length = 1 && columns[0].identifiesAs(this.name());
-            });
+        if (normalized && this.parentNode instanceof registry.TableSchema) {
+            const pkConstraint = this.parentNode.pkConstraint(false);
+            const pkColumns = pkConstraint?.columns() || [];
+            if (pkColumns.length === 1 && pkColumns[0].identifiesAs(this.name())) {
+                const { nodeName, columns, ...cJson } = pkConstraint.jsonfy();
+                return registry.ColumnPKConstraint.fromJSON(cJson);
+            }
         }
     }
 
-    fkConstraint(smartly = false) {
+    fkConstraint(normalized = false) {
         for (const cons of this) {
             if (cons instanceof registry.ColumnFKConstraint) return cons;
         }
-        if (smartly && this.parentNode instanceof registry.TableSchema) {
-            return this.parentNode.fkConstraints().find((c) => {
+        if (normalized && this.parentNode instanceof registry.TableSchema) {
+            const { nodeName, columns, ...cJson } = this.parentNode.fkConstraints(false).find((c) => {
                 const columns = c.columns();
-                return columns.length = 1 && columns[0].identifiesAs(this.name());
-            });
+                return columns.length === 1 && columns[0].identifiesAs(this.name());
+            })?.jsonfy() || {};
+            if (nodeName) {
+                return registry.ColumnFKConstraint.fromJSON(cJson);
+            }
         }
     }
 
-    ukConstraint(smartly = false) {
+    ukConstraint(normalized = false) {
         for (const cons of this) {
             if (cons instanceof registry.ColumnUKConstraint) return cons;
         }
-        if (smartly && this.parentNode instanceof registry.TableSchema) {
-            return this.parentNode.ukConstraints().find((c) => {
+        if (normalized && this.parentNode instanceof registry.TableSchema) {
+            const { nodeName, columns, ...cJson } = this.parentNode.ukConstraints(false).find((c) => {
                 const columns = c.columns();
-                return columns.length = 1 && columns[0].identifiesAs(this.name());
+                return columns.length === 1 && columns[0].identifiesAs(this.name());
+            })?.jsonfy() || {};
+            if (nodeName) {
+                return registry.ColumnUKConstraint.fromJSON(cJson);
+            }
+        }
+    }
+
+    ckConstraint(normalized = false) {
+        for (const cons of this) {
+            if (cons instanceof registry.CheckConstraint) return cons;
+        }
+        if (normalized && this.parentNode instanceof registry.TableSchema) {
+            return this.parentNode.ckConstraints(false).find((c) => {
+                const columns = c.columns();
+                return columns.length === 1 && columns[0].identifiesAs(this.name());
             });
         }
     }
 
-    ckConstraint(smartly = false) {
-        for (const cons of this) {
-            if (cons instanceof registry.CheckConstraint) return cons;
+    jsonfy({ normalized = false, ...options } = {}, linkedContext = null, linkedDb = null) {
+        let resultJson = super.jsonfy(options, linkedContext, linkedDb);
+        if (normalized) {
+            let tableLevelConstraints = [];
+            for (const x of ['pk', 'fk', 'uk', 'ck']) {
+                const method = `${x}Constraint`;
+                if (!this[method]()) {
+                    tableLevelConstraints.push(this[method](true)?.jsonfy());
+                }
+            }
+            if ((tableLevelConstraints = tableLevelConstraints.filter((s) => s)).length) {
+                return {
+                    ...resultJson,
+                    entries: resultJson.entries.concat(tableLevelConstraints)
+                }
+            }
         }
-        if (smartly && this.parentNode instanceof registry.TableSchema) {
-            return this.parentNode.ckConstraints().find((c) => {
-                const columns = c.columns();
-                return columns.length = 1 && columns[0].identifiesAs(this.name());
-            });
-        }
+        return resultJson;
     }
 }

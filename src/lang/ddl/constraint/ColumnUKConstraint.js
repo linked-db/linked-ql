@@ -41,10 +41,10 @@ export class ColumnUKConstraint extends ConstraintSchema {
     columns() {
         const {
             ColumnSchema,
-            ColumnNameRef,
+            ColumnRef2,
         } = registry;
         return this.parentNode instanceof ColumnSchema
-            ? [ColumnNameRef.fromJSON({ value: this.parentNode.name().value() })]
+            ? [ColumnRef2.fromJSON({ value: this.parentNode.name().value() })]
             : [];
     }
 }

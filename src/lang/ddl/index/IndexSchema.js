@@ -5,9 +5,8 @@ export class IndexSchema extends AbstractSchema {
     /* SYNTAX RULES */
 
     static get syntaxRules() {
-        const itemSeparator = { type: 'punctuation', value: ',' };
         return [
-            { type: 'Identifier', as: 'name' },
+            { type: 'Identifier', as: 'name', assert: true },
         ];
     }
 }

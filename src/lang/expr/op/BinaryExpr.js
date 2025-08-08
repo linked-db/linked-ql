@@ -1,6 +1,8 @@
-import { AbstractNode } from '../../abstracts/AbstractNode.js';
+import { AbstractClassicExpr } from '../AbstractClassicExpr.js';
+import { operators } from '../../toktypes.js';
+import { registry } from '../../registry.js';
 
-export class BinaryExpr extends AbstractNode {
+export class BinaryExpr extends AbstractClassicExpr {
 
     /* DEFS */
 
@@ -24,4 +26,24 @@ export class BinaryExpr extends AbstractNode {
     operator() { return this._get('operator'); }
 
     right() { return this._get('right'); }
+
+    /* TYPESYS API */
+
+    dataType() {
+        const operator = this.operator();
+        if (!operator) return this.left()?.dataType();
+
+        const toDialect = this.options.dialect;
+        const operatorMap = new Map(operators.common.concat(operators[toDialect]));
+        const resultType = operatorMap.get(operator)?.resultType;
+        if (!resultType) return;
+
+        if (resultType === ':right') {
+            return this.right()?.dataType();
+        }
+        if (resultType === ':left') {
+            return this.left()?.dataType();
+        }
+        return registry.DataType.fromJSON({ value: resultType.toUpperCase() });
+    }
 }

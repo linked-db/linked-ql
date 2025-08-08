@@ -11,10 +11,10 @@ export class TableFKConstraint extends ConstraintSchema {
             { type: 'keyword', value: 'KEY', assert: true },
             {
                 type: 'paren_block',
-                syntax: { type: 'ColumnNameRef', as: 'columns', arity: { min: 1 }, itemSeparator, assert: true, singletons: 'BY_KEY' },
+                syntax: { type: 'ColumnRef2', as: 'columns', arity: { min: 1 }, itemSeparator, assert: true, singletons: 'BY_KEY' },
             },
             { type: 'keyword', value: 'REFERENCES' },
-            { type: 'TableRef', as: 'target_table', assert: true },
+            { type: 'TableRef2', as: 'target_table', assert: true },
             {
                 dialect: 'postgres',
                 optional: true,

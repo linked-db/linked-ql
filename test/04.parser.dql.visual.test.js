@@ -2,61 +2,61 @@ import { assert, expect } from 'chai';
 import { $describe, $it, testParseAndStringify } from './00.parser.js';
 
 $describe('Parser - DQL Clauses', () => {
-    $describe('SelectElement', () => {
+    $describe('SelectItem', () => {
         $it('should parse a column reference as a select element', async () => {
-            await testParseAndStringify('SelectElement', 'my_column');
+            await testParseAndStringify('SelectItem', 'my_column');
         });
 
         $it('should parse an expression as a select element', async () => {
-            await testParseAndStringify('SelectElement', 'col1 + col2');
+            await testParseAndStringify('SelectItem', 'col1 + col2');
         });
 
         $it('should parse a select element with an AS alias', async () => {
-            await testParseAndStringify('SelectElement', 'my_column AS alias_name');
+            await testParseAndStringify('SelectItem', 'my_column AS alias_name');
         });
 
         $it('should parse a select element with an alias, omitting the AS keyword', async () => {
-            await testParseAndStringify('SelectElement', 'my_column alias_name');
+            await testParseAndStringify('SelectItem', 'my_column alias_name');
         });
 
         $it('should parse an expression as a select element with an alias', async () => {
-            await testParseAndStringify('SelectElement', 'SUM(price) AS total_price');
+            await testParseAndStringify('SelectItem', 'SUM(price) AS total_price');
         });
 
         $it('should parse an expression of MySQL user variable', async () => {
-            await testParseAndStringify('SelectElement', '@a = 1', { dialect: 'mysql' });
+            await testParseAndStringify('SelectItem', '@a = 1', { dialect: 'mysql' });
         });
     });
 
-    $describe('FromElement', () => {
+    $describe('TableAbstraction3', () => {
         $it('should parse a table reference as a from element', async () => {
-            await testParseAndStringify('FromElement', 'my_table');
+            await testParseAndStringify('TableAbstraction3', 'my_table');
         });
 
         $it('should parse a from element with an AS keyword', async () => {
-            await testParseAndStringify('FromElement', 'my_table AS t');
+            await testParseAndStringify('TableAbstraction3', 'my_table AS t');
         });
 
         $it('should parse a from element with an alias, omitting the AS keyword', async () => {
-            await testParseAndStringify('FromElement', 'my_table t');
+            await testParseAndStringify('TableAbstraction3', 'my_table t');
         });
 
         $it('should parse a subquery as a from element with an alias', async () => {
-            await testParseAndStringify('FromElement', '(SELECT 2) AS subq');
+            await testParseAndStringify('TableAbstraction3', '(SELECT 2) AS subq');
         });
 
         $it('should parse a table reference with an ONLY keyword (inheritance)', async () => {
-            await testParseAndStringify('FromElement', 'ONLY my_parent_table', { dialect: 'postgres' });
-            await testParseAndStringify('FromElement', 'ONLY my_parent_table *', { dialect: 'postgres' });
+            await testParseAndStringify('TableAbstraction3', 'ONLY my_parent_table', { dialect: 'postgres' });
+            await testParseAndStringify('TableAbstraction3', 'ONLY my_parent_table *', { dialect: 'postgres' });
         });
 
-        $describe('FromElement - TABLESAMPLE', () => {
+        $describe('TableAbstraction3 - TABLESAMPLE', () => {
             $it('should parse TABLESAMPLE BERNOULLI', async () => {
-                await testParseAndStringify('FromElement', 'my_table TABLESAMPLE BERNOULLI (20)', { dialect: 'postgres' });
+                await testParseAndStringify('TableAbstraction3', 'my_table TABLESAMPLE BERNOULLI (20)', { dialect: 'postgres' });
             });
 
             $it('should parse TABLESAMPLE SYSTEM with REPEATABLE', async () => {
-                await testParseAndStringify('FromElement', 'my_table TABLESAMPLE SYSTEM (50) REPEATABLE (123)', { dialect: 'postgres' });
+                await testParseAndStringify('TableAbstraction3', 'my_table TABLESAMPLE SYSTEM (50) REPEATABLE (123)', { dialect: 'postgres' });
             });
         });
     });
@@ -153,6 +153,10 @@ $describe('Parser - DQL Clauses', () => {
         $it('should parse a "CROSS" JOIN clause with an ON/USING clause rejected', async () => {
             await testParseAndStringify('JoinClause', 'CROSS JOIN tbl2');
             expect(testParseAndStringify('JoinClause', 'CROSS JOIN tbl2 ON tbl2.col1 = tbl1.col1')).to.be.rejected;
+        });
+
+        $it('should parse a subquery JOIN clause', async () => {
+            await testParseAndStringify('JoinClause', 'LEFT JOIN (SELECT tbl2) AS j ON tbl2.col1 = tbl1.col1');
         });
     });
 

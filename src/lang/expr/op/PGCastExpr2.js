@@ -14,4 +14,10 @@ export class PGCastExpr2 extends BinaryExpr {
             ]
         };
     }
+
+    /* TYPESYS API */
+
+    expr() { return this.left(); }
+
+    dataType() { return this.right(); }
 }

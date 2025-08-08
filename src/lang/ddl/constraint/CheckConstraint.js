@@ -28,8 +28,8 @@ export class CheckConstraint extends ConstraintSchema {
     columns() {
         const columns = [];
         this.expr()?.walkTree((node) => {
-            if (node instanceof registry.ColumnRef) {
-                columns.push(registry.ColumnNameRef.fromJSON({ value: node.value() }))
+            if (node instanceof registry.ColumnRef1) {
+                columns.push(registry.ColumnRef2.fromJSON({ value: node.value() }))
             } else return node;
         });
         return columns;

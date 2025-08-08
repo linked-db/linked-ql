@@ -16,9 +16,9 @@ export class PGSearchClause extends AbstractNode {
                         { type: 'keyword', as: 'breadth_or_depth_first', value: ['BREADTH', 'DEPTH'] },
                         { type: 'keyword', value: 'FIRST' },
                         { type: 'keyword', value: 'BY' },
-                        { type: 'ColumnRef', as: 'column_names', arity: { min: 1 }, itemSeparator, assert: true, autoIndent: 2 },
+                        { type: 'ColumnRef1', as: 'column_names', arity: { min: 1 }, itemSeparator, assert: true, autoIndent: 2 },
                         { type: 'keyword', value: 'SET' },
-                        { type: 'ColumnRef', as: 'seq_col_name' },
+                        { type: 'ColumnRef1', as: 'seq_col_name' },
                     ]
                 }
             ]

@@ -242,6 +242,24 @@ $describe('Parser - Specialized Operator Expressions', () => {
         });
     });
 
+    $describe('InExpr', () => {
+        $it('should parse an IN expression of literals', async () => {
+            await testParseAndStringify(['Expr', 'InExpr'], 'age IN (2, 45)');
+        });
+
+        $it('should parse a NOT IN expression of literals', async () => {
+            await testParseAndStringify(['Expr', 'InExpr'], 'age NOT IN (2, 45)');
+        });
+
+        $it('should parse an IN expression of SELECT', async () => {
+            await testParseAndStringify(['Expr', 'InExpr'], 'age IN (SELECT 2, 45)');
+        });
+
+        $it('should parse an NOT IN expression of SELECT', async () => {
+            await testParseAndStringify(['Expr', 'InExpr'], 'age NOT IN (SELECT 2, 45)');
+        });
+    });
+
     $describe('DistinctFromExpr', () => {
         $it('should parse expr1 IS DISTINCT FROM expr2', async () => {
             await testParseAndStringify(['Expr', 'DistinctFromExpr'], 'age IS DISTINCT FROM 65');
@@ -269,8 +287,8 @@ $describe('Parser - Specialized Operator Expressions', () => {
             await testParseAndStringify(['Expr', 'LQBackRef'], 'col0 <~ col1 <~ tbl');
         });
 
-        $it('should parse a back back LQBackRefConstructor', async () => {
-            await testExprAndNodeEntryPoints('LQBackRefConstructor', '(col0 <~ col1 <~ tbl)');
+        $it('should parse a back back LQBackRefAbstraction', async () => {
+            await testExprAndNodeEntryPoints('LQBackRefAbstraction', '(col0 <~ col1 <~ tbl)');
         });
 
         $it('should parse a basic back-referencing LQDeepRef', async () => {
@@ -293,15 +311,15 @@ $describe('Parser - Specialized Operator Expressions', () => {
             await testExprAndNodeEntryPoints('LQDeepRef', '(col1 <~ tbl) ~> col2 ~> { a, b }');
         });
 
-        $it('should parse a back-referencing LQBackRefConstructor as column qualifier', async () => {
+        $it('should parse a back-referencing LQBackRefAbstraction as column qualifier', async () => {
             await testExprAndNodeEntryPoints('ColumnRef', '(col <~ tbl).col');
         });
 
-        $it('should parse a back, back-referencing LQBackRefConstructor as column qualifier', async () => {
+        $it('should parse a back, back-referencing LQBackRefAbstraction as column qualifier', async () => {
             await testExprAndNodeEntryPoints('ColumnRef', '(fk2 <~ fk1 <~ tbl).col');
         });
 
-        $it('should parse a back, back-referencing LQBackRefConstructor as left of LQDeepRef', async () => {
+        $it('should parse a back, back-referencing LQBackRefAbstraction as left of LQDeepRef', async () => {
             await testExprAndNodeEntryPoints('LQDeepRef', '(fk2 <~ fk1 <~ tbl).fk ~> col');
         });
     });
@@ -416,18 +434,22 @@ $describe('Parser - Literals', () => {
     });
 
     $describe('Parenthesized and Row Constructors', () => {
-        $it('should parse a ParenShape (parenthesized expression)', async () => {
-            await testParseAndStringify('ParenShape', '(col1 + col2)');
+        $it('should parse a ParenExpr (parenthesized expression)', async () => {
+            await testParseAndStringify('ParenExpr', '(col1 + col2)');
         });
 
-        $it('should parse a SetConstructor (row constructor)', async () => {
-            await testExprAndNodeEntryPoints('SetConstructor', '(1, \'text\', TRUE)');
+        $it('should parse a RowConstructor (row constructor)', async () => {
+            await testExprAndNodeEntryPoints('RowConstructor', '(1, \'text\', TRUE)');
+        });
+
+        $it('should parse a TypedRowConstructor (row constructor)', async () => {
+            await testExprAndNodeEntryPoints('TypedRowConstructor', 'ROW (1, \'text\', TRUE)');
         });
     });
 
-    $describe('PostgreSQL Array Literals (PGArrayLiteral)', () => {
+    $describe('PostgreSQL Array Literals (PGTypedArrayLiteral)', () => {
         $it('should parse ARRAY[value1, value2, ...]', async () => {
-            await testExprAndNodeEntryPoints('PGArrayLiteral', 'ARRAY[1, 2, 3]');
+            await testExprAndNodeEntryPoints('PGTypedArrayLiteral', 'ARRAY[1, 2, 3]');
         });
 
         $it('should parse \'{value1, value2, ...}\'::type[]', async () => {

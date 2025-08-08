@@ -3,7 +3,7 @@ import { registry } from '../../registry.js';
 
 const {
     ColumnSchema,
-    ColumnNameRef,
+    ColumnRef2,
 } = registry;
 
 export class ColumnFKConstraint extends ConstraintSchema {
@@ -14,7 +14,7 @@ export class ColumnFKConstraint extends ConstraintSchema {
         const itemSeparator = { type: 'punctuation', value: ',' };
         return this.buildSyntaxRules([
             { type: 'keyword', value: 'REFERENCES' },
-            { type: 'TableRef', as: 'target_table', assert: true },
+            { type: 'TableRef2', as: 'target_table', assert: true },
             {
                 dialect: 'postgres',
                 optional: true,
@@ -43,7 +43,7 @@ export class ColumnFKConstraint extends ConstraintSchema {
 
     columns() {
         return this.parentNode instanceof ColumnSchema
-            ? [ColumnNameRef.fromJSON({ value: this.parentNode.name().value() })]
+            ? [ColumnRef2.fromJSON({ value: this.parentNode.name().value() })]
             : [];
     }
 }

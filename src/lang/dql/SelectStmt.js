@@ -1,4 +1,5 @@
 import { AbstractNonDDLStmt } from '../abstracts/AbstractNonDDLStmt.js';
+import { registry } from '../registry.js';
 
 export class SelectStmt extends AbstractNonDDLStmt {
 
@@ -11,7 +12,7 @@ export class SelectStmt extends AbstractNonDDLStmt {
         const part1 = (extRules = []) => [
             { type: 'keyword', value: 'SELECT' },
             { type: 'DistinctClause', as: 'distinct_clause', optional: true },
-            { type: 'SelectElement', as: 'select_list', arity: { min: 1 }, itemSeparator, assert: true, autoIndent: 2 },
+            { type: 'SelectItem', as: 'select_list', arity: { min: 1 }, itemSeparator, assert: true, autoIndent: 2 },
             {
                 optional: true,
                 syntax: [
@@ -43,4 +44,6 @@ export class SelectStmt extends AbstractNonDDLStmt {
         if (part === 2) return part2();
         return part1(part2());
     }
+
+    dataType() { return registry.DataType.fromJSON({ value: 'SET' }); }
 }

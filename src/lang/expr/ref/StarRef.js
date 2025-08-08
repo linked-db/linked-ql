@@ -1,6 +1,6 @@
-import { AbstractNode } from '../../abstracts/AbstractNode.js';
+import { AbstractClassicExpr } from '../AbstractClassicExpr.js';
 
-export class StarRef extends AbstractNode {
+export class StarRef extends AbstractClassicExpr {
 
     /* SYNTAX RULES */
 

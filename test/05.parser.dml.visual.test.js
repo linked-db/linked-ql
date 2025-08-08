@@ -136,7 +136,7 @@ $describe('Parser - DML Statements', () => {
         });
 
         $it('should parse UPDATE with composite column assignment', async () => {
-            await testParseAndStringify('UpdateStmt', "UPDATE users SET (col1, col2) = ROW(1, 2)", { dialect: 'postgres' });
+            await testParseAndStringify('UpdateStmt', "UPDATE users SET (col1, col2) = ROW (1, 2)", { dialect: 'postgres' });
             await testParseAndStringify('UpdateStmt', "UPDATE users SET (col1, col2) = (SELECT a, b FROM t)", { dialect: 'postgres' });
         });
 

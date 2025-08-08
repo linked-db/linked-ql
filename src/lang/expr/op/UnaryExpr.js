@@ -1,6 +1,7 @@
-import { AbstractNode } from '../../abstracts/AbstractNode.js';
+import { AbstractClassicExpr } from '../AbstractClassicExpr.js';
+import { registry } from '../../registry.js';
 
-export class UnaryExpr extends AbstractNode {
+export class UnaryExpr extends AbstractClassicExpr {
 
     /* DEFS */
 
@@ -18,4 +19,12 @@ export class UnaryExpr extends AbstractNode {
     operator() { return this._get('operator'); }
 
     operand() { return this._get('operand'); }
+
+    /* TYPESYS API */
+
+    dataType() {
+        const operator = this.operator();
+        if (!operator) return super.dataType();
+        return registry.DataType.fromJSON({ value: operator === 'NOT' ? 'BOOLEAN' : 'NUMBER' });
+    }
 }

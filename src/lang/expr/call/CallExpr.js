@@ -1,6 +1,7 @@
-import { AbstractNode } from '../../abstracts/AbstractNode.js';
+import { DDLSchemaMixin } from '../../abstracts/DDLSchemaMixin.js';
+import { AbstractClassicExpr } from '../AbstractClassicExpr.js';
 
-export class CallExpr extends AbstractNode {
+export class CallExpr extends DDLSchemaMixin(AbstractClassicExpr) {
 
     /* SYNTAX RULES */
 

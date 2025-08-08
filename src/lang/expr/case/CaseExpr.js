@@ -1,6 +1,7 @@
+import { TypeSysMixin } from '../../abstracts/TypeSysMixin.js';
 import { AbstractNodeList } from '../../abstracts/AbstractNodeList.js';
 
-export class CaseExpr extends AbstractNodeList {
+export class CaseExpr extends TypeSysMixin(AbstractNodeList) {
 
     /* DEFS */
 

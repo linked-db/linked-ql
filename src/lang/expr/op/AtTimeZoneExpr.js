@@ -1,4 +1,5 @@
 import { BinaryExpr } from './BinaryExpr.js';
+import { registry } from '../../registry.js';
 
 export class AtTimeZoneExpr extends BinaryExpr {
 
@@ -24,4 +25,8 @@ export class AtTimeZoneExpr extends BinaryExpr {
     left() { return this._get('left'); }
 
     right() { return this._get('right'); }
+
+    /* TYPESYS API */
+
+    dataType() { return registry.DataType.fromJSON({ value: 'TIME ZONE' }); }
 }

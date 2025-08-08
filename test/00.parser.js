@@ -44,7 +44,7 @@ export function $it(text, callback) {
     });
 }
 
-export async function testParseAndStringify(entryPoint, sql, options = {}, linkedDB = null) {
+export async function testParseAndStringify(entryPoint, sql, options = {}, linkedDb = null) {
     let nodeName = entryPoint;
     if (Array.isArray(entryPoint)) {
         [entryPoint, nodeName] = entryPoint;
@@ -59,7 +59,7 @@ export async function testParseAndStringify(entryPoint, sql, options = {}, linke
 
     let desugaredResultNode = resultNode;
     if (options.deSugar || options.toDialect) {
-        desugaredResultNode = resultNode.deSugar({ dialect: options.dialect, toDialect: options.toDialect }, null, linkedDB);
+        desugaredResultNode = resultNode.deSugar({ dialect: options.dialect, toDialect: options.toDialect }, null, { linkedDb });
     }
 
     log?.add({ entryPoint, nodeName, sql, options, resultNode, desugaredResultNode });
@@ -74,7 +74,7 @@ export async function testParseAndStringify(entryPoint, sql, options = {}, linke
 
     let desugaredResultClone = resultClone;
     if (options.deSugar || options.toDialect) {
-        desugaredResultClone = resultClone.deSugar({ dialect: options.dialect, toDialect: options.toDialect }, null, linkedDB);
+        desugaredResultClone = resultClone.deSugar({ dialect: options.dialect, toDialect: options.toDialect }, null, { linkedDb });
     }
 
     expect(

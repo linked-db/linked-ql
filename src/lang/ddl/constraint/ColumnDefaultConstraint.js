@@ -8,7 +8,7 @@ export class ColumnDefaultConstraint extends ConstraintSchema {
         return this.buildSyntaxRules([
             { type: 'keyword', value: 'DEFAULT' },
             { type: 'Expr', as: 'expr', assert: true, dialect: 'postgres' },
-            { type: ['NumberLiteral', 'StringLiteral', 'NullLiteral', 'BoolLiteral', 'CallExpr', 'SetConstructor'], as: 'expr', assert: true, dialect: 'mysql' },
+            { type: ['NumberLiteral', 'StringLiteral', 'NullLiteral', 'BoolLiteral', 'CallExpr', 'RowConstructor'], as: 'expr', assert: true, dialect: 'mysql' },
         ]);
     }
 

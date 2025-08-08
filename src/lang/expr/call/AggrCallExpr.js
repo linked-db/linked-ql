@@ -58,7 +58,7 @@ export class AggrCallExpr extends CallExpr {
                         type: 'paren_block',
                         syntax: [
                             { dialect: 'postgres', type: 'StarRef', as: 'arguments', arity: 1, assert: false/* note: to give syntax2 a chance */, itemSeparator },
-                            { dialect: 'mysql', type: 'StarRef', as: 'arguments', arity: { max: 1 }, assert: false/* note: to give syntax2 a chance */, itemSeparator, optional: true }
+                            { dialect: 'mysql', type: 'StarRef', as: 'arguments', arity: Infinity, assert: false/* note: to give syntax2 a chance */, itemSeparator, optional: true }
                         ],
                         autoSpacing: false,
                     },

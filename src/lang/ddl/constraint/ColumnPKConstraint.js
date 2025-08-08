@@ -7,7 +7,7 @@ export class ColumnPKConstraint extends ConstraintSchema {
 
     static get syntaxRules() {
         return this.buildSyntaxRules([
-            { type: 'keyword', as: '.', value: 'PRIMARY' },
+            { type: 'keyword', value: 'PRIMARY' },
             { type: 'keyword', value: 'KEY', assert: true },
             { type: 'PGIndexParameters', as: 'pg_index_parameters', optional: true, dialect: 'postgres' },
         ]);
@@ -23,7 +23,7 @@ export class ColumnPKConstraint extends ConstraintSchema {
 
     columns() {
         return this.parentNode instanceof registry.ColumnSchema
-            ? [registry.ColumnNameRef.fromJSON({ value: this.parentNode.name().value() })]
+            ? [registry.ColumnRef2.fromJSON({ value: this.parentNode.name().value() })]
             : [];
     }
 }

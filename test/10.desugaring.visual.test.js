@@ -4,7 +4,7 @@ import { LinkedDB } from '../src/db/LinkedDB.js';
 import { registry } from '../src/lang/registry.js';
 
 // Select list being an object
-// PGArrayLiteral|LQObjectLiteral|LQArrayLiteral|LQObjectProperty|SelectElement - with [],
+// PGTypedArrayLiteral|LQObjectLiteral|LQArrayLiteral|LQObjectProperty|SelectElement - with [],
 // SchemaRef | TableRef @version_specs
 
 // IdentifierPath (fullyQualified),
@@ -64,37 +64,37 @@ $describe('Parser - Expr DeSugaring', () => {
         });
     });
 
-    $describe('PGArrayLiteral', () => {
-        $it('should parse an "PGArrayLiteral" expr toDialect: mysql', async () => {
+    $describe('PGTypedArrayLiteral', () => {
+        $it('should parse an "PGTypedArrayLiteral" expr toDialect: mysql', async () => {
             const inputSql = `ARRAY['value1', 'value2']`;
             const outputSql = `JSON_ARRAY('value1', 'value2')`;
-            await testParseAndStringify('PGArrayLiteral', [inputSql, outputSql], { toDialect: 'mysql' });
+            await testParseAndStringify('PGTypedArrayLiteral', [inputSql, outputSql], { toDialect: 'mysql' });
         });
     });
 
     $describe('SelectElement', () => {
         $it('should parse an "SelectElement" expr with an aggregation syntax - Postgres', async () => {
-            const inputSql = `col AS alias[]`;
-            const outputSql = `JSON_AGG(col) AS alias`;
-            await testParseAndStringify('SelectElement', [inputSql, outputSql], { toDialect: 'postgres' });
+            const inputSql = `SELECT col AS alias[]`;
+            const outputSql = `SELECT JSON_AGG(col) AS alias`;
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { toDialect: 'postgres' });
         });
 
         $it('should parse an "SelectElement" expr with an aggregation syntax - MySQL', async () => {
-            const inputSql = `col AS alias[]`;
-            const outputSql = `JSON_ARRAYAGG(col) AS alias`;
-            await testParseAndStringify('SelectElement', [inputSql, outputSql], { toDialect: 'mysql' });
+            const inputSql = `SELECT col AS alias[]`;
+            const outputSql = `SELECT JSON_ARRAYAGG(col) AS alias`;
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { toDialect: 'mysql' });
         });
 
         $it('should parse an "SelectElement" expr with an aggregation syntax - Postgres', async () => {
-            const inputSql = `col + 1 - 3 alias[]`;
-            const outputSql = `JSON_AGG(col + 1 - 3) alias`;
-            await testParseAndStringify('SelectElement', [inputSql, outputSql], { toDialect: 'postgres' });
+            const inputSql = `SELECT col + 1 - 3 alias[]`;
+            const outputSql = `SELECT JSON_AGG(col + 1 - 3) alias`;
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { toDialect: 'postgres' });
         });
 
         $it('should parse an "SelectElement" expr with an aggregation syntax - MySQL', async () => {
-            const inputSql = `col + 1 - 3 alias[]`;
-            const outputSql = `JSON_ARRAYAGG(col + 1 - 3) alias`;
-            await testParseAndStringify('SelectElement', [inputSql, outputSql], { toDialect: 'mysql' });
+            const inputSql = `SELECT col + 1 - 3 alias[]`;
+            const outputSql = `SELECT JSON_ARRAYAGG(col + 1 - 3) alias`;
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { toDialect: 'mysql' });
         });
     });
 
@@ -139,14 +139,14 @@ $describe('Parser - Expr DeSugaring', () => {
 
 $describe('Parser - Refs Resolution Using a Test Linked DB Instance', () => {
 
-    let linkedDB;
+    let linkedDb;
 
-    $it('should establish the linkedDB object with test catalog', async () => {
+    $it('should establish the linkedDb object with test catalog', async () => {
         const { catalog } = await import('./01.catalog.parser.js');
-        linkedDB = new LinkedDB({ catalog });
+        linkedDb = new LinkedDB({ catalog });
 
         /*
-        const tblSchemaUsers = [...linkedDB.catalog].find((s) => s.name().value() === 'public')._get('entries', 'users');
+        const tblSchemaUsers = [...linkedDb.catalog].find((s) => s.name().value() === 'public')._get('entries', 'users');
         const emailColumn = tblSchemaUsers._get('entries', 'email');
         const passwordHashColumn = tblSchemaUsers._get('entries', 'password_hash');
         console.log([
@@ -160,127 +160,180 @@ $describe('Parser - Refs Resolution Using a Test Linked DB Instance', () => {
         $it('should parse a bare "TableRef" to a fully-qualified TableRef', async () => {
             const inputSql = `users`;
             const outputSql = `public.users`;
-            await testParseAndStringify('TableRef', [inputSql, outputSql], { deSugar: true }, linkedDB);
+            await testParseAndStringify('TableRef', [inputSql, outputSql], { deSugar: true }, linkedDb);
         });
 
         $it('should parse an in-query bare "TableRef" to a fully-qualified TableRef', async () => {
             const inputSql = `SELECT * FROM users`;
             const outputSql = `SELECT * FROM public.users`;
-            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true }, linkedDB);
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true }, linkedDb);
         });
     });
 
     $describe('ColumnRef', () => {
-        $it('should parse a bare "ColumnRef" to a fully-qualified ColumnRef', async () => {
+        $it('should parse and fully-qualify a bare "ColumnRef"', async () => {
             const inputSql = `username`;
             const outputSql = `public.users.username`;
-            await testParseAndStringify('ColumnRef', [inputSql, outputSql], { deSugar: true }, linkedDB);
+            await testParseAndStringify('ColumnRef', [inputSql, outputSql], { deSugar: true }, linkedDb);
         });
 
-        $it('should parse an in-query bare "ColumnRef" to a fully-qualified ColumnRef', async () => {
+        $it('should parse and fully-qualify an in-query bare "ColumnRef"', async () => {
             const inputSql = `SELECT username FROM users`;
             const outputSql = `SELECT users.username FROM public.users`;
-            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true }, linkedDB);
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true }, linkedDb);
         });
 
-        $it('should parse an in-query bare "ColumnRef" to a fully-qualified ColumnRef', async () => {
+        $it('should parse and fully-qualify an in-query bare "ColumnRef"', async () => {
             const inputSql = `SELECT id FROM orders AS o`;
             const outputSql = `SELECT o.id FROM public.orders AS o`;
-            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true }, linkedDB);
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true }, linkedDb);
         });
     });
 
     $describe('LQDeepRef', () => {
-        $it('should parse an in-query "LQDeepRef" to a fully-resolved ColumnRef', async () => {
+        $it('should parse and deSugar an in-query "LQDeepRef"', async () => {
             const inputSql =
                 `SELECT
   id, user ~> email 
   FROM orders AS o`;
             const outputSql = `SELECT o.id, "$join0"."$ref0" FROM public.orders AS o LEFT JOIN (SELECT users.id AS "$key0", users.email AS "$ref0" FROM public.users) AS "$join0" ON o.user = "$join0"."$key0"`;
-            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDB);
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDb);
         });
 
-        $it('should parse an in-query "LQDeepRef" to a fully-resolved ColumnRef', async () => {
+        $it('should parse and deSugar an in-query "LQDeepRef"', async () => {
             const inputSql =
                 `SELECT
-  id, parent_order ~> parent_order ~> status 
+  id, parent_order ~> parent_order ~> status
   FROM orders AS o`;
             const outputSql = `SELECT o.id, "$join0"."$ref0" FROM public.orders AS o LEFT JOIN (SELECT orders.id AS "$key0", "$join1"."$ref1" AS "$ref0" FROM public.orders LEFT JOIN (SELECT orders.id AS "$key1", orders.status AS "$ref1" FROM public.orders) AS "$join1" ON orders.parent_order = "$join1"."$key1") AS "$join0" ON o.parent_order = "$join0"."$key0"`;
-            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDB);
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDb);
         });
 
-        $it('should parse multiple in-query "LQDeepRef" to a fully-resolved ColumnRef - multiple but resolved from a shared JOIN', async () => {
+        $it('should parse and deSugar multiple in-query "LQDeepRef" - multiple but resolved from a shared JOIN', async () => {
             const inputSql =
                 `SELECT
-  id, parent_order ~> parent_order ~> status, parent_order ~> parent_order
+  id,
+  parent_order ~> parent_order ~> status,
+  parent_order ~> parent_order
   FROM orders AS o`;
             const outputSql = `SELECT o.id, "$join0"."$ref0", "$join0"."$ref1" FROM public.orders AS o LEFT JOIN (SELECT orders.id AS "$key0", "$join1"."$ref2" AS "$ref0", "$join1"."$ref3" AS "$ref1" FROM public.orders LEFT JOIN (SELECT orders.id AS "$key1", orders.status AS "$ref2", orders.status AS "$ref3" FROM public.orders) AS "$join1" ON orders.parent_order = "$join1"."$key1") AS "$join0" ON o.parent_order = "$join0"."$key0"`;
-            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDB);
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDb);
+        });
+
+        $it('should parse and deSugar a subquery-level "LQDeepRef"', async () => {
+            const inputSql =
+                `SELECT
+  id, u.parent_user ~> email AS outerParentEmail, innerParentEmail
+  FROM orders AS o
+  CROSS JOIN (SELECT parent_user, parent_user ~> email AS innerParentEmail
+      FROM users) AS u`;
+            const outputSql = `SELECT o.id, "$join0"."$ref0" AS outerParentEmail, u.innerParentEmail FROM public.orders AS o CROSS JOIN (SELECT users.parent_user, "$join1"."$ref1" AS innerParentEmail FROM public.users LEFT JOIN (SELECT users.id AS "$key1", users.email AS "$ref1" FROM public.users) AS "$join1" ON users.parent_user = "$join1"."$key1") AS u LEFT JOIN (SELECT users.id AS "$key0", users.email AS "$ref0" FROM public.users) AS "$join0" ON u.parent_user = "$join0"."$key0"`;
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDb);
+        });
+
+        $it('should parse and deSugar a subquery-derived "LQDeepRef"', async () => {
+            const inputSql =
+                `SELECT
+  id, u.parent ~> email AS outerParentEmail, innerParentEmail
+  FROM orders AS o
+  CROSS JOIN (SELECT parent_user AS parent, parent_user ~> email AS innerParentEmail
+      FROM users) AS u`;
+            const outputSql = `SELECT o.id, "$join0"."$ref0" AS outerParentEmail, u.innerParentEmail FROM public.orders AS o CROSS JOIN (SELECT users.parent_user AS parent, "$join1"."$ref1" AS innerParentEmail FROM public.users LEFT JOIN (SELECT users.id AS "$key1", users.email AS "$ref1" FROM public.users) AS "$join1" ON users.parent_user = "$join1"."$key1") AS u LEFT JOIN (SELECT users.id AS "$key0", users.email AS "$ref0" FROM public.users) AS "$join0" ON u.parent = "$join0"."$key0"`;
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDb);
+        });
+
+        $it('should parse and deSugar a superquery-derived (LATERAL) "LQDeepRef"', async () => {
+            globalThis.testMode = true;
+            const inputSql =
+                `SELECT
+  id, parent_user ~> email AS outerParentEmail, parent_order, innerParentEmail
+  FROM users AS u
+  CROSS JOIN LATERAL (SELECT parent_order, parent_user ~> id AS innerParentEmail
+      FROM orders) AS o`;
+            const outputSql = `SELECT o.id, "$join0"."$ref0" AS outerParentEmail FROM public.orders AS o CROSS JOIN (SELECT users.parent_user AS parent, "$join1"."$ref1" AS innerParentEmail FROM public.users LEFT JOIN (SELECT users.id AS "$key1", users.email AS "$ref1" FROM public.users) AS "$join1" ON users.parent_user = "$join1"."$key1") AS u LEFT JOIN (SELECT users.id AS "$key0", users.email AS "$ref0" FROM public.users) AS "$join0" ON u.parent = "$join0"."$key0"`;
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDb);
+            globalThis.testMode = false;
         });
     });
 
     $describe('LQBackRef', () => {
-        $it('should parse an in-query "(Back) LQDeepRef" to a fully-resolved ColumnRef', async () => {
+        $it('should parse and deSugar an in-query "(Back) LQDeepRef"', async () => {
             const inputSql =
                 `SELECT
   id, (parent_order <~ orders) ~> status
   FROM orders AS o`;
             const outputSql = `SELECT o.id, "$join0"."$ref0" FROM public.orders AS o LEFT JOIN (SELECT orders.parent_order AS "$key0", orders.status AS "$ref0" FROM public.orders) AS "$join0" ON orders.id = "$join0"."$key0"`;
-            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDB);
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDb);
         });
 
-        $it('should parse an in-query "(Back Back) LQDeepRef" to a fully-resolved ColumnRef', async () => {
+        $it('should parse and deSugar an in-query "(Back) LQDeepRef" with an aggregation syntax', async () => {
+            const inputSql =
+                `SELECT
+  id, (parent_order <~ orders) ~> status AS status[]
+  FROM orders AS o`;
+            const outputSql = `SELECT o.id, "$join0"."$ref0" AS status FROM public.orders AS o LEFT JOIN (SELECT orders.parent_order AS "$key0", (JSON_AGG(orders.status)) AS "$ref0" FROM public.orders GROUP BY "$key0") AS "$join0" ON orders.id = "$join0"."$key0"`;
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDb);
+        });
+
+        $it('should parse and deSugar an in-query "(Back Back) LQDeepRef"', async () => {
             const inputSql =
                 `SELECT
   id, (parent_order <~ parent_order <~ orders) ~> status
   FROM orders AS o`;
             const outputSql = `SELECT o.id, "$join0"."$ref0" FROM public.orders AS o LEFT JOIN (SELECT "$join1"."$ref1" AS "$key0", orders.status AS "$ref0" FROM public.orders LEFT JOIN (SELECT orders.id AS "$key1", orders.parent_order AS "$ref1" FROM public.orders) AS "$join1" ON orders.parent_order = "$join1"."$key1") AS "$join0" ON orders.id = "$join0"."$key0"`;
-            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDB);
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDb);
         });
 
-        $it('should parse an in-query "(Back) LQDeepRef" being column qualifier to a fully-resolved ColumnRef', async () => {
+        $it('should parse and deSugar an in-query "(Back) LQDeepRef" being column qualifier', async () => {
             const inputSql =
                 `SELECT
   id, (parent_order <~ orders).status
   FROM orders AS o`;
-            const outputSql = `SELECT o.id, "$join0".status FROM public.orders AS o LEFT JOIN (SELECT orders.parent_order AS "$key0" FROM public.orders) AS "$join0" ON orders.id = "$join0"."$key0"`;
-            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDB);
+            const outputSql = `SELECT o.id, "$join0"."$ref0" FROM public.orders AS o LEFT JOIN (SELECT orders.parent_order AS "$key0", orders.status AS "$ref0" FROM public.orders) AS "$join0" ON orders.id = "$join0"."$key0"`;
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDb);
         });
 
-        $it('should parse an in-query "(Back Back) LQDeepRef" being column qualifier to a fully-resolved ColumnRef', async () => {
+        $it('should parse and deSugar an in-query "(Back Back) LQDeepRef" being column qualifier', async () => {
             const inputSql =
                 `SELECT
   id, (parent_order <~ parent_order <~ orders).status
   FROM orders AS o`;
-            const outputSql = `SELECT o.id, "$join0".status FROM public.orders AS o LEFT JOIN (SELECT "$join1"."$ref0" AS "$key0" FROM public.orders LEFT JOIN (SELECT orders.id AS "$key1", orders.parent_order AS "$ref0" FROM public.orders) AS "$join1" ON orders.parent_order = "$join1"."$key1") AS "$join0" ON orders.id = "$join0"."$key0"`;
-            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDB);
+            const outputSql = `SELECT o.id, "$join0"."$ref0" FROM public.orders AS o LEFT JOIN (SELECT "$join1"."$ref1" AS "$key0", orders.status AS "$ref0" FROM public.orders LEFT JOIN (SELECT orders.id AS "$key1", orders.parent_order AS "$ref1" FROM public.orders) AS "$join1" ON orders.parent_order = "$join1"."$key1") AS "$join0" ON orders.id = "$join0"."$key0"`;
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDb);
         });
 
-        $it('should parse multiple in-query "(Back Back) LQDeepRef" being column qualifier to a fully-resolved ColumnRef - multiple but resolved from a shared JOIN', async () => {
+        $it('should parse and deSugar multiple in-query "(Back Back) LQDeepRef" being column qualifier - multiple but resolved from a shared JOIN', async () => {
             const inputSql =
                 `SELECT
-  id, (parent_order <~ parent_order <~ orders).status as status, (parent_order <~ parent_order <~ orders).status
+  id,
+  (parent_order <~ parent_order <~ orders).status AS status,
+  (parent_order <~ parent_order <~ orders).status
   FROM orders AS o`;
-            const outputSql = `SELECT o.id, "$join0".status AS status, "$join0".status FROM public.orders AS o LEFT JOIN (SELECT "$join1"."$ref0" AS "$key0" FROM public.orders LEFT JOIN (SELECT orders.id AS "$key1", orders.parent_order AS "$ref0" FROM public.orders) AS "$join1" ON orders.parent_order = "$join1"."$key1") AS "$join0" ON orders.id = "$join0"."$key0"`;
-            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDB);
+            const outputSql = `SELECT o.id, "$join0"."$ref0" AS status, "$join0"."$ref1" FROM public.orders AS o LEFT JOIN (SELECT "$join1"."$ref2" AS "$key0", orders.status AS "$ref0", orders.status AS "$ref1" FROM public.orders LEFT JOIN (SELECT orders.id AS "$key1", orders.parent_order AS "$ref2" FROM public.orders) AS "$join1" ON orders.parent_order = "$join1"."$key1") AS "$join0" ON orders.id = "$join0"."$key0"`;
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDb);
         });
 
-        $it('should parse multiple in-query "(Back Back) LQDeepRef" being column qualifier to a fully-resolved ColumnRef - multiple and resolved from distinct JOINS', async () => {
+        $it('should parse and deSugar multiple in-query "(Back Back) LQDeepRef" being column qualifier - multiple and resolved from distinct JOINS', async () => {
             const inputSql =
                 `SELECT
-  id, (parent_order <~ parent_order <~ orders).status as status[], (parent_order <~ parent_order <~ orders).status
+  id,
+  (parent_order <~ parent_order <~ orders).status AS status[],
+  (parent_order <~ parent_order <~ orders).status
   FROM orders AS o`;
-            const outputSql = `SELECT o.id, JSON_AGG("$join0".status) AS status, "$join1".status FROM public.orders AS o LEFT JOIN (SELECT "$join2"."$ref0" AS "$key0" FROM public.orders LEFT JOIN (SELECT orders.id AS "$key2", orders.parent_order AS "$ref0" FROM public.orders) AS "$join2" ON orders.parent_order = "$join2"."$key2" GROUP BY "$key0") AS "$join0" ON orders.id = "$join0"."$key0" LEFT JOIN (SELECT "$join3"."$ref1" AS "$key1" FROM public.orders LEFT JOIN (SELECT orders.id AS "$key3", orders.parent_order AS "$ref1" FROM public.orders) AS "$join3" ON orders.parent_order = "$join3"."$key3") AS "$join1" ON orders.id = "$join1"."$key1"`;
-            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDB);
+            const outputSql = `SELECT o.id, "$join0"."$ref0" AS status, "$join1"."$ref1" FROM public.orders AS o LEFT JOIN (SELECT "$join2"."$ref2" AS "$key0", (JSON_AGG(orders.status)) AS "$ref0" FROM public.orders LEFT JOIN (SELECT orders.id AS "$key2", orders.parent_order AS "$ref2" FROM public.orders) AS "$join2" ON orders.parent_order = "$join2"."$key2" GROUP BY "$key0") AS "$join0" ON orders.id = "$join0"."$key0" LEFT JOIN (SELECT "$join3"."$ref3" AS "$key1", orders.status AS "$ref1" FROM public.orders LEFT JOIN (SELECT orders.id AS "$key3", orders.parent_order AS "$ref3" FROM public.orders) AS "$join3" ON orders.parent_order = "$join3"."$key3") AS "$join1" ON orders.id = "$join1"."$key1"`;
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDb);
         });
 
-        $it('should parse multiple in-query "(Back Back) LQDeepRef" being column qualifier to a fully-resolved ColumnRef - multiple and resolved from distinct JOINS', async () => {
+        $it('should parse and deSugar multiple in-query "(Back Back) LQDeepRef" being column qualifier - multiple and resolved from distinct JOINS', async () => {
             const inputSql =
                 `SELECT
-  id, (parent_order <~ parent_order <~ orders).status as status[], (parent_order <~ parent_order <~ orders).order_total as order_total[], (parent_order <~ parent_order <~ orders).status
+  id,
+  (parent_order <~ parent_order <~ orders).status AS status[],
+  (parent_order <~ parent_order <~ orders).order_total as order_total[],
+  (parent_order <~ parent_order <~ orders).status
   FROM orders AS o`;
-            const outputSql = `SELECT o.id, JSON_AGG("$join0".status) AS status, JSON_AGG("$join0".order_total) AS order_total, "$join1".status FROM public.orders AS o LEFT JOIN (SELECT "$join2"."$ref0" AS "$key0" FROM public.orders LEFT JOIN (SELECT orders.id AS "$key2", orders.parent_order AS "$ref0" FROM public.orders) AS "$join2" ON orders.parent_order = "$join2"."$key2" GROUP BY "$key0") AS "$join0" ON orders.id = "$join0"."$key0" LEFT JOIN (SELECT "$join3"."$ref1" AS "$key1" FROM public.orders LEFT JOIN (SELECT orders.id AS "$key3", orders.parent_order AS "$ref1" FROM public.orders) AS "$join3" ON orders.parent_order = "$join3"."$key3") AS "$join1" ON orders.id = "$join1"."$key1"`;
-            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDB);
+            const outputSql = `SELECT o.id, "$join0"."$ref0" AS status, "$join0"."$ref1" AS order_total, "$join1"."$ref2" FROM public.orders AS o LEFT JOIN (SELECT "$join2"."$ref3" AS "$key0", (JSON_AGG(orders.status)) AS "$ref0", (JSON_AGG(orders.status)) AS "$ref1" FROM public.orders LEFT JOIN (SELECT orders.id AS "$key2", orders.parent_order AS "$ref3" FROM public.orders) AS "$join2" ON orders.parent_order = "$join2"."$key2" GROUP BY "$key0") AS "$join0" ON orders.id = "$join0"."$key0" LEFT JOIN (SELECT "$join3"."$ref4" AS "$key1", orders.status AS "$ref2" FROM public.orders LEFT JOIN (SELECT orders.id AS "$key3", orders.parent_order AS "$ref4" FROM public.orders) AS "$join3" ON orders.parent_order = "$join3"."$key3") AS "$join1" ON orders.id = "$join1"."$key1"`;
+            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, linkedDb);
         });
     });
 });

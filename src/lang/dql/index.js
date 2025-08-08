@@ -1,5 +1,5 @@
-export * from './constructors/index.js';
-export * from './constructs/index.js';
+export * from './clauses/index.js';
+export * from './TA/index.js';
 export { CompleteSelectStmt } from './CompleteSelectStmt.js';
 export { BasicSelectStmt } from './BasicSelectStmt.js';
 export { CompositeSelectStmt } from './CompositeSelectStmt.js';

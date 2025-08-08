@@ -1,3 +1,4 @@
+import { LinkedDB } from '../src/db/LinkedDB.js';
 import { Query } from '../src/lang/Query.js';
 import { TokenStream } from '../src/lang/TokenStream.js';
 import '../src/lang/index.js';
@@ -24,9 +25,10 @@ SELECT table_schema, table_name
 FROM information_schema.tables
 WHERE table_type = 'BASE TABLE' AND table_schema NOT IN ('pg_catalog', 'information_schema');`;
 //console.log('________________________', (await client.query(dbsSQL)).rows);
-console.log('________________________', (await client.query('SELECT datname AS f FROM pg_database AS t ORDER BY t.datname LIMIT 2')).rows);
-*/
+//console.log('________________________tables', (await client.query(`SELECT * FROM information_schema.tables`)).rows);
+console.log('________________________', (await client.query(`SELECT *, datname || datname AS r FROM pg_database AS p WHERE datacl IN (SELECT datacl FROM information_schema.tables)`)).rows);
 
+*/
 
 let sql;
 //sql = 'cccc <~ bbbb <~ tbl ~> col2 ~> col2 ~> col2 ~> col2';
@@ -126,7 +128,7 @@ FOR UPDATE SKIP LOCKED;
 TABLE public.users *;
 `;
 
-sql = `SELECT username FROM users AS u`;
+sql = `SELECT id from users`;
 
 //
 /*
@@ -137,16 +139,30 @@ for await (const f of dd) {
     console.log(f);
 }
 process.exit();
-
 */
+
 
 let t1b;
 //t1b = await Query.parse(sql, { assert: new RegExp(`COLUMN_REF\\.0\\.syntaxes\\.0\\.0<qufalifier>\\.`) });
-t1b = await registry['SelectStmt'].parse(sql, { assert: false, dialect: 'mysql', prettyPrint: true, autoLineBreakThreshold: 40000 });
-console.log('______________::::', t1b.clone({ deSugar: true })?.stringify?.());
+t1b = await registry['SelectStmt'].parse(sql, { assert_: /ORDER/, dialect: 'postgres', prettyPrint: true, autoLineBreakThreshold: 40000 });
+
+
 
 for (const t of [t1b]) {
-  console.log(t, '----------', normalizeSql(sql).toUpperCase() === t?.stringify?.().toUpperCase(), t.clone({ deSugar: true })?.stringify?.(), '----------', t?.jsonfy?.()/**/);
+
   console.log('\n\n\n\n+++++++++++++++++++++++++++\n\n\n\n');
-  console.log(t?.constructor?.fromJSON(t?.jsonfy?.(), t?.options).stringify?.({ prettyPrint: true, autoLineBreakThreshold: 6 }));
+
+  const resultClassic = t?.stringify();
+
+  const { catalog } = await import('./01.catalog.parser.js');
+  console.log({ catalog })
+  const linkedDb = new LinkedDB({ catalog });
+  const cloneDeSugared = t?.deSugar({}, null, linkedDb);
+  const resultDeSugared = cloneDeSugared?.stringify?.();
+
+  const cloneNode = t?.constructor?.fromJSON(t?.jsonfy?.(), t?.options);
+  const resultPretty = cloneNode?.stringify?.({ prettyPrint: true, autoLineBreakThreshold: 6 });
+
+
+  console.log({ resultClassic, resultDeSugared, resultPretty, resultSchema: cloneDeSugared?.ddlSchema() });
 }

@@ -5,7 +5,7 @@ export class CompositeSelectStmt extends SelectStmt {
     /* SYNTAX RULES */
 
     static get syntaxRules() {
-        const setTypes = ['SubqueryConstructor', 'ValuesSetConstructor', 'ParenShape', 'BasicSelectStmt', 'CallExpr'];
+        const setTypes = ['DerivedQuery', 'ValuesTableLiteral', 'ParenExpr', 'BasicSelectStmt', 'CallExpr'];
         return [
             { type: setTypes.concat('CompleteSelectStmt'), as: 'left' },
             { type: 'operator', as: 'operator', value: ['INTERSECT', 'UNION', 'EXCEPT'], autoSpacing: '\n' },
@@ -29,7 +29,7 @@ export class CompositeSelectStmt extends SelectStmt {
     right() { return this._get('right'); }
 
     // --------
-    
+
     orderByClause() { return this._get('order_by_clause'); }
 
     offsetClause() { return this._get('offset_clause'); }
@@ -48,14 +48,9 @@ export class CompositeSelectStmt extends SelectStmt {
 
     [Symbol.iterator]() { return (this.left()?.selectList() || [])[Symbol.iterator](); }
 
-	/* SCHEMA API */
+    /* SCHEMA API */
 
-	querySchemas() {
-        const entries = [];
-        for (const stmt of [this.left(), this.right()]) {
-            if (!stmt) continue;
-            entries.push(...stmt.querySchemas().entries())
-        }
-		return new Map(entries);
-	}
+    ddlSchema() {
+        return this.left()?.ddlSchema();
+    }
 }

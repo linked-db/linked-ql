@@ -19,7 +19,7 @@ export class DeleteStmt extends SelectorStmtMixin(
                         dialect: 'postgres',
                         syntax: [
                             { type: 'keyword', value: 'FROM' },
-                            { type: 'BasicTableExpr', as: 'table_expr' },
+                            { type: 'TableAbstraction2', as: 'table_expr' },
                             { type: 'UsingFromClause', as: 'using_clause', optional: true, autoIndent: true },
                             { type: 'JoinClause', as: 'join_clauses', arity: Infinity, optional: true, autoIndent: true },
                             { type: ['PGWhereCurrentClause', 'WhereClause'], as: 'where_clause', optional: true, autoIndent: true },
@@ -29,7 +29,7 @@ export class DeleteStmt extends SelectorStmtMixin(
                     {
                         dialect: 'mysql',
                         syntax: [
-                            { type: 'MYStarrableBasicTableExpr', as: 'my_delete_list', arity: { min: 1 }, itemSeparator },
+                            { type: 'TableAbstraction1', as: 'my_delete_list', arity: { min: 1 }, itemSeparator },
                             { type: 'FromClause', as: 'my_from_clause', autoIndent: true },
                             { type: 'JoinClause', as: 'join_clauses', arity: Infinity, optional: true, autoIndent: true },
                             { type: 'WhereClause', as: 'where_clause', optional: true, autoIndent: true },
@@ -39,7 +39,7 @@ export class DeleteStmt extends SelectorStmtMixin(
                         dialect: 'mysql',
                         syntax: [
                             { type: 'keyword', value: 'FROM' },
-                            { type: 'MYStarrableBasicTableExpr', as: 'my_delete_list', arity: { min: 1 }, itemSeparator },
+                            { type: 'TableAbstraction1', as: 'my_delete_list', arity: { min: 1 }, itemSeparator },
                             { type: 'UsingFromClause', as: 'using_clause', autoIndent: true },
                             { type: 'JoinClause', as: 'join_clauses', arity: Infinity, optional: true, autoIndent: true },
                             { type: 'WhereClause', as: 'where_clause', optional: true, autoIndent: true },
@@ -49,7 +49,7 @@ export class DeleteStmt extends SelectorStmtMixin(
                         dialect: 'mysql',
                         syntax: [
                             { type: 'keyword', value: 'FROM' },
-                            { type: 'BasicTableExpr', as: 'table_expr' },
+                            { type: 'TableAbstraction2', as: 'table_expr' },
                             { type: 'MYPartitionClause', as: 'my_partition_clause', optional: true, autoIndent: true },
                             { type: 'WhereClause', as: 'where_clause', optional: true, autoIndent: true },
                             { type: 'OrderByClause', as: 'my_order_by_clause', optional: true, dialect: 'mysql', autoIndent: true },
@@ -90,76 +90,100 @@ export class DeleteStmt extends SelectorStmtMixin(
     /* SCHEMA API */
 
     querySchemas() {
-        const entries = [];
+        // Literally inherit inheritedQuerySchemas
+        inheritedQuerySchemas = new Set(inheritedQuerySchemas || []);
+
+        const resultSchemas = new Set;
+
+        const deriveSchema = (aliasName, tableRef) => {
+            const alias = registry.Identifier.fromJSON({ value: aliasName });
+            const tableSchema = tableRef.ddlSchema(transformer).clone({ renameTo: alias });
+            inheritedQuerySchemas.add(tableSchema);
+            resultSchemas.add(tableSchema);
+        };
+
         if (this.tableExpr()) {
             // Syntaxes 1 & 4
             const tableExpr = this.tableExpr();
             const tableRef = tableExpr.tableRef();
-            const alias = tableExpr.alias()?.value() || tableRef.value();
-            entries.push([alias, tableRef]);
+            deriveSchema(
+                tableExpr.alias()?.value() || tableRef.value(),
+                tableRef
+            );
         } else if (this.myDeleteList()?.length) {
             // Syntaxes 2 & 3
             for (const myDeleteExpr of this.myDeleteList()) {
                 const tableRef = myDeleteExpr.tableRef();
-                const alias = tableRef.value();
-                entries.push([alias, tableRef]);
+                deriveSchema(
+                    tableRef.value(),
+                    tableRef
+                );
             }
         }
+
         if (this.usingClause()) {
             // Syntaxes 1 & 3
             for (const fromElement of this.usingClause()) {
-                const fromExpr = fromElement.expr(); // TableRef or SubqueryConstructor, etc.
-                const alias = fromElement.alias()?.value() || fromExpr.value();
-                entries.push([alias, fromExpr]);
+                const fromExpr = fromElement.expr(); // TableRef1 or DerivedQuery, etc.
+                deriveSchema(
+                    fromElement.alias()?.value() || fromExpr.value(),
+                    fromExpr
+                );
             }
         } else if (this.myFromClause()) {
             // Syntax 2
             for (const fromElement of this.myFromClause()) {
                 const fromExpr = fromElement.expr();
-                const alias = fromElement.alias()?.value() || fromExpr.value();
-                entries.push([alias, fromExpr]);
+                deriveSchema(
+                    fromElement.alias()?.value() || fromExpr.value(),
+                    fromExpr
+                );
             }
         }
+
         if (this.joinClauses()) {
             // Syntax 1, 2, & 3
             for (const fromElement of this.joinClauses()) {
-                const fromExpr = fromElement.expr(); // TableRef or SubqueryConstructor, etc.
-                const alias = fromElement.alias()?.value() || fromExpr.value();
-                entries.push([alias, fromExpr]);
+                const fromExpr = fromElement.expr(); // TableRef1 or DerivedQuery, etc.
+                deriveSchema(
+                    fromElement.alias()?.value() || fromExpr.value(),
+                    fromExpr
+                );
             }
         }
-        return new Map(entries);
+
+        return resultSchemas;
     }
 
     /* DESUGARING API */
 
-    jsonfy(options = {}, transformCallback = null, linkedDB = null) {
+    jsonfy(options = {}, linkedContext = null, linkedDb = null) {
         if (options.deSugar) {
             const rands = options.rands || new Map;
             const hashes = new Map;
             options = { ...options, rands, hashes };
         }
-        return super.jsonfy(options, transformCallback, linkedDB);
+        return super.jsonfy(options, linkedContext, linkedDb);
     }
 
-    applySelectorDimensions(resultJson, selectorDimensions, options, linkedDb = null) {
+    applySelectorDimensions(resultJson, selectorDimensions, options, linkedContext = null, linkedDb = null) {
         // This is Postgres-specific
         if (this.options.dialect !== 'postgres') {
-            return super/* SelectorStmtMixin */.applySelectorDimensions(resultJson, selectorDimensions, options, linkedDb);
+            return super/* SelectorStmtMixin */.applySelectorDimensions(resultJson, selectorDimensions, options, linkedContext, linkedDb);
         }
 
         const {
-            FromElement,
-            BasicTableExpr,
-            TableRef,
+            TableAbstraction3,
+            TableAbstraction2,
             BasicAlias,
             CompositeAlias,
-            TableAbstractionRef,
-            ColumnRef,
-            SelectElement,
+            TableRef2,
+            TableRef1,
+            ColumnRef1,
+            SelectItem,
             FromClause,
             CompleteSelectStmt,
-            SubqueryConstructor,
+            DerivedQuery,
             BinaryExpr,
         } = registry;
 
@@ -176,40 +200,40 @@ export class DeleteStmt extends SelectorStmtMixin(
         const tblAliasOriginal = resultJson.table_expr.alias ? resultJson.table_expr.alias.value : resultJson.table_expr.name.value;
         const tblAliasRewrite = `${rand}::${tblAliasOriginal}`;
         const whereClauseOriginal = resultJson.where_clause;
-        const pk = this.table().deriveSchema(linkedDb)/* TableSchema */.pkConstraint(true)?.columns()[0];
+        const pk = this.table().ddlSchema(transformer, true)/* TableSchema */.pkConstraint(true)?.columns()[0];
         if (!pk) throw new Error(``);
 
         // The re-write...
         resultJson = {
             ...resultJson,
             table_expr: {
-                nodeName: BasicTableExpr.NODE_NAME,
-                name: { nodeName: TableRef.NODE_NAME, value: tblRefOriginal },
+                nodeName: TableAbstraction2.NODE_NAME,
+                name: { nodeName: TableRef2.NODE_NAME, value: tblRefOriginal },
                 alias: { nodeName: BasicAlias.NODE_NAME, value: tblAliasRewrite }
             },
             where_clause: {
                 nodeName: BinaryExpr.NODE_NAME,
                 left: {
-                    nodeName: ColumnRef.NODE_NAME,
-                    qualifier: { nodeName: TableAbstractionRef.NODE_NAME, value: tblAliasRewrite },
+                    nodeName: ColumnRef1.NODE_NAME,
+                    qualifier: { nodeName: TableRef1.NODE_NAME, value: tblAliasRewrite },
                     value: pk,
                 },
                 operator: 'IN',
                 right: {
-                    nodeName: SubqueryConstructor.NODE_NAME,
+                    nodeName: DerivedQuery.NODE_NAME,
                     expr: {
                         // SELECT <...>
                         nodeName: CompleteSelectStmt.NODE_NAME,
                         select_list: [{
-                            nodeName: SelectElement.NODE_NAME,
-                            expr: { nodeName: ColumnRef.NODE_NAME, value: pk }
+                            nodeName: SelectItem.NODE_NAME,
+                            expr: { nodeName: ColumnRef1.NODE_NAME, value: pk }
                         }],
                         from_clause: {
                             // FROM <tblRefOriginal>
                             nodeName: FromClause.NODE_NAME,
                             entries: [{
-                                nodeName: FromElement.NODE_NAME,
-                                expr: { nodeName: TableRef.NODE_NAME, value: tblRefOriginal },
+                                nodeName: TableAbstraction3.NODE_NAME,
+                                expr: { nodeName: TableRef2.NODE_NAME, value: tblRefOriginal },
                                 alias: { nodeName: CompositeAlias.NODE_NAME, value: tblAliasOriginal }
                             }]
                         },

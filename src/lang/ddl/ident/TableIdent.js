@@ -1,10 +1,9 @@
-import { IdentifierPath } from '../../expr/ref/IdentifierPath.js';
+import { PathMixin } from '../../abstracts/PathMixin.js';
+import { Identifier } from '../../expr/index.js';
 
-export class TableIdent extends IdentifierPath {
+export class TableIdent extends PathMixin(Identifier) {
 
 	/* SYNTAX RULES */
-
-	static get _objectKind() { return 'Table'; }
-
+	
 	static get _qualifierType() { return 'SchemaRef'; }
 }

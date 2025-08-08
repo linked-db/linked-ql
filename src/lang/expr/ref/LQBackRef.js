@@ -12,7 +12,7 @@ export class LQBackRef extends LQBackBackRef {
 		return [
 			{ type: this._leftType, as: 'left', peek: [1, 'operator', '<~'] },
 			{ type: 'operator', value: '<~' },
-			{ type: 'TableRef', as: 'right' }
+			{ type: 'TableRef2', as: 'right' }
 		];
 	}
 
@@ -20,56 +20,83 @@ export class LQBackRef extends LQBackBackRef {
 
 	/* SCHEMA API */
 
-	deriveSchema(linkedDb) { return this.right().deriveSchema(linkedDb)/* TableSchema */; }
+	rhsTable(linkedContext, linkedDb) {
+		if (!linkedDb) return;
+		const tableRefs = this.right()?.lookup(null, null/*linkedContext*/, linkedDb) || [];
+		if (!tableRefs.length) {
+			throw new ErrorRefUnknown(`[${this.parentNode || this}] Implied RHS table ${this.right()} does not exist.`);
+		}
+		return tableRefs[0];
+	}
 
-	getOperands(linkedDb) {
+	resolve(linkedContext, linkedDb) {
+		if (!linkedContext || !linkedDb) return;
 		const left = this.left();
 
-		const {
-			ColumnRef,
-			TableRef,
-		} = registry;
-
-		const leftEndpoint = left instanceof LQBackBackRef
+		const qualifiedLeftEndpoint = left instanceof LQBackBackRef
 			? left.endpoint()
 			: left;
-		const leftFk = leftEndpoint.deriveSchema(linkedDb)/* ColumnSchema */.fkConstraint(true);
-		if (!leftFk) throw new ErrorFKInvalid(`[${this.parentNode || this}] Column ${leftEndpoint} is not a foreign key.`);
+		const leftEndpointQualifier = qualifiedLeftEndpoint.qualifier();
+
+		const unqualifiedLeftEndpoint = leftEndpointQualifier
+			? registry.ColumnRef2.fromJSON({ ...qualifiedLeftEndpoint.jsonfy({ nodeNames: false }), qualifier: undefined })
+			: qualifiedLeftEndpoint;
+
+		const resolvedLeftEndpoint = qualifiedLeftEndpoint/* original */.resolve(linkedContext, linkedDb);
+
+		const leftFk = resolvedLeftEndpoint.ddlSchema()/* ColumnSchema */.fkConstraint(true);
+		if (!leftFk) throw new ErrorFKInvalid(`[${this.parentNode || this}] Endpoint column ${unqualifiedLeftEndpoint} is not a foreign key.`);
 		const leftEndpointTable = leftFk.targetTable();
 
-		let statementNode = this.statementNode;
-		if (!statementNode) throw new ErrorRefUnknown(`[${this.parentNode || this}] Ref not associated with a statement.`);
+		let qualifiedLeftOperand;
+		const resolve = (ddlName, tableSchema) => {
+			const pkColumnRef2 = tableSchema.pkConstraint(true)?.columns()[0]?.resolve();
+			if (!pkColumnRef2) throw new ErrorFKInvalid(`[${this.parentNode || this}] The referenced LHS table ${ddlName} does not have a primary key.`);
 
-		let keyLeft_ref;
-		do {
-			const querySchemasSchemaInScope = statementNode.querySchemas();
-			for (const [/*alias*/, tableRefOrConstructor] of querySchemasSchemaInScope) {
-				if (!(tableRefOrConstructor instanceof TableRef)) continue; // We support only TableRef for now
-				if (!tableRefOrConstructor.identifiesAs(leftEndpointTable)) continue;
-				const pkColumnNameRef = tableRefOrConstructor.deriveSchema(linkedDb)/* TableSchema */.pkConstraint(true)?.columns()[0];
-				if (!pkColumnNameRef) continue;
-				const $keyLeft_ref = ColumnRef.fromJSON({
-					qualifier: tableRefOrConstructor.jsonfy({ nodeNames: false }, null, linkedDb),
-					value: pkColumnNameRef.value()
-				});
-				if (keyLeft_ref) throw new ErrorRefAmbiguous(`[${this.parentNode || this}]: Target primary key for foreign key ${leftEndpoint} is ambiguous. (Is it ${keyLeft_ref} or ${$keyLeft_ref}?)`);
-				keyLeft_ref = $keyLeft_ref;
+			const $qualifiedLeftOperand = registry.ColumnRef1.fromJSON({
+				qualifier: { ...tableSchema.name().jsonfy({ nodeNames: false }), result_schema: tableSchema },
+				value: pkColumnRef2.value(),
+				delim: pkColumnRef2._get('delim'),
+				result_schema: pkColumnRef2.ddlSchema()
+			});
+
+			if (qualifiedLeftOperand) throw new ErrorRefAmbiguous(`[${this.parentNode || this}]: The referenced endpoint for foreign key ${unqualifiedLeftEndpoint} is ambiguous. (Is it ${qualifiedLeftOperand} or ${$qualifiedLeftOperand}?)`);
+			qualifiedLeftOperand = $qualifiedLeftOperand;
+		};
+
+		let statementContext = linkedContext.statementContext
+		outer: do {
+			for (const tableSchema of statementContext.artifacts.get('tableSchemas')) {
+				const ddlName = tableSchema._get('ddl_name') || tableSchema.name(); // Must match leftEndpointTable
+				if (leftEndpointQualifier) {
+					if (!tableSchema.identifiesAs(leftEndpointQualifier)) continue;
+					if (!leftEndpointTable.identifiesAs(ddlName)) {
+						throw new ErrorFKInvalid(`[${this.parentNode || this}] The endpoint table implied by ${leftEndpointQualifier} (${ddlName}) is not the actual target (${leftEndpointTable}) of the foreign key column ${unqualifiedLeftEndpoint}.`);
+					}
+					resolve(ddlName, tableSchema);
+					break outer;
+				} else if (leftEndpointTable.identifiesAs(ddlName)) {
+					resolve(ddlName, tableSchema);
+				}
 			}
-		} while (!keyLeft_ref && (statementNode = statementNode.parentNode?.statementNode));
+		} while (!qualifiedLeftOperand && (statementContext = statementContext.superContext?.statementContext))
 
-		if (!keyLeft_ref) {
-			throw new ErrorRefUnknown(`LQBackRef ${this.parentNode || this} could not be resolved against table query.`);
+		if (!qualifiedLeftOperand) {
+			throw new ErrorRefUnknown(`[${this.parentNode || this}] Ref does not correlate with current query.`);
 		}
 
-		const targetTable_ref = this.right().clone({ fullyQualified: true }, null, linkedDb);
-		const keyRight_ref = left instanceof LQBackBackRef
+		const qualifiedRightTable = this.rhsTable(linkedContext, linkedDb);
+		const unqualifiedRightOperand = left instanceof LQBackBackRef
 			? left.clone({ reverseRef: true })
-			: left.clone();
+			: registry.ColumnRef2.fromJSON({
+				...unqualifiedLeftEndpoint.jsonfy(),
+				result_schema: qualifiedRightTable.ddlSchema()._get('entries', unqualifiedLeftEndpoint)
+			});
 
 		return {
-			table: targetTable_ref,
-			left: keyLeft_ref,
-			right: keyRight_ref, // ColumnRef
+			lhsOperand: qualifiedLeftOperand, // ColumnRef1
+			rhsOperand: unqualifiedRightOperand, // ColumnRef2
+			rhsTable: qualifiedRightTable, // TableRef2
 		};
 	}
 }

@@ -383,7 +383,7 @@ describe('TokenStream - Keywords & Multi-word Tokens', () => {
         const tokens = await collectTokens(stream);
         expect(tokens).to.deep.equal([
             { type: 'identifier', value: 'col', line: 1, column: 1 },
-            { type: 'operator', value: 'IS NOT', spaceBefore: ' ', line: 1, column: 5, prec: 50, assoc: 'left' },
+            { type: 'operator', value: 'IS NOT', resultType: 'boolean', spaceBefore: ' ', line: 1, column: 5, prec: 50, assoc: 'left' },
             { type: 'null_literal', value: 'NULL', spaceBefore: ' ', line: 1, column: 12 },
         ]);
     });

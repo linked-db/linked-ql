@@ -8,7 +8,7 @@ export class TableStmt extends AbstractStmt {
         return [
             { type: 'keyword', value: 'TABLE' },
             { type: 'keyword', as: 'pg_only_kw', value: 'ONLY', optional: true, dialect: 'postgres' },
-            { type: 'TableRef', as: 'table_ref', assert: true },
+            { type: 'TableRef2', as: 'table_ref', assert: true },
             { type: 'StarRef', as: 'pg_star_ref', optional: true, dialect: 'postgres' },
         ];
     }
@@ -23,12 +23,14 @@ export class TableStmt extends AbstractStmt {
 
     pgStarRef() { return this._get('pg_star_ref'); }
 
-	/* SCHEMA API */
+    /* SCHEMA API */
 
-	querySchemas() {
+    querySchemas() {
         const tableRef = this.tableRef();
-		if (!tableRef) return new Map;
-        const alias = tableRef.value();
-		return new Map([[alias, tableRef]]);
-	}
+
+        const alias = registry.Identifier.fromJSON({ value: tableRef.value() });
+        const tableSchema = tableRef.ddlSchema(transformer).clone({ renameTo: alias });
+        
+        return new Set([tableSchema]);
+    }
 }

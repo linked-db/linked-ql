@@ -1,3 +1,4 @@
+import { LinkedContext } from '../abstracts/LinkedContext.js';
 import { SelectorStmtMixin } from '../abstracts/SelectorStmtMixin.js';
 import { SelectStmt } from './SelectStmt.js';
 import { registry } from '../registry.js';
@@ -40,69 +41,100 @@ export class BasicSelectStmt extends SelectorStmtMixin(
 
     [Symbol.iterator]() { return (this.selectList() || [])[Symbol.iterator](); }
 
-    /* SCHEMA API */
+    /* JSON API */
 
-    querySchemas() {
-        const entries = [];
-        if (this.fromClause()) {
-            for (const fromElement of this.fromClause()) {
-                const fromExpr = fromElement.expr(); // TableRef or SubqueryConstructor, etc.
-                const alias = fromElement.alias()?.value() || fromExpr.value();
-                entries.push([alias, fromExpr]);
+    jsonfy(options = {}, linkedContext = null, linkedDb = null) {
+        if (!options.deSugar) return super.jsonfy(options, linkedContext, linkedDb);
+
+        const deferedSelectItems = new Set;
+        let resultJson = {};
+
+        const processOutputFields = () => {
+            if (!deferedSelectItems.size) return;
+            const select_list = [];
+            for (const { node, defaultTransform } of deferedSelectItems) {
+                const fieldJson = defaultTransform();
+                if (!fieldJson) continue;
+                const columnSchema = fieldJson.result_schema;
+                linkedContext.artifacts.get('outputSchemas').add(columnSchema);
+                select_list.push(fieldJson);
             }
-        }
-        if (this.joinClauses()?.length) {
-            // Syntaxes 1 & 3
-            for (const fromElement of this.joinClauses()) {
-                const fromExpr = fromElement.expr();
-                const alias = fromElement.alias()?.value() || fromExpr.value();
-                entries.push([alias, fromExpr]);
+            resultJson = { ...resultJson, select_list };
+            deferedSelectItems.clear();
+        };
+
+        linkedContext = new LinkedContext((node, defaultTransform) => {
+
+            // Defer SelectItem resolution
+            if (node instanceof registry.SelectItem) {
+                deferedSelectItems.add({ node, defaultTransform });
+                return; // Exclude for now
             }
-        }
-        return new Map(entries);
-    }
 
-    /* DESUGARING API */
+            // Process table abstraction nodes
+            if (node instanceof registry.TableAbstraction3) {
+                const resultJson = defaultTransform();
+                const tableSchema = resultJson.expr.result_schema;
+                linkedContext.artifacts.get('tableSchemas').add(tableSchema);
+                return resultJson;
+            }
 
+            // Trigger fields resolution
+            if (node instanceof registry.GroupByClause
+                || node instanceof registry.HavingClause
+                || node instanceof registry.OrderByClause) {
+                processOutputFields();
+            }
 
-	/* JSON API */
+            // For all other things...
+            return defaultTransform();
+        }, linkedContext);
 
-    jsonfy(options = {}, superTransformCallback = null, linkedDb = null) {
-        if (options.deSugar) {
-            const rands = options.rands || new Map;
-            const hashes = new Map;
-            options = { ...options, rands, hashes };
-        }
-        let resultJson = super.jsonfy(options, superTransformCallback, linkedDb);
+        // Create the artifacts registries
+        linkedContext.artifacts.set('outputSchemas', new Set);
+        linkedContext.artifacts.set('tableSchemas', new Set);
 
-        const {
-            LQObjectLiteral,
-            BasicAlias,
-            SelectElement,
-        } = registry;
+        // Run transform
+        resultJson = { ...resultJson, ...super.jsonfy(options, linkedContext, linkedDb) };
+        // Trigger fields resolution if not yet
+        processOutputFields();
+
+        // --------------
 
         // Normalize special case LQObjectLiteral
         let selectList;
         if (options.deSugar
             && (selectList = this.selectList()).length === 1
-            && selectList[0].expr() instanceof LQObjectLiteral
+            && selectList[0].expr() instanceof registry.LQObjectLiteral
             && !selectList[0].alias()
         ) {
             // Make pairs of arguments
-            const [argPairs] = resultJson.select_list[0].expr.arguments.reduce(([argPairs, key], arg) => {
-                if (key) return [[...argPairs, [{ nodeName: BasicAlias.NODE_NAME, value: key.value }, arg]]];
-                return [argPairs, arg];
+            const [argPairs] = resultJson.select_list[0].expr.arguments.reduce(([argPairs, key], value) => {
+                if (!key) return [argPairs, value];
+                return [[...argPairs, [key, value]]];
             }, [[]]);
+
+            const result_schemas = resultJson.select_list[0].expr.result_schema.entries();
+
+            // Compose...
             resultJson = {
                 ...resultJson,
-                select_list: argPairs.map(([alias, expr]) => ({
-                    nodeName: SelectElement.NODE_NAME,
-                    expr,
-                    alias,
+                select_list: argPairs.map(([key, value], i) => ({
+                    nodeName: registry.SelectItem.NODE_NAME,
+                    expr: value,
+                    alias: { ...key, nodeName: registry.BasicAlias.NODE_NAME },
                     as_kw: true,
+                    result_schema: result_schemas[i],
                 }))
             };
         }
+
+        // Derive output schema
+        const result_schema = registry.TableSchema.fromJSON({
+            name: registry.Identifier.fromJSON({ value: '' }),
+            entries: resultJson.select_list.map((s) => s.result_schema),
+        }, { assert: true });
+        resultJson = { ...resultJson, result_schema };
 
         return resultJson;
     }

@@ -1,45 +1,47 @@
 import { AbstractMagicRef } from './abstracts/AbstractMagicRef.js';
-import { ErrorFKInvalid } from './abstracts/ErrorFKInvalid.js';
 import { registry } from '../../registry.js';
 
 export class LQBackBackRef extends AbstractMagicRef {
 
 	/* SYNTAX RULES */
 
-	static get _leftType() { return ['ColumnRef'/* must come first to prevent left-recursion */, 'LQBackBackRef']; } // for inheritance
+	static get _leftType() {
+		return [
+			'LQBackRefEndpoint'/* must come first to prevent left-recursion */,
+			'LQBackBackRef'
+		];
+	} // for inheritance
 
 	static get syntaxRules() {
 		return [
 			{ type: this._leftType, as: 'left', peek: [1, 'operator', '<~'] },
 			{ type: 'operator', value: '<~' },
-			{ type: 'ColumnNameRef', as: 'right', peek: [1, 'operator', '<~'] },
+			{ type: 'ColumnRef2', as: 'right', peek: [1, 'operator', '<~'] },
 		];
 	}
 
 	static get syntaxPriority() { return 1; }
 
-	static morphsTo() { return registry.LQDeepRef; }
+	static morphsTo() { return registry.LQDeepRef1; }
 
-	/* DESUGARING API */
-	
-	jsonfy(options = {}, transformCallback = null, linkedDb = null) {
-		if (options.reverseRef) {
-			return {
-				...(options.nodeNames === false ? {} : { nodeName: registry.LQDeepRef.NODE_NAME }),
-				left: this.right().jsonfy({ ...options, nodeNames: false }, null, linkedDb),
-				right: this.left().jsonfy({ ...options, nodeNames: false }, null, linkedDb),
-			};
-		}
-		return super.jsonfy(options, transformCallback, linkedDb);
-	}
+	/* API */
 
-	/* SCHEMA API */
-
-	deriveSchema(linkedDb) {
-		const fk = this.right().deriveSchema(linkedDb)/* ColumnSchema */.fkConstraint(true);
-		if (!fk) throw new ErrorFKInvalid(`[${this.parentNode || this}] Column ${this.right()} is not a foreign key.`);
-		return fk.targetTable()/*the table in there*/.deriveSchema(linkedDb)/* TableSchema */;
-	}
+	operand() { return this.right(); }
 
 	endpoint() { return this.left() instanceof LQBackBackRef ? this.left().endpoint() : this.left(); }
+
+	/* JSON API */
+
+	jsonfy(options = {}, linkedContext = null, linkedDb = null) {
+		if (options.reverseRef) {
+			return {
+				...(options.nodeNames === false ? {} : { nodeName: registry.LQDeepRef1.NODE_NAME }),
+				left: this.right().jsonfy({ ...options, nodeNames: false }),
+				right: this.left() instanceof registry.LQBackBackRefEndpoint
+					? { nodeName: registry.ColumnRef2, value: this.left().value() }
+					: this.left().jsonfy({ ...options, nodeNames: false }),
+			};
+		}
+		return super.jsonfy(options, linkedContext, linkedDb);
+	}
 }

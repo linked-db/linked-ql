@@ -19,7 +19,7 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                     {
                         dialect: 'postgres',
                         syntax: [
-                            { type: 'BasicTableExpr', as: 'table_expr' },
+                            { type: 'TableAbstraction2', as: 'table_expr' },
                             { type: 'SetClause', as: 'set_clause' },
                             { type: 'FromClause', as: 'pg_from_clause', optional: true, dialect: 'postgres', autoIndent: true },
                             { type: 'JoinClause', as: 'join_clauses', arity: Infinity, optional: true, autoIndent: true },
@@ -30,7 +30,7 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                     {
                         dialect: 'mysql',
                         syntax: [
-                            { type: 'BasicTableExpr', as: 'table_expr' },
+                            { type: 'TableAbstraction2', as: 'table_expr' },
                             { type: 'SetClause', as: 'set_clause' },
                             { type: 'WhereClause', as: 'where_clause', optional: true, autoIndent: true },
                             { type: 'OrderByClause', as: 'my_order_by_clause', optional: true, autoIndent: true },
@@ -40,7 +40,7 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                     {
                         dialect: 'mysql',
                         syntax: [
-                            { type: 'MYStarrableBasicTableExpr', as: 'my_update_list', arity: { min: 1 }, itemSeparator },
+                            { type: 'TableAbstraction1', as: 'my_update_list', arity: { min: 1 }, itemSeparator },
                             { type: 'JoinClause', as: 'join_clauses', arity: Infinity, optional: true, autoIndent: true },
                             { type: 'SetClause', as: 'set_clause' },
                             { type: 'WhereClause', as: 'where_clause', optional: true, autoIndent: true },
@@ -78,55 +78,78 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
     /* SCHEMA API */
 
     querySchemas() {
-        const entries = [];
+        // Literally inherit inheritedQuerySchemas
+        inheritedQuerySchemas = new Set(inheritedQuerySchemas || []);
+
+        const resultSchemas = new Set;
+
+        const deriveSchema = (aliasName, tableRef) => {
+            const alias = registry.Identifier.fromJSON({ value: aliasName });
+            const tableSchema = tableRef.ddlSchema(transformer).clone({ renameTo: alias });
+            inheritedQuerySchemas.add(tableSchema);
+            resultSchemas.add(tableSchema);
+        };
+
         if (this.tableExpr()) {
             // Syntaxes 1 & 2
             const tableExpr = this.tableExpr();
             const tableRef = tableExpr.tableRef();
-            const alias = tableExpr.alias()?.value() || tableRef.value();
-            entries.push([alias, tableRef]);
+
+            deriveSchema(
+                tableExpr.alias()?.value() || tableRef.value(),
+                tableRef
+            );
+
             if (this.pgFromClause()) {
                 // Syntax 1
                 for (const fromElement of this.pgFromClause()) {
-                    const fromExpr = fromElement.expr(); // TableRef or SubqueryConstructor, etc.
-                    const alias = fromElement.alias()?.value() || fromExpr.value();
-                    entries.push([alias, fromExpr]);
+                    const fromExpr = fromElement.expr(); // TableRef1 or DerivedQuery, etc.
+                    deriveSchema(
+                        fromElement.alias()?.value() || fromExpr.value(),
+                        fromExpr
+                    );
                 }
             }
         } else if (this.myUpdateList()?.length) {
             // Syntax 3
             for (const myUpdateExpr of this.myUpdateList()) {
                 const tableRef = myUpdateExpr.tableRef();
-                const alias = tableRef.value();
-                entries.push([alias, tableRef]);
+                deriveSchema(
+                    tableRef.value(),
+                    tableRef
+                );
             }
         }
+
         if (this.joinClauses()?.length) {
             // Syntaxes 1 & 3
             for (const fromElement of this.joinClauses()) {
                 const fromExpr = fromElement.expr();
-                const alias = fromElement.alias()?.value() || fromExpr.value();
-                entries.push([alias, fromExpr]);
+                deriveSchema(
+                    fromElement.alias()?.value() || fromExpr.value(),
+                    fromExpr
+                );
             }
         }
-        return new Map(entries);
+
+        return resultSchemas;
     }
 
     /* DESUGARING API */
 
-    jsonfy(options = {}, transformCallback = null, linkedDB = null) {
+    jsonfy(options = {}, linkedContext = null, linkedDb = null) {
         if (options.deSugar) {
             const rands = options.rands || new Map;
             const hashes = new Map;
             options = { ...options, rands, hashes };
         }
-        return super.jsonfy(options, transformCallback, linkedDB);
+        return super.jsonfy(options, linkedContext, linkedDb);
     }
 
-    applySelectorDimensions(resultJson, selectorDimensions, options, linkedDb = null) {
+    applySelectorDimensions(resultJson, selectorDimensions, options, linkedContext = null, linkedDb = null) {
         // This is Postgres-specific
         if (this.options.dialect !== 'postgres') {
-            return super/* SelectorStmtMixin */.applySelectorDimensions(resultJson, selectorDimensions, options, linkedDb);
+            return super/* SelectorStmtMixin */.applySelectorDimensions(resultJson, selectorDimensions, options, linkedContext, linkedDb);
         }
 
         if (resultJson.where_clause?.cursor_name) {
@@ -134,18 +157,18 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
         }
 
         const {
-            SubqueryConstructor,
+            DerivedQuery,
             CompleteSelectStmt,
-            SelectElement,
+            SelectItem,
             BasicAlias,
             CompositeAlias,
             FromClause,
             WhereClause,
-            ColumnRef,
-            TableAbstractionRef,
+            ColumnRef1,
+            TableRef1,
+            TableRef2,
             BinaryExpr,
-            TableRef,
-            FromElement,
+            TableAbstraction3,
         } = registry;
 
         const rand = this._rand('rand');
@@ -172,9 +195,9 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                 // - ( SELECT [] FROM <tblRefOriginal> )
                 // - AS <tblAliasRewrite>
                 const fromElement = {
-                    nodeName: FromElement.NODE_NAME,
+                    nodeName: TableAbstraction3.NODE_NAME,
                     expr: {
-                        nodeName: SubqueryConstructor.NODE_NAME,
+                        nodeName: DerivedQuery.NODE_NAME,
                         expr: {
                             // SELECT <...>
                             nodeName: CompleteSelectStmt.NODE_NAME,
@@ -183,8 +206,8 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                                 // FROM <tblRefOriginal>
                                 nodeName: FromClause.NODE_NAME,
                                 entries: [{
-                                    nodeName: FromElement.NODE_NAME,
-                                    expr: { nodeName: TableRef.NODE_NAME, value: tblRefOriginal }
+                                    nodeName: TableAbstraction3.NODE_NAME,
+                                    expr: { nodeName: TableRef1.NODE_NAME, value: tblRefOriginal }
                                 }]
                             },
                         },
@@ -199,14 +222,14 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                 const whereClause = {
                     nodeName: BinaryExpr.NODE_NAME,
                     left: {
-                        nodeName: ColumnRef.NODE_NAME,
-                        qualifier: { nodeName: TableAbstractionRef.NODE_NAME, value: tblAliasOriginal },
+                        nodeName: ColumnRef1.NODE_NAME,
+                        qualifier: { nodeName: TableRef1.NODE_NAME, value: tblAliasOriginal },
                         value: colRefOriginal
                     },
                     operator: '=',
                     right: {
-                        nodeName: ColumnRef.NODE_NAME,
-                        qualifier: { nodeName: TableAbstractionRef.NODE_NAME, value: tblAliasRewrite },
+                        nodeName: ColumnRef1.NODE_NAME,
+                        qualifier: { nodeName: TableRef1.NODE_NAME, value: tblAliasRewrite },
                         value: colRefRewrite
                     }
                 };
@@ -217,15 +240,15 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
 
             // Select the rewritten ref
             pgGeneratedFromEntry.from.expr.expr.select_list.push({
-                nodeName: SelectElement.NODE_NAME,
-                expr: { nodeName: ColumnRef.NODE_NAME, value: colRefOriginal },
+                nodeName: SelectItem.NODE_NAME,
+                expr: { nodeName: ColumnRef1.NODE_NAME, value: colRefOriginal },
                 alias: { nodeName: BasicAlias.NODE_NAME, value: colRefRewrite }
             });
 
             // Return the rewritten ref
             return {
-                nodeName: ColumnRef.NODE_NAME,
-                qualifier: { nodeName: TableAbstractionRef.NODE_NAME, value: tblAliasRewrite },
+                nodeName: ColumnRef1.NODE_NAME,
+                qualifier: { nodeName: TableRef1.NODE_NAME, value: tblAliasRewrite },
                 value: colRefRewrite,
             };
         };
@@ -254,7 +277,7 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                     entries: resultJson.pg_from_clause?.entries?.slice(0) || []
                 }
             };
-            // ...each a SubqueryConstructor
+            // ...each a DerivedQuery
             resultJson.pg_from_clause.entries.push(pgGeneratedFromEntry.from);
             // The "WHERE" clause for correlation
             if (resultJson.where_clause) {

@@ -8,7 +8,7 @@ export class SchemaSchema extends AbstractSchema {
     static get syntaxRules() {
         const itemSeparator = { type: 'punctuation', value: ',' };
         return [
-            { type: 'SchemaIdent', as: 'name' },
+            { type: 'SchemaIdent', as: 'name', assert: true },
             {
                 type: 'paren_block',
                 syntax: { type: 'TableSchema', as: 'entries', arity: { min: 1 }, itemSeparator, singletons: 'BY_KEY', autoIndent: true },

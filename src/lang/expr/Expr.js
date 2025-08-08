@@ -1,7 +1,7 @@
-import { AbstractNode } from '../abstracts/AbstractNode.js';
+import { AbstractClassicExpr } from './AbstractClassicExpr.js';
 import * as exprs from './index.js';
 
-export class Expr extends AbstractNode {
+export class Expr extends AbstractClassicExpr {
 
     /* SYNTAX RULES */
 
@@ -12,7 +12,7 @@ export class Expr extends AbstractNode {
     /* API */
 
     static [Symbol.hasInstance](instance) {
-        return instance.constructor.name in exprs;
+        return instance instanceof AbstractClassicExpr || instance.constructor.name in exprs;
     }
 }
 

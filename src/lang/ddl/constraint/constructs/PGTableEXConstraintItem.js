@@ -9,8 +9,8 @@ export class PGTableEXConstraintItem extends ConstraintSchema {
         return [
             {
                 syntaxes: [
-                    { type: 'ColumnNameRef', as: 'expr' },
-                    { type: 'ParenShape', as: 'expr' },
+                    { type: 'ColumnRef2', as: 'expr' },
+                    { type: 'ParenExpr', as: 'expr' },
                 ],
             },
             {

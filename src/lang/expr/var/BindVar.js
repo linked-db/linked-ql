@@ -1,6 +1,6 @@
-import { AbstractNode } from '../../abstracts/AbstractNode.js';
+import { AbstractClassicExpr } from '../AbstractClassicExpr.js';
 
-export class BindVar extends AbstractNode {
+export class BindVar extends AbstractClassicExpr {
 
 	/* SYNTAX RULES */
 
@@ -8,5 +8,5 @@ export class BindVar extends AbstractNode {
 
     /* AST API */
 
-    value() { return Number(this._get('value')); }
+    value() { return this._get('value'); }
 }

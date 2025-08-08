@@ -29,7 +29,7 @@ export class InsertStmt extends PayloadStmtMixin(
 					{
 						dialect: 'postgres',
 						syntax: [
-							{ type: 'BasicTableExpr', as: 'pg_table_expr' },
+							{ type: 'TableAbstraction2', as: 'pg_table_expr' },
 							{ type: 'ColumnsConstructor', as: 'column_list', arity: { min: 1 }, itemSeparator, optional: true, autoIndent: 2 },
 							{
 								syntaxes: [
@@ -45,7 +45,7 @@ export class InsertStmt extends PayloadStmtMixin(
 					{
 						dialect: 'mysql',
 						syntax: [
-							{ type: 'TableRef', as: 'my_table_ref' },
+							{ type: 'TableRef1', as: 'my_table_ref' },
 							{ type: 'MYPartitionClause', as: 'my_partition_clause', optional: true, autoIndent: true },
 							{
 								syntaxes: [
@@ -91,7 +91,7 @@ export class InsertStmt extends PayloadStmtMixin(
 
 	// -- MySQL
 
-	myTableRef() { return this._get('pg_table_ref'); }
+	myTableRef1() { return this._get('pg_table_ref'); }
 
 	myAlias() { return this._get('my_alias'); }
 
@@ -104,30 +104,42 @@ export class InsertStmt extends PayloadStmtMixin(
 	/* SCHEMA API */
 
 	querySchemas() {
-		const entries = [];
+		const resultSchemas = new Set;
+
+		const deriveSchema = (aliasName, tableRef) => {
+			const alias = registry.Identifier.fromJSON({ value: aliasName });
+			const tableSchema = tableRef.ddlSchema(transformer).clone({ renameTo: alias });
+			resultSchemas.add(tableSchema);
+		};
+
 		if (this.pgTableExpr()) {
-			// For Postgres, the tableExpr is a BasicTableExpr, which may have an alias
+			// For Postgres, the tableExpr is a TableAbstraction2, which may have an alias
 			const tableExpr = this.pgTableExpr();
 			const tableRef = tableExpr.tableRef();
-			const alias = tableExpr.alias()?.value() || tableRef.value();
-			entries.push([alias, tableRef]);
-		} else if (this.myTableRef()) {
-			// For MySQL, the tableExpr is a TableRef, which may not have an alias
-			const tableRef = this.myTableRef();
-			const alias = this.myAlias()?.value() || tableRef.value();
-			entries.push([alias, tableRef]);
+			deriveSchema(
+				tableExpr.alias()?.value() || tableRef.value(),
+				tableRef
+			);
+		} else if (this.myTableRef1()) {
+			// For MySQL, the tableExpr is a TableRef1, which may not have an alias
+			const tableRef = this.myTableRef1();
+			deriveSchema(
+				this.myAlias()?.value() || tableRef.value(),
+				tableRef
+			);
 		}
-		return new Map(entries);
+
+		return resultSchemas;
 	}
 
 	/* JSON API */
 
-    jsonfy(options = {}, transformCallback = null, linkedDB = null) {
-        if (options.deSugar) {
-            const rands = options.rands || new Map;
-            const hashes = new Map;
-            options = { ...options, rands, hashes };
-        }
-        return super.jsonfy(options, transformCallback, linkedDB);
-    }
+	jsonfy(options = {}, linkedContext = null, linkedDb = null) {
+		if (options.deSugar) {
+			const rands = options.rands || new Map;
+			const hashes = new Map;
+			options = { ...options, rands, hashes };
+		}
+		return super.jsonfy(options, linkedContext, linkedDb);
+	}
 }

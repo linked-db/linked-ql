@@ -1,4 +1,5 @@
 import { AbstractNonDDLStmt } from '../abstracts/AbstractNonDDLStmt.js';
+import { registry } from '../registry.js';
 
 export class CTE extends AbstractNonDDLStmt {
 
@@ -37,12 +38,21 @@ export class CTE extends AbstractNonDDLStmt {
     /* SCHEMA API */
 
     querySchemas() {
-        const entries = [...(this.body()?.querySchemas().entries() || [])];
+        // Literally inherit state
+        inheritedQuerySchemas = new Set(inheritedQuerySchemas || []);
+
+        const resultSchemas = new Set;
+        
         for (const cteElement of this.bindings()) {
-            const cteExpr = cteElement.expr(); // SubqueryConstructor, ValuesSetConstructor, etc.
-            const alias = cteElement.alias()?.value();
-            entries.push([alias, cteExpr]);
+            const tableSchema = cteElement.ddlSchema(transformer);
+            inheritedQuerySchemas.add(tableSchema);
+            resultSchemas.add(tableSchema);
         }
-        return new Map(entries);
+
+        for (const tableSchema of this.body().querySchemas(transformer)) {
+            resultSchemas.add(tableSchema);
+        }
+
+        return resultSchemas;
     }
 }

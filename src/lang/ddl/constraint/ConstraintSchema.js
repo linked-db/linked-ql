@@ -58,9 +58,7 @@ export class ConstraintSchema extends AbstractSchema {
         };
     }
 
-    get isColumnLevel() {
-        return this.parentNode instanceof registry.ColumnSchema;
-    }
+    get isColumnLevel() { return this.parentNode instanceof registry.ColumnSchema; }
 
     /* AST API */
 

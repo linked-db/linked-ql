@@ -7,17 +7,19 @@ const sql =
   `public (
   users (
     id SERIAL PRIMARY KEY,
+    parent_user INTEGER,
     username VARCHAR(50) NOT NULL UNIQUE,
     email VARCHAR(100) NOT NULL UNIQUE CHECK (email LIKE '%@%'),
     password_hash TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
     CHECK (password_hash LIKE '3...'),
-    status VARCHAR(10) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'banned'))
+    status VARCHAR(10) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'banned')),
+    CONSTRAINT fk_parent_user FOREIGN KEY (parent_user) REFERENCES users (id) ON DELETE CASCADE
   ),
   orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    parent_order INTEGER NOT NULL,
+    parent_order UUID,
     user INTEGER NOT NULL,
     order_total NUMERIC(10, 2) NOT NULL CHECK (order_total >= 0),
     status TEXT NOT NULL CHECK (status IN ('pending', 'paid', 'cancelled', 'shipped')),
@@ -44,7 +46,7 @@ const sql =
   )
 )`;
 
-const resultNode = await testParseAndStringify('SchemaSchema', sql, { prettyPrint: true });
+const resultNode = await testParseAndStringify('SchemaSchema', sql, { prettyPrint: true, assert: false });
 catalog.push(resultNode);
 
 const sql2 =

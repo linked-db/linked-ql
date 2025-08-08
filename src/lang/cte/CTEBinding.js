@@ -19,7 +19,7 @@ export class CTEBinding extends AbstractNode {
                     { type: 'keyword', as: 'materialized', value: 'MATERIALIZED', booleanfy: true },
                 ],
             },
-            { type: ['SubqueryConstructor', 'ValuesSetConstructor'], as: 'expr' },
+            { type: ['DerivedQuery', 'ValuesTableLiteral'], as: 'expr' },
             { type: 'PGSearchClause', as: 'search_clause', optional: true },
             { type: 'PGCycleClause', as: 'cycle_clause', optional: true },
         ];
@@ -38,4 +38,11 @@ export class CTEBinding extends AbstractNode {
     searchClause() { return this._get('search_clause'); }
 
     cycleClause() { return this._get('cycle_clause'); }
+
+    /* SCHEMA API */
+
+    ddlSchema() {
+        const alias = registry.Identifier.fromJSON({ value: this.alias().value() });
+        return this.expr().ddlSchema(transformer).clone({ renameTo: alias }); // DerivedQuery, ValuesTableLiteral
+    }
 }

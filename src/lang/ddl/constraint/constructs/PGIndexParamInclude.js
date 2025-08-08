@@ -10,7 +10,7 @@ export class PGIndexParamInclude extends AbstractNodeList {
             { type: 'keyword', value: 'INCLUDE' },
             {
                 type: 'paren_block',
-                syntax: { type: 'ColumnNameRef', as: 'entries', arity: { min: 1 }, itemSeparator },
+                syntax: { type: 'ColumnRef2', as: 'entries', arity: { min: 1 }, itemSeparator },
             }
         ];
     }

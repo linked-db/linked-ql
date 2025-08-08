@@ -32,16 +32,16 @@ export class ColumnIdentityConstraint extends ConstraintSchema {
 	/* AST API */
 
 	alwaysKW() { return this._get('always_kw'); }
-	
+
 	byDefaultKW() { return this._get('by_default_kw'); }
 
 	asIdentityKW() { return this._get('as_identity_kw'); }
 
 	/* JSON API */
 
-	jsonfy(options = {}, transformCallback = null, linkedDb = null) {
+	jsonfy(options = {}, linkedContext = null, linkedDb = null) {
 		return (options.toDialect || this.options.dialect) === 'mysql'
-			? (new MYColumnAutoIncrementModifier).jsonfy(options, transformCallback, linkedDb)
-			: super.jsonfy(options, transformCallback, linkedDb);
+			? (new MYColumnAutoIncrementModifier).jsonfy(options, linkedContext, linkedDb)
+			: super.jsonfy(options, linkedContext, linkedDb);
 	}
 }
