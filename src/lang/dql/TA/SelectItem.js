@@ -50,7 +50,7 @@ export class SelectItem extends DDLSchemaMixin(AbstractNode) {
 
         if (!aliasJson) {
             if (exprNode instanceof registry.ColumnRef1) {
-                aliasJson = { value: exprNode.value(), delim: exprNode._get('delim') };
+                aliasJson = exprNode.value() === '*' ? undefined : { value: exprNode.value(), delim: exprNode._get('delim') };
             } else if (exprNode instanceof registry.LQDeepRef1 && exprNode.endpoint() instanceof registry.ColumnRef2) {
                 const endpointNode = exprNode.endpoint();
                 aliasJson = { value: endpointNode.value(), delim: endpointNode._get('delim') };
@@ -67,23 +67,60 @@ export class SelectItem extends DDLSchemaMixin(AbstractNode) {
         return registry.BasicAlias.fromJSON(aliasJson);
     }
 
-    jsonfy(options = {}, linkedContext = null, linkedDb = null) {
-        let resultJson = super.jsonfy(options, linkedContext, linkedDb);
+    jsonfy(options = {}, transformer = null, linkedDb = null) {
         if (options.deSugar) {
-            const alias = resultJson.alias || this.deriveAlias().jsonfy();
-            let result_schema = resultJson.expr.result_schema;
-            if (!result_schema) {
+
+            const aliasNode = this.alias() || this.deriveAlias();
+            let asAggr, aliasJson = aliasNode && (transformer
+                ? transformer.transform(aliasNode, ($options = options) => aliasNode.jsonfy($options), 'alias', options)
+                : aliasNode.jsonfy(options));
+            if (aliasJson?.is_aggr) ({ is_aggr: asAggr, ...aliasJson } = aliasJson);
+
+            let exprNode = this.expr();
+
+            let defaultTransform;
+
+            if (asAggr && !(exprNode instanceof registry.LQDeepRef1)) {
+                // Note the below where we wrap value in an aggr call
+                defaultTransform = ($options = options, childTransformer = transformer) => ({
+                    nodeName: registry.AggrCallExpr.NODE_NAME,
+                    name: (options.toDialect || this.options.dialect) === 'mysql' ? 'JSON_ARRAYAGG' : 'JSON_AGG',
+                    arguments: [exprNode.jsonfy($options, childTransformer, linkedDb)],
+                });
+            } else {
+                // Note the below where we derive value, if not specified, from key
+                defaultTransform = ($options = options, childTransformer = transformer) => {
+                    return exprNode.jsonfy($options, childTransformer, linkedDb);
+                };
+            }
+
+            const exprJson = transformer
+                ? transformer.transform(exprNode, defaultTransform, 'expr', { ...options, asAggr })
+                : defaultTransform();
+
+            // ----------------
+
+            const schemaIdent = aliasJson && { ...aliasJson, nodeName: registry.Identifier.NODE_NAME };
+
+            let result_schema = exprJson.result_schema;
+
+            if (result_schema instanceof registry.ColumnSchema) {
+                result_schema = result_schema.clone({ renameTo: schemaIdent });
+            } else if (aliasJson) {
                 result_schema = registry.ColumnSchema.fromJSON({
-                    name: { ...alias, nodeName: registry.Identifier.NODE_NAME },
+                    name: schemaIdent,
                     data_type: this.expr().dataType().jsonfy(),
                 });
             }
-            resultJson = {
-                ...resultJson,
-                alias,
+
+            return {
+                nodeName: SelectItem.NODE_NAME,
+                expr: exprJson,
+                alias: aliasJson,
+                as_kw: !!aliasJson,
                 result_schema,
             };
         }
-        return resultJson;
+        return super.jsonfy(options, transformer, linkedDb);
     }
 }

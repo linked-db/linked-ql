@@ -21,8 +21,8 @@ export class DerivedQuery extends DDLSchemaMixin(ParenExpr) {
 
     /* JSON API */
 
-    jsonfy(options = {}, linkedContext = null, linkedDb = null) {
-        let resultJson = super.jsonfy(options, linkedContext, linkedDb);
+    jsonfy(options = {}, transformer = null, linkedDb = null) {
+        let resultJson = super.jsonfy(options, transformer, linkedDb);
         if (options.deSugar) {
             const result_schema = resultJson.expr?.result_schema;
             if (!result_schema?.length) {

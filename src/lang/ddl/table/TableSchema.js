@@ -1,5 +1,5 @@
 import { AbstractSchema } from '../../abstracts/AbstractSchema.js';
-import { LinkedContext } from '../../abstracts/LinkedContext.js';
+import { Transformer } from '../../Transformer.js';
 import { registry } from '../../registry.js';
 
 export class TableSchema extends AbstractSchema {
@@ -41,11 +41,13 @@ export class TableSchema extends AbstractSchema {
             if (normalized
                 && entry instanceof registry.ColumnSchema
                 && (pk = entry.pkConstraint())) {
-                return registry.TablePKConstraint.fromJSON({
+                const instance = registry.TablePKConstraint.fromJSON({
                     ...pk.jsonfy(),
                     nodeName: undefined,
                     columns: [registry.ColumnRef2.fromJSON({ value: entry.name().value() })]
                 });
+                this._adoptNodes(instance);
+                return instance;
             }
         }
     }
@@ -60,11 +62,13 @@ export class TableSchema extends AbstractSchema {
             if (normalized
                 && entry instanceof registry.ColumnSchema
                 && (fk = entry.fkConstraint())) {
-                result.push(registry.TableFKConstraint.fromJSON({
+                const instance = registry.TableFKConstraint.fromJSON({
                     ...fk.jsonfy(),
                     nodeName: undefined,
                     columns: [registry.ColumnRef2.fromJSON({ value: entry.name().value() })]
-                }));
+                });
+                this._adoptNodes(instance);
+                result.push(instance);
             }
         }
         return result;
@@ -80,11 +84,13 @@ export class TableSchema extends AbstractSchema {
             if (normalized
                 && entry instanceof registry.ColumnSchema
                 && (uk = entry.ukConstraint())) {
-                result.push(registry.TableUKConstraint.fromJSON({
+                const instance = registry.TableUKConstraint.fromJSON({
                     ...uk.jsonfy(),
                     nodeName: undefined,
                     columns: [registry.ColumnRef2.fromJSON({ value: entry.name().value() })]
-                }));
+                });
+                this._adoptNodes(instance);
+                result.push(instance);
             }
         }
         return result;
@@ -99,14 +105,15 @@ export class TableSchema extends AbstractSchema {
             let ck;
             if (normalized
                 && entry instanceof registry.ColumnSchema
-                && (ck = entry.ckConstraint())) {
+                && (ck = entry.ckConstraint()?.clone())) {
+                this._adoptNodes(ck);
                 result.push(ck);
             }
         }
         return result;
     }
 
-    jsonfy({ normalized = false, ...options } = {}, linkedContext = null, linkedDb = null) {
+    jsonfy({ normalized = false, ...options } = {}, transformer = null, linkedDb = null) {
         const columnLockedConstraints = [];
 
         const consMap = {
@@ -117,7 +124,7 @@ export class TableSchema extends AbstractSchema {
         };
 
         if (normalized) {
-            linkedContext = new LinkedContext((node, defaultTransform) => {
+            transformer = new Transformer((node, defaultTransform) => {
                 if (node?.NODE_NAME in consMap && node.parentNode instanceof registry.ColumnSchema) {
                     columnLockedConstraints.push({
                         ...node.jsonfy(),
@@ -127,10 +134,10 @@ export class TableSchema extends AbstractSchema {
                     return; // Exclude from original column
                 }
                 return defaultTransform();
-            }, linkedContext);
+            }, transformer);
         }
 
-        let resultJson = super.jsonfy(options, linkedContext, linkedDb);
+        let resultJson = super.jsonfy(options, transformer, linkedDb);
 
         if (normalized) {
             resultJson = {

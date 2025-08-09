@@ -67,7 +67,9 @@ export class ColumnSchema extends AbstractSchema {
             const pkColumns = pkConstraint?.columns() || [];
             if (pkColumns.length === 1 && pkColumns[0].identifiesAs(this.name())) {
                 const { nodeName, columns, ...cJson } = pkConstraint.jsonfy();
-                return registry.ColumnPKConstraint.fromJSON(cJson);
+                const instance = registry.ColumnPKConstraint.fromJSON(cJson);
+                this._adoptNodes(instance);
+                return instance;
             }
         }
     }
@@ -82,7 +84,9 @@ export class ColumnSchema extends AbstractSchema {
                 return columns.length === 1 && columns[0].identifiesAs(this.name());
             })?.jsonfy() || {};
             if (nodeName) {
-                return registry.ColumnFKConstraint.fromJSON(cJson);
+                const instance = registry.ColumnFKConstraint.fromJSON(cJson);
+                this._adoptNodes(instance);
+                return instance;
             }
         }
     }
@@ -97,7 +101,9 @@ export class ColumnSchema extends AbstractSchema {
                 return columns.length === 1 && columns[0].identifiesAs(this.name());
             })?.jsonfy() || {};
             if (nodeName) {
-                return registry.ColumnUKConstraint.fromJSON(cJson);
+                const instance = registry.ColumnUKConstraint.fromJSON(cJson);
+                this._adoptNodes(instance);
+                return instance;
             }
         }
     }
@@ -107,15 +113,19 @@ export class ColumnSchema extends AbstractSchema {
             if (cons instanceof registry.CheckConstraint) return cons;
         }
         if (normalized && this.parentNode instanceof registry.TableSchema) {
-            return this.parentNode.ckConstraints(false).find((c) => {
+            let instance = this.parentNode.ckConstraints(false).find((c) => {
                 const columns = c.columns();
                 return columns.length === 1 && columns[0].identifiesAs(this.name());
             });
+            if (instance = instance?.clone()) {
+                this._adoptNodes(instance);
+                return instance;
+            }
         }
     }
 
-    jsonfy({ normalized = false, ...options } = {}, linkedContext = null, linkedDb = null) {
-        let resultJson = super.jsonfy(options, linkedContext, linkedDb);
+    jsonfy({ normalized = false, ...options } = {}, transformer = null, linkedDb = null) {
+        let resultJson = super.jsonfy(options, transformer, linkedDb);
         if (normalized) {
             let tableLevelConstraints = [];
             for (const x of ['pk', 'fk', 'uk', 'ck']) {

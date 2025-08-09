@@ -32,16 +32,16 @@ export class AbstractSchema extends AbstractNodeList {
         return node;
     }
 
-    jsonfy({ renameTo, ...options } = {}, linkedContext = null, linkedDb = null) {
-        let resultJson = super.jsonfy(options, linkedContext, linkedDb);
+    jsonfy({ renameTo, ...options } = {}, transformer = null, linkedDb = null) {
+        let resultJson = super.jsonfy(options, transformer, linkedDb);
         if (renameTo) {
-            if (!(renameTo instanceof registry.Identifier)) {
-                throw new Error(`options.renameTo must be an Identifier instance.`);
+            if (renameTo instanceof AbstractNode) {
+                throw new Error(`options.renameTo must be a JSON value.`);
             }
             if (resultJson.name?.value && !resultJson.ddl_name) {
                 resultJson = { ...resultJson, ddl_name: resultJson.name };
             }
-            return { ...resultJson, name: renameTo.jsonfy(options) };
+            return { ...resultJson, name: renameTo };
         }
         return resultJson;
     }

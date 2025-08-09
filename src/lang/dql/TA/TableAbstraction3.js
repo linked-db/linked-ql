@@ -120,17 +120,34 @@ export class TableAbstraction3 extends DDLSchemaMixin(AbstractNode) {
         } else if (this.expr() instanceof registry.TableRef1) {
             aliasJson = { value: this.expr().value(), delim: this.expr()._get('delim') };
         }
-        return registry.CompositeAlias.fromJSON(aliasJson || { value: '' });
+        if (aliasJson) {
+            return registry.CompositeAlias.fromJSON(aliasJson);
+        }
     }
 
-    jsonfy(options = {}, linkedContext = null, linkedDb = null) {
-		let resultJson = super.jsonfy(options, linkedContext, linkedDb);
+    jsonfy(options = {}, transformer = null, linkedDb = null) {
+		let resultJson = super.jsonfy(options, transformer, linkedDb);
 		if (options.deSugar) {
-            const alias = resultJson.alias || this.deriveAlias().jsonfy();
-            const result_schema = resultJson.expr?.result_schema;
+
+            const aliasJson = resultJson.alias || this.deriveAlias()?.jsonfy();
+
+            const schemaIdent = aliasJson && { ...aliasJson, nodeName: registry.Identifier.NODE_NAME };
+
+            let result_schema = resultJson.expr.result_schema;
+
+            if (result_schema instanceof registry.TableSchema) {
+                result_schema = result_schema.clone({ renameTo: schemaIdent });
+            } else if (aliasJson) {
+                result_schema = registry.TableSchema.fromJSON({
+                    name: schemaIdent,
+                    entries: result_schema?.entries().map((s) => s.jsonfy()) || [],
+                });
+            }
+
 			resultJson = {
 				...resultJson,
-                alias,
+                alias: aliasJson,
+                as_kw: !!aliasJson,
 				result_schema,
 			};
 		}

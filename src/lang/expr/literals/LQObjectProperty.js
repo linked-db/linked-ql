@@ -7,12 +7,11 @@ export class LQObjectProperty extends AbstractNode {
 
     static get syntaxRules() {
         return [
-            { type: 'identifier', as: 'key' },
+            { type: 'BasicAlias', as: 'key' },
             {
                 optional: true,
                 syntax: [
-                    { type: 'AggrNotation', as: 'is_aggr', optional: true },
-                    { type: 'punctuation', value: ':', autoSpacing: false },
+                    { type: 'punctuation', value: ':' },
                     { type: 'Expr', as: 'value', assert: true },
                 ],
                 autoSpacing: false,
@@ -28,35 +27,52 @@ export class LQObjectProperty extends AbstractNode {
 
     key() { return this._get('key'); }
 
-    isAggr() { return this._get('is_aggr'); }
-
     value() { return this._get('value'); }
 
     /* DESUGARING API */
 
-    jsonfy(options = {}, linkedContext = null, linkedDb = null) {
+    jsonfy(options = {}, transformer = null, linkedDb = null) {
         if (options.deSugar) {
-            let valueJson;
-            if (this.isAggr()) {
+
+            const keyNode = this.key();
+            let asAggr, keyJson = transformer
+                ? transformer.transform(keyNode, ($options = options) => keyNode.jsonfy($options), 'key', options)
+                : keyNode.jsonfy(options);
+            if (keyJson.is_aggr) ({ is_aggr: asAggr, ...keyJson } = keyJson);
+            
+            let valueNode = this.value();
+            if (!valueNode) {
+                valueNode = registry.ColumnRef1.fromJSON({ ...keyJson, nodeName: undefined });
+                this._adoptNodes(valueNode);
+            }
+
+            let defaultTransform;
+
+            if (asAggr && !(valueNode instanceof registry.LQDeepRef1)) {
                 // Note the below where we wrap value in an aggr call
-                valueJson = {
+                defaultTransform = ($options = options, childTransformer = transformer) => ({
                     nodeName: registry.AggrCallExpr.NODE_NAME,
                     name: (options.toDialect || this.options.dialect) === 'mysql' ? 'JSON_ARRAYAGG' : 'JSON_AGG',
-                    arguments: [this.value().jsonfy/* @case1 */({ ...options, asAggr: true/* for use by any Back/DeefRef */ }, linkedContext, linkedDb)],
-                };
+                    arguments: [valueNode.jsonfy($options, childTransformer, linkedDb)],
+                });
             } else {
                 // Note the below where we derive value, if not specified, from key
-                valueJson = this.value()?.jsonfy/* @case1 */(options, linkedContext, linkedDb)
-                    ?? { nodeName: registry.ColumnRef1.NODE_NAME, value: this.key() };
+                defaultTransform = ($options = options, childTransformer = transformer) => {
+                    return valueNode.jsonfy($options, childTransformer, linkedDb);
+                };
             }
+
+            const valueJson = transformer
+                ? transformer.transform(valueNode, defaultTransform, 'value', { ...options, asAggr })
+                : defaultTransform();
+
             // plus, we'll drop the is_aggr flag
             return {
                 nodeName: LQObjectProperty.NODE_NAME,
-                key: this.key(),
-                is_aggr: false,
+                key: keyJson,
                 value: valueJson
             };
         }
-        return super.jsonfy(options, linkedContext, linkedDb);
+        return super.jsonfy(options, transformer, linkedDb);
     }
 }

@@ -1,6 +1,7 @@
 import { AbstractClassicRef } from './abstracts/AbstractClassicRef.js';
 import { AbstractNode } from '../../abstracts/AbstractNode.js';
 import { PathMixin } from '../../abstracts/PathMixin.js';
+import { JSONSchema } from '../../abstracts/JSONSchema.js';
 import { registry } from '../../registry.js';
 
 export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
@@ -40,18 +41,21 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
         });
     }
 
-    lookup(deepMatchCallback, linkedContext, linkedDb) {
-        const inGrepMode = !this._get('value');
+    lookup(deepMatchCallback = null, linkedContext = null, linkedDb = null) {
+		if (!linkedContext && !linkedDb) return [];
+
+        const name = this._get('value');
+        const inGrepMode = !name && !deepMatchCallback;
         let resultSet = [];
 
         const resolve = (columnSchema, qualifierJson = undefined) => {
             if (!(columnSchema instanceof registry.ColumnSchema)) return false;
-            if (!(inGrepMode || columnSchema.identifiesAs(this))) return false;
+            if (name && !columnSchema.identifiesAs(this)) return false;
             let result;
             if (deepMatchCallback && !(result = deepMatchCallback(columnSchema, qualifierJson))) return false;
-            if (result instanceof AbstractNode) return result;
+			if (result instanceof AbstractNode || Array.isArray(result)) return result;
             return ColumnRef1.fromJSON({
-                value: columnSchema.name().value(),
+                ...columnSchema.name().jsonfy({ nodeNames: false }),
                 result_schema: columnSchema,
                 qualifier: qualifierJson
             });
@@ -62,11 +66,8 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
             let statementContext = linkedContext.statementContext
             do {
                 for (const columnSchema of statementContext.artifacts.get('outputSchemas')) {
-                    let result;
-                    if (result = resolve(columnSchema)) {
-                        resultSet.push(result);
-                        if (!inGrepMode) break; // Matching current instance only
-                    }
+                    resultSet = resultSet.concat(resolve(columnSchema) || []);
+                    if (!inGrepMode && resultSet.length) break; // Matching current instance only
                 }
             } while ((inGrepMode || !resultSet.length) && (statementContext = statementContext.superContext?.statementContext))
         }
@@ -75,15 +76,21 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
             // Resolve normally
             resultSet = resultSet.concat((new registry.TableRef1(this.qualifier()?.jsonfy() || {})).lookup(
                 (tableSchema, qualifierJson = undefined) => {
+
                     return tableSchema._get('entries').reduce((prev, columnSchema) => {
-                        if (prev) return prev;
+                        if (tableSchema instanceof JSONSchema) {
+                            // An unaliased derived query
+                            return prev.concat(resolve(columnSchema) || []);
+                        }
+						//if (prev.length && !inGrepMode) return prev;
                         const newQualifierJson = {
-                            value: tableSchema.name().value(),
+                            ...tableSchema.name().jsonfy({ nodeNames: false }),
                             result_schema: tableSchema,
                             qualifier: qualifierJson
                         };
-                        return resolve(columnSchema, newQualifierJson);
-                    }, null);
+                        return prev.concat(resolve(columnSchema, newQualifierJson) || []);
+                    }, []);
+
                 },
                 linkedContext,
                 linkedDb,

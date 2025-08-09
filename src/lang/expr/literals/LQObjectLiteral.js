@@ -1,5 +1,5 @@
 import { AbstractLQJsonLiteral } from './AbstractLQJsonLiteral.js';
-import { LQObjectSchema } from './LQObjectSchema.js';
+import { JSONSchema } from '../../abstracts/JSONSchema.js';
 import { registry } from '../../registry.js';
 
 export class LQObjectLiteral extends AbstractLQJsonLiteral {
@@ -22,8 +22,8 @@ export class LQObjectLiteral extends AbstractLQJsonLiteral {
 
     /* JSON API */
 
-    jsonfy(options = {}, linkedContext = null, linkedDb = null) {
-        let resultJson = super.jsonfy(options, linkedContext, linkedDb);
+    jsonfy(options = {}, transformer = null, linkedDb = null) {
+        let resultJson = super.jsonfy(options, transformer, linkedDb);
         if (options.deSugar) {
 
             const result_schemas = [];
@@ -34,21 +34,25 @@ export class LQObjectLiteral extends AbstractLQJsonLiteral {
                 arguments: resultJson.entries.reduce((args, propertyJson, i) => {
 
                     let result_schema = propertyJson.value.result_schema;
-                    if (!result_schema) {
+                    const schemaIdent = { ...propertyJson.key, nodeName: registry.Identifier.NODE_NAME };
+
+                    if (result_schema instanceof registry.ColumnSchema) {
+                        result_schema = result_schema.clone({ renameTo: schemaIdent });
+                    } else {
                         result_schema = registry.ColumnSchema.fromJSON({
-                            name: { value: propertyJson.key, nodeName: registry.Identifier.NODE_NAME },
+                            name: schemaIdent,
                             data_type: this.entries()[i].value().dataType().jsonfy(),
                         });
                     }
                     result_schemas.push(result_schema);
 
                     return args.concat(
-                        { nodeName: registry.StringLiteral.NODE_NAME, value: propertyJson.key },
+                        { ...propertyJson.key, nodeName: registry.StringLiteral.NODE_NAME },
                         { ...propertyJson.value }
                     );
 
                 }, []),
-                result_schema: LQObjectSchema.fromJSON({ entries: result_schemas })
+                result_schema: new JSONSchema({ entries: result_schemas })
             };
         }
 

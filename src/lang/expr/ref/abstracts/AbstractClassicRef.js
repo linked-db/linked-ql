@@ -6,14 +6,15 @@ import { Identifier } from '../Identifier.js';
 
 export class AbstractClassicRef extends DDLSchemaMixin(TypeSysMixin(Identifier)) {
 
-    lookup(linkedContext, linkedDb) { return []; }
+    lookup(transformer, linkedDb) { return []; }
 
-    resolve(linkedContext, linkedDb) {
-        const resultSet = this.lookup(null, linkedContext, linkedDb) || [];
+    resolve(transformer, linkedDb) {
+        const resultSet = this.lookup(null, transformer, linkedDb) || [];
+        const objectType = this.constructor.name.replace(/Ref.+?/, '');
         if (resultSet.length > 1) {
-            throw new ErrorRefAmbiguous(`[${this.parentNode || this}] Column ${this} is ambiguous. (Is it ${resultSet.join(' or ')}?)`);
+            throw new ErrorRefAmbiguous(`[${this.parentNode || this}] ${objectType} ${this} is ambiguous. (Is it ${resultSet.join(' or ')}?)`);
         } else if (!resultSet.length) {
-            throw new ErrorRefUnknown(`[${this.parentNode || this}] Column ${this} does not exist.`);
+            throw new ErrorRefUnknown(`[${this.parentNode || this}] ${objectType} ${this} does not exist.`);
         }
         return resultSet[0];
     }

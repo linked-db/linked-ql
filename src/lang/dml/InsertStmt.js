@@ -134,12 +134,12 @@ export class InsertStmt extends PayloadStmtMixin(
 
 	/* JSON API */
 
-	jsonfy(options = {}, linkedContext = null, linkedDb = null) {
+	jsonfy(options = {}, transformer = null, linkedDb = null) {
 		if (options.deSugar) {
 			const rands = options.rands || new Map;
 			const hashes = new Map;
 			options = { ...options, rands, hashes };
 		}
-		return super.jsonfy(options, linkedContext, linkedDb);
+		return super.jsonfy(options, transformer, linkedDb);
 	}
 }

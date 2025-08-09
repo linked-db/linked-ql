@@ -32,7 +32,7 @@ export class LQBackBackRef extends AbstractMagicRef {
 
 	/* JSON API */
 
-	jsonfy(options = {}, linkedContext = null, linkedDb = null) {
+	jsonfy(options = {}, transformer = null, linkedDb = null) {
 		if (options.reverseRef) {
 			return {
 				...(options.nodeNames === false ? {} : { nodeName: registry.LQDeepRef1.NODE_NAME }),
@@ -42,6 +42,6 @@ export class LQBackBackRef extends AbstractMagicRef {
 					: this.left().jsonfy({ ...options, nodeNames: false }),
 			};
 		}
-		return super.jsonfy(options, linkedContext, linkedDb);
+		return super.jsonfy(options, transformer, linkedDb);
 	}
 }

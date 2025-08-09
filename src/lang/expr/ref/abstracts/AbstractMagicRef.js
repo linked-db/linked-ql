@@ -4,15 +4,15 @@ import { BinaryExpr } from '../../op/BinaryExpr.js';
 
 export class AbstractMagicRef extends SugarMixin(BinaryExpr) {
 
-    rhsTable(linkedContext, linkedDb) {
-        const resolveOperand = this.operand()?.resolve(linkedContext, linkedDb);
+    rhsTable(transformer, linkedDb) {
+        const resolveOperand = this.operand()?.resolve(transformer, linkedDb);
         const fk = resolveOperand.ddlSchema()/* ColumnSchema */?.fkConstraint(true);
         if (!fk) {
             throw new ErrorFKInvalid(`[${this.parentNode || this}] Column ${this.operand()} is not a foreign key.`);
         }
-        return fk.targetTable()?.resolve(null/*linkedContext*/, linkedDb);
+        return fk.targetTable()?.resolve(null/*transformer*/, linkedDb);
     }
 
-	rhsSchema(linkedContext, linkedDb) { return this.rhsTable(linkedContext, linkedDb)?.ddlSchema(); }
+	rhsSchema(transformer, linkedDb) { return this.rhsTable(transformer, linkedDb)?.ddlSchema(); }
     
 }

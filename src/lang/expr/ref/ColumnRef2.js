@@ -13,20 +13,21 @@ export class ColumnRef2 extends AbstractClassicRef {
 
     dataType() { return this.ddlSchema()?.dataType() || super.dataType(); }
 
-    lookup(deepMatchCallback, linkedContext = null, linkedDb = null) {
-        if (!linkedContext && !linkedDb) return [];
+    lookup(deepMatchCallback, transformer = null, linkedDb = null) {
+        if (!transformer && !linkedDb) return [];
 
-        const inGrepMode = !this._get('value');
+        const name = this._get('value');
+        const inGrepMode = !name && !deepMatchCallback;
         let resultSet = [];
 
         const resolve = (columnSchema) => {
             if (!(columnSchema instanceof registry.ColumnSchema)) return false;
-            if (!(inGrepMode || columnSchema.identifiesAs(this))) return false;
+            if (name && !columnSchema.identifiesAs(this)) return false;
             let result;
             if (deepMatchCallback && !(result = deepMatchCallback(columnSchema))) return false;
-            if (result instanceof AbstractNode) return result;
+            if (result instanceof AbstractNode || Array.isArray(result)) return result;
             return ColumnRef2.fromJSON({
-                value: columnSchema.name().value(),
+                ...columnSchema.name().jsonfy({ nodeNames: false }),
                 result_schema: columnSchema.clone({ normalized: true })
             });
         };
@@ -40,7 +41,10 @@ export class ColumnRef2 extends AbstractClassicRef {
             }
         } else {
             tableSchemaInScope = this.climbTree((superParentNode, up) => {
-                const potentialSchema = superParentNode.ddlSchema?.(linkedContext, linkedDb);
+                if (superParentNode instanceof registry.TableSchema) {
+                    return superParentNode;
+                }
+                const potentialSchema = superParentNode.ddlSchema?.();
                 if (potentialSchema instanceof registry.TableSchema) {
                     return potentialSchema;
                 }
@@ -49,23 +53,20 @@ export class ColumnRef2 extends AbstractClassicRef {
         }
 
         for (const columnSchema of tableSchemaInScope || []) {
-            let result;
-            if (result = resolve(columnSchema)) {
-                resultSet.push(result);
-                if (!inGrepMode) break; // Matching current instance only
-            }
+            resultSet = resultSet.concat(resolve(columnSchema) || []);
+            if (!inGrepMode && resultSet.length) break; // Matching current instance only
         }
 
         return resultSet;
     }
 
-    jsonfy(options = {}, linkedContext = null, linkedDb = null) {
+    jsonfy(options = {}, transformer = null, linkedDb = null) {
         if (options.deSugar
             && this.value() !== '*'
             && !this.ddlSchema()
-            && (linkedContext || linkedDb)) {
-            return this.resolve(linkedContext, linkedDb).jsonfy(/* IMPORTANT */);
+            && (transformer || linkedDb)) {
+            return this.resolve(transformer, linkedDb).jsonfy(/* IMPORTANT */);
         }
-        return super.jsonfy(options, linkedContext = null, linkedDb);
+        return super.jsonfy(options, transformer = null, linkedDb);
     }
 }

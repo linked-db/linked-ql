@@ -21,44 +21,42 @@ export class SchemaRef extends AbstractClassicRef {
 
     /* API */
 
-    lookup(deepMatchCallback, linkedContext = null, linkedDb = null) {
+    lookup(deepMatchCallback = null, transformer = null, linkedDb = null) {
         if (!linkedDb) return [];
 
-        const inGrepMode = !this._get('value');
+        const name = this._get('value');
+        const inGrepMode = !name && !deepMatchCallback;
         let resultSet = [];
 
         const resolve = (schemaSchema) => {
             if (!(schemaSchema instanceof registry.SchemaSchema)) return false;
-            if (!(inGrepMode || schemaSchema.identifiesAs(this))) return false;
+            if (name && !schemaSchema.identifiesAs(this)) return false;
             let result;
             if (deepMatchCallback && !(result = deepMatchCallback(schemaSchema))) return false;
-            if (result instanceof AbstractNode) return result;
+			if (result instanceof AbstractNode || Array.isArray(result)) return result;
             return ColumnRef2.fromJSON({
-                value: schemaSchema.name().value(),
-                ddl_schema: schemaSchema.clone()
+                ...schemaSchema.name().jsonfy({ nodeNames: false }),
+                ddl_schema: schemaSchema
             });
         };
 
         for (const schemaSchema of linkedDb.catalog) {
-            let result;
-            if (result = resolve(schemaSchema)) {
-                resultSet.push(result);
-                if (!inGrepMode) break; // Matching current instance only
-            }
+            resultSet = resultSet.concat(resolve(schemaSchema) || []);
+            if (!inGrepMode && resultSet.length) break; // Matching current instance only
         }
 
         return resultSet;
     }
 
-    jsonfy(options = {}, linkedContext = null, linkedDb = null) {
+    jsonfy(options = {}, transformer = null, linkedDb = null) {
         let resultJson;
 
         if (options.deSugar
             && !this.ddlSchema()
             && linkedDb) {
-            resultJson = this.resolve(linkedContext, linkedDb).jsonfy(/* IMPORTANT */);
+            resultJson = this.resolve(transformer, linkedDb).jsonfy(/* IMPORTANT */);
         } else {
-            resultJson = super.jsonfy(options, linkedContext, linkedDb);
+            resultJson = super.jsonfy(options, transformer, linkedDb);
         }
 
         if (options.deSugar && resultJson.version_spec) {

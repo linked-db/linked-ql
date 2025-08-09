@@ -1,5 +1,6 @@
-import { LinkedContext } from '../abstracts/LinkedContext.js';
+import { Transformer } from '../Transformer.js';
 import { SelectorStmtMixin } from '../abstracts/SelectorStmtMixin.js';
+import { JSONSchema } from '../abstracts/JSONSchema.js';
 import { SelectStmt } from './SelectStmt.js';
 import { registry } from '../registry.js';
 
@@ -43,8 +44,8 @@ export class BasicSelectStmt extends SelectorStmtMixin(
 
     /* JSON API */
 
-    jsonfy(options = {}, linkedContext = null, linkedDb = null) {
-        if (!options.deSugar) return super.jsonfy(options, linkedContext, linkedDb);
+    jsonfy(options = {}, transformer = null, linkedDb = null) {
+        if (!options.deSugar) return super.jsonfy(options, transformer, linkedDb);
 
         const deferedSelectItems = new Set;
         let resultJson = {};
@@ -56,14 +57,14 @@ export class BasicSelectStmt extends SelectorStmtMixin(
                 const fieldJson = defaultTransform();
                 if (!fieldJson) continue;
                 const columnSchema = fieldJson.result_schema;
-                linkedContext.artifacts.get('outputSchemas').add(columnSchema);
+                transformer.artifacts.get('outputSchemas').add(columnSchema);
                 select_list.push(fieldJson);
             }
             resultJson = { ...resultJson, select_list };
             deferedSelectItems.clear();
         };
 
-        linkedContext = new LinkedContext((node, defaultTransform) => {
+        transformer = new Transformer((node, defaultTransform) => {
 
             // Defer SelectItem resolution
             if (node instanceof registry.SelectItem) {
@@ -74,8 +75,9 @@ export class BasicSelectStmt extends SelectorStmtMixin(
             // Process table abstraction nodes
             if (node instanceof registry.TableAbstraction3) {
                 const resultJson = defaultTransform();
-                const tableSchema = resultJson.expr.result_schema;
-                linkedContext.artifacts.get('tableSchemas').add(tableSchema);
+                const result_schema = resultJson.result_schema;
+                console.log('__'+this, result_schema);
+                transformer.artifacts.get('tableSchemas').add(result_schema);
                 return resultJson;
             }
 
@@ -88,14 +90,14 @@ export class BasicSelectStmt extends SelectorStmtMixin(
 
             // For all other things...
             return defaultTransform();
-        }, linkedContext);
+        }, transformer, this);
 
         // Create the artifacts registries
-        linkedContext.artifacts.set('outputSchemas', new Set);
-        linkedContext.artifacts.set('tableSchemas', new Set);
+        transformer.artifacts.set('outputSchemas', new Set);
+        transformer.artifacts.set('tableSchemas', new Set);
 
         // Run transform
-        resultJson = { ...resultJson, ...super.jsonfy(options, linkedContext, linkedDb) };
+        resultJson = { ...resultJson, ...super.jsonfy(options, transformer, linkedDb) };
         // Trigger fields resolution if not yet
         processOutputFields();
 
@@ -130,10 +132,9 @@ export class BasicSelectStmt extends SelectorStmtMixin(
         }
 
         // Derive output schema
-        const result_schema = registry.TableSchema.fromJSON({
-            name: registry.Identifier.fromJSON({ value: '' }),
-            entries: resultJson.select_list.map((s) => s.result_schema),
-        }, { assert: true });
+        const result_schema = new JSONSchema({
+            entries: resultJson.select_list.map((s) => s.result_schema?.clone()).filter((s) => s)
+        });
         resultJson = { ...resultJson, result_schema };
 
         return resultJson;

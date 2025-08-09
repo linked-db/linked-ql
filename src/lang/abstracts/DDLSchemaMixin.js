@@ -18,8 +18,8 @@ export const DDLSchemaMixin = (Class) => class extends Class {
 		return instance;
 	}
 
-	jsonfy(options = {}, linkedContext = null, linkedDb = null) {
-		let resultJson = super.jsonfy(options, linkedContext, linkedDb);
+	jsonfy(options = {}, transformer = null, linkedDb = null) {
+		let resultJson = super.jsonfy(options, transformer, linkedDb);
 		if (this.#result_schema) {
 			resultJson = {
 				...resultJson,

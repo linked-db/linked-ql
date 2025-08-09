@@ -1,18 +1,18 @@
-export class LinkedContext {
+export class Transformer {
 
     #callback;
     #rands = new Map;
     #hashes = new Map;
 
-    #superContext;
-    get superContext() { return this.#superContext; }
+    #superTransformer;
+    get superTransformer() { return this.#superTransformer; }
 
     #statementNode;
     get statementNode() { return this.#statementNode; }
 
     get statementContext() {
         if (this.#isStatementContext) return this;
-        return this.#superContext.statementContext;
+        return this.#superTransformer.statementContext;
     }
 
     #isStatementContext;
@@ -21,17 +21,17 @@ export class LinkedContext {
     #artifacts = new Map;
     get artifacts() { return this.#artifacts; }
 
-    constructor(callback, superContext = null, statementNode = null) {
+    constructor(callback, superTransformer = null, statementNode = null) {
         this.#callback = callback;
-        this.#superContext = superContext;
+        this.#superTransformer = superTransformer;
         this.#statementNode = statementNode;
-        this.#isStatementContext = !superContext
-            || statementNode !== superContext.statementNode;
+        this.#isStatementContext = !superTransformer
+            || statementNode !== superTransformer.statementNode;
     }
 
     rand(type) {
         this.#rands.set(type, !this.#rands.has(type) ? 0 : this.#rands.get(type) + 1);
-        const namespace = this.#superContext?.rand(type).replace(`$${type}`, '');
+        const namespace = this.#superTransformer?.rand(type).replace(`$${type}`, '');
         return `$${type}${namespace ? `${namespace}.` : ''}${this.#rands.get(type)}`;
     }
 
@@ -46,19 +46,19 @@ export class LinkedContext {
 
         const $next = (options1 = options0) => {
 
-            let childContext = this;
+            let childTransformer = this;
 
-            // From superContext:
+            // From superTransformer:
             // implicitly inherit current instance for sub-transforms
             if (typeof options1 === 'function') {
-                childContext = new Context(options1, childContext, this.#statementNode);
+                childTransformer = new Transformer(options1, childTransformer, this.#statementNode);
                 options1 = options0;
             }
 
             // If this.transform() was called from a subquery scope identified by originatingContext
             if (originatingContext.statementNode !== this.#statementNode) {
                 // don't call handlers in this scope
-                return defaultTransform(options1, childContext);
+                return defaultTransform(options1, childTransformer);
             }
 
             return this.#callback(node, (options2 = options1) => {
@@ -66,17 +66,17 @@ export class LinkedContext {
                 // From callback:
                 // implicitly inherit current instance for sub-transforms
                 if (typeof options2 === 'function') {
-                    childContext = new Context(options2, childContext, this.#statementNode);
+                    childTransformer = new Transformer(options2, childTransformer, this.#statementNode);
                     options2 = options1;
                 }
 
-                return defaultTransform(options2, childContext);
+                return defaultTransform(options2, childTransformer);
             }, key, options1);
         };
 
-        if (this.#superContext) {
-            // Call superContext and pass originating scope
-            return this.#superContext.transform(node, $next, key, options0, originatingContext);
+        if (this.#superTransformer) {
+            // Call superTransformer and pass originating scope
+            return this.#superTransformer.transform(node, $next, key, options0, originatingContext);
         }
 
         return $next();

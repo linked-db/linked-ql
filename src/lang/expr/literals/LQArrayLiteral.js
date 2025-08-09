@@ -1,5 +1,5 @@
 import { AbstractLQJsonLiteral } from './AbstractLQJsonLiteral.js';
-import { LQObjectSchema } from './LQObjectSchema.js';
+import { JSONSchema } from '../../abstracts/JSONSchema.js';
 import { registry } from '../../registry.js';
 
 export class LQArrayLiteral extends AbstractLQJsonLiteral {
@@ -22,7 +22,7 @@ export class LQArrayLiteral extends AbstractLQJsonLiteral {
 
     /* JSON API */
 
-    jsonfy(options = {}, linkedContext = null, linkedDb = null) {
+    jsonfy(options = {}, transformer = null, linkedDb = null) {
         if (options.deSugar) {
             const result_schemas = [];
 
@@ -32,20 +32,24 @@ export class LQArrayLiteral extends AbstractLQJsonLiteral {
                 arguments: this.entries().map((e, i) => {
 
                     let result_schema = e.result_schema;
-                    if (!result_schema) {
+                    const schemaIdent = { value: i, nodeName: registry.Identifier.NODE_NAME };
+
+                    if (result_schema instanceof registry.ColumnSchema) {
+                        result_schema = result_schema.clone({ renameTo: schemaIdent });
+                    } else {
                         result_schema = registry.ColumnSchema.fromJSON({
-                            name: { value: i, nodeName: registry.Identifier.NODE_NAME },
+                            name: schemaIdent,
                             data_type: this.entries()[i].dataType().jsonfy(),
                         });
                     }
                     result_schemas.push(result_schema);
 
-                    return e.jsonfy/* @case1 */(options, linkedContext, linkedDb);
+                    return e.jsonfy/* @case1 */(options, transformer, linkedDb);
                 }),
-                result_schema: LQObjectSchema.fromJSON({ entries: result_schemas })
+                result_schema: new JSONSchema({ entries: result_schemas })
             };
         }
-        
-        return super.jsonfy(options, linkedContext, linkedDb);
+
+        return super.jsonfy(options, transformer, linkedDb);
     }
 }

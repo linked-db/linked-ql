@@ -9,13 +9,13 @@ export class UpsertStmt extends SugarMixin(InsertStmt) {
 
 	/* DESUGARING API */
 
-	jsonfy(options = {}, linkedContext = null, linkedDb = null) {
-		if (!options.deSugar || true/* TODO */) return super.jsonfy(options, linkedContext, linkedDb);
+	jsonfy(options = {}, transformer = null, linkedDb = null) {
+		if (!options.deSugar || true/* TODO */) return super.jsonfy(options, transformer, linkedDb);
 
 		if (this.conflictHandlingClause()) {
 			throw new Error(`A redundanct "ON CONFLICT" clause in query.`);
 		}
-		const resultJson = super.jsonfy(options, linkedContext, linkedDb);
+		const resultJson = super.jsonfy(options, transformer, linkedDb);
 
 		// So let's auto-construct the on-conflict clause for the operation
 		const columns = (this.set() ? this.set().columns() : this.columns().entries()).map(c => c.name());
@@ -33,7 +33,7 @@ export class UpsertStmt extends SugarMixin(InsertStmt) {
 		return {
 			nodeName: InsertStatement.NODE_NAME,
 			...superJson,
-			onConflictClause: onConflictClause.jsonfy(options, linkedContext, linkedDb),
+			onConflictClause: onConflictClause.jsonfy(options, transformer, linkedDb),
 			...(flags ? { flags } : {})
 		};
 	}

@@ -14,9 +14,9 @@ export class MYColumnAutoIncrementModifier extends AbstractNode {
 
     /* JSON RULES */
 
-    jsonfy(options = {}, linkedContext = null, linkedDb = null) {
+    jsonfy(options = {}, transformer = null, linkedDb = null) {
         return (options.toDialect || this.options.dialect) === 'postgres'
-            ? (new ColumnIdentityConstraint).jsonfy(options, linkedContext, linkedDb)
-            : super.jsonfy(options, linkedContext, linkedDb);
+            ? (new ColumnIdentityConstraint).jsonfy(options, transformer, linkedDb)
+            : super.jsonfy(options, transformer, linkedDb);
     }
 }

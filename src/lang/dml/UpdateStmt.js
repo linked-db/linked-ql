@@ -137,19 +137,19 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
 
     /* DESUGARING API */
 
-    jsonfy(options = {}, linkedContext = null, linkedDb = null) {
+    jsonfy(options = {}, transformer = null, linkedDb = null) {
         if (options.deSugar) {
             const rands = options.rands || new Map;
             const hashes = new Map;
             options = { ...options, rands, hashes };
         }
-        return super.jsonfy(options, linkedContext, linkedDb);
+        return super.jsonfy(options, transformer, linkedDb);
     }
 
-    applySelectorDimensions(resultJson, selectorDimensions, options, linkedContext = null, linkedDb = null) {
+    applySelectorDimensions(resultJson, selectorDimensions, options, transformer = null, linkedDb = null) {
         // This is Postgres-specific
         if (this.options.dialect !== 'postgres') {
-            return super/* SelectorStmtMixin */.applySelectorDimensions(resultJson, selectorDimensions, options, linkedContext, linkedDb);
+            return super/* SelectorStmtMixin */.applySelectorDimensions(resultJson, selectorDimensions, options, transformer, linkedDb);
         }
 
         if (resultJson.where_clause?.cursor_name) {

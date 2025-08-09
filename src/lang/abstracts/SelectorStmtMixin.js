@@ -1,6 +1,5 @@
-import { ColumnRef2, RowConstructor } from '../expr/index.js';
+import { Transformer } from '../Transformer.js';
 import { registry } from '../registry.js';
-import { AbstractNode } from './AbstractNode.js';
 
 export const SelectorStmtMixin = (Class) => class extends Class {
 
@@ -8,28 +7,20 @@ export const SelectorStmtMixin = (Class) => class extends Class {
 
     /* DESUGARING API */
 
-    jsonfy(options = {}, linkedContext = null, linkedDb = null) {
-        if (!options.deSugar) return super.jsonfy(options, linkedContext, linkedDb);
+    jsonfy(options = {}, transformer = null, linkedDb = null) {
+        if (!options.deSugar) return super.jsonfy(options, transformer, linkedDb);
 
         const {
             ColumnRef1,
             ColumnRef2,
             AggrCallExpr,
             LQBackRefAbstraction,
-            SelectItem,
-            BasicAlias,
             LQDeepRef1,
             LQBackRef,
         } = registry;
 
         const selectorDimensions = new Map;
-        const transformCallback = (node, keyHint, { deSugar/* IMPORTANT */, asAggr/* IMPORTANT */, ...$options }) => {
-            // Defer to super callback
-            if (superTransformCallback) {
-                node = superTransformCallback(node, keyHint, { deSugar/* IMPORTANT */, ...$options });
-            }
-
-            // Utils
+        transformer = new Transformer((node, defaultTransform, keyHint, { deSugar/* IMPORTANT */, asAggr/* IMPORTANT */, ...$options }) => {
 
             const toAggr = (nodeJson, wrap = false) => {
                 const aggrJson = {
@@ -47,110 +38,68 @@ export const SelectorStmtMixin = (Class) => class extends Class {
                     && node.qualifier() instanceof LQBackRefAbstraction;
             };
 
-            const specialColumnRef1ToDeepRef = (columnRef, asAggr = false) => {
-                const leftJson = columnRef.qualifier().jsonfy();
-                const rightJson = asAggr
-                    ? toAggr({ nodeName: ColumnRef1.NODE_NAME, value: columnRef.value() }, true)
-                    : { nodeName: ColumnRef2.NODE_NAME, value: columnRef.value() };
+            const specialColumnRef1ToDeepRef = (columnRef) => {
+                const lhsOperandJson = columnRef.qualifier().jsonfy();
+                const rhsOperandJson = { ...columnRef.jsonfy(), nodeName: ColumnRef2.NODE_NAME };
                 const deepRef = LQDeepRef1.fromJSON({
-                    left: leftJson,
-                    right: rightJson
+                    left: lhsOperandJson,
+                    right: rhsOperandJson
                 });
                 columnRef.parentNode._adoptNodes(deepRef);
                 return deepRef;
             };
 
             const toAggrDeepRef = (deepRef) => {
-                const leftJson = deepRef.left().jsonfy();
-                const rightJson = deepRef.right() instanceof ColumnRef2
-                    ? { nodeName: ColumnRef1.NODE_NAME, value: deepRef.right().value() }
+                const lhsOperandJson = deepRef.left().jsonfy();
+                const rhsOperandJson = deepRef.right() instanceof ColumnRef2
+                    ? { ...deepRef.right().jsonfy(), nodeName: ColumnRef1.NODE_NAME }
                     : deepRef.right().jsonfy();
                 const newDeepRef = LQDeepRef1.fromJSON({
-                    left: leftJson,
-                    right: toAggr(rightJson, true)
+                    left: lhsOperandJson,
+                    right: toAggr(rhsOperandJson, true)
                 });
                 deepRef.parentNode._adoptNodes(newDeepRef);
                 return newDeepRef;
             };
 
-            // 0. DeSugar aggr select elements
-            if (deSugar && node instanceof SelectItem) {
-
-                let exprJson;
-                const exprNode = node.expr();
-                const recurseTransform = (node, $$options = $options) => {
-                    const result = transformCallback(node, null, { deSugar/* IMPORTANT */, ...$$options });
-                    return result instanceof AbstractNode
-                        ? result.jsonfy({ deSugar/* IMPORTANT */, ...$options }, linkedContext, linkedDb)
-                        : result;
-                };
-
-                if (node.alias()?.isAggr()) {
-                    if (exprNode instanceof LQDeepRef1 || isSpecialColumnRef1(exprNode)) {
-                        let deepRef;
-                        if (exprNode instanceof LQDeepRef1) {
-                            deepRef = toAggrDeepRef(exprNode);
-                        } else {
-                            deepRef = specialColumnRef1ToDeepRef(exprNode, true);
-                        }
-                        exprJson = recurseTransform(deepRef, { ...$options, asAggr: true });
-                    } else {
-                        exprJson = toAggr(recurseTransform(exprNode));
-                    }
-                } else {
-                    exprJson = recurseTransform(exprNode);
-                }
-
-                // Note the below instead of .jsonfy() as the former would still add the "[]" notation
-                const aliasJson = node.alias() && {
-                    nodeName: BasicAlias.NODE_NAME,
-                    value: node.alias().value()
-                };
-
-                return {
-                    nodeName: SelectItem.NODE_NAME,
-                    expr: exprJson,
-                    as_kw: node.asKW(),
-                    alias: aliasJson
-                };
-            }
-
             // 1. DeSugar special column refs "(fk <~ tbl).col" to deep refs
-            if (deSugar && isSpecialColumnRef1(node)) {
+            if (isSpecialColumnRef1(node)) {
                 node = specialColumnRef1ToDeepRef(node);
             }
 
             // 2. DeSugar deep refs to bare column refs
-            if (deSugar && node instanceof LQDeepRef1) {
-                const { select, detail } = this.createSelectorDimension(node, selectorDimensions, { asAggr, ...$options }, linkedContext, linkedDb);
+            if (node instanceof LQDeepRef1) {
+                const deepRef = asAggr ? toAggrDeepRef(node) : node;
+                const { select, detail } = this.createSelectorDimension(deepRef, selectorDimensions, transformer, linkedDb, { asAggr, ...$options });
                 return select(detail);
             }
 
             // ...and for when we still hit back refs "fk <~ tbl"
-            if (deSugar && (node instanceof LQBackRef || node instanceof LQBackRefAbstraction)) {
+            if (node instanceof LQBackRef || node instanceof LQBackRefAbstraction) {
                 if (node instanceof LQBackRefAbstraction) {
                     node = node.expr();
                 }
-                const { alias } = this.createSelectorDimension(node, selectorDimensions, $options, linkedContext, linkedDb);
+                const { alias } = this.createSelectorDimension(node, selectorDimensions, transformer, linkedDb, $options);
                 return alias();
             }
 
             // Other
-            return node;
-        };
+            return defaultTransform();
+
+        }, transformer, this/* IMPORTANT */);
 
         // Jsonfy with transformCallback as visitor
-        let resultJson = super.jsonfy(options, linkedContext, linkedDb);
+        let resultJson = super.jsonfy(options, transformer, linkedDb);
 
         // Apply selectorDimensions
         if (selectorDimensions.size) {
-            resultJson = this.applySelectorDimensions(resultJson, selectorDimensions, options, linkedContext, linkedDb);
+            resultJson = this.applySelectorDimensions(resultJson, selectorDimensions, transformer, linkedDb, options);
         }
         return resultJson;
     }
 
-    createSelectorDimension(LQRef, selectorDimensions = null, { asAggr = false, ...$options } = {}, linkedContext = null, linkedDb = null) {
-        const { left, right, table, detail } = LQRef.getOperands(linkedContext, linkedDb);
+    createSelectorDimension(LQRef, selectorDimensions, transformer, linkedDb, { asAggr = false, ...$options } = {}) {
+        const { lhsOperand, rhsOperand, rhsTable, detail } = LQRef.resolve(transformer, linkedDb);
 
         const {
             CompleteSelectStmt,
@@ -169,26 +118,26 @@ export const SelectorStmtMixin = (Class) => class extends Class {
             BinaryExpr,
         } = registry;
 
-        const $dimensionID = `dimension${asAggr ? '/g' : ''}|${[left, right, table].join('|')}`;
-        const dimensionID = this._hash($dimensionID, 'join', $options);
+        const $dimensionID = `dimension${asAggr ? '/g' : ''}|${[lhsOperand, rhsOperand, rhsTable].join('|')}`;
+        const dimensionID = transformer.statementContext.hash($dimensionID, 'join', $options);
         if (selectorDimensions?.has(dimensionID)) {
             return selectorDimensions.get(dimensionID);
         }
 
-        // Mask "right"
-        const rightMask = this._rand('key', $options);
-        const rightJson = right.jsonfy({ ...$options, deSugar: false }, linkedContext, linkedDb);
+        // Mask "rhsOperand"
+        const rhsOperandMask = transformer.rand('key', $options);
+        const rhsOperandJson = rhsOperand.jsonfy({ ...$options, nodeNames: false }, transformer, linkedDb);
         const fieldSpec = {
             nodeName: SelectItem.NODE_NAME,
-            expr: rightJson,
-            alias: { nodeName: BasicAlias.NODE_NAME, value: rightMask },
+            expr: rhsOperandJson,
+            alias: { nodeName: BasicAlias.NODE_NAME, value: rhsOperandMask },
             as_kw: true,
         };
 
         // Compose:
-        // - LEFT JOIN ( SELECT [fieldSpec] FROM <table> [GROUP BY]? )
+        // - LEFT JOIN ( SELECT [fieldSpec] FROM <rhsTable> [GROUP BY]? )
         // - AS <dimensionID>
-        // - ON <dimensionID>.<rightMask> = <left>
+        // - ON <dimensionID>.<rhsOperandMask> = <lhsOperand>
         const joinJson = {
             nodeName: JoinClause.NODE_NAME,
             join_type: 'LEFT',
@@ -198,32 +147,32 @@ export const SelectorStmtMixin = (Class) => class extends Class {
                 expr: {
                     nodeName: CompleteSelectStmt.NODE_NAME,
                     select_list: [fieldSpec],
-                    // FROM <table>
+                    // FROM <rhsTable>
                     from_clause: {
                         nodeName: FromClause.NODE_NAME,
-                        entries: [{ nodeName: TableAbstraction3.NODE_NAME, expr: table.jsonfy({ ...$options, deSugar: false }, linkedContext, linkedDb) }]
+                        entries: [{ nodeName: TableAbstraction3.NODE_NAME, expr: rhsTable.jsonfy({ ...$options, deSugar: false }, transformer, linkedDb) }]
                     },
-                    // GROUP BY <rightMask>
+                    // GROUP BY <rhsOperandMask>
                     group_by_clause: asAggr ? {
                         nodeName: GroupByClause.NODE_NAME,
-                        entries: [{ nodeName: GroupingElement.NODE_NAME, expr: { nodeName: ColumnRef1.NODE_NAME, value: rightMask } }]
+                        entries: [{ nodeName: GroupingElement.NODE_NAME, expr: { nodeName: ColumnRef1.NODE_NAME, value: rhsOperandMask } }]
                     } : undefined,
                 }
             },
             // AS <dimensionID>
             as_kw: true,
             alias: { nodeName: CompositeAlias.NODE_NAME, value: dimensionID },
-            // ON <dimensionID>.<rightMask> = <left>
+            // ON <dimensionID>.<rhsOperandMask> = <lhsOperand>
             condition_clause: {
                 nodeName: OnClause.NODE_NAME,
                 expr: {
                     nodeName: BinaryExpr.NODE_NAME,
                     operator: '=',
-                    left: left.jsonfy({ ...$options, deSugar: false }, linkedContext, linkedDb),
+                    left: lhsOperand.jsonfy({ ...$options, deSugar: false }, transformer, linkedDb),
                     right: {
                         nodeName: ColumnRef1.NODE_NAME,
                         qualifier: { nodeName: TableRef1.NODE_NAME, value: dimensionID },
-                        value: rightMask
+                        value: rhsOperandMask
                     },
                 }
             },
@@ -234,12 +183,12 @@ export const SelectorStmtMixin = (Class) => class extends Class {
 
         // Add entry...
         const select = (detail) => {
-            const selectAlias = this._rand('ref', $options);
+            const selectAlias = transformer.rand('ref', $options);
             // Compose:
             // - [...detail] AS <selectAlias>
             joinJson.expr.expr.select_list.push({
                 nodeName: SelectItem.NODE_NAME,
-                expr: detail.jsonfy({ ...$options, deSugar: false }, linkedContext, linkedDb),
+                expr: detail.jsonfy({ ...$options, deSugar: false }, transformer, linkedDb),
                 alias: { nodeName: BasicAlias.NODE_NAME, value: selectAlias },
                 as_kw: true,
             });
@@ -251,13 +200,14 @@ export const SelectorStmtMixin = (Class) => class extends Class {
         };
 
         const selectorDimension = { id: dimensionID, type: 'join', query: joinJson, alias, select, detail };
+
         selectorDimensions
             ?.set(dimensionID, selectorDimension);
 
         return selectorDimension;
     }
 
-    applySelectorDimensions(resultJson, selectorDimensions, options, linkedContext = null, linkedDb = null) {
+    applySelectorDimensions(resultJson, selectorDimensions, transformer, linkedDb, options) {
 
         const {
             JoinClause,
@@ -269,9 +219,10 @@ export const SelectorStmtMixin = (Class) => class extends Class {
         };
         for (const [, { query: joinJson }] of selectorDimensions) {
             const joinInstance = JoinClause.fromJSON(joinJson, this.options);
+
             this._adoptNodes(joinInstance);
             resultJson.join_clauses.push(
-                joinInstance.jsonfy(options, linkedContext, linkedDb)
+                joinInstance.jsonfy(options, transformer, linkedDb)
             );
         }
 

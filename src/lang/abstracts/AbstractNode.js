@@ -205,20 +205,20 @@ export class AbstractNode {
 
 	static morphsTo() { return this; }
 
-	clone(options = {}, linkedContext = null, linkedDb = null) {
-		const resultJson = this.jsonfy(options, linkedContext, linkedDb);
+	clone(options = {}, transformer = null, linkedDb = null) {
+		const resultJson = this.jsonfy(options, transformer, linkedDb);
 		const Classes = [this.constructor].concat(this.constructor.morphsTo());
 		return Classes.reduce((prev, C) => prev || C.fromJSON(resultJson, { dialect: options.toDialect || this.options.dialect }), undefined);
 	}
 
-	deSugar(options = {}, linkedContext = null, linkedDb = null) {
+	deSugar(options = {}, transformer = null, linkedDb = null) {
 		options = { ...options, deSugar: true/* overrridingly */ };
-		return this.clone(options, linkedContext, linkedDb);
+		return this.clone(options, transformer, linkedDb);
 	}
 
-	toDialect(dialect, linkedContext = null, linkedDb = null) {
+	toDialect(dialect, transformer = null, linkedDb = null) {
 		const options = { toDialect: dialect };
-		return this.clone(options, linkedContext, linkedDb);
+		return this.clone(options, transformer, linkedDb);
 	}
 
 	/**
@@ -576,28 +576,28 @@ export class AbstractNode {
 
 	toJSON() { return this.jsonfy(); }
 
-	jsonfy(options = {}, linkedContext = null, linkedDb = null) {
+	jsonfy(options = {}, transformer = null, linkedDb = null) {
 
-		const jsonfy = (key, value, relevantLinkedContext) => {
+		const jsonfy = (key, value, relevantTransformer) => {
 
-			const defaultTransform = (options1 = options, childLinkedContext = relevantLinkedContext) => {
+			const defaultTransform = (options1 = options, childTransformer = relevantTransformer) => {
 				if (Array.isArray(value)) {
 					return value.reduce((entries, value, i) => {
-						const result = jsonfy(i, value, childLinkedContext);
+						const result = jsonfy(i, value, childTransformer);
 						if (result === undefined) return entries;
 						return entries.concat(result);
 					}, []);
 				}
 				if (value instanceof AbstractNode) {
-					return value.jsonfy(options1, childLinkedContext, linkedDb);
+					return value.jsonfy(options1, childTransformer, linkedDb);
 				}
 				return value;
 			};
 
 			if (value === undefined) return;
 
-			const result = relevantLinkedContext
-				? relevantLinkedContext.transform(value, defaultTransform, key, options)
+			const result = relevantTransformer
+				? relevantTransformer.transform(value, defaultTransform, key, options)
 				: defaultTransform();
 
 			if (result instanceof AbstractNode) {
@@ -611,7 +611,7 @@ export class AbstractNode {
 			...(options.nodeNames !== false ? { nodeName: this.NODE_NAME } : {}),
 			...Object.fromEntries(Object.entries(this.#ast).reduce((resultEntries, [fieldName, value]) => {
 
-				const result = jsonfy(fieldName, value, linkedContext);
+				const result = jsonfy(fieldName, value, transformer);
 				if (result === undefined) return resultEntries;
 
 				return [...resultEntries, [fieldName, result]];

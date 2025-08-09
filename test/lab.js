@@ -128,7 +128,7 @@ FOR UPDATE SKIP LOCKED;
 TABLE public.users *;
 `;
 
-sql = `SELECT id from users`;
+sql = `SELECT * FROM (SELECT { "id" []: id+2 }, parent_user ~> email from users)`;
 
 //
 /*
@@ -164,5 +164,5 @@ for (const t of [t1b]) {
   const resultPretty = cloneNode?.stringify?.({ prettyPrint: true, autoLineBreakThreshold: 6 });
 
 
-  console.log({ resultClassic, resultDeSugared, resultPretty, resultSchema: cloneDeSugared?.ddlSchema() });
+  console.log({ resultClassic, resultDeSugared, resultPretty, resultSchema: cloneDeSugared?.ddlSchema().entries() });
 }

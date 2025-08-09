@@ -27,15 +27,15 @@ export class LQDeepRef1 extends LQDeepDeepRef1 {
 
 	/* API */
 
-	rhsTable(linkedContext, linkedDb) {
+	rhsTable(transformer, linkedDb) {
 		if (this.left() instanceof registry.LQBackRefAbstraction) {
-			return this.left().expr()/* LQBackRef */.rhsTable(linkedContext, linkedDb);
+			return this.left().expr()/* LQBackRef */.rhsTable(transformer, linkedDb);
 		}
-		return super.rhsTable(linkedContext, linkedDb);
+		return super.rhsTable(transformer, linkedDb);
 	}
 
-	resolve(linkedContext, linkedDb) {
-		if (!linkedContext || !linkedDb) return;
+	resolve(transformer, linkedDb) {
+		if (!transformer || !linkedDb) return;
 
 		let detail;
 		if (this.right() instanceof registry.ColumnRef2) {
@@ -50,15 +50,15 @@ export class LQDeepRef1 extends LQDeepDeepRef1 {
 		}
 
 		if (this.left() instanceof registry.LQBackRefAbstraction) {
-			const resolution = this.left().expr().resolve(linkedContext, linkedDb);
+			const resolution = this.left().expr().resolve(transformer, linkedDb);
 			return { ...resolution, detail };
 		}
 
-		const qualifiedLeftOperand = this.left().resolve(linkedContext, linkedDb);
+		const qualifiedLeftOperand = this.left().resolve(transformer, linkedDb);
 
-		const qualifiedRightTable = this.rhsTable(linkedContext, linkedDb);
+		const qualifiedRightTable = this.rhsTable(transformer, linkedDb);
 
-		const unqualifiedRightOperand = qualifiedRightTable.pkConstraint(true)?.columns()[0]?.resolve();
+		const unqualifiedRightOperand = qualifiedRightTable.ddlSchema().pkConstraint(true)?.columns()[0]?.resolve(transformer, linkedDb);
 		if (!unqualifiedRightOperand) throw new Error(`[${this.parentNode || this}] The referenced RHS table ${qualifiedRightTable} does not have a primary key.`);
 
 		return {
