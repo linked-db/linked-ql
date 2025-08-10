@@ -28,14 +28,33 @@ export class LQDeepRef1 extends LQDeepDeepRef1 {
 	/* API */
 
 	rhsTable(transformer, linkedDb) {
+		if (this.left()?.qualifier?.() instanceof registry.LQBackRefAbstraction) {
+			return this._normalize().rhsTable(transformer, linkedDb);
+		}
 		if (this.left() instanceof registry.LQBackRefAbstraction) {
 			return this.left().expr()/* LQBackRef */.rhsTable(transformer, linkedDb);
 		}
 		return super.rhsTable(transformer, linkedDb);
 	}
 
+	_normalize() {
+		const left = this.left();
+		const right = this.right();
+		const lhsOperandJson = left.qualifier().jsonfy();
+		const rhsOperandJson = { ...left.jsonfy(), qualifier: undefined, nodeName: registry.ColumnRef2.NODE_NAME };
+		const deepRef = LQDeepRef1.fromJSON({
+			left: lhsOperandJson,
+			right: { nodeName: LQDeepDeepRef1.NODE_NAME, left: rhsOperandJson, right: right.jsonfy() }
+		});
+		this._adoptNodes(deepRef);
+		return deepRef;
+	}
+
 	resolve(transformer, linkedDb) {
 		if (!transformer || !linkedDb) return;
+		if (this.left()?.qualifier?.() instanceof registry.LQBackRefAbstraction) {
+			return this._normalize().resolve(transformer, linkedDb);
+		}
 
 		let detail;
 		if (this.right() instanceof registry.ColumnRef2) {

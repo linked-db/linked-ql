@@ -14,5 +14,4 @@ export class AbstractMagicRef extends SugarMixin(BinaryExpr) {
     }
 
 	rhsSchema(transformer, linkedDb) { return this.rhsTable(transformer, linkedDb)?.ddlSchema(); }
-    
 }

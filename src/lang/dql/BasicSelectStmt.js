@@ -67,7 +67,6 @@ export class BasicSelectStmt extends SelectorStmtMixin(
             if (node instanceof registry.TableAbstraction3) {
                 let conditionClauseTransform;
 
-
                 let subResultJson = defaultTransform((node, defaultTransform, keyHint) => {
                     if (keyHint === 'condition_clause') {
                         conditionClauseTransform = defaultTransform;
@@ -152,21 +151,6 @@ export class BasicSelectStmt extends SelectorStmtMixin(
                 }
             }
         }
-
-        // --------------
-
-        // Resolve deep-refs schemas
-        resultJson = {
-            ...resultJson,
-            select_list: resultJson.select_list.map((fieldJson) => {
-                if (fieldJson.result_schema) return fieldJson;
-
-                const fieldNode = registry.SelectItem.fromJSON(fieldJson, this.options);
-                this._adoptNodes(fieldNode);
-
-                return fieldNode.jsonfy(options, transformer, linkedDb);
-            }),
-        };
 
         // Derive output schema
         const result_schema = new JSONSchema({

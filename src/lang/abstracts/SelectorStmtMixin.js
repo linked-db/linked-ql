@@ -28,7 +28,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
 
             const specialColumnRef1ToDeepRef = (columnRef) => {
                 const lhsOperandJson = columnRef.qualifier().jsonfy();
-                const rhsOperandJson = { ...columnRef.jsonfy(), nodeName: ColumnRef2.NODE_NAME };
+                const rhsOperandJson = { ...columnRef.jsonfy(), qualifier: undefined, nodeName: ColumnRef2.NODE_NAME };
                 const deepRef = LQDeepRef1.fromJSON({
                     left: lhsOperandJson,
                     right: rhsOperandJson

@@ -129,8 +129,9 @@ TABLE public.users *;
 `;
 
 //sql = `SELECT email, p ~> username, m FROM (SELECT parent_user ~> email, parent_user ~> parent_user AS p, parent_user ~> parent_user ~> metadata ~> data AS m[], { "id" []: id+2 } from users)`;
-sql = `SELECT email, u.parent_user ~> ((users) parent_user <~ parent_user <~ users) ~> metadata ~> id AS m[] FROM users u`;
-//sql = `SELECT m FROM (SELECT ((user_metadata) metadata <~ parent_user <~ parent_user <~ users) ~> email AS m[] FROM user_metadata)`;
+//sql = `SELECT email, ((users) parent_user <~ parent_user <~ users).metadata ~> id AS m[] FROM users u`;
+sql = `SELECT m FROM (SELECT ((user_metadata) metadata <~ parent_user <~ parent_user <~ users) ~> email AS m[] FROM user_metadata)`;
+//sql = '((users) parent_user <~ parent_user <~ users).metadata ~> data';
 
 //
 /*
@@ -146,8 +147,8 @@ process.exit();
 
 let t1b;
 //t1b = await Query.parse(sql, { assert: new RegExp(`COLUMN_REF\\.0\\.syntaxes\\.0\\.0<qufalifier>\\.`) });
-t1b = await registry['SelectStmt'].parse(sql, { assert_: /ORDER/, dialect: 'postgres', prettyPrint: true, autoLineBreakThreshold: 40000 });
-
+t1b = await registry['BasicSelectStmt'].parse(sql, { assert_: /ORDER/, dialect: 'postgres', prettyPrint: true, autoLineBreakThreshold: 40000 });
+//t1b = t1b._normalize();
 
 
 for (const t of [t1b]) {
@@ -156,8 +157,11 @@ for (const t of [t1b]) {
 
   const resultClassic = t?.stringify();
 
+  console.log({ resultClassic, json: t?.jsonfy?.() });
+
   const { catalog } = await import('./01.catalog.parser.js');
-  console.log({ catalog })
+  console.log({ catalog });
+
   const linkedDb = new LinkedDB({ catalog });
   const cloneDeSugared = t?.deSugar({}, null, linkedDb);
   const resultDeSugared = cloneDeSugared?.stringify?.({ prettyPrint: true });
@@ -166,5 +170,5 @@ for (const t of [t1b]) {
   const resultPretty = cloneNode?.stringify?.({ prettyPrint: true, autoLineBreakThreshold: 6 });
 
 
-  console.log({ resultClassic, resultDeSugared, resultPretty, resultSchema: cloneDeSugared?.ddlSchema().entries().map((s) => s?.jsonfy())[0] });
+  console.log({ resultDeSugared, resultPretty, resultSchema: cloneDeSugared?.ddlSchema().entries().map((s) => s?.jsonfy())[0] });
 }
