@@ -1,5 +1,6 @@
 import { Transformer } from '../Transformer.js';
 import { SelectorStmtMixin } from '../abstracts/SelectorStmtMixin.js';
+import { ErrorRefUnknown } from '../expr/ref/abstracts/ErrorRefUnknown.js';
 import { JSONSchema } from '../abstracts/JSONSchema.js';
 import { SelectStmt } from './SelectStmt.js';
 import { registry } from '../registry.js';
@@ -47,34 +48,25 @@ export class BasicSelectStmt extends SelectorStmtMixin(
     jsonfy(options = {}, transformer = null, linkedDb = null) {
         if (!options.deSugar) return super.jsonfy(options, transformer, linkedDb);
 
-        const deferedSelectItems = new Set;
-        let resultJson = {};
-
-        const processOutputFields = (attempt = false) => {
-            if (!deferedSelectItems.size) return;
-            const select_list = [];
-            for (const defaultTransform of deferedSelectItems) {
-                const fieldJson = defaultTransform();
-                if (!fieldJson) continue;
-                const columnSchema = fieldJson.result_schema;
-                transformer.artifacts.get('outputSchemas').add(columnSchema);
-                select_list.push(fieldJson);
-                deferedSelectItems.delete(defaultTransform);
-            }
-            resultJson = { ...resultJson, select_list: (resultJson.select_list || []).concat(select_list) };
+        const deferedItems = {
+            select_list: new Set,
+            group_by_clause: new Set,
+            having_clause: new Set,
+            order_by_clause: new Set,
         };
 
-        transformer = new Transformer((node, defaultTransform) => {
+        transformer = new Transformer((node, defaultTransform, keyHint) => {
 
             // Defer SelectItem resolution
             if (node instanceof registry.SelectItem) {
-                deferedSelectItems.add(defaultTransform);
+                deferedItems.select_list.add(defaultTransform);
                 return; // Exclude for now
             }
 
             // Process table abstraction nodes
             if (node instanceof registry.TableAbstraction3) {
                 let conditionClauseTransform;
+
 
                 let subResultJson = defaultTransform((node, defaultTransform, keyHint) => {
                     if (keyHint === 'condition_clause') {
@@ -99,27 +91,69 @@ export class BasicSelectStmt extends SelectorStmtMixin(
             if (node instanceof registry.GroupByClause
                 || node instanceof registry.HavingClause
                 || node instanceof registry.OrderByClause) {
-                processOutputFields();
+                // Try to capture Linked QL's native GROUP BY clause that's derived
+                // from a back ref, which won't resolve at this time because the relevant generated JOIN
+                // hasn't been add
+                return defaultTransform((childNode, defaultChildTransform) => {
+                    if (childNode.parentNode === node) {
+                        try {
+                            deferedItems[keyHint].add(defaultChildTransform());
+                        } catch (e) {
+                            if (e instanceof ErrorRefUnknown && childNode.expr() instanceof registry.ColumnRef1) {
+                                deferedItems[keyHint].add(defaultChildTransform);
+                            } else throw e;
+                        }
+                        return; // Exclude for now
+                    }
+                    return defaultChildTransform();
+                });
             }
 
             // For all other things...
             return defaultTransform();
-        }, transformer, this);
+        }, transformer, this/* IMPORTANT */);
 
         // Create the artifacts registries
         transformer.artifacts.set('outputSchemas', new Set);
         transformer.artifacts.set('tableSchemas', new Set);
 
         // Run transform
-        const stmtResultJson = super.jsonfy(options, transformer, linkedDb);
-        // Trigger fields resolution if not yet
-        processOutputFields();
-        resultJson = { ...stmtResultJson, ...resultJson/* must come overidingly */ };
+        let resultJson = super.jsonfy(options, transformer, linkedDb);
 
         // --------------
 
-        // Finalize...
-        resultJson = this.applySelectorDimensions(resultJson, transformer, linkedDb, options);
+        // Resolve deferred items
+        for (const [fieldName, deferreds] of Object.entries(deferedItems)) {
+            let resolvedEntries = [];
+            for (let deferred of deferreds) {
+                if (typeof deferred === 'function') {
+                    deferred = deferred();
+                }
+                resolvedEntries.push(deferred);
+            }
+            if (fieldName === 'select_list') {
+                // Finalize generated JOINS
+                resultJson = this.applySelectorDimensions(resultJson, transformer, linkedDb, options);
+                // Re-resolve output list for cases of just-added deep refs where in schemas wouldn't have been resolvable at the time
+                resolvedEntries = resolvedEntries.map((fieldJson) => {
+                    if (fieldJson.result_schema) return fieldJson;
+                    const fieldNode = registry.SelectItem.fromJSON(fieldJson, this.options);
+                    this._adoptNodes(fieldNode);
+                    return fieldNode.jsonfy(options, transformer, linkedDb);
+                });
+                // Apply now
+                resultJson = { ...resultJson, [fieldName]: resolvedEntries };
+                transformer.artifacts.set('outputSchemas', new Set(resolvedEntries.map((e) => e.result_schema)));
+            } else if (deferreds.size) {
+                if (fieldName === 'having_clause') {
+                    resultJson = { ...resultJson, [fieldName]: resolvedEntries[0] };
+                } else if (fieldName === 'group_by_clause') {
+                    resultJson = { ...resultJson, [fieldName]: { entries: resolvedEntries } };
+                }
+            }
+        }
+
+        // --------------
 
         // Resolve deep-refs schemas
         resultJson = {

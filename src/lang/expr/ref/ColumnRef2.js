@@ -42,9 +42,9 @@ export class ColumnRef2 extends AbstractClassicRef {
         let tableSchemaInScope;
         if (this.parentNode instanceof AbstractMagicRef) {
             if (this === this.parentNode.operand()) {
-                tableSchemaInScope = this.parentNode.parentNode.rhsSchema();
+                tableSchemaInScope = this.parentNode.parentNode.rhsSchema(transformer, linkedDb);
             } else {
-                tableSchemaInScope = this.parentNode.rhsSchema();
+                tableSchemaInScope = this.parentNode.rhsSchema(transformer, linkedDb);
             }
         } else {
             tableSchemaInScope = this.climbTree((superParentNode, up) => {

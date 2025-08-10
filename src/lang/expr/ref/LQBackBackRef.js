@@ -36,10 +36,10 @@ export class LQBackBackRef extends AbstractMagicRef {
 		if (options.reverseRef) {
 			return {
 				...(options.nodeNames === false ? {} : { nodeName: registry.LQDeepRef1.NODE_NAME }),
-				left: this.right().jsonfy({ ...options, nodeNames: false }),
-				right: this.left() instanceof registry.LQBackBackRefEndpoint
-					? { nodeName: registry.ColumnRef2.NODE_NAME, value: this.left().value() }
+				right: this.left() instanceof registry.LQBackRefEndpoint
+					? { nodeName: registry.ColumnRef2.NODE_NAME, value: this.left().value(), delim: this.left()._get('delim') }
 					: this.left().jsonfy({ ...options, nodeNames: false }),
+				left: this.right().jsonfy({ ...options, nodeNames: false }),
 			};
 		}
 		return super.jsonfy(options, transformer, linkedDb);

@@ -89,7 +89,8 @@ export class LQBackRef extends LQBackBackRef {
 		const unqualifiedRightOperand = left instanceof LQBackBackRef
 			? left.clone({ reverseRef: true })
 			: registry.ColumnRef2.fromJSON({
-				...unqualifiedLeftEndpoint.jsonfy(),
+				value: unqualifiedLeftEndpoint.value(),
+				delim: unqualifiedLeftEndpoint._get('delim'),
 				result_schema: qualifiedRightTable.ddlSchema()._get('entries', unqualifiedLeftEndpoint)
 			});
 

@@ -128,8 +128,9 @@ FOR UPDATE SKIP LOCKED;
 TABLE public.users *;
 `;
 
-sql = `SELECT email, p ~> username, m FROM (SELECT parent_user ~> email, parent_user ~> parent_user AS p, parent_user ~> parent_user ~> metadata ~> data AS m[], { "id" []: id+2 } from users)`;
-//sql = `SELECT email, parent_user ~> metadata ~> id AS m[] FROM users`;
+//sql = `SELECT email, p ~> username, m FROM (SELECT parent_user ~> email, parent_user ~> parent_user AS p, parent_user ~> parent_user ~> metadata ~> data AS m[], { "id" []: id+2 } from users)`;
+sql = `SELECT email, u.parent_user ~> ((users) parent_user <~ parent_user <~ users) ~> metadata ~> id AS m[] FROM users u`;
+//sql = `SELECT m FROM (SELECT ((user_metadata) metadata <~ parent_user <~ parent_user <~ users) ~> email AS m[] FROM user_metadata)`;
 
 //
 /*
@@ -165,5 +166,5 @@ for (const t of [t1b]) {
   const resultPretty = cloneNode?.stringify?.({ prettyPrint: true, autoLineBreakThreshold: 6 });
 
 
-  console.log({ resultClassic, resultDeSugared, resultPretty, resultSchema: cloneDeSugared?.ddlSchema().entries().map((s) => s?.jsonfy())[1] });
+  console.log({ resultClassic, resultDeSugared, resultPretty, resultSchema: cloneDeSugared?.ddlSchema().entries().map((s) => s?.jsonfy())[0] });
 }

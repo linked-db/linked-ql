@@ -1,6 +1,10 @@
+import { registry } from './registry.js';
+
 export class Transformer {
 
     #callback;
+    get cb() { return this.#callback; }
+
     #rands = new Map;
     #hashes = new Map;
 
@@ -43,9 +47,7 @@ export class Transformer {
 
     transform(node, defaultTransform, key, options0, originatingContext = this) {
 
-        const $next = (options1 = options0) => {
-
-            let childTransformer = this;
+        const $defaultTransform = (options1 = options0, childTransformer = originatingContext) => {
 
             // From superTransformer:
             // implicitly inherit current instance for sub-transforms
@@ -75,9 +77,9 @@ export class Transformer {
 
         if (this.#superTransformer) {
             // Call superTransformer and pass originating scope
-            return this.#superTransformer.transform(node, $next, key, options0, originatingContext);
+            return this.#superTransformer.transform(node, $defaultTransform, key, options0, originatingContext);
         }
 
-        return $next();
+        return $defaultTransform();
     }
 }

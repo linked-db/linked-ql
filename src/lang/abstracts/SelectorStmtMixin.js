@@ -110,7 +110,10 @@ export const SelectorStmtMixin = (Class) => class extends Class {
 
         // Mask "rhsOperand"
         const rhsOperandMask = transformer.rand('key', rands);
-        const rhsOperandJson = { ...rhsOperand.jsonfy(), nodeName: registry.ColumnRef1.NODE_NAME };
+        const rhsOperandJson = {
+            ...rhsOperand.jsonfy(),
+            ...(rhsOperand instanceof registry.ColumnRef2 ? { nodeName: registry.ColumnRef1.NODE_NAME } : {}),
+        };
         const fieldSpec = {
             nodeName: SelectItem.NODE_NAME,
             expr: rhsOperandJson,

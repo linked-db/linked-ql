@@ -596,7 +596,7 @@ export class AbstractNode {
 			};
 
 			if (value === undefined) return;
-
+			
 			const result = relevantTransformer
 				? relevantTransformer.transform(value, defaultTransform, key, options)
 				: defaultTransform();
@@ -617,35 +617,6 @@ export class AbstractNode {
 
 				return [...resultEntries, [fieldName, result]];
 			}, [])),
-		};
-	}
-
-	jsonfy____(options = {}, transformCallback = null,) {
-		const jsonfy = (value, key) => {
-			const originalValue = value;
-			if (transformCallback) {
-				value = transformCallback(value, key, options);
-			}
-			if (value instanceof AbstractNode) {
-				if (value.statementNode === value) {
-					value = value.jsonfy(options, null/* IMPORTANT */, transformer);
-				} else {
-					value = value.jsonfy(options, transformer);
-				}
-			} else if (Array.isArray(originalValue) && Array.isArray(value) && value.every((n) => n instanceof AbstractNode)) {
-				value = value.reduce((entries, value, i) => {
-					const result = jsonfy(value, i);
-					if (result === undefined) return entries;
-					return entries.concat(result);
-				}, []);
-			}
-			return value;
-		};
-		return {
-			...(options.nodeNames !== false ? { nodeName: this.NODE_NAME } : {}),
-			...Object.fromEntries(Object.entries(this.#ast).map(([fieldName, value]) => {
-				return [fieldName, jsonfy(value, fieldName)];
-			})),
 		};
 	}
 
