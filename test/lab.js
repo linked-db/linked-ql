@@ -128,7 +128,7 @@ FOR UPDATE SKIP LOCKED;
 TABLE public.users *;
 `;
 
-sql = `SELECT email, p ~> id, m FROM (SELECT parent_user ~> email, parent_user ~> parent_user AS p, parent_user ~> parent_user ~> metadata ~> id AS m[], { "id" []: id+2 } from users)`;
+sql = `SELECT email, p ~> username, m FROM (SELECT parent_user ~> email, parent_user ~> parent_user AS p, parent_user ~> parent_user ~> metadata ~> data AS m[], { "id" []: id+2 } from users)`;
 //sql = `SELECT email, parent_user ~> metadata ~> id AS m[] FROM users`;
 
 //

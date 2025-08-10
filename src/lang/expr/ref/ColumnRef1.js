@@ -68,40 +68,39 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
             return resolvedColumnRef1;
         };
 
-        if (this.canReferenceOutputColumns()) {
-            // Resolve from outputSchemas first
-            let statementContext = transformer.statementContext
-            do {
-                for (const columnSchema of statementContext.artifacts.get('outputSchemas')) {
-                    resultSet = resultSet.concat(resolve(columnSchema) || []);
-                    if (!inGrepMode && resultSet.length) break; // Matching current instance only
-                }
-            } while ((inGrepMode || !resultSet.length) && (statementContext = statementContext.superContext?.statementContext))
-        }
+        // Resolve normally
+        resultSet = resultSet.concat((new registry.TableRef1(this.qualifier()?.jsonfy() || {})).lookup(
+            (tableSchema, qualifierJson = undefined) => {
+
+                return tableSchema._get('entries').reduce((prev, columnSchema) => {
+                    if (tableSchema instanceof JSONSchema) {
+                        // An unaliased derived query
+                        return prev.concat(resolve(columnSchema) || []);
+                    }
+                    const newQualifierJson = {
+                        ...tableSchema.name().jsonfy({ nodeNames: false }),
+                        result_schema: tableSchema,
+                        qualifier: qualifierJson
+                    };
+                    return prev.concat(resolve(columnSchema, newQualifierJson) || []);
+                }, []);
+
+            },
+            transformer,
+            linkedDb,
+        ));
 
         if (inGrepMode || !resultSet.length) {
-            // Resolve normally
-            resultSet = resultSet.concat((new registry.TableRef1(this.qualifier()?.jsonfy() || {})).lookup(
-                (tableSchema, qualifierJson = undefined) => {
-
-                    return tableSchema._get('entries').reduce((prev, columnSchema) => {
-                        if (tableSchema instanceof JSONSchema) {
-                            // An unaliased derived query
-                            return prev.concat(resolve(columnSchema) || []);
-                        }
-                        //if (prev.length && !inGrepMode) return prev;
-                        const newQualifierJson = {
-                            ...tableSchema.name().jsonfy({ nodeNames: false }),
-                            result_schema: tableSchema,
-                            qualifier: qualifierJson
-                        };
-                        return prev.concat(resolve(columnSchema, newQualifierJson) || []);
-                    }, []);
-
-                },
-                transformer,
-                linkedDb,
-            ));
+            if (this.canReferenceOutputColumns()) {
+                // Resolve from outputSchemas first
+                let statementContext = transformer.statementContext
+                do {
+                    for (const columnSchema of statementContext.artifacts.get('outputSchemas')) {
+                        resultSet = resultSet.concat(resolve(columnSchema) || []);
+                        if (!inGrepMode && resultSet.length) break; // Matching current instance only
+                    }
+                } while ((inGrepMode || !resultSet.length) && (statementContext = statementContext.superContext?.statementContext))
+            }
         }
 
         return resultSet;

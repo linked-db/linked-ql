@@ -53,8 +53,8 @@ export const SelectorStmtMixin = (Class) => class extends Class {
             // 2. DeSugar deep refs to bare column refs
             if (node instanceof LQDeepRef1) {
                 let { select, detail } = this.createSelectorDimension(node, transformer, linkedDb, { ...$options, asAggr });
-                const detailJson = asAggr 
-                    ? toAggr(detail.jsonfy()) 
+                const detailJson = asAggr
+                    ? toAggr(detail.jsonfy())
                     : detail.jsonfy();
                 return select(detailJson);
             }
@@ -110,7 +110,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
 
         // Mask "rhsOperand"
         const rhsOperandMask = transformer.rand('key', rands);
-        const rhsOperandJson = rhsOperand.jsonfy({ ...$options, nodeNames: false }, transformer, linkedDb);
+        const rhsOperandJson = { ...rhsOperand.jsonfy(), nodeName: registry.ColumnRef1.NODE_NAME };
         const fieldSpec = {
             nodeName: SelectItem.NODE_NAME,
             expr: rhsOperandJson,
