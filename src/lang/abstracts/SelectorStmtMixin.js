@@ -19,19 +19,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
             LQBackRef,
         } = registry;
 
-        const selectorDimensions = new Map;
         transformer = new Transformer((node, defaultTransform, keyHint, { deSugar/* IMPORTANT */, asAggr/* IMPORTANT */, ...$options }) => {
-
-            const toAggr = (nodeJson, wrap = false) => {
-                const aggrJson = {
-                    nodeName: AggrCallExpr.NODE_NAME,
-                    name: ($options.toDialect || this.options.dialect) === 'mysql' ? 'JSON_ARRAYAGG' : 'JSON_AGG',
-                    arguments: [nodeJson],
-                };
-                return wrap
-                    ? { nodeName: RowConstructor.NODE_NAME, entries: [aggrJson] }
-                    : aggrJson;
-            };
 
             const isSpecialColumnRef1 = (node) => {
                 return node instanceof ColumnRef1
@@ -49,17 +37,12 @@ export const SelectorStmtMixin = (Class) => class extends Class {
                 return deepRef;
             };
 
-            const toAggrDeepRef = (deepRef) => {
-                const lhsOperandJson = deepRef.left().jsonfy();
-                const rhsOperandJson = deepRef.right() instanceof ColumnRef2
-                    ? { ...deepRef.right().jsonfy(), nodeName: ColumnRef1.NODE_NAME }
-                    : deepRef.right().jsonfy();
-                const newDeepRef = LQDeepRef1.fromJSON({
-                    left: lhsOperandJson,
-                    right: toAggr(rhsOperandJson, true)
-                });
-                deepRef.parentNode._adoptNodes(newDeepRef);
-                return newDeepRef;
+            const toAggr = (nodeJson) => {
+                return {
+                    nodeName: AggrCallExpr.NODE_NAME,
+                    name: ($options.toDialect || this.options.dialect) === 'mysql' ? 'JSON_ARRAYAGG' : 'JSON_AGG',
+                    arguments: [nodeJson],
+                };
             };
 
             // 1. DeSugar special column refs "(fk <~ tbl).col" to deep refs
@@ -69,9 +52,11 @@ export const SelectorStmtMixin = (Class) => class extends Class {
 
             // 2. DeSugar deep refs to bare column refs
             if (node instanceof LQDeepRef1) {
-                const deepRef = asAggr ? toAggrDeepRef(node) : node;
-                const { select, detail } = this.createSelectorDimension(deepRef, selectorDimensions, transformer, linkedDb, { asAggr, ...$options });
-                return select(detail);
+                let { select, detail } = this.createSelectorDimension(node, transformer, linkedDb, { ...$options, asAggr });
+                const detailJson = asAggr 
+                    ? toAggr(detail.jsonfy()) 
+                    : detail.jsonfy();
+                return select(detailJson);
             }
 
             // ...and for when we still hit back refs "fk <~ tbl"
@@ -79,7 +64,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
                 if (node instanceof LQBackRefAbstraction) {
                     node = node.expr();
                 }
-                const { alias } = this.createSelectorDimension(node, selectorDimensions, transformer, linkedDb, $options);
+                const { alias } = this.createSelectorDimension(node, transformer, linkedDb, $options);
                 return alias();
             }
 
@@ -88,18 +73,14 @@ export const SelectorStmtMixin = (Class) => class extends Class {
 
         }, transformer, this/* IMPORTANT */);
 
-        // Jsonfy with transformCallback as visitor
-        let resultJson = super.jsonfy(options, transformer, linkedDb);
+        transformer.statementContext.artifacts.set('selectorDimensions', new Map);
 
-        // Apply selectorDimensions
-        if (selectorDimensions.size) {
-            resultJson = this.applySelectorDimensions(resultJson, selectorDimensions, transformer, linkedDb, options);
-        }
-        return resultJson;
+        return super.jsonfy(options, transformer, linkedDb);
     }
 
-    createSelectorDimension(LQRef, selectorDimensions, transformer, linkedDb, { asAggr = false, ...$options } = {}) {
+    createSelectorDimension(LQRef, transformer, linkedDb, { asAggr = false, ...$options } = {}) {
         const { lhsOperand, rhsOperand, rhsTable, detail } = LQRef.resolve(transformer, linkedDb);
+        const selectorDimensions = transformer.statementContext.artifacts.get('selectorDimensions');
 
         const {
             CompleteSelectStmt,
@@ -119,13 +100,16 @@ export const SelectorStmtMixin = (Class) => class extends Class {
         } = registry;
 
         const $dimensionID = `dimension${asAggr ? '/g' : ''}|${[lhsOperand, rhsOperand, rhsTable].join('|')}`;
-        const dimensionID = transformer.statementContext.hash($dimensionID, 'join', $options);
+        const dimensionID = transformer.statementContext.hash($dimensionID, 'join');
+
         if (selectorDimensions?.has(dimensionID)) {
-            return selectorDimensions.get(dimensionID);
+            return { ...selectorDimensions.get(dimensionID), detail };
         }
 
+        const rands = new Map;
+
         // Mask "rhsOperand"
-        const rhsOperandMask = transformer.rand('key', $options);
+        const rhsOperandMask = transformer.rand('key', rands);
         const rhsOperandJson = rhsOperand.jsonfy({ ...$options, nodeNames: false }, transformer, linkedDb);
         const fieldSpec = {
             nodeName: SelectItem.NODE_NAME,
@@ -183,12 +167,12 @@ export const SelectorStmtMixin = (Class) => class extends Class {
 
         // Add entry...
         const select = (detail) => {
-            const selectAlias = transformer.rand('ref', $options);
+            const selectAlias = transformer.rand('ref', rands);
             // Compose:
             // - [...detail] AS <selectAlias>
             joinJson.expr.expr.select_list.push({
                 nodeName: SelectItem.NODE_NAME,
-                expr: detail.jsonfy({ ...$options, deSugar: false }, transformer, linkedDb),
+                expr: detail,
                 alias: { nodeName: BasicAlias.NODE_NAME, value: selectAlias },
                 as_kw: true,
             });
@@ -207,23 +191,23 @@ export const SelectorStmtMixin = (Class) => class extends Class {
         return selectorDimension;
     }
 
-    applySelectorDimensions(resultJson, selectorDimensions, transformer, linkedDb, options) {
-
-        const {
-            JoinClause,
-        } = registry;
+    applySelectorDimensions(resultJson, transformer, linkedDb, options) {
+        const selectorDimensions = transformer.statementContext.artifacts.get('selectorDimensions');
 
         resultJson = {
             ...resultJson,
             join_clauses: resultJson.join_clauses?.slice(0) || [],
         };
         for (const [, { query: joinJson }] of selectorDimensions) {
-            const joinInstance = JoinClause.fromJSON(joinJson, this.options);
 
-            this._adoptNodes(joinInstance);
-            resultJson.join_clauses.push(
-                joinInstance.jsonfy(options, transformer, linkedDb)
-            );
+            const joinNode = registry.JoinClause.fromJSON(joinJson, this.options);
+            this._adoptNodes(joinNode);
+
+            const joinJson2 = transformer.transform(joinNode, ($options = options, childTransformer = transformer) => {
+                return joinNode.jsonfy($options, childTransformer, linkedDb);
+            }, null, options);
+
+            resultJson.join_clauses.push(joinJson2);
         }
 
         return resultJson;

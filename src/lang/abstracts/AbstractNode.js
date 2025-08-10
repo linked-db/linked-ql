@@ -208,7 +208,8 @@ export class AbstractNode {
 	clone(options = {}, transformer = null, linkedDb = null) {
 		const resultJson = this.jsonfy(options, transformer, linkedDb);
 		const Classes = [this.constructor].concat(this.constructor.morphsTo());
-		return Classes.reduce((prev, C) => prev || C.fromJSON(resultJson, { dialect: options.toDialect || this.options.dialect }), undefined);
+		const instance = Classes.reduce((prev, C) => prev || C.fromJSON(resultJson, { dialect: options.toDialect || this.options.dialect }), undefined);
+		return instance;
 	}
 
 	deSugar(options = {}, transformer = null, linkedDb = null) {

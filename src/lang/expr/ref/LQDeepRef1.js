@@ -41,10 +41,7 @@ export class LQDeepRef1 extends LQDeepDeepRef1 {
 		if (this.right() instanceof registry.ColumnRef2) {
 			detail = registry.ColumnRef1.fromJSON(this.right().jsonfy({ nodeNames: false }));
 		} else if (this.right() instanceof registry.LQDeepDeepRef1) {
-			detail = registry.LQDeepRef1.fromJSON({
-				left: this.right().left().jsonfy({ nodeNames: this.right().left() instanceof registry.ColumnRef2 ? false : true }),
-				right: this.right().right().jsonfy()
-			});
+			detail = this.right().clone({ toDeepRef: true });
 		} else {
 			detail = this.right();
 		}
@@ -62,9 +59,9 @@ export class LQDeepRef1 extends LQDeepDeepRef1 {
 		if (!unqualifiedRightOperand) throw new Error(`[${this.parentNode || this}] The referenced RHS table ${qualifiedRightTable} does not have a primary key.`);
 
 		return {
-			lhsOperand: qualifiedLeftOperand,
-			rhsOperand: unqualifiedRightOperand,
-			rhsTable: qualifiedRightTable,
+			lhsOperand: qualifiedLeftOperand, // ColumnRef1
+			rhsOperand: unqualifiedRightOperand, // ColumnRef2
+			rhsTable: qualifiedRightTable, // TableRef2
 			detail,
 		};
 	}

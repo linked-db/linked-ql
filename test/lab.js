@@ -128,7 +128,8 @@ FOR UPDATE SKIP LOCKED;
 TABLE public.users *;
 `;
 
-sql = `SELECT * FROM (SELECT { "id" []: id+2 }, parent_user ~> email from users)`;
+sql = `SELECT email, p ~> id, m FROM (SELECT parent_user ~> email, parent_user ~> parent_user AS p, parent_user ~> parent_user ~> metadata ~> id AS m[], { "id" []: id+2 } from users)`;
+//sql = `SELECT email, parent_user ~> metadata ~> id AS m[] FROM users`;
 
 //
 /*
@@ -158,11 +159,11 @@ for (const t of [t1b]) {
   console.log({ catalog })
   const linkedDb = new LinkedDB({ catalog });
   const cloneDeSugared = t?.deSugar({}, null, linkedDb);
-  const resultDeSugared = cloneDeSugared?.stringify?.();
+  const resultDeSugared = cloneDeSugared?.stringify?.({ prettyPrint: true });
 
   const cloneNode = t?.constructor?.fromJSON(t?.jsonfy?.(), t?.options);
   const resultPretty = cloneNode?.stringify?.({ prettyPrint: true, autoLineBreakThreshold: 6 });
 
 
-  console.log({ resultClassic, resultDeSugared, resultPretty, resultSchema: cloneDeSugared?.ddlSchema().entries() });
+  console.log({ resultClassic, resultDeSugared, resultPretty, resultSchema: cloneDeSugared?.ddlSchema().entries().map((s) => s?.jsonfy())[1] });
 }

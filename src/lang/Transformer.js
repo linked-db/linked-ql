@@ -29,17 +29,16 @@ export class Transformer {
             || statementNode !== superTransformer.statementNode;
     }
 
-    rand(type) {
-        this.#rands.set(type, !this.#rands.has(type) ? 0 : this.#rands.get(type) + 1);
-        const namespace = this.#superTransformer?.rand(type).replace(`$${type}`, '');
-        return `$${type}${namespace ? `${namespace}.` : ''}${this.#rands.get(type)}`;
+    rand(type, rands = this.#rands) {
+        rands.set(type, !rands.has(type) ? 0 : rands.get(type) + 1);
+        return `$${type}${rands.get(type)}`;
     }
 
-    hash(value, type) {
-        if (!this.#hashes.has(value)) {
-            this.#hashes.set(value, this.rand(type));
+    hash(value, type, hashes = this.#hashes) {
+        if (!hashes.has(value)) {
+            hashes.set(value, this.rand(type));
         }
-        return this.#hashes.get(value);
+        return hashes.get(value);
     }
 
     transform(node, defaultTransform, key, options0, originatingContext = this) {

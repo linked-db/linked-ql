@@ -78,25 +78,25 @@ export class SelectItem extends DDLSchemaMixin(AbstractNode) {
 
             let exprNode = this.expr();
 
-            let defaultTransform;
+            let defaultExprTransform;
 
             if (asAggr && !(exprNode instanceof registry.LQDeepRef1)) {
                 // Note the below where we wrap value in an aggr call
-                defaultTransform = ($options = options, childTransformer = transformer) => ({
+                defaultExprTransform = ($options = options, childTransformer = transformer) => ({
                     nodeName: registry.AggrCallExpr.NODE_NAME,
                     name: (options.toDialect || this.options.dialect) === 'mysql' ? 'JSON_ARRAYAGG' : 'JSON_AGG',
                     arguments: [exprNode.jsonfy($options, childTransformer, linkedDb)],
                 });
             } else {
                 // Note the below where we derive value, if not specified, from key
-                defaultTransform = ($options = options, childTransformer = transformer) => {
+                defaultExprTransform = ($options = options, childTransformer = transformer) => {
                     return exprNode.jsonfy($options, childTransformer, linkedDb);
                 };
             }
 
             const exprJson = transformer
-                ? transformer.transform(exprNode, defaultTransform, 'expr', { ...options, asAggr })
-                : defaultTransform();
+                ? transformer.transform(exprNode, defaultExprTransform, 'expr', { ...options, asAggr })
+                : defaultExprTransform();
 
             // ----------------
 
@@ -105,12 +105,15 @@ export class SelectItem extends DDLSchemaMixin(AbstractNode) {
             let result_schema = exprJson.result_schema;
 
             if (result_schema instanceof registry.ColumnSchema) {
+                const tableSchema = result_schema.parentNode;
                 result_schema = result_schema.clone({ renameTo: schemaIdent });
-            } else if (aliasJson) {
+                tableSchema._adoptNodes(result_schema);
+            } else if (aliasJson && !(exprNode instanceof registry.LQDeepRef1)) {
                 result_schema = registry.ColumnSchema.fromJSON({
                     name: schemaIdent,
                     data_type: this.expr().dataType().jsonfy(),
                 });
+                exprNode._adoptNodes(result_schema);
             }
 
             return {

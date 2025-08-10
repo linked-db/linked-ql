@@ -34,10 +34,14 @@ export class SchemaRef extends AbstractClassicRef {
             let result;
             if (deepMatchCallback && !(result = deepMatchCallback(schemaSchema))) return false;
 			if (result instanceof AbstractNode || Array.isArray(result)) return result;
-            return ColumnRef2.fromJSON({
+            
+            const resolvedSchemaRef1 = ColumnRef2.fromJSON({
                 ...schemaSchema.name().jsonfy({ nodeNames: false }),
                 ddl_schema: schemaSchema
             });
+            this.parentNode._adoptNodes(resolvedSchemaRef1);
+
+            return resolvedSchemaRef1;
         };
 
         for (const schemaSchema of linkedDb.catalog) {

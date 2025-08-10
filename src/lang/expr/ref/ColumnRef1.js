@@ -41,8 +41,8 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
         });
     }
 
-    lookup(deepMatchCallback = null, linkedContext = null, linkedDb = null) {
-		if (!linkedContext && !linkedDb) return [];
+    lookup(deepMatchCallback = null, transformer = null, linkedDb = null) {
+        if (!transformer && !linkedDb) return [];
 
         const name = this._get('value');
         const inGrepMode = !name && !deepMatchCallback;
@@ -53,17 +53,24 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
             if (name && !columnSchema.identifiesAs(this)) return false;
             let result;
             if (deepMatchCallback && !(result = deepMatchCallback(columnSchema, qualifierJson))) return false;
-			if (result instanceof AbstractNode || Array.isArray(result)) return result;
-            return ColumnRef1.fromJSON({
+            if (result instanceof AbstractNode || Array.isArray(result)) return result;
+
+            const result_schema = columnSchema.clone({ normalized: true });
+            columnSchema.parentNode._adoptNodes(result_schema);
+
+            const resolvedColumnRef1 = ColumnRef1.fromJSON({
                 ...columnSchema.name().jsonfy({ nodeNames: false }),
-                result_schema: columnSchema,
+                result_schema,
                 qualifier: qualifierJson
             });
+            this.parentNode._adoptNodes(resolvedColumnRef1);
+            
+            return resolvedColumnRef1;
         };
 
         if (this.canReferenceOutputColumns()) {
             // Resolve from outputSchemas first
-            let statementContext = linkedContext.statementContext
+            let statementContext = transformer.statementContext
             do {
                 for (const columnSchema of statementContext.artifacts.get('outputSchemas')) {
                     resultSet = resultSet.concat(resolve(columnSchema) || []);
@@ -82,7 +89,7 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
                             // An unaliased derived query
                             return prev.concat(resolve(columnSchema) || []);
                         }
-						//if (prev.length && !inGrepMode) return prev;
+                        //if (prev.length && !inGrepMode) return prev;
                         const newQualifierJson = {
                             ...tableSchema.name().jsonfy({ nodeNames: false }),
                             result_schema: tableSchema,
@@ -92,23 +99,22 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
                     }, []);
 
                 },
-                linkedContext,
+                transformer,
                 linkedDb,
-                true
             ));
         }
 
         return resultSet;
     }
 
-    jsonfy(options = {}, linkedContext = null, linkedDb = null) {
+    jsonfy(options = {}, transformer = null, linkedDb = null) {
         if ((options.deSugar || options.fullyQualified)
             && this.value() !== '*'
-            && !this.qualifier()
-            && !this.ddlSchema()
-            && (linkedContext || linkedDb)) {
-            return this.resolve(linkedContext, linkedDb).jsonfy(/* IMPORTANT */);
+            && (!this.qualifier()
+                || !this.ddlSchema())
+            && (transformer || linkedDb)) {
+            return this.resolve(transformer, linkedDb).jsonfy(/* IMPORTANT */);
         }
-        return super.jsonfy(options, linkedContext, linkedDb);
+        return super.jsonfy(options, transformer, linkedDb);
     }
 }

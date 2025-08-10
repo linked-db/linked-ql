@@ -48,11 +48,15 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 			let result;
 			if (deepMatchCallback && !(result = deepMatchCallback(tableSchema, qualifierJson))) return false;
 			if (result instanceof AbstractNode || Array.isArray(result)) return result;
-			return TableRef1.fromJSON({
+			
+			const resolvedTableRef1 = TableRef1.fromJSON({
 				...tableSchema.name().jsonfy({ nodeNames: false }),
 				result_schema: tableSchema,
 				qualifier: qualifierJson
 			});
+			this.parentNode._adoptNodes(resolvedTableRef1);
+
+			return resolvedTableRef1;
 		};
 
 		// Resolve from outputSchemas first?
@@ -83,7 +87,6 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 				},
 				transformer,
 				linkedDb,
-				true
 			));
 		}
 
@@ -95,8 +98,8 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 
 		if ((options.deSugar || options.fullyQualified)
 			&& this.value() !== '*'
-			&& !this.qualifier()
-			&& !this.ddlSchema()
+			&& (!this.qualifier()
+				|| !this.ddlSchema())
 			&& (transformer || linkedDb)) {
 			resultJson = this.resolve(transformer, linkedDb).jsonfy(/* IMPORTANT */);
 		} else {

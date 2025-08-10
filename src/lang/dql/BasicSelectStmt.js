@@ -50,35 +50,49 @@ export class BasicSelectStmt extends SelectorStmtMixin(
         const deferedSelectItems = new Set;
         let resultJson = {};
 
-        const processOutputFields = () => {
+        const processOutputFields = (attempt = false) => {
             if (!deferedSelectItems.size) return;
             const select_list = [];
-            for (const { node, defaultTransform } of deferedSelectItems) {
+            for (const defaultTransform of deferedSelectItems) {
                 const fieldJson = defaultTransform();
                 if (!fieldJson) continue;
                 const columnSchema = fieldJson.result_schema;
                 transformer.artifacts.get('outputSchemas').add(columnSchema);
                 select_list.push(fieldJson);
+                deferedSelectItems.delete(defaultTransform);
             }
-            resultJson = { ...resultJson, select_list };
-            deferedSelectItems.clear();
+            resultJson = { ...resultJson, select_list: (resultJson.select_list || []).concat(select_list) };
         };
 
         transformer = new Transformer((node, defaultTransform) => {
 
             // Defer SelectItem resolution
             if (node instanceof registry.SelectItem) {
-                deferedSelectItems.add({ node, defaultTransform });
+                deferedSelectItems.add(defaultTransform);
                 return; // Exclude for now
             }
 
             // Process table abstraction nodes
             if (node instanceof registry.TableAbstraction3) {
-                const resultJson = defaultTransform();
-                const result_schema = resultJson.result_schema;
-                console.log('__'+this, result_schema);
+                let conditionClauseTransform;
+
+                let subResultJson = defaultTransform((node, defaultTransform, keyHint) => {
+                    if (keyHint === 'condition_clause') {
+                        conditionClauseTransform = defaultTransform;
+                    } else return defaultTransform();
+                });
+
+                const result_schema = subResultJson.result_schema;
                 transformer.artifacts.get('tableSchemas').add(result_schema);
-                return resultJson;
+
+                if (conditionClauseTransform) {
+                    subResultJson = {
+                        ...subResultJson,
+                        condition_clause: conditionClauseTransform(),
+                    };
+                }
+
+                return subResultJson;
             }
 
             // Trigger fields resolution
@@ -97,9 +111,34 @@ export class BasicSelectStmt extends SelectorStmtMixin(
         transformer.artifacts.set('tableSchemas', new Set);
 
         // Run transform
-        resultJson = { ...resultJson, ...super.jsonfy(options, transformer, linkedDb) };
+        const stmtResultJson = super.jsonfy(options, transformer, linkedDb);
         // Trigger fields resolution if not yet
         processOutputFields();
+        resultJson = { ...stmtResultJson, ...resultJson/* must come overidingly */ };
+
+        // --------------
+
+        // Finalize...
+        resultJson = this.applySelectorDimensions(resultJson, transformer, linkedDb, options);
+
+        // Resolve deep-refs schemas
+        resultJson = {
+            ...resultJson,
+            select_list: resultJson.select_list.map((fieldJson) => {
+                if (fieldJson.result_schema) return fieldJson;
+
+                const fieldNode = registry.SelectItem.fromJSON(fieldJson, this.options);
+                this._adoptNodes(fieldNode);
+
+                return fieldNode.jsonfy(options, transformer, linkedDb);
+            }),
+        };
+
+        // Derive output schema
+        const result_schema = new JSONSchema({
+            entries: resultJson.select_list.map((s) => s.result_schema.clone())
+        });
+        resultJson = { ...resultJson, result_schema };
 
         // --------------
 
@@ -130,12 +169,6 @@ export class BasicSelectStmt extends SelectorStmtMixin(
                 }))
             };
         }
-
-        // Derive output schema
-        const result_schema = new JSONSchema({
-            entries: resultJson.select_list.map((s) => s.result_schema?.clone()).filter((s) => s)
-        });
-        resultJson = { ...resultJson, result_schema };
 
         return resultJson;
     }

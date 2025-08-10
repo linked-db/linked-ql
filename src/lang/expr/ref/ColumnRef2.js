@@ -26,10 +26,17 @@ export class ColumnRef2 extends AbstractClassicRef {
             let result;
             if (deepMatchCallback && !(result = deepMatchCallback(columnSchema))) return false;
             if (result instanceof AbstractNode || Array.isArray(result)) return result;
-            return ColumnRef2.fromJSON({
+
+            const result_schema = columnSchema.clone({ normalized: true });
+            columnSchema.parentNode._adoptNodes(result_schema);
+
+            const resolvedColumnRef2 = ColumnRef2.fromJSON({
                 ...columnSchema.name().jsonfy({ nodeNames: false }),
-                result_schema: columnSchema.clone({ normalized: true })
+                result_schema
             });
+            this.parentNode._adoptNodes(resolvedColumnRef2);
+
+            return resolvedColumnRef2;
         };
 
         let tableSchemaInScope;
