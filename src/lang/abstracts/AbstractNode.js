@@ -212,8 +212,8 @@ export class AbstractNode {
 		return instance;
 	}
 
-	deSugar(options = {}, transformer = null, linkedDb = null) {
-		options = { ...options, deSugar: true/* overrridingly */ };
+	deSugar(toLevl = 1, options = {}, transformer = null, linkedDb = null) {
+		options = { ...options, deSugar: toLevl/* overrridingly */ };
 		return this.clone(options, transformer, linkedDb);
 	}
 
@@ -274,35 +274,35 @@ export class AbstractNode {
 			const activeTrailStr = activeTrail.join('.');
 			const unsupportedAttrs = _getUnsupportedRuleAttrs(rest);
 			if (unsupportedAttrs.length) {
-				throw new Error(`[${activeTrailStr}] Unsupported attributes in rule: "${unsupportedAttrs.join('", "')}".`);
+				throw new SyntaxError(`[${activeTrailStr}] Unsupported attributes in rule: "${unsupportedAttrs.join('", "')}".`);
 			}
 			const isTokenRule = typeof type === 'string' && type[0] === type[0].toLowerCase();
 			if (exposure) {
 				// 1. Validate rule
-				if (!type) throw new Error(`[${activeTrailStr}] Field rules must have a "type" attribute of type string.`);
-				if (syntax || syntaxes) throw new Error(`[${activeTrailStr}] Field rules ("${exposure}") can not have a "syntax" or "syntaxes" attribute.`);
+				if (!type) throw new SyntaxError(`[${activeTrailStr}] Field rules must have a "type" attribute of type string.`);
+				if (syntax || syntaxes) throw new SyntaxError(`[${activeTrailStr}] Field rules ("${exposure}") can not have a "syntax" or "syntaxes" attribute.`);
 				if (exposure === '.') {
-					if (!isTokenRule) throw new Error(`[${activeTrailStr}] Terminal Node rules must be token-typed rules.`);
-					if (optional) throw new Error(`[${activeTrailStr}] Terminal Node rules can not be optional.`);
+					if (!isTokenRule) throw new SyntaxError(`[${activeTrailStr}] Terminal Node rules must be token-typed rules.`);
+					if (optional) throw new SyntaxError(`[${activeTrailStr}] Terminal Node rules can not be optional.`);
 				} else {
-					if (modifier) throw new Error(`[${activeTrailStr}] Only Terminal Node rules can have a "modifier" attribute.`);
+					if (modifier) throw new SyntaxError(`[${activeTrailStr}] Only Terminal Node rules can have a "modifier" attribute.`);
 				}
 				if (isTokenRule) {
-					if (![undefined, null].includes(arity)) throw new Error(`[${activeTrailStr}] Token rules can not be item-based.`);
-					if (!TOK_TYPES[type]) throw new Error(`[${activeTrailStr}] Unknown token type "${type}".`);
+					if (![undefined, null].includes(arity)) throw new SyntaxError(`[${activeTrailStr}] Token rules can not be item-based.`);
+					if (!TOK_TYPES[type]) throw new SyntaxError(`[${activeTrailStr}] Unknown token type "${type}".`);
 				} else {
-					if (value) throw new Error(`[${activeTrailStr}] Only token rules can have a "value" attribute.`);
+					if (value) throw new SyntaxError(`[${activeTrailStr}] Only token rules can have a "value" attribute.`);
 					for (const t of [].concat(type)) {
-						if (!registry[t]) throw new Error(`[${activeTrailStr}] Unknown node type "${t}".`);
+						if (!registry[t]) throw new SyntaxError(`[${activeTrailStr}] Unknown node type "${t}".`);
 					}
 					if (![undefined, null].includes(arity)) {
 						if (_isObject(arity)) {
 							const keys = Object.keys(arity);
 							if (keys.some((k) => !['min', 'max', 'eager'].includes(k) || (typeof arity[k] !== (k === 'eager' ? 'boolean' : 'number')))) {
-								throw new Error(`Invalid arity object "{ ${keys.join(', ')} }" for field "${exposure}". Only "min: <number>", "max: <number>" and "eager: <bool>" expected.`);
+								throw new SyntaxError(`Invalid arity object "{ ${keys.join(', ')} }" for field "${exposure}". Only "min: <number>", "max: <number>" and "eager: <bool>" expected.`);
 							}
 						} else if ([].concat(arity).some((a) => typeof a !== 'number')) {
-							throw new Error(`[${activeTrailStr}] Invalid arity value "${[].concat(arity).join(', ')}" for field "${exposure}". Number(s) expected.`);
+							throw new SyntaxError(`[${activeTrailStr}] Invalid arity value "${[].concat(arity).join(', ')}" for field "${exposure}". Number(s) expected.`);
 						}
 					}
 				}
@@ -717,7 +717,7 @@ export class AbstractNode {
 			const activeTrailStr = activeTrail.join('.');
 			const unsupportedAttrs = _getUnsupportedRuleAttrs(rest);
 			if (unsupportedAttrs.length) {
-				throw new Error(`[${activeTrailStr}] Unsupported attributes in rule: "${unsupportedAttrs.join('", "')}".`);
+				throw new SyntaxError(`[${activeTrailStr}] Unsupported attributes in rule: "${unsupportedAttrs.join('", "')}".`);
 			}
 			const isTokenRule = typeof type === 'string' && type[0] === type[0].toLowerCase();
 			// -----
@@ -765,7 +765,7 @@ export class AbstractNode {
 					return await this._parseFromTypes(activeTokenStream, type, { minPrecedence: newMinPrecedence, trail: activeTrail, ...options });
 				}
 				const NodeClass = registry[type];
-				if (!NodeClass) throw new Error(`[${activeTrailStr}] Unknown node type <${type}>.`);
+				if (!NodeClass) throw new SyntaxError(`[${activeTrailStr}] Unknown node type <${type}>.`);
 				return await NodeClass.parse(activeTokenStream, { minPrecedence: newMinPrecedence, trail: activeTrail, ...options });
 			};
 			const $decideThrow = (activeTokenStream, message, tokenStreamPosition = false, forceThrow = false) => {
@@ -777,7 +777,7 @@ export class AbstractNode {
 					const proximityTerm = activeTokenStream.current() ? (tokenStreamPosition === 1 ? ':' : ' near') : ' by';
 					message += !current ? `${proximityTerm} end of stream` : `${proximityTerm}${typeof current.value === 'string' ? ` "${current.value}"` : ''} (${current.type}) at <line ${current.line}, column ${current.column}>`;
 				}
-				throw new Error(`[${activeTrailStr}] ${message}.`);
+				throw new SyntaxError(`[${activeTrailStr}] ${message}.`);
 			};
 
 			// -----
@@ -813,7 +813,7 @@ export class AbstractNode {
 
 			// 1. Terminal node rules...
 			if (exposure === '.') {
-				if (!type || !isTokenRule) throw new Error(`[${activeTrailStr}] Terminal node rules must be token-typed rules.`);
+				if (!type || !isTokenRule) throw new SyntaxError(`[${activeTrailStr}] Terminal node rules must be token-typed rules.`);
 				const tok = await eatToken();
 				if (!tok) {
 					$decideThrow(tokenStream, `Token of type "${type}"${value ? ` and value "${value}"` : ''} expected but got "${tokenStream.current()?.type}"`, true);
@@ -843,9 +843,9 @@ export class AbstractNode {
 
 			// 3. Variadic field rules...
 			if (![undefined, null].includes(arity)) {
-				if (!exposure) throw new Error(`[${activeTrailStr}] Multi-argument field rules must have a "as" attribute.`);
-				if (!type) throw new Error(`[${activeTrailStr}] Multi-argument field rules must have a "type" attribute.`);
-				if (isTokenRule) throw new Error(`[${activeTrailStr}] Multi-argument field rules must be node-typed rules.`);
+				if (!exposure) throw new SyntaxError(`[${activeTrailStr}] Multi-argument field rules must have a "as" attribute.`);
+				if (!type) throw new SyntaxError(`[${activeTrailStr}] Multi-argument field rules must have a "type" attribute.`);
+				if (isTokenRule) throw new SyntaxError(`[${activeTrailStr}] Multi-argument field rules must be node-typed rules.`);
 
 				let entry, entries = [], itemMinPrecedence = newMinPrecedence;
 				if (itemSeparator?.type === 'operator') {
@@ -929,7 +929,7 @@ export class AbstractNode {
 					? (await eatToken())?.value
 					: await parseNode(activeTokenStream, newMinPrecedence);
 			} else if (!type) {
-				throw new Error(`[${activeTrailStr}] Rules must have a "type", "syntax" or "syntaxes" attribute.`);
+				throw new SyntaxError(`[${activeTrailStr}] Rules must have a "type", "syntax" or "syntaxes" attribute.`);
 			}
 
 			if (result === undefined && !optional) {
@@ -970,7 +970,7 @@ export class AbstractNode {
 				}
 			} else {
 				const NodeClass = registry[type];
-				if (!NodeClass) throw new Error(`[${this.NODE_NAME}] Unknown node type "${type}".`);
+				if (!NodeClass) throw new SyntaxError(`[${this.NODE_NAME}] Unknown node type "${type}".`);
 				const result = await NodeClass.parse(tokenStream, { left, minPrecedence, trail, ...options });
 				if (result !== undefined) return result;
 			}
@@ -1154,7 +1154,7 @@ export class AbstractNode {
 					delims[0],
 					blockAutoLineBreakMode && !/^\s/.test(rendering) ? $lineBreak(startingIndentLevel + 1) : (delims[0] === '{' ? $space() : ''),
 					rendering,
-					blockAutoLineBreakMode ? $lineBreak(startingIndentLevel) : (delims[1] === '}' ? $space() : ''),
+					blockAutoLineBreakMode || /^\s/.test(rendering) ? $lineBreak(startingIndentLevel) : (delims[1] === '}' ? $space() : ''),
 					delims[1],
 				].join('');
 			} else if (activeOptions.prettyPrint && $autoIndent && rendering !== '') {
@@ -1233,7 +1233,7 @@ export class AbstractNode {
 			|| /^\d/.test(value)
 			|| !/^(\*|[\w]+)$/.test(value);
 		return shouldQuote
-			? `${delimChar}${(value || '').replace(new RegExp(delimChar, 'g'), delimChar.repeat(2))}${delimChar}`
+			? `${delimChar}${String(value || '').replace(new RegExp(delimChar, 'g'), delimChar.repeat(2))}${delimChar}`
 			: value;
 	}
 
@@ -1427,7 +1427,7 @@ const _inferenceMatch = (inference, resultAST, activeTrailStr) => {
 				) === exp;
 			});
 		}
-		if (typeof criteria !== 'string') throw new Error(`[${activeTrailStr}] A specifier of type string or object expected in inferenceMatch but got ${criteria === null ? 'null' : `type ${typeof criteria}`}`);
+		if (typeof criteria !== 'string') throw new SyntaxError(`[${activeTrailStr}] A specifier of type string or object expected in inferenceMatch but got ${criteria === null ? 'null' : `type ${typeof criteria}`}`);
 		let exp = true;
 		if (criteria.startsWith('!')) {
 			criteria = criteria.slice(1);

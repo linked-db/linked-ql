@@ -1,7 +1,6 @@
-import { DDLSchemaMixin } from './DDLSchemaMixin.js';
 import { AbstractNode } from './AbstractNode.js';
 
-export class AbstractStmt extends DDLSchemaMixin(AbstractNode) {
+export class AbstractStmt extends AbstractNode {
     
     get statementNode() { return this; }
 

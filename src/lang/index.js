@@ -5,6 +5,7 @@ import * as dql from './dql/index.js';
 import * as expr from './expr/index.js';
 import * as qualif from './qualif/index.js';
 import * as type from './type/index.js';
+import { JSONSchema } from './abstracts/JSONSchema.js';
 import { registry } from './registry.js';
 
-Object.assign(registry, { ...cte, ...ddl, ...dml, ...dql, ...expr, ...qualif, ...type });
+Object.assign(registry, { ...cte, ...ddl, ...dml, ...dql, ...expr, ...qualif, ...type, JSONSchema });

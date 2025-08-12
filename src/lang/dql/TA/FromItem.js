@@ -1,23 +1,15 @@
 import { DDLSchemaMixin } from '../../abstracts/DDLSchemaMixin.js';
 import { AbstractNode } from '../../abstracts/AbstractNode.js';
+import { Transformer } from '../../Transformer.js';
 import { registry } from '../../registry.js';
 
-export class TableAbstraction3 extends DDLSchemaMixin(AbstractNode) {
+export class FromItem extends DDLSchemaMixin(AbstractNode) {
 
     /* SYNTAX RULES */
 
     static get syntaxRules() {
         const itemSeparator = { type: 'punctuation', value: ',' };
-        const optional_alias = {
-            optional: true,
-            syntaxes: [
-                { type: 'CompositeAlias', as: 'alias' },
-                [
-                    { type: 'keyword', as: 'as_kw', value: 'AS', booleanfy: true },
-                    { type: 'CompositeAlias', as: 'alias', assert: true }
-                ]
-            ]
-        };
+
         const optional_table_sample_clause_postgres = {
             optional: true,
             dialect: 'postgres',
@@ -45,42 +37,32 @@ export class TableAbstraction3 extends DDLSchemaMixin(AbstractNode) {
                 }
             ]
         };
-        const optional_with_ordinality_clause_postgres = {
-            optional: true,
-            dialect: 'postgres',
-            syntax: [
-                { type: 'keyword', as: 'pg_with_ordinality', value: 'WITH', booleanfy: true },
-                { type: 'keyword', value: 'ORDINALITY', assert: true },
-            ]
-        };
 
         return {
             syntaxes: [
+                // SRFTableDef1, SRFTableDef2, SRFTableDef3
                 [
                     { type: 'keyword', as: 'lateral_kw', value: 'LATERAL', booleanfy: true, optional: true },
-                    { type: 'CallExpr', as: 'expr' },
-                    { ...optional_alias, optional: false },
+                    { type: 'SRFExpr1', as: 'expr' },
                 ],
-                {
-                    dialect: 'postgres',
-                    syntax: [
-                        { type: 'keyword', as: 'lateral_kw', value: 'LATERAL', booleanfy: true, optional: true },
-                        { type: ['SRFTableLiteral', 'CallExpr'], as: 'expr' },
-                        { ...optional_with_ordinality_clause_postgres },
-                        { ...optional_alias },
-                    ],
-                },
+                [
+                    { type: 'keyword', as: 'lateral_kw', value: 'LATERAL', booleanfy: true, optional: true },
+                    { type: ['SRFExpr2', 'SRFExpr4'], as: 'expr' },
+                    { type: 'FromItemAlias', as: 'alias', optional: true },
+                ],
+                // DerivedQuery, ValuesTableLiteral
                 [
                     { type: 'keyword', as: 'lateral_kw', value: 'LATERAL', booleanfy: true, optional: true },
                     { type: ['DerivedQuery', 'ValuesTableLiteral'], as: 'expr', dialect: 'postgres' },
                     { type: 'DerivedQuery', as: 'expr', dialect: 'mysql' },
-                    { ...optional_alias },
+                    { type: 'FromItemAlias', as: 'alias', optional: true },
                 ],
+                // TableRef1
                 [
                     { type: 'keyword', as: 'pg_only_kw', value: 'ONLY', optional: true, dialect: 'postgres' },
                     { type: 'TableRef1', as: 'expr' },
-                    { type: 'StarRef', as: 'pg_star_ref', optional: true, dialect: 'postgres' },
-                    { ...optional_alias },
+                    { type: 'operator', as: 'pg_star_ref', value: '*', booleanfy: true, optional: true, dialect: 'postgres' },
+                    { type: 'FromItemAlias', as: 'alias', optional: true },
                     { ...optional_table_sample_clause_postgres },
                 ],
             ],
@@ -89,11 +71,9 @@ export class TableAbstraction3 extends DDLSchemaMixin(AbstractNode) {
 
     /* AST API */
 
-    expr() { return this._get('expr'); }
-
     lateralKW() { return this._get('lateral_kw'); }
 
-    asKW() { return this._get('as_kw'); }
+    expr() { return this._get('expr'); }
 
     alias() { return this._get('alias'); }
 
@@ -109,48 +89,71 @@ export class TableAbstraction3 extends DDLSchemaMixin(AbstractNode) {
 
     pgRepeatableSeed() { return this._get('pg_repeatable_seed'); }
 
-    pgWithOrdinality() { return this._get('pg_with_ordinality'); }
-
     /* SCHEMA API */
 
     deriveAlias() {
-        let aliasJson;
+        let derivedAliasJson;
         if (this.alias()?.value()) {
-            aliasJson = { value: his.alias().value(), delim: his.alias()._get('delim') };
+            derivedAliasJson = { value: this.alias().value(), delim: this.alias()._get('delim') };
         } else if (this.expr() instanceof registry.TableRef1) {
-            aliasJson = { value: this.expr().value(), delim: this.expr()._get('delim') };
+            derivedAliasJson = { value: this.expr().value(), delim: this.expr()._get('delim') };
+        } else if (this.expr() instanceof registry.SRFExpr1
+            && this.expr().qualif() instanceof registry.SRFExprDDL2) {
+            derivedAliasJson = { value: this.expr().qualif().alias().value(), delim: this.expr().qualif().alias()._get('delim') };
         }
-        if (aliasJson) {
-            return registry.CompositeAlias.fromJSON(aliasJson);
+        if (derivedAliasJson) {
+            return registry.FromItemAlias.fromJSON(derivedAliasJson);
         }
     }
 
     jsonfy(options = {}, transformer = null, linkedDb = null) {
-		let resultJson = super.jsonfy(options, transformer, linkedDb);
-		if (options.deSugar) {
+        let resultJson = super.jsonfy(options, transformer, linkedDb);
+        if (options.deSugar) {
 
-            const aliasJson = resultJson.alias || this.deriveAlias()?.jsonfy();
+            const derivedAliasJson = resultJson.alias || this.deriveAlias()?.jsonfy();
 
-            const schemaIdent = aliasJson && { ...aliasJson, nodeName: registry.Identifier.NODE_NAME };
+            const schemaIdent = derivedAliasJson?.value && {
+                nodeName: registry.Identifier.NODE_NAME,
+                value: derivedAliasJson.value,
+                delim: derivedAliasJson.delim,
+            };
 
             let result_schema = resultJson.expr.result_schema;
 
             if (result_schema instanceof registry.TableSchema) {
                 result_schema = result_schema.clone({ renameTo: schemaIdent });
-            } else if (aliasJson) {
+            } else if (schemaIdent) {
                 result_schema = registry.TableSchema.fromJSON({
                     name: schemaIdent,
                     entries: result_schema?.entries().map((s) => s.jsonfy()) || [],
                 });
             }
 
-			resultJson = {
-				...resultJson,
-                alias: aliasJson,
-                as_kw: !!aliasJson,
-				result_schema,
-			};
-		}
-		return resultJson;
+            if (resultJson.alias?.columns?.length) {
+                if (resultJson.alias.columns.length !== result_schema.length) {
+                    throw new SyntaxError(`[${this}] Number of column aliases must match number of result columns.`);
+                }
+                result_schema = result_schema.clone({}, new Transformer((node, defaultTransform, key) => {
+                    if (typeof key === 'number' && node.parentNode === result_schema) {
+                        if (node instanceof registry.ColumnSchema) {
+                            return node.jsonfy({ renameTo: resultJson.alias.columns[key] });
+                        }
+                        return { ...node.jsonfy(), nodeName: registry.ColumnSchema.NODE_NAME, name: resultJson.alias.columns[key] };
+                    }
+                    return defaultTransform();
+                }));
+            }
+
+            const applicableAliasJson = (Number(options.deSugar || 0) > 1 && !(this.expr() instanceof registry.SRFExpr1))
+                && derivedAliasJson
+                || resultJson.alias;
+            resultJson = {
+                ...resultJson,
+                alias: applicableAliasJson,
+                result_schema,
+            };
+        }
+
+        return resultJson;
     }
 }

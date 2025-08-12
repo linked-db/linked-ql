@@ -1,9 +1,10 @@
 import { TypeSysMixin } from '../../abstracts/TypeSysMixin.js';
+import { DDLSchemaMixin } from '../../abstracts/DDLSchemaMixin.js';
 import { AbstractNodeList } from '../../abstracts/AbstractNodeList.js';
 import { registry } from '../../registry.js';
 
-export class RowConstructor extends TypeSysMixin(AbstractNodeList) {
-        
+export class RowConstructor extends DDLSchemaMixin(TypeSysMixin(AbstractNodeList)) {
+
     /* SYNTAX RULES */
 
     static get syntaxRules() {
@@ -12,9 +13,7 @@ export class RowConstructor extends TypeSysMixin(AbstractNodeList) {
             syntax: [
                 {
                     type: 'paren_block',
-                    syntax: { type: 'Expr', as: 'entries', arity: Infinity, itemSeparator, autoIndent: 2 },
-                    autoIndent: true,
-                    autoIndentAdjust: -1,
+                    syntax: { type: 'Expr', as: 'entries', arity: Infinity, itemSeparator, autoIndent: 3 },
                 },
             ],
         };
@@ -34,4 +33,33 @@ export class RowConstructor extends TypeSysMixin(AbstractNodeList) {
     /* TYPESYS */
 
     dataType() { return registry.DataType.fromJSON({ value: 'SET' }); }
+
+    /* JSON API */
+
+    jsonfy(options = {}, transformer = null, linkedDb = null) {
+        let resultJson = super.jsonfy(options, transformer, linkedDb);
+        if (Number(options.deSugar || 0) > 5) {
+
+            const entriesNode = this.entries() || [];
+            const entriesJson = resultJson.entries || [];
+
+            const result_schemas = entriesJson.map((entry, i) => {
+                const ident = { nodeName: registry.Identifier.NODE_NAME, value: i };
+                if (entry.result_schema instanceof registry.ColumnSchema) {
+                    return entry.result_schema.clone({ renameTo: ident });
+                }
+                return registry.ColumnSchema.fromJSON({
+                    name: ident,
+                    data_type: entriesNode[i].dataType().jsonfy(),
+                });
+            });
+
+            resultJson = {
+                ...resultJson,
+                result_schema: registry.JSONSchema.fromJSON({ entries: result_schemas }, { assert: true }),
+            };
+        }
+
+        return resultJson;
+    }
 }

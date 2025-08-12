@@ -160,9 +160,8 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			SelectStmt,
 			CompleteSelectStmt,
 			SelectItem,
-			TableAbstraction3,
+			FromItem,
 			FromClause,
-			StarRef,
 		} = registry;
 
 		// (1): Columns
@@ -185,20 +184,20 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			// Declare base SELECT and select list
 			let baseSelect = selectStmt.jsonfy/* @case1 */($options, transformer, linkedDb);
 			let baseSelectList = baseSelect.select_list;
-			if (baseSelectList[0].expr.nodeName === StarRef.NODE_NAME) {
+			if (baseSelectList[0].expr.nodeName === registry.ColumnRef0.NODE_NAME) {
 				baseSelectList/* = infer from schema */; throw new Error(`TODO`);
 			}
 			// Create a CTE entry?
 			if (!onConflictClauseContext) {
 				const cteAlias = this._rand('cte');
-				const cteSelect = { ...baseSelect, uuid: cteAlias, select_list: [{ nodeName: SelectItem.NODE_NAME, expr: { nodeName: StarRef.NODE_NAME } }] };
+				const cteSelect = { ...baseSelect, uuid: cteAlias, select_list: [{ nodeName: SelectItem.NODE_NAME, expr: { nodeName: registry.ColumnRef0.NODE_NAME } }] };
 				payloadDimensions
 					?.add({ type: 'memo', query: cteSelect });
 				// Use that as new base
-				const newBaseSelectTableAbstraction3 = { nodeName: TableAbstraction3.NODE_NAME, expr: { nodeName: TableRef1.NODE_NAME, value: cteAlias } };
+				const newBaseSelectFromItem = { nodeName: FromItem.NODE_NAME, expr: { nodeName: TableRef1.NODE_NAME, value: cteAlias } };
 				baseSelect = {
 					nodeName: CompleteSelectStmt.NODE_NAME,
-					from_clause: { nodeName: FromClause.NODE_NAME, entries: [newBaseSelectTableAbstraction3] }
+					from_clause: { nodeName: FromClause.NODE_NAME, entries: [newBaseSelectFromItem] }
 				};
 			}
 			// Resolve base select list
@@ -253,7 +252,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			ColumnRef2,
 			ColumnRef1,
 			TableRef1,
-			BasicAlias,
+			SelectItemAlias,
 			AssignmentExpr,
 			ColumnsConstructor,
 			TypedRowConstructor,
@@ -264,7 +263,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			CompleteSelectStmt,
 			DerivedQuery,
 			SelectItem,
-			TableAbstraction3,
+			FromItem,
 			FromClause,
 			SetClause,
 			BinaryExpr,
@@ -319,7 +318,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				left: { nodeName: ColumnRef1.NODE_NAME, value: innerFilter },
 				right: { nodeName: BoolLiteral.NODE_NAME, value: 'TRUE' },
 			}) : null;
-			const tableSpec = { nodeName: TableAbstraction3.NODE_NAME, expr: { nodeName: TableRef1.NODE_NAME, value: sourceUuid } };
+			const tableSpec = { nodeName: FromItem.NODE_NAME, expr: { nodeName: TableRef1.NODE_NAME, value: sourceUuid } };
 			const selectStmt = {
 				nodeName: CompleteSelectStmt.NODE_NAME,
 				select_list: [{ nodeName: SelectItem.NODE_NAME, expr: fieldExpr }],
@@ -354,7 +353,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			const query = {
 				uuid: this._rand('cte'),
 				nodeName: UpdateStmt.NODE_NAME,
-				tables: [{ nodeName: TableAbstraction3.NODE_NAME, expr: table.jsonfy/* @case1 */($options, transformer, linkedDb) }],
+				tables: [{ nodeName: FromItem.NODE_NAME, expr: table.jsonfy/* @case1 */($options, transformer, linkedDb) }],
 				set_clause: { nodeName: SetClause.NODE_NAME, entries: [] },
 				where_clause: whereClause,
 			};
@@ -433,7 +432,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 					const fkField = {
 						nodeName: SelectItem.NODE_NAME,
 						expr: fKBindingJson,
-						alias: right instanceof ColumnRef1 ? { nodeName: BasicAlias.NODE_NAME, value: right.value() } : undefined
+						alias: right instanceof ColumnRef1 ? { nodeName: SelectItemAlias.NODE_NAME, value: right.value() } : undefined
 					};
 					const selectJson = payload.jsonfy/* @case1 */($options, transformer, linkedDb);
 					query.select_clause = { ...selectJson, select_list: selectJson.select_list.concat(fkField) };
@@ -503,18 +502,18 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		const {
 			TableRef1,
 			CompleteSelectStmt,
-			TableAbstraction3,
-			CompositeAlias,
+			FromItem,
+			FromItemAlias,
 			FromClause,
 			PGReturningClause,
 			CTE,
-			CTEBinding,
+			CTEItem,
 			UpdateStmt,
 			InsertStmt,
 			UpsertStmt
 		} = registry;
 
-		// Promote a query to a CTEBinding
+		// Promote a query to a CTEItem
 		const toBinding = (dimensionID, queryJson) => {
 			// Desugar query and flatten if itself a CTE
 			if (queryJson.nodeName === CTE.NODE_NAME) {
@@ -523,8 +522,8 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			}
 			// Compose binding and add...
 			cte.bindings.push({
-				nodeName: CTEBinding.NODE_NAME,
-				alias: { nodeName: CompositeAlias.NODE_NAME, value: dimensionID },
+				nodeName: CTEItem.NODE_NAME,
+				alias: { nodeName: FromItemAlias.NODE_NAME, value: dimensionID },
 				expr: queryJson,
 			});
 		};
@@ -554,7 +553,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			toBinding(dimensionID, fromJSON(query, this.options).jsonfy/* @case2 */(options, transformer, linkedDb));
 		}
 
-		// (2): Rewrite resultJson as a CTEBinding?
+		// (2): Rewrite resultJson as a CTEItem?
 		if (dependents.length) {
 			// Rewrite returning clause
 			const originalPGReturningClause = resultJson.returning_clause;
@@ -573,7 +572,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			}
 
 			// Derive final body...
-			const tableSpec = { nodeName: TableAbstraction3.NODE_NAME, expr: { nodeName: TableRef1.NODE_NAME, value: this.uuid } };
+			const tableSpec = { nodeName: FromItem.NODE_NAME, expr: { nodeName: TableRef1.NODE_NAME, value: this.uuid } };
 			cte.body = {
 				nodeName: CompleteSelectStmt.NODE_NAME,
 				select_list: originalPGReturningClause.entries,

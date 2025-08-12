@@ -56,7 +56,7 @@ export class SchemaRef extends AbstractClassicRef {
         let resultJson;
 
         if (options.deSugar
-            && !this.ddlSchema()
+            && !this.resultSchema()
             && linkedDb) {
             resultJson = this.resolve(transformer, linkedDb).jsonfy(/* IMPORTANT */);
         } else {

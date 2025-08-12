@@ -1,9 +1,7 @@
-//import { RootSchema } from "../ddl/RootSchema.js";
-//import { Binding } from "../expr/Binding.js";
-
+import { DDLSchemaMixin } from './DDLSchemaMixin.js';
 import { AbstractStmt } from './AbstractStmt.js';
 
-export class AbstractNonDDLStmt extends AbstractStmt {
+export class AbstractNonDDLStmt extends DDLSchemaMixin(AbstractStmt) {
 
 	renderBindings(values) {
 		if (!Array.isArray(values)) throw new Error(`Values must be an array`);

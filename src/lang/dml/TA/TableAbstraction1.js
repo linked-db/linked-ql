@@ -12,7 +12,7 @@ export class TableAbstraction1 extends AbstractNode {
                 dialect: 'mysql',
                 syntax: [
                     { type: 'punctuation', value: '.', autoSpacing: false },
-                    { type: 'StarRef', as: 'my_star_ref', autoSpacing: false },
+                    { type: 'operator', as: 'my_star_ref', value: '*', booleanfy: true, autoSpacing: false },
                 ],
             },
         ];

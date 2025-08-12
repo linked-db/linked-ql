@@ -1,7 +1,6 @@
 import { AbstractClassicRef } from './abstracts/AbstractClassicRef.js';
 import { AbstractNode } from '../../abstracts/AbstractNode.js';
 import { PathMixin } from '../../abstracts/PathMixin.js';
-import { JSONSchema } from '../../abstracts/JSONSchema.js';
 import { registry } from '../../registry.js';
 
 export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
@@ -16,20 +15,14 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
     }
 
     static get syntaxRules() {
-        return this.buildSyntaxRules({
-            syntaxes: [
-                { type: 'identifier', as: '.' },
-                { type: 'operator', as: '.', value: '*' },
-            ],
-            autoSpacing: false
-        });
+        return this.buildSyntaxRules({ type: 'identifier', as: '.', autoSpacing: false });
     }
 
     static get syntaxPriority() { return 51; } // above LQBackRefAbstraction
 
     /* API */
 
-    dataType() { return this.ddlSchema()?.dataType() || super.dataType(); }
+    dataType() { return this.resultSchema()?.dataType() || super.dataType(); }
 
     canReferenceOutputColumns() {
         return this.climbTree((parentNode, up) => {
@@ -45,12 +38,14 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
         if (!transformer && !linkedDb) return [];
 
         const name = this._get('value');
-        const inGrepMode = !name && !deepMatchCallback;
+        const inGrepMode = (!name || name === '*') && !deepMatchCallback;
         let resultSet = [];
 
         const resolve = (columnSchema, qualifierJson = undefined) => {
+
             if (!(columnSchema instanceof registry.ColumnSchema)) return false;
-            if (name && !columnSchema.identifiesAs(this)) return false;
+            if (name && name !== '*' && !columnSchema.identifiesAs(this)) return false;
+
             let result;
             if (deepMatchCallback && !(result = deepMatchCallback(columnSchema, qualifierJson))) return false;
             if (result instanceof AbstractNode || Array.isArray(result)) return result;
@@ -63,6 +58,7 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
                 result_schema,
                 qualifier: qualifierJson
             });
+
             this.parentNode._adoptNodes(resolvedColumnRef1);
 
             return resolvedColumnRef1;
@@ -83,7 +79,7 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
                 (tableSchema, qualifierJson = undefined) => {
 
                     return tableSchema._get('entries').reduce((prev, columnSchema) => {
-                        if (tableSchema instanceof JSONSchema) {
+                        if (tableSchema instanceof registry.JSONSchema) {
                             // An unaliased derived query
                             return prev.concat(resolve(columnSchema) || []);
                         }
@@ -101,16 +97,28 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
             ));
         }
 
+        if (name === '*') {
+            const compositeResult = registry.ColumnRef0.fromJSON({
+                value: this.value(),
+                result_schema: registry.JSONSchema.fromJSON({ entries: resultSet.map((s) => s.clone()) }, { assert: true }),
+            });
+            this.parentNode._adoptNodes(compositeResult);
+            resultSet = [compositeResult];
+        }
+
         return resultSet;
     }
 
     jsonfy(options = {}, transformer = null, linkedDb = null) {
-        if ((options.deSugar || options.fullyQualified)
-            && this.value() !== '*'
-            && (!this.qualifier()
-                || !this.ddlSchema())
+        if (options.deSugar
+            && ((!this.qualifier() && Number(options.deSugar) > 1)
+                || !this.resultSchema())
             && (transformer || linkedDb)) {
-            return this.resolve(transformer, linkedDb).jsonfy(/* IMPORTANT */);
+            const resolvedJson = this.resolve(transformer, linkedDb).jsonfy(/* IMPORTANT */);
+            if (Number(options.deSugar) < 2 && !this.qualifier()) {
+                return { ...resolvedJson, qualifier: undefined };
+            }
+            return resolvedJson;
         }
         return super.jsonfy(options, transformer, linkedDb);
     }

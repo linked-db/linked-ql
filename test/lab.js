@@ -130,8 +130,16 @@ TABLE public.users *;
 
 //sql = `SELECT email, p ~> username, m FROM (SELECT parent_user ~> email, parent_user ~> parent_user AS p, parent_user ~> parent_user ~> metadata ~> data AS m[], { "id" []: id+2 } from users)`;
 //sql = `SELECT email, ((users) parent_user <~ parent_user <~ users).metadata ~> id AS m[] FROM users u`;
-sql = `SELECT m FROM (SELECT ((user_metadata) metadata <~ parent_user <~ parent_user <~ users) ~> email AS m[] FROM user_metadata)`;
-//sql = '((users) parent_user <~ parent_user <~ users).metadata ~> data';
+sql = `SELECT d, r, t FROM (SELECT { id, data }, ((user_metadata) metadata <~ parent_user <~ parent_user <~ users) ~> email AS m[] FROM user_metadata) AS SS (d, r, t)`;
+sql = `SELECT a, c FROM (VALUES (1, 2, '3')) t(a, b, c)`;
+sql = `SELECT * FROM call_expr() WITH ORDINALITY t (x, y)`;
+sql = `SELECT * FROM call_expr() AS (x VARCHAR, y TEXT)`;
+sql = `SELECT * FROM call_expr() AS t (x VARCHAR, y TEXT)`;
+sql = `SELECT * FROM ROWS FROM (call_expr1() AS (x VARCHAR, y TEXT), call_expr2(), call_expr3() AS (z JSON)) WITH ORDINALITY`;
+
+
+
+
 
 //
 /*
@@ -155,20 +163,24 @@ for (const t of [t1b]) {
 
   console.log('\n\n\n\n+++++++++++++++++++++++++++\n\n\n\n');
 
-  const resultClassic = t?.stringify();
-
-  console.log({ resultClassic, json: t?.jsonfy?.() });
+  console.log('resultClassic:\n', t?.stringify(), '\n');
+  console.log('resultClassicJson:\n', t?.jsonfy?.(), '\n');
 
   const { catalog } = await import('./01.catalog.parser.js');
-  console.log({ catalog });
-
   const linkedDb = new LinkedDB({ catalog });
-  const cloneDeSugared = t?.deSugar({}, null, linkedDb);
-  const resultDeSugared = cloneDeSugared?.stringify?.({ prettyPrint: true });
+
+  // deSugar: 1 - Linked QL sugars
+  // deSugar: 2 - Ref qualifiers
+  // deSugar: 3 - Star selects
+  // deSugar: 3 - Linked QL unaliased root objects
+  const cloneDeSugared = t?.deSugar(4, {}, null, linkedDb);
+  const resultDeSugared = cloneDeSugared?.stringify?.({ prettyPrint: true, autoLineBreakThreshold: 6 });
 
   const cloneNode = t?.constructor?.fromJSON(t?.jsonfy?.(), t?.options);
   const resultPretty = cloneNode?.stringify?.({ prettyPrint: true, autoLineBreakThreshold: 6 });
 
 
-  console.log({ resultDeSugared, resultPretty, resultSchema: cloneDeSugared?.ddlSchema().entries().map((s) => s?.jsonfy())[0] });
+  console.log('resultDeSugared:\n', resultDeSugared, '\n');
+  console.log('resultPretty:\n', resultPretty, '\n');
+  console.log('resultSchema:\n', cloneDeSugared?.resultSchema().entries().map((s) => s?.jsonfy()), '\n');
 }

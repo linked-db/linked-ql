@@ -58,8 +58,10 @@ export async function testParseAndStringify(entryPoint, sql, options = {}, linke
     expect(resultNode).to.be.instanceOf(registry[nodeName]);
 
     let desugaredResultNode = resultNode;
-    if (options.deSugar || options.toDialect) {
-        desugaredResultNode = resultNode.deSugar({ dialect: options.dialect, toDialect: options.toDialect }, null, { linkedDb });
+    if (options.deSugar) {
+        desugaredResultNode = resultNode.deSugar(options.deSugar, { dialect: options.dialect }, null, linkedDb);
+    } else if (options.deSugar || options.toDialect) {
+        desugaredResultNode = resultNode.toDialect(options.toDialect, { dialect: options.dialect }, null, linkedDb);
     }
 
     log?.add({ entryPoint, nodeName, sql, options, resultNode, desugaredResultNode });
@@ -73,8 +75,10 @@ export async function testParseAndStringify(entryPoint, sql, options = {}, linke
     expect(resultClone).to.be.instanceOf(registry[nodeName]);
 
     let desugaredResultClone = resultClone;
-    if (options.deSugar || options.toDialect) {
-        desugaredResultClone = resultClone.deSugar({ dialect: options.dialect, toDialect: options.toDialect }, null, { linkedDb });
+    if (options.deSugar) {
+        desugaredResultClone = desugaredResultClone.deSugar(options.deSugar, { dialect: options.dialect }, null, linkedDb);
+    } else if (options.deSugar || options.toDialect) {
+        desugaredResultClone = desugaredResultClone.toDialect(options.toDialect, { dialect: options.dialect }, null, linkedDb);
     }
 
     expect(

@@ -1,0 +1,93 @@
+import { AbstractNode } from '../../abstracts/AbstractNode.js';
+import { DDLSchemaMixin } from '../../abstracts/DDLSchemaMixin.js';
+import { registry } from '../../registry.js';
+
+export class SRFExpr2 extends DDLSchemaMixin(AbstractNode) {
+
+    /* SYNTAX RULES */
+
+    static get syntaxRules() {
+        return [
+            { type: 'CallExpr', as: 'call_expr' },
+            {
+                optional: true,
+                syntax: [
+                    { type: 'keyword', as: 'with_ordinality', value: 'WITH', booleanfy: true },
+                    { type: 'keyword', value: 'ORDINALITY', assert: true },
+                ]
+            },
+        ];
+    }
+
+    /* AST API */
+
+    callExpr() { return this._get('call_expr'); }
+
+    withOrdinality() { return this._get('with_ordinality'); }
+
+    /* JSON API */
+
+    jsonfy(options = {}, transformer = null, linkedDb = null) {
+        let resultJson = super.jsonfy(options, transformer, linkedDb);
+        if (options.deSugar) {
+
+            let result_schema;
+
+            let ordinalityColumn;
+            if (resultJson.with_ordinality) {
+                ordinalityColumn = registry.ColumnSchema.fromJSON({
+                    name: { nodeName: registry.Identifier.NODE_NAME, value: 'ordinality' },
+                    data_type: { nodeName: registry.DataType.NODE_NAME, value: 'INT' },
+                });
+            }
+
+            const schemaIdentFromFuncName = { nodeName: registry.Identifier.NODE_NAME, value: resultJson.call_expr.name };
+
+            if (resultJson.call_expr?.result_schema) {
+                // a. Compose from existing
+                let result_schema = resultJson.call_expr?.result_schema;
+
+                if (result_schema instanceof registry.TableSchema
+                    || result_schema instanceof registry.JSONSchema) {
+
+                    if (ordinalityColumn) {
+                        const result_schema_json = result_schema.jsonfy();
+                        result_schema = result_schema.constructor.fromJSON({
+                            name: schemaIdentFromFuncName,
+                            ...result_schema_json, // overridingly
+                            entries: [
+                                ...result_schema_json.entries, 
+                                ordinalityColumn
+                            ],
+                        });
+                    } else {
+                        result_schema = result_schema.clone();
+                    }
+
+                } else {
+                    result_schema = registry.JSONSchema.fromJSON({
+                        entries: [
+                            result_schema.jsonfy()
+                        ].concat(ordinalityColumn || []),
+                    });
+                }
+            } else {
+                // b. Compose from Func expr
+                result_schema = registry.JSONSchema.fromJSON({
+                    entries: [{
+                        nodeName: registry.ColumnSchema.NODE_NAME,
+                        name: schemaIdentFromFuncName,
+                        data_type: this.callExpr().dataType().jsonfy(),
+                    }].concat(ordinalityColumn || []),
+                });
+            }
+
+            resultJson = {
+                ...resultJson,
+                result_schema
+            }
+        }
+
+        return resultJson;
+    }
+}

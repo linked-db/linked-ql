@@ -1,7 +1,6 @@
 import { AbstractClassicRef } from './abstracts/AbstractClassicRef.js';
 import { AbstractNode } from '../../abstracts/AbstractNode.js';
 import { PathMixin } from '../../abstracts/PathMixin.js';
-import { JSONSchema } from '../../abstracts/JSONSchema.js';
 import { registry } from '../../registry.js';
 
 export class TableRef1 extends PathMixin(AbstractClassicRef) {
@@ -34,21 +33,22 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 		if (!transformer && !linkedDb) return [];
 
 		const name = this._get('value');
-		const inGrepMode = !name && !deepMatchCallback;
+		const inGrepMode = (!name || name === '*') && !deepMatchCallback;
 		let resultSet = [];
 
 		const resolve = (tableSchema, qualifierJson = undefined) => {
-			if (tableSchema instanceof JSONSchema && !name && deepMatchCallback) {
+			if (tableSchema instanceof registry.JSONSchema && (!name || name === '*') && deepMatchCallback) {
 				// We're trying to resolve a column,
 				// and this is an "unaliased" derived query coming from statementContext.artifacts.get('tableSchemas')
 				return deepMatchCallback(tableSchema, qualifierJson);
 			}
 			if (!(tableSchema instanceof registry.TableSchema)) return false;
-			if (name && !tableSchema.identifiesAs(this)) return false;
+			if (name && name !== '*' && !tableSchema.identifiesAs(this)) return false;
+			
 			let result;
 			if (deepMatchCallback && !(result = deepMatchCallback(tableSchema, qualifierJson))) return false;
 			if (result instanceof AbstractNode || Array.isArray(result)) return result;
-			
+
 			const resolvedTableRef1 = TableRef1.fromJSON({
 				...tableSchema.name().jsonfy({ nodeNames: false }),
 				result_schema: tableSchema,
@@ -63,7 +63,7 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 		if (transformer && this.canReferenceInlineTables()) {
 			let statementContext = transformer.statementContext
 			do {
-				for (const tableSchema of statementContext.artifacts.get('tableSchemas')) {
+				for (const { result_schema: tableSchema } of statementContext.artifacts.get('tableSchemas')) {
 					resultSet = resultSet.concat(resolve(tableSchema) || []);
 					if (!inGrepMode && resultSet.length) break; // Matching current instance only
 				}
@@ -90,18 +90,29 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 			));
 		}
 
+		if (name === '*') {
+            const compositeResult = registry.TableRef0.fromJSON({
+                value: this.value(),
+                result_schema: registry.JSONSchema.fromJSON({ entries: resultSet.map((s) => s.clone()) }, { assert: true }),
+            });
+            this.parentNode._adoptNodes(compositeResult);
+            resultSet = [compositeResult];
+        }
+
 		return resultSet;
 	}
 
 	jsonfy(options = {}, transformer = null, linkedDb = null) {
 		let resultJson;
 
-		if ((options.deSugar || options.fullyQualified)
-			&& this.value() !== '*'
-			&& (!this.qualifier()
-				|| !this.ddlSchema())
+		if (options.deSugar
+			&& ((!this.qualifier() && Number(options.deSugar) > 1)
+				|| !this.resultSchema())
 			&& (transformer || linkedDb)) {
 			resultJson = this.resolve(transformer, linkedDb).jsonfy(/* IMPORTANT */);
+			if (Number(options.deSugar) < 2 && !this.qualifier()) {
+				resultJson = { ...resultJson, qualifier: undefined };
+			}
 		} else {
 			resultJson = super.jsonfy(options, transformer, linkedDb);
 		}

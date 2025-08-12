@@ -8,17 +8,8 @@ export class SelectItem extends DDLSchemaMixin(AbstractNode) {
 
     static get syntaxRules() {
         return [
-            { type: ['Expr', 'MYVarAssignmentExpr'], as: 'expr' },
-            {
-                optional: true,
-                syntaxes: [
-                    { type: 'BasicAlias', as: 'alias' },
-                    [
-                        { type: 'keyword', as: 'as_kw', value: 'AS', booleanfy: true },
-                        { type: 'BasicAlias', as: 'alias', assert: true }
-                    ]
-                ]
-            }
+            { type: ['ColumnRef0', 'Expr', 'MYVarAssignmentExpr'], as: 'expr' },
+            { type: 'SelectItemAlias', as: 'alias', optional: true }
         ];
     }
 
@@ -26,15 +17,13 @@ export class SelectItem extends DDLSchemaMixin(AbstractNode) {
 
     expr() { return this._get('expr'); }
 
-    asKW() { return this._get('as_kw'); }
-
     alias() { return this._get('alias'); }
 
     /* SCHEMA API */
 
     deriveAlias() {
 
-        let aliasJson = this.alias()?.jsonfy();
+        let derivedAliasJson = this.alias()?.jsonfy();
 
         let exprNode = this.expr();
 
@@ -44,37 +33,38 @@ export class SelectItem extends DDLSchemaMixin(AbstractNode) {
         }
 
         // Resolve CastExpr | PGCastExpr2
-        if (exprNode instanceof registry.CastExpr || exprNode instanceof registry.PGCastExpr2) {
+        if (exprNode instanceof registry.CastExpr 
+            || exprNode instanceof registry.PGCastExpr2) {
             exprNode = exprNode.expr();
         }
 
-        if (!aliasJson) {
+        if (!derivedAliasJson) {
             if (exprNode instanceof registry.ColumnRef1) {
-                aliasJson = exprNode.value() === '*' ? undefined : { value: exprNode.value(), delim: exprNode._get('delim') };
+                derivedAliasJson = { as_kw: true, value: exprNode.value(), delim: exprNode._get('delim') };
             } else if (exprNode instanceof registry.LQDeepRef1 && exprNode.endpoint() instanceof registry.ColumnRef2) {
                 const endpointNode = exprNode.endpoint();
-                aliasJson = { value: endpointNode.value(), delim: endpointNode._get('delim') };
-            } else {
+                derivedAliasJson = { as_kw: true, value: endpointNode.value(), delim: endpointNode._get('delim') };
+            } else if (!(exprNode instanceof registry.ColumnRef0)) {
                 const isToPG = this.options.dialect === 'postgres';
                 if (exprNode instanceof registry.CallExpr && isToPG) {
-                    aliasJson = { value: exprNode.name().toLowerCase() };
+                    derivedAliasJson = { as_kw: true, value: exprNode.name().toLowerCase() };
                 } else {
-                    aliasJson = { value: isToPG ? '?column?' : exprNode.stringify() };
+                    derivedAliasJson = { as_kw: true, value: isToPG ? '?column?' : exprNode.stringify() };
                 }
             }
         }
 
-        return registry.BasicAlias.fromJSON(aliasJson);
+        return registry.SelectItemAlias.fromJSON(derivedAliasJson);
     }
 
     jsonfy(options = {}, transformer = null, linkedDb = null) {
         if (options.deSugar) {
 
-            const aliasNode = this.alias() || this.deriveAlias();
-            let asAggr, aliasJson = aliasNode && (transformer
-                ? transformer.transform(aliasNode, ($options = options) => aliasNode.jsonfy($options), 'alias', options)
-                : aliasNode.jsonfy(options));
-            if (aliasJson?.is_aggr) ({ is_aggr: asAggr, ...aliasJson } = aliasJson);
+            const derivedAliasNode = this.deriveAlias();
+            let asAggr, derivedAliasJson = derivedAliasNode && (transformer
+                ? transformer.transform(derivedAliasNode, ($options = options) => derivedAliasNode.jsonfy($options), 'alias', options)
+                : derivedAliasNode.jsonfy(options));
+            if (derivedAliasJson?.is_aggr) ({ is_aggr: asAggr, ...derivedAliasJson } = derivedAliasJson);
 
             let exprNode = this.expr();
 
@@ -100,7 +90,7 @@ export class SelectItem extends DDLSchemaMixin(AbstractNode) {
 
             // ----------------
 
-            const schemaIdent = aliasJson && { ...aliasJson, nodeName: registry.Identifier.NODE_NAME };
+            const schemaIdent = derivedAliasJson && { nodeName: registry.Identifier.NODE_NAME, value: derivedAliasJson.value, delim: derivedAliasJson.delim };
 
             let result_schema = exprJson.result_schema;
 
@@ -108,7 +98,9 @@ export class SelectItem extends DDLSchemaMixin(AbstractNode) {
                 const tableSchema = result_schema.parentNode;
                 result_schema = result_schema.clone({ renameTo: schemaIdent });
                 tableSchema._adoptNodes(result_schema);
-            } else if (aliasJson && !(exprNode instanceof registry.LQDeepRef1)) {
+            } else if (derivedAliasJson 
+                && !(exprNode instanceof registry.LQDeepRef1) 
+                && !(exprNode instanceof registry.ColumnRef0)) {
                 result_schema = registry.ColumnSchema.fromJSON({
                     name: schemaIdent,
                     data_type: this.expr().dataType().jsonfy(),
@@ -116,11 +108,13 @@ export class SelectItem extends DDLSchemaMixin(AbstractNode) {
                 exprNode._adoptNodes(result_schema);
             }
 
+            const applicableAliasJson = (Number(options.deSugar || 0) > 1 || asAggr) 
+                && derivedAliasJson
+                || resultJson.alias;
             return {
                 nodeName: SelectItem.NODE_NAME,
                 expr: exprJson,
-                alias: aliasJson,
-                as_kw: !!aliasJson,
+                alias: applicableAliasJson,
                 result_schema,
             };
         }

@@ -1,12 +1,12 @@
-import { AbstractNode } from '../abstracts/AbstractNode.js';
+import { AbstractNonDDLStmt } from '../abstracts/AbstractNonDDLStmt.js';
 
-export class CTEBinding extends AbstractNode {
+export class CTEItem extends AbstractNonDDLStmt {
 
     /* SYNTAX RULES */
 
     static get syntaxRules() {
         return [
-            { type: 'CompositeAlias', as: 'alias', assert: true },
+            { type: 'CTEItemAlias', as: 'alias', assert: true },
             { type: 'keyword', value: 'AS' },
             {
                 optional: true,
@@ -41,8 +41,8 @@ export class CTEBinding extends AbstractNode {
 
     /* SCHEMA API */
 
-    ddlSchema() {
+    resultSchema() {
         const alias = registry.Identifier.fromJSON({ value: this.alias().value() });
-        return this.expr().ddlSchema(transformer).clone({ renameTo: alias }); // DerivedQuery, ValuesTableLiteral
+        return this.expr().resultSchema(transformer).clone({ renameTo: alias }); // DerivedQuery, ValuesTableLiteral
     }
 }

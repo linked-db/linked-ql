@@ -7,7 +7,7 @@ export class CompositeSelectStmt extends SelectStmt {
     static get syntaxRules() {
         const setTypes = ['DerivedQuery', 'ValuesTableLiteral', 'ParenExpr', 'BasicSelectStmt', 'CallExpr'];
         return [
-            { type: setTypes.concat('CompleteSelectStmt'), as: 'left' },
+            { type: setTypes, as: 'left' },
             { type: 'operator', as: 'operator', value: ['INTERSECT', 'UNION', 'EXCEPT'], autoSpacing: '\n' },
             { type: 'keyword', as: 'all_or_distinct', value: ['ALL', 'DISTINCT'], optional: true },
             { type: setTypes, as: 'right', assert: true, autoSpacing: '\n' },
@@ -50,7 +50,8 @@ export class CompositeSelectStmt extends SelectStmt {
 
     /* SCHEMA API */
 
-    ddlSchema() {
-        return this.left()?.ddlSchema();
+    jsonfy(options = {}, transformer = null, linkedDb = null) {
+        const resultJson = super.jsonfy(options, transformer, linkedDb);
+        return { ...resultJson, ddl_schema: resultJson.left?.ddl_schema };
     }
 }

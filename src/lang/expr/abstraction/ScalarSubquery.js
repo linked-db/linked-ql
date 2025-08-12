@@ -18,8 +18,8 @@ export class ScalarSubquery extends DerivedQuery {
     /* TYPESYS API */
 
     dataType() {
-        if (this.ddlSchema()) {
-            return this.ddlSchema().dataType();
+        if (this.resultSchema()) {
+            return this.resultSchema().dataType();
         }
         return registry.DataType.fromJSON({ value: 'TEXT' });
     }

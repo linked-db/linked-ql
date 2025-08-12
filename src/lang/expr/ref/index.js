@@ -1,3 +1,4 @@
+export { ColumnRef0 } from './ColumnRef0.js';
 export { ColumnRef1 } from './ColumnRef1.js';
 export { ColumnRef2 } from './ColumnRef2.js';
 export { Identifier } from './Identifier.js';
@@ -10,7 +11,7 @@ export { LQDeepDeepRef2 } from './LQDeepDeepRef2.js';
 export { LQDeepRef1 } from './LQDeepRef1.js';
 export { LQDeepRef2 } from './LQDeepRef2.js';
 export { SchemaRef } from './SchemaRef.js';
-export { StarRef } from './StarRef.js';
+export { TableRef0 } from './TableRef0.js';
 export { TableRef1 } from './TableRef1.js';
 export { TableRef2 } from './TableRef2.js';
 export { WindowRef } from './WindowRef.js';

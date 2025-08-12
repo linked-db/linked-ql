@@ -6,12 +6,12 @@ export class AbstractMagicRef extends SugarMixin(BinaryExpr) {
 
     rhsTable(transformer, linkedDb) {
         const resolveOperand = this.operand()?.resolve(transformer, linkedDb);
-        const fk = resolveOperand.ddlSchema()/* ColumnSchema */?.fkConstraint(true);
+        const fk = resolveOperand.resultSchema()/* ColumnSchema */?.fkConstraint(true);
         if (!fk) {
             throw new ErrorFKInvalid(`[${this.parentNode || this}] Column ${this.operand()} is not a foreign key.`);
         }
         return fk.targetTable()?.resolve(null/*transformer*/, linkedDb);
     }
 
-	rhsSchema(transformer, linkedDb) { return this.rhsTable(transformer, linkedDb)?.ddlSchema(); }
+	rhsSchema(transformer, linkedDb) { return this.rhsTable(transformer, linkedDb)?.resultSchema(); }
 }

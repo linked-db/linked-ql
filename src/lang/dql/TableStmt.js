@@ -9,7 +9,7 @@ export class TableStmt extends AbstractStmt {
             { type: 'keyword', value: 'TABLE' },
             { type: 'keyword', as: 'pg_only_kw', value: 'ONLY', optional: true, dialect: 'postgres' },
             { type: 'TableRef2', as: 'table_ref', assert: true },
-            { type: 'StarRef', as: 'pg_star_ref', optional: true, dialect: 'postgres' },
+            { type: 'operator', as: 'pg_star_ref', value: '*', booleanfy: true, optional: true, dialect: 'postgres' },
         ];
     }
 
@@ -29,7 +29,7 @@ export class TableStmt extends AbstractStmt {
         const tableRef = this.tableRef();
 
         const alias = registry.Identifier.fromJSON({ value: tableRef.value() });
-        const tableSchema = tableRef.ddlSchema(transformer).clone({ renameTo: alias });
+        const tableSchema = tableRef.resultSchema(transformer).clone({ renameTo: alias });
         
         return new Set([tableSchema]);
     }

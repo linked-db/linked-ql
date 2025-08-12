@@ -4,7 +4,7 @@ export const DDLSchemaMixin = (Class) => class extends Class {
 
 	#result_schema;
 
-	ddlSchema() { return this.#result_schema; }
+	resultSchema() { return this.#result_schema; }
 
 	static fromJSON(inputJson, options = {}, callback = null) {
 		if (inputJson instanceof AbstractNode) {

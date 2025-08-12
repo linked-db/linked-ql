@@ -1,6 +1,6 @@
-import { TableAbstraction3 } from '../TA/TableAbstraction3.js';
+import { FromItem } from '../TA/FromItem.js';
 
-export class JoinClause extends TableAbstraction3 {
+export class JoinClause extends FromItem {
 
     /* SYNTAX RULES */
 

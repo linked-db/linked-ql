@@ -1,6 +1,6 @@
 import { AbstractLQJsonLiteral } from './AbstractLQJsonLiteral.js';
-import { JSONSchema } from '../../abstracts/JSONSchema.js';
 import { registry } from '../../registry.js';
+import { _eq } from '../../util.js';
 
 export class LQObjectLiteral extends AbstractLQJsonLiteral {
 
@@ -12,7 +12,7 @@ export class LQObjectLiteral extends AbstractLQJsonLiteral {
             syntax: [
                 {
                     type: 'brace_block',
-                    syntax: { type: 'LQObjectProperty', as: 'entries', arity: Infinity, itemSeparator, autoIndent: 2 },
+                    syntax: { type: 'LQObjectProperty', as: 'entries', arity: Infinity, itemSeparator, autoIndent: 3 },
                 },
             ],
         };
@@ -26,12 +26,32 @@ export class LQObjectLiteral extends AbstractLQJsonLiteral {
         let resultJson = super.jsonfy(options, transformer, linkedDb);
         if (options.deSugar) {
 
+            const entries = resultJson.entries.reduce((result, propertyJson) => {
+                if (propertyJson.star_ref) {
+                    for (const ref of propertyJson.star_ref.result_schema) {
+                        const newPropertyJson = {
+                            key: { value: ref.value(), delim: ref._get('delim') },
+                            value: ref.jsonfy(),
+                        };
+                        result = result.reduce((result, existing) => {
+                            if (_eq(newPropertyJson.key.value, existing.key.value, newPropertyJson.key.delim || existing.key.delim)) {
+                                return result;
+                            }
+                            return result.concat(existing);
+                        }, []);
+                        result = result.concat(newPropertyJson);
+                    }
+                    return result;
+                }
+                return result.concat(propertyJson);
+            }, []);
+
             const result_schemas = [];
 
             resultJson = {
                 nodeName: registry.CallExpr.NODE_NAME,
                 name: (options.toDialect || this.options.dialect) === 'mysql' ? 'JSON_OBJECT' : 'JSON_BUILD_OBJECT',
-                arguments: resultJson.entries.reduce((args, propertyJson, i) => {
+                arguments: entries.reduce((args, propertyJson, i) => {
 
                     let result_schema = propertyJson.value.result_schema;
                     const schemaIdent = { ...propertyJson.key, nodeName: registry.Identifier.NODE_NAME };
@@ -52,7 +72,7 @@ export class LQObjectLiteral extends AbstractLQJsonLiteral {
                     );
 
                 }, []),
-                result_schema: new JSONSchema({ entries: result_schemas })
+                result_schema: registry.JSONSchema.fromJSON({ entries: result_schemas }, { assert: true })
             };
         }
 

@@ -44,7 +44,7 @@ export class LQBackRef extends LQBackBackRef {
 
 		const resolvedLeftEndpoint = qualifiedLeftEndpoint/* original */.resolve(transformer, linkedDb);
 
-		const leftFk = resolvedLeftEndpoint.ddlSchema()/* ColumnSchema */.fkConstraint(true);
+		const leftFk = resolvedLeftEndpoint.resultSchema()/* ColumnSchema */.fkConstraint(true);
 		if (!leftFk) throw new ErrorFKInvalid(`[${this.parentNode || this}] Endpoint column ${unqualifiedLeftEndpoint} is not a foreign key.`);
 		const leftEndpointTable = leftFk.targetTable();
 
@@ -57,7 +57,7 @@ export class LQBackRef extends LQBackBackRef {
 				qualifier: { ...tableSchema.name().jsonfy({ nodeNames: false }), result_schema: tableSchema },
 				value: pkColumnRef2.value(),
 				delim: pkColumnRef2._get('delim'),
-				result_schema: pkColumnRef2.ddlSchema()
+				result_schema: pkColumnRef2.resultSchema()
 			});
 
 			if (qualifiedLeftOperand) throw new ErrorRefAmbiguous(`[${this.parentNode || this}]: The referenced endpoint for foreign key ${unqualifiedLeftEndpoint} is ambiguous. (Is it ${qualifiedLeftOperand} or ${$qualifiedLeftOperand}?)`);
@@ -66,7 +66,7 @@ export class LQBackRef extends LQBackBackRef {
 
 		let statementContext = transformer.statementContext
 		outer: do {
-			for (const tableSchema of statementContext.artifacts.get('tableSchemas')) {
+			for (const { result_schema: tableSchema } of statementContext.artifacts.get('tableSchemas')) {
 				const ddlName = tableSchema._get('ddl_name') || tableSchema.name(); // Must match leftEndpointTable
 				if (leftEndpointQualifier) {
 					if (!tableSchema.identifiesAs(leftEndpointQualifier)) continue;
@@ -91,7 +91,7 @@ export class LQBackRef extends LQBackBackRef {
 			: registry.ColumnRef2.fromJSON({
 				value: unqualifiedLeftEndpoint.value(),
 				delim: unqualifiedLeftEndpoint._get('delim'),
-				result_schema: qualifiedRightTable.ddlSchema()._get('entries', unqualifiedLeftEndpoint)
+				result_schema: qualifiedRightTable.resultSchema()._get('entries', unqualifiedLeftEndpoint)
 			});
 
 		return {

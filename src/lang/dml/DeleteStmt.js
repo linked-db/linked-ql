@@ -97,7 +97,7 @@ export class DeleteStmt extends SelectorStmtMixin(
 
         const deriveSchema = (aliasName, tableRef) => {
             const alias = registry.Identifier.fromJSON({ value: aliasName });
-            const tableSchema = tableRef.ddlSchema(transformer).clone({ renameTo: alias });
+            const tableSchema = tableRef.resultSchema(transformer).clone({ renameTo: alias });
             inheritedQuerySchemas.add(tableSchema);
             resultSchemas.add(tableSchema);
         };
@@ -173,10 +173,10 @@ export class DeleteStmt extends SelectorStmtMixin(
         }
 
         const {
-            TableAbstraction3,
+            FromItem,
             TableAbstraction2,
-            BasicAlias,
-            CompositeAlias,
+            SelectItemAlias,
+            FromItemAlias,
             TableRef2,
             TableRef1,
             ColumnRef1,
@@ -200,7 +200,7 @@ export class DeleteStmt extends SelectorStmtMixin(
         const tblAliasOriginal = resultJson.table_expr.alias ? resultJson.table_expr.alias.value : resultJson.table_expr.name.value;
         const tblAliasRewrite = `${rand}::${tblAliasOriginal}`;
         const whereClauseOriginal = resultJson.where_clause;
-        const pk = this.table().ddlSchema(transformer, true)/* TableSchema */.pkConstraint(true)?.columns()[0];
+        const pk = this.table().resultSchema(transformer, true)/* TableSchema */.pkConstraint(true)?.columns()[0];
         if (!pk) throw new Error(``);
 
         // The re-write...
@@ -209,7 +209,7 @@ export class DeleteStmt extends SelectorStmtMixin(
             table_expr: {
                 nodeName: TableAbstraction2.NODE_NAME,
                 name: { nodeName: TableRef2.NODE_NAME, value: tblRefOriginal },
-                alias: { nodeName: BasicAlias.NODE_NAME, value: tblAliasRewrite }
+                alias: { nodeName: SelectItemAlias.NODE_NAME, value: tblAliasRewrite }
             },
             where_clause: {
                 nodeName: BinaryExpr.NODE_NAME,
@@ -232,9 +232,9 @@ export class DeleteStmt extends SelectorStmtMixin(
                             // FROM <tblRefOriginal>
                             nodeName: FromClause.NODE_NAME,
                             entries: [{
-                                nodeName: TableAbstraction3.NODE_NAME,
+                                nodeName: FromItem.NODE_NAME,
                                 expr: { nodeName: TableRef2.NODE_NAME, value: tblRefOriginal },
-                                alias: { nodeName: CompositeAlias.NODE_NAME, value: tblAliasOriginal }
+                                alias: { nodeName: FromItemAlias.NODE_NAME, value: tblAliasOriginal }
                             }]
                         },
                         where_clause: whereClauseOriginal,

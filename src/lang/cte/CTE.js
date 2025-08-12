@@ -22,7 +22,7 @@ export class CTE extends AbstractNonDDLStmt {
         return [
             { type: 'keyword', value: 'WITH' },
             { type: 'keyword', as: 'recursive', value: 'RECURSIVE', booleanfy: true, optional: true },
-            { type: 'CTEBinding', as: 'bindings', arity: { min: 1 }, itemSeparator, assert: true, autoIndent: 2 },
+            { type: 'CTEItem', as: 'bindings', arity: { min: 1 }, itemSeparator, assert: true, autoIndent: 2 },
             { type: this._bodyTypes, as: 'body', assert: true, autoSpacing: '\n' },
         ];
     }
@@ -44,7 +44,7 @@ export class CTE extends AbstractNonDDLStmt {
         const resultSchemas = new Set;
         
         for (const cteElement of this.bindings()) {
-            const tableSchema = cteElement.ddlSchema(transformer);
+            const tableSchema = cteElement.resultSchema(transformer);
             inheritedQuerySchemas.add(tableSchema);
             resultSchemas.add(tableSchema);
         }

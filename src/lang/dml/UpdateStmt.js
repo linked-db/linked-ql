@@ -85,7 +85,7 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
 
         const deriveSchema = (aliasName, tableRef) => {
             const alias = registry.Identifier.fromJSON({ value: aliasName });
-            const tableSchema = tableRef.ddlSchema(transformer).clone({ renameTo: alias });
+            const tableSchema = tableRef.resultSchema(transformer).clone({ renameTo: alias });
             inheritedQuerySchemas.add(tableSchema);
             resultSchemas.add(tableSchema);
         };
@@ -160,15 +160,15 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
             DerivedQuery,
             CompleteSelectStmt,
             SelectItem,
-            BasicAlias,
-            CompositeAlias,
+            SelectItemAlias,
+            FromItemAlias,
             FromClause,
             WhereClause,
             ColumnRef1,
             TableRef1,
             TableRef2,
             BinaryExpr,
-            TableAbstraction3,
+            FromItem,
         } = registry;
 
         const rand = this._rand('rand');
@@ -195,7 +195,7 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                 // - ( SELECT [] FROM <tblRefOriginal> )
                 // - AS <tblAliasRewrite>
                 const fromElement = {
-                    nodeName: TableAbstraction3.NODE_NAME,
+                    nodeName: FromItem.NODE_NAME,
                     expr: {
                         nodeName: DerivedQuery.NODE_NAME,
                         expr: {
@@ -206,7 +206,7 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                                 // FROM <tblRefOriginal>
                                 nodeName: FromClause.NODE_NAME,
                                 entries: [{
-                                    nodeName: TableAbstraction3.NODE_NAME,
+                                    nodeName: FromItem.NODE_NAME,
                                     expr: { nodeName: TableRef1.NODE_NAME, value: tblRefOriginal }
                                 }]
                             },
@@ -214,7 +214,7 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                     },
                     // AS <tblAliasRewrite>
                     as_kw: true,
-                    alias: { nodeName: CompositeAlias.NODE_NAME, value: tblAliasRewrite },
+                    alias: { nodeName: FromItemAlias.NODE_NAME, value: tblAliasRewrite },
                 };
 
                 // Compose:
@@ -242,7 +242,7 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
             pgGeneratedFromEntry.from.expr.expr.select_list.push({
                 nodeName: SelectItem.NODE_NAME,
                 expr: { nodeName: ColumnRef1.NODE_NAME, value: colRefOriginal },
-                alias: { nodeName: BasicAlias.NODE_NAME, value: colRefRewrite }
+                alias: { nodeName: SelectItemAlias.NODE_NAME, value: colRefRewrite }
             });
 
             // Return the rewritten ref

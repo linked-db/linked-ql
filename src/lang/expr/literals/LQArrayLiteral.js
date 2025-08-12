@@ -1,5 +1,4 @@
 import { AbstractLQJsonLiteral } from './AbstractLQJsonLiteral.js';
-import { JSONSchema } from '../../abstracts/JSONSchema.js';
 import { registry } from '../../registry.js';
 
 export class LQArrayLiteral extends AbstractLQJsonLiteral {
@@ -46,7 +45,7 @@ export class LQArrayLiteral extends AbstractLQJsonLiteral {
 
                     return e.jsonfy/* @case1 */(options, transformer, linkedDb);
                 }),
-                result_schema: new JSONSchema({ entries: result_schemas })
+                result_schema: registry.JSONSchema.fromJSON({ entries: result_schemas }, { assert: true })
             };
         }
 

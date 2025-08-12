@@ -74,7 +74,7 @@ export class LQDeepRef1 extends LQDeepDeepRef1 {
 
 		const qualifiedRightTable = this.rhsTable(transformer, linkedDb);
 
-		const unqualifiedRightOperand = qualifiedRightTable.ddlSchema().pkConstraint(true)?.columns()[0]?.resolve(transformer, linkedDb);
+		const unqualifiedRightOperand = qualifiedRightTable.resultSchema().pkConstraint(true)?.columns()[0]?.resolve(transformer, linkedDb);
 		if (!unqualifiedRightOperand) throw new Error(`[${this.parentNode || this}] The referenced RHS table ${qualifiedRightTable} does not have a primary key.`);
 
 		return {

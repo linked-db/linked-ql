@@ -1,9 +1,9 @@
 import { Transformer } from '../Transformer.js';
 import { SelectorStmtMixin } from '../abstracts/SelectorStmtMixin.js';
 import { ErrorRefUnknown } from '../expr/ref/abstracts/ErrorRefUnknown.js';
-import { JSONSchema } from '../abstracts/JSONSchema.js';
 import { SelectStmt } from './SelectStmt.js';
 import { registry } from '../registry.js';
+import { _eq } from '../util.js';
 
 export class BasicSelectStmt extends SelectorStmtMixin(
     SelectStmt
@@ -59,12 +59,12 @@ export class BasicSelectStmt extends SelectorStmtMixin(
 
             // Defer SelectItem resolution
             if (node instanceof registry.SelectItem) {
-                deferedItems.select_list.add(defaultTransform);
+                deferedItems.select_list.add({ node, defaultTransform });
                 return; // Exclude for now
             }
 
             // Process table abstraction nodes
-            if (node instanceof registry.TableAbstraction3) {
+            if (node instanceof registry.FromItem) {
                 let conditionClauseTransform;
 
                 let subResultJson = defaultTransform((node, defaultTransform, keyHint) => {
@@ -74,7 +74,7 @@ export class BasicSelectStmt extends SelectorStmtMixin(
                 });
 
                 const result_schema = subResultJson.result_schema;
-                transformer.artifacts.get('tableSchemas').add(result_schema);
+                transformer.artifacts.get('tableSchemas').add({ type: node.joinType?.(), lateral_kw: node.lateralKW(), result_schema });
 
                 if (conditionClauseTransform) {
                     subResultJson = {
@@ -98,7 +98,7 @@ export class BasicSelectStmt extends SelectorStmtMixin(
                         try {
                             deferedItems[keyHint].add(defaultChildTransform());
                         } catch (e) {
-                            if (e instanceof ErrorRefUnknown && childNode.expr() instanceof registry.ColumnRef1) {
+                            if (e instanceof ErrorRefUnknown) {
                                 deferedItems[keyHint].add(defaultChildTransform);
                             } else throw e;
                         }
@@ -116,76 +116,135 @@ export class BasicSelectStmt extends SelectorStmtMixin(
         transformer.artifacts.set('outputSchemas', new Set);
         transformer.artifacts.set('tableSchemas', new Set);
 
-        // Run transform
+        // 0. Run transform
         let resultJson = super.jsonfy(options, transformer, linkedDb);
 
         // --------------
 
-        // Resolve deferred items
+        // 1. Resolve deferred select items
+        // Deep refs here are discovered and resolved.
+        let resolvedSelectItems = [];
+        let starsFound = false;
+
+        const shouldFlattenUnaliasedRootObjects = Number(options.deSugar || 0) > 2;
+        const shouldDeSugarStars = Number(options.deSugar || 0) > 2;
+        const shouldDedupe = true;
+        
+        const addOutputItem = (itemJson) => {
+            if (shouldDedupe) {
+                resolvedSelectItems = resolvedSelectItems.reduce((result, existing) => {
+                    if (_eq(itemJson.alias.value, existing.alias.value, itemJson.alias.delim || existing.alias.delim)) {
+                        return result;
+                    }
+                    return result.concat(existing);
+                }, []);
+            }
+            resolvedSelectItems = resolvedSelectItems.concat(itemJson);
+        };
+
+        for (const { node, defaultTransform } of deferedItems.select_list) {
+            const selectItemJson = defaultTransform();
+
+            if (selectItemJson.expr.value === '*') {
+                starsFound = true;
+                for (const columnRef of selectItemJson.result_schema) {
+                    const exprJson = columnRef.jsonfy();
+                    const aliasJson = { nodeName: registry.SelectItemAlias.NODE_NAME, as_kw: true, value: exprJson.value, delim: exprJson.delim };
+                    addOutputItem({
+                        nodeName: registry.SelectItem.NODE_NAME,
+                        expr: exprJson,
+                        alias: aliasJson,
+                        result_schema: exprJson.result_schema.clone(),
+                        _originalStarJson: selectItemJson
+                    });
+                }
+            } else if (shouldFlattenUnaliasedRootObjects
+                && node.expr() instanceof registry.LQObjectLiteral
+                && !node.alias()) {
+                // Start by making pairs of arguments
+                const [argPairs] = selectItemJson.expr.arguments.reduce(([argPairs, key], value) => {
+                    if (!key) return [argPairs, value];
+                    return [[...argPairs, [key, value]]];
+                }, [[]]);
+
+                const result_schemas = selectItemJson.expr.result_schema.entries();
+
+                for (let i = 0; i < argPairs.length; i++) {
+                    addOutputItem({
+                        nodeName: registry.SelectItem.NODE_NAME,
+                        expr: argPairs[i][1],
+                        alias: { ...argPairs[i][0], nodeName: registry.SelectItemAlias.NODE_NAME, as_kw: true },
+                        result_schema: result_schemas[i],
+                    });
+                }
+            } else {
+                addOutputItem(selectItemJson);
+            }
+        }
+
+        // 2. Finalize generated JOINS
+        // Generated JOINs are injected into the query
+        resultJson = this.applySelectorDimensions(resultJson, transformer, linkedDb, options);
+
+        // 3. Re-resolve select list for cases of just-added deep refs
+        // wherein schemas wouldn't have been resolvable at the time but are needed at the GROUP BY step below
+        // 4. Finalize select list for the last time, honouring given deSugaring level with regards to star selects "*"
+        // and ofcos finalize output schemas
+        const [
+            select_list, 
+            outputSchemas
+        ] = resolvedSelectItems.reduce(([a, b], { _originalStarJson, ...fieldJson }) => {
+
+            if (_originalStarJson && !shouldDeSugarStars) {
+                if (!_originalStarJson.result_schema) {
+                    _originalStarJson.result_schema = registry.JSONSchema.fromJSON({ entries: [] }, { assert: true });
+                }
+                _originalStarJson.result_schema.entries().push(fieldJson.result_schema);
+                return [
+                    a.concat(_originalStarJson),
+                    b.concat(fieldJson.result_schema)
+                ];
+            }
+
+            if (!fieldJson.result_schema) {
+                const fieldNode = registry.SelectItem.fromJSON(fieldJson, this.options);
+                this._adoptNodes(fieldNode);
+                fieldJson = fieldNode.jsonfy(options, transformer, linkedDb);
+            }
+
+            return [
+                a.concat(fieldJson),
+                b.concat(fieldJson.result_schema.clone())
+            ];
+        }, [[], []]);
+
+        // Apply now
+        resultJson = {
+            ...resultJson,
+            select_list: starsFound && !shouldDeSugarStars ? [...new Set(select_list)] : select_list,
+            result_schema: registry.JSONSchema.fromJSON({ entries: outputSchemas }, { assert: true }),
+        };
+        transformer.artifacts.set('outputSchemas', new Set(outputSchemas));
+
+        // --------------
+
+        // 5. Resolve deferred GROUP BYs and HAVINGs
+        // after having published artifacts.outputSchemas
         for (const [fieldName, deferreds] of Object.entries(deferedItems)) {
-            let resolvedEntries = [];
+            if (fieldName === 'select_list' || !deferreds.size) continue;
+            const resolveds = [];
             for (let deferred of deferreds) {
                 if (typeof deferred === 'function') {
                     deferred = deferred();
                 }
-                resolvedEntries.push(deferred);
+                resolveds.push(deferred);
             }
-            if (fieldName === 'select_list') {
-                // Finalize generated JOINS
-                resultJson = this.applySelectorDimensions(resultJson, transformer, linkedDb, options);
-                // Re-resolve output list for cases of just-added deep refs where in schemas wouldn't have been resolvable at the time
-                resolvedEntries = resolvedEntries.map((fieldJson) => {
-                    if (fieldJson.result_schema) return fieldJson;
-                    const fieldNode = registry.SelectItem.fromJSON(fieldJson, this.options);
-                    this._adoptNodes(fieldNode);
-                    return fieldNode.jsonfy(options, transformer, linkedDb);
-                });
-                // Apply now
-                resultJson = { ...resultJson, [fieldName]: resolvedEntries };
-                transformer.artifacts.set('outputSchemas', new Set(resolvedEntries.map((e) => e.result_schema)));
-            } else if (deferreds.size) {
-                if (fieldName === 'having_clause') {
-                    resultJson = { ...resultJson, [fieldName]: resolvedEntries[0] };
-                } else if (fieldName === 'group_by_clause') {
-                    resultJson = { ...resultJson, [fieldName]: { entries: resolvedEntries } };
-                }
+            if (fieldName === 'having_clause') {
+                resultJson = { ...resultJson, [fieldName]: resolveds[0] };
+            } else if (fieldName === 'group_by_clause') {
+                resultJson = { ...resultJson, [fieldName]: { entries: resolveds } };
             }
-        }
 
-        // Derive output schema
-        const result_schema = new JSONSchema({
-            entries: resultJson.select_list.map((s) => s.result_schema.clone())
-        });
-        resultJson = { ...resultJson, result_schema };
-
-        // --------------
-
-        // Normalize special case LQObjectLiteral
-        let selectList;
-        if (options.deSugar
-            && (selectList = this.selectList()).length === 1
-            && selectList[0].expr() instanceof registry.LQObjectLiteral
-            && !selectList[0].alias()
-        ) {
-            // Make pairs of arguments
-            const [argPairs] = resultJson.select_list[0].expr.arguments.reduce(([argPairs, key], value) => {
-                if (!key) return [argPairs, value];
-                return [[...argPairs, [key, value]]];
-            }, [[]]);
-
-            const result_schemas = resultJson.select_list[0].expr.result_schema.entries();
-
-            // Compose...
-            resultJson = {
-                ...resultJson,
-                select_list: argPairs.map(([key, value], i) => ({
-                    nodeName: registry.SelectItem.NODE_NAME,
-                    expr: value,
-                    alias: { ...key, nodeName: registry.BasicAlias.NODE_NAME },
-                    as_kw: true,
-                    result_schema: result_schemas[i],
-                }))
-            };
         }
 
         return resultJson;

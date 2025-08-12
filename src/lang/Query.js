@@ -31,7 +31,7 @@ export class Query extends AbstractNodeList {
         if (!tokenStream.done && tokenStream.current()) {
             const current = tokenStream.current();
 			const message = `[${this.NODE_NAME}] Unexpected ${current.type} token:${typeof current.value === 'string' ? ` "${current.value}"` : ''} at <line ${current.line}, column ${current.column}>`;
-            throw new Error(message);
+            throw new SyntaxError(message);
         }
         return result;
     }

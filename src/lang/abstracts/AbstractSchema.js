@@ -1,6 +1,6 @@
 import { AbstractNodeList } from './AbstractNodeList.js';
-import { registry } from '../registry.js';
 import { AbstractNode } from './AbstractNode.js';
+import { registry } from '../registry.js';
 
 export class AbstractSchema extends AbstractNodeList {
 

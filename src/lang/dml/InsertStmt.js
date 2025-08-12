@@ -17,7 +17,7 @@ export class InsertStmt extends PayloadStmtMixin(
 			if: ['!select_clause', '!my_table_clause'],
 			syntax: [
 				{ type: 'keyword', value: 'AS' },
-				{ type: 'CompositeAlias', as: 'my_alias', assert: true }
+				{ type: 'FromItemAlias', as: 'my_alias', assert: true }
 			]
 		};
 		return [
@@ -108,7 +108,7 @@ export class InsertStmt extends PayloadStmtMixin(
 
 		const deriveSchema = (aliasName, tableRef) => {
 			const alias = registry.Identifier.fromJSON({ value: aliasName });
-			const tableSchema = tableRef.ddlSchema(transformer).clone({ renameTo: alias });
+			const tableSchema = tableRef.resultSchema(transformer).clone({ renameTo: alias });
 			resultSchemas.add(tableSchema);
 		};
 

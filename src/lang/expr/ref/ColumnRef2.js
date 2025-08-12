@@ -11,7 +11,7 @@ export class ColumnRef2 extends AbstractClassicRef {
 
     /* SCHEMA API */
 
-    dataType() { return this.ddlSchema()?.dataType() || super.dataType(); }
+    dataType() { return this.resultSchema()?.dataType() || super.dataType(); }
 
     lookup(deepMatchCallback, transformer = null, linkedDb = null) {
         if (!transformer && !linkedDb) return [];
@@ -51,7 +51,7 @@ export class ColumnRef2 extends AbstractClassicRef {
                 if (superParentNode instanceof registry.TableSchema) {
                     return superParentNode;
                 }
-                const potentialSchema = superParentNode.ddlSchema?.();
+                const potentialSchema = superParentNode.resultSchema?.();
                 if (potentialSchema instanceof registry.TableSchema) {
                     return potentialSchema;
                 }
@@ -70,7 +70,7 @@ export class ColumnRef2 extends AbstractClassicRef {
     jsonfy(options = {}, transformer = null, linkedDb = null) {
         if (options.deSugar
             && this.value() !== '*'
-            && !this.ddlSchema()
+            && !this.resultSchema()
             && (transformer || linkedDb)) {
             return this.resolve(transformer, linkedDb).jsonfy(/* IMPORTANT */);
         }

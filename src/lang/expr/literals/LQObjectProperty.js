@@ -6,17 +6,22 @@ export class LQObjectProperty extends AbstractNode {
     /* SYNTAX RULES */
 
     static get syntaxRules() {
-        return [
-            { type: 'BasicAlias', as: 'key' },
-            {
-                optional: true,
-                syntax: [
-                    { type: 'punctuation', value: ':' },
-                    { type: 'Expr', as: 'value', assert: true },
-                ],
-                autoSpacing: false,
-            },
-        ];
+        return {
+            syntaxes: [
+                { type: 'ColumnRef0', as: 'star_ref' },
+                [
+                    { type: 'SelectItemAlias', as: 'key' },
+                    {
+                        optional: true,
+                        syntax: [
+                            { type: 'punctuation', value: ':' },
+                            { type: 'Expr', as: 'value', assert: true },
+                        ],
+                        autoSpacing: false,
+                    },
+                ]
+            ]
+        };
     }
 
     static get syntaxPriority() { return -1; }
@@ -25,6 +30,8 @@ export class LQObjectProperty extends AbstractNode {
 
     /* AST API */
 
+    starRef() { return this._get('star_ref'); }
+
     key() { return this._get('key'); }
 
     value() { return this._get('value'); }
@@ -32,14 +39,14 @@ export class LQObjectProperty extends AbstractNode {
     /* DESUGARING API */
 
     jsonfy(options = {}, transformer = null, linkedDb = null) {
-        if (options.deSugar) {
+        if (options.deSugar && !this.starRef()) {
 
             const keyNode = this.key();
             let asAggr, keyJson = transformer
                 ? transformer.transform(keyNode, ($options = options) => keyNode.jsonfy($options), 'key', options)
                 : keyNode.jsonfy(options);
             if (keyJson.is_aggr) ({ is_aggr: asAggr, ...keyJson } = keyJson);
-            
+
             let valueNode = this.value();
             if (!valueNode) {
                 valueNode = registry.ColumnRef1.fromJSON({ ...keyJson, nodeName: undefined });

@@ -90,10 +90,10 @@ export const SelectorStmtMixin = (Class) => class extends Class {
             OnClause,
             GroupByClause,
             GroupingElement,
-            TableAbstraction3,
+            FromItem,
             SelectItem,
-            CompositeAlias,
-            BasicAlias,
+            FromItemAlias,
+            SelectItemAlias,
             TableRef1,
             ColumnRef1,
             BinaryExpr,
@@ -117,8 +117,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
         const fieldSpec = {
             nodeName: SelectItem.NODE_NAME,
             expr: rhsOperandJson,
-            alias: { nodeName: BasicAlias.NODE_NAME, value: rhsOperandMask },
-            as_kw: true,
+            alias: { nodeName: SelectItemAlias.NODE_NAME, as_kw: true, value: rhsOperandMask },
         };
 
         // Compose:
@@ -137,7 +136,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
                     // FROM <rhsTable>
                     from_clause: {
                         nodeName: FromClause.NODE_NAME,
-                        entries: [{ nodeName: TableAbstraction3.NODE_NAME, expr: rhsTable.jsonfy({ ...$options, deSugar: false }, transformer, linkedDb) }]
+                        entries: [{ nodeName: FromItem.NODE_NAME, expr: rhsTable.jsonfy({ ...$options, deSugar: 0 }, transformer, linkedDb) }]
                     },
                     // GROUP BY <rhsOperandMask>
                     group_by_clause: asAggr ? {
@@ -147,15 +146,14 @@ export const SelectorStmtMixin = (Class) => class extends Class {
                 }
             },
             // AS <dimensionID>
-            as_kw: true,
-            alias: { nodeName: CompositeAlias.NODE_NAME, value: dimensionID },
+            alias: { nodeName: FromItemAlias.NODE_NAME, as_kw: true, value: dimensionID },
             // ON <dimensionID>.<rhsOperandMask> = <lhsOperand>
             condition_clause: {
                 nodeName: OnClause.NODE_NAME,
                 expr: {
                     nodeName: BinaryExpr.NODE_NAME,
                     operator: '=',
-                    left: lhsOperand.jsonfy({ ...$options, deSugar: false }, transformer, linkedDb),
+                    left: lhsOperand.jsonfy({ ...$options, deSugar: 0 }, transformer, linkedDb),
                     right: {
                         nodeName: ColumnRef1.NODE_NAME,
                         qualifier: { nodeName: TableRef1.NODE_NAME, value: dimensionID },
@@ -176,8 +174,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
             joinJson.expr.expr.select_list.push({
                 nodeName: SelectItem.NODE_NAME,
                 expr: detail,
-                alias: { nodeName: BasicAlias.NODE_NAME, value: selectAlias },
-                as_kw: true,
+                alias: { nodeName: SelectItemAlias.NODE_NAME, as_kw: true, value: selectAlias },
             });
             return {
                 nodeName: ColumnRef1.NODE_NAME,
@@ -207,7 +204,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
             this._adoptNodes(joinNode);
 
             const joinJson2 = transformer.transform(joinNode, ($options = options, childTransformer = transformer) => {
-                return joinNode.jsonfy($options, childTransformer, linkedDb);
+                return joinNode.jsonfy({ ...$options, deSugar: 2 }, childTransformer, linkedDb);
             }, null, options);
 
             resultJson.join_clauses.push(joinJson2);
