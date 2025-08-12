@@ -130,12 +130,24 @@ TABLE public.users *;
 
 //sql = `SELECT email, p ~> username, m FROM (SELECT parent_user ~> email, parent_user ~> parent_user AS p, parent_user ~> parent_user ~> metadata ~> data AS m[], { "id" []: id+2 } from users)`;
 //sql = `SELECT email, ((users) parent_user <~ parent_user <~ users).metadata ~> id AS m[] FROM users u`;
-sql = `SELECT d, r, t FROM (SELECT { id, data }, ((user_metadata) metadata <~ parent_user <~ parent_user <~ users) ~> email AS m[] FROM user_metadata) AS SS (d, r, t)`;
 sql = `SELECT a, c FROM (VALUES (1, 2, '3')) t(a, b, c)`;
 sql = `SELECT * FROM call_expr() WITH ORDINALITY t (x, y)`;
 sql = `SELECT * FROM call_expr() AS (x VARCHAR, y TEXT)`;
 sql = `SELECT * FROM call_expr() AS t (x VARCHAR, y TEXT)`;
 sql = `SELECT * FROM ROWS FROM (call_expr1() AS (x VARCHAR, y TEXT), call_expr2(), call_expr3() AS (z JSON)) WITH ORDINALITY`;
+
+sql = `SELECT d, r, t FROM (SELECT { id, data }, ((user_metadata) metadata <~ parent_user <~ parent_user <~ users) ~> email AS m[] FROM user_metadata) AS SS (d, r, t)`;
+sql = `
+WITH SS (d, r, t) AS (SELECT { id, data }, ((user_metadata) metadata <~ parent_user <~ parent_user <~ users) ~> email AS m[] FROM user_metadata)
+  SELECT d, r, t FROM SS`;
+
+sql = `
+WITH SS AS (SELECT * FROM call_expr() AS t (x VARCHAR, y TEXT))
+  SELECT * FROM SS`;
+
+sql = `
+WITH t(a, b, c) AS (VALUES (1, 2, '3'))
+  SELECT a, c FROM t`;
 
 
 
@@ -155,7 +167,7 @@ process.exit();
 
 let t1b;
 //t1b = await Query.parse(sql, { assert: new RegExp(`COLUMN_REF\\.0\\.syntaxes\\.0\\.0<qufalifier>\\.`) });
-t1b = await registry['BasicSelectStmt'].parse(sql, { assert_: /ORDER/, dialect: 'postgres', prettyPrint: true, autoLineBreakThreshold: 40000 });
+t1b = await registry['CTE'].parse(sql, { assert_: /ORDER/, dialect: 'postgres', prettyPrint: true, autoLineBreakThreshold: 40000 });
 //t1b = t1b._normalize();
 
 

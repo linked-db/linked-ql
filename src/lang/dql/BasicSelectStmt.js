@@ -73,8 +73,8 @@ export class BasicSelectStmt extends SelectorStmtMixin(
                     } else return defaultTransform();
                 });
 
-                const result_schema = subResultJson.result_schema;
-                transformer.artifacts.get('tableSchemas').add({ type: node.joinType?.(), lateral_kw: node.lateralKW(), result_schema });
+                const resultSchema = subResultJson.result_schema;
+                transformer.artifacts.get('tableSchemas').add({ type: node.joinType?.(), lateral: node.lateralKW(), resultSchema });
 
                 if (conditionClauseTransform) {
                     subResultJson = {
@@ -93,8 +93,8 @@ export class BasicSelectStmt extends SelectorStmtMixin(
                 // Try to capture Linked QL's native GROUP BY clause that's derived
                 // from a back ref, which won't resolve at this time because the relevant generated JOIN
                 // hasn't been add
-                return defaultTransform((childNode, defaultChildTransform) => {
-                    if (childNode.parentNode === node) {
+                return defaultTransform((childNode, defaultChildTransform, subKeyHint) => {
+                    if ((typeof subKeyHint === 'number' || subKeyHint === 'expr'/* For Having clause */) && childNode.parentNode === node) {
                         try {
                             deferedItems[keyHint].add(defaultChildTransform());
                         } catch (e) {
@@ -167,14 +167,14 @@ export class BasicSelectStmt extends SelectorStmtMixin(
                     return [[...argPairs, [key, value]]];
                 }, [[]]);
 
-                const result_schemas = selectItemJson.expr.result_schema.entries();
+                const resultSchemas = selectItemJson.expr.result_schema.entries();
 
                 for (let i = 0; i < argPairs.length; i++) {
                     addOutputItem({
                         nodeName: registry.SelectItem.NODE_NAME,
                         expr: argPairs[i][1],
                         alias: { ...argPairs[i][0], nodeName: registry.SelectItemAlias.NODE_NAME, as_kw: true },
-                        result_schema: result_schemas[i],
+                        result_schema: resultSchemas[i],
                     });
                 }
             } else {
@@ -199,7 +199,7 @@ export class BasicSelectStmt extends SelectorStmtMixin(
                 if (!_originalStarJson.result_schema) {
                     _originalStarJson.result_schema = registry.JSONSchema.fromJSON({ entries: [] }, { assert: true });
                 }
-                _originalStarJson.result_schema.entries().push(fieldJson.result_schema);
+                _originalStarJson.result_schema.add(fieldJson.result_schema);
                 return [
                     a.concat(_originalStarJson),
                     b.concat(fieldJson.result_schema)

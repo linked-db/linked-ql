@@ -25,24 +25,24 @@ export class SRFExpr3 extends DDLSchemaMixin(AbstractNode) {
         let resultJson = super.jsonfy(options, transformer, linkedDb);
         if (options.deSugar) {
 
-            let result_schema;
+            let resultSchema;
             if (resultJson.qualif?.column_defs.length) {
                 // a. Compose from "column_defs"
-                result_schema = registry.JSONSchema.fromJSON({
+                resultSchema = registry.JSONSchema.fromJSON({
                     entries: resultJson.qualif.column_defs,
                 });
-            } else if (resultJson.call_expr.result_schema) {
+            } else if (resultJson.call_expr?.result_schema) {
                 // b. Compose from existing
                 const givenSchema = resultJson.call_expr.result_schema;
-                result_schema = givenSchema instanceof registry.TableSchema || givenSchema instanceof registry.JSONSchema
-                    ? resultJson.call_expr.result_schema.clone()
+                resultSchema = givenSchema instanceof registry.TableSchema || givenSchema instanceof registry.JSONSchema
+                    ? givenSchema.clone()
                     : registry.JSONSchema.fromJSON({
                         entries: [givenSchema.jsonfy()],
-                    });;
+                    });
             } else {
                 // c. Compose from Func expr
                 const schemaIdentFromFuncName = { nodeName: registry.Identifier.NODE_NAME, value: resultJson.call_expr.name };
-                result_schema = registry.JSONSchema.fromJSON({
+                resultSchema = registry.JSONSchema.fromJSON({
                     entries: [{
                         nodeName: registry.ColumnSchema.NODE_NAME,
                         name: schemaIdentFromFuncName,
@@ -53,8 +53,8 @@ export class SRFExpr3 extends DDLSchemaMixin(AbstractNode) {
 
             resultJson = {
                 ...resultJson,
-                result_schema
-            }
+                result_schema: resultSchema
+            };
         }
 
         return resultJson;

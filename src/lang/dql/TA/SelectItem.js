@@ -66,7 +66,7 @@ export class SelectItem extends DDLSchemaMixin(AbstractNode) {
                 : derivedAliasNode.jsonfy(options));
             if (derivedAliasJson?.is_aggr) ({ is_aggr: asAggr, ...derivedAliasJson } = derivedAliasJson);
 
-            let exprNode = this.expr();
+            const exprNode = this.expr();
 
             let defaultExprTransform;
 
@@ -92,20 +92,20 @@ export class SelectItem extends DDLSchemaMixin(AbstractNode) {
 
             const schemaIdent = derivedAliasJson && { nodeName: registry.Identifier.NODE_NAME, value: derivedAliasJson.value, delim: derivedAliasJson.delim };
 
-            let result_schema = exprJson.result_schema;
+            let resultSchema = exprJson.result_schema;
 
-            if (result_schema instanceof registry.ColumnSchema) {
-                const tableSchema = result_schema.parentNode;
-                result_schema = result_schema.clone({ renameTo: schemaIdent });
-                tableSchema._adoptNodes(result_schema);
+            if (resultSchema instanceof registry.ColumnSchema) {
+                const tableSchema = resultSchema.parentNode;
+                resultSchema = resultSchema.clone({ renameTo: schemaIdent });
+                tableSchema._adoptNodes(resultSchema);
             } else if (derivedAliasJson 
                 && !(exprNode instanceof registry.LQDeepRef1) 
                 && !(exprNode instanceof registry.ColumnRef0)) {
-                result_schema = registry.ColumnSchema.fromJSON({
+                resultSchema = registry.ColumnSchema.fromJSON({
                     name: schemaIdent,
                     data_type: this.expr().dataType().jsonfy(),
                 });
-                exprNode._adoptNodes(result_schema);
+                exprNode._adoptNodes(resultSchema);
             }
 
             const applicableAliasJson = (Number(options.deSugar || 0) > 1 || asAggr) 
@@ -115,7 +115,7 @@ export class SelectItem extends DDLSchemaMixin(AbstractNode) {
                 nodeName: SelectItem.NODE_NAME,
                 expr: exprJson,
                 alias: applicableAliasJson,
-                result_schema,
+                result_schema: resultSchema,
             };
         }
         return super.jsonfy(options, transformer, linkedDb);

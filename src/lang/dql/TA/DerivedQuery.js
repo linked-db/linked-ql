@@ -24,13 +24,13 @@ export class DerivedQuery extends DDLSchemaMixin(ParenExpr) {
     jsonfy(options = {}, transformer = null, linkedDb = null) {
         let resultJson = super.jsonfy(options, transformer, linkedDb);
         if (options.deSugar) {
-            const result_schema = resultJson.expr?.result_schema;
-            if (!result_schema?.length) {
+            const resultSchema = resultJson.expr?.result_schema;
+            if (!resultSchema?.length) {
                 throw new Error(`Derived queries must return a result set.`);
             }
             resultJson = {
                 ...resultJson,
-                result_schema,
+                result_schema: resultSchema,
             };
         }
         return resultJson;

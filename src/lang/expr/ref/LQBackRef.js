@@ -66,7 +66,8 @@ export class LQBackRef extends LQBackBackRef {
 
 		let statementContext = transformer.statementContext
 		outer: do {
-			for (const { result_schema: tableSchema } of statementContext.artifacts.get('tableSchemas')) {
+			for (const { type, resultSchema: tableSchema } of statementContext.artifacts.get('tableSchemas')) {
+				if (type === 'CTEItem') continue;
 				const ddlName = tableSchema._get('ddl_name') || tableSchema.name(); // Must match leftEndpointTable
 				if (leftEndpointQualifier) {
 					if (!tableSchema.identifiesAs(leftEndpointQualifier)) continue;
@@ -79,7 +80,7 @@ export class LQBackRef extends LQBackBackRef {
 					resolve(ddlName, tableSchema);
 				}
 			}
-		} while (!qualifiedLeftOperand && (statementContext = statementContext.superContext?.statementContext))
+		} while (!qualifiedLeftOperand && (statementContext = statementContext.parentTransformer?.statementContext))
 
 		if (!qualifiedLeftOperand) {
 			throw new ErrorRefUnknown(`[${this.parentNode || this}] Ref does not correlate with current query.`);

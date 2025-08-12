@@ -29,14 +29,14 @@ export class ScalarSubquery extends DerivedQuery {
     jsonfy(options = {}, transformer = null, linkedDb = null) {
         let resultJson = super.jsonfy(options, transformer, linkedDb);
         if (options.deSugar) {
-            let result_schema = resultJson.expr?.result_schema;
-            if (result_schema?.length !== 1) {
+            let resultSchema = resultJson.expr?.result_schema;
+            if (resultSchema?.length !== 1) {
                 throw new Error(`Scalar subqueries must return a scalar value.`);
             }
-            result_schema = result_schema.entries()[0];
+            resultSchema = resultSchema.entries()[0];
             resultJson = {
                 ...resultJson,
-                result_schema,
+                result_schema: resultSchema,
             };
         }
         return resultJson;

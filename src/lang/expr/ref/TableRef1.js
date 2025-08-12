@@ -63,11 +63,15 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 		if (transformer && this.canReferenceInlineTables()) {
 			let statementContext = transformer.statementContext
 			do {
-				for (const { result_schema: tableSchema } of statementContext.artifacts.get('tableSchemas')) {
+				for (const { type, resultSchema: tableSchema } of statementContext.artifacts.get('tableSchemas')) {
+					if (type === 'CTEItem' && deepMatchCallback) {
+						// columns can't directly reference CTE output columns
+						continue;
+					}
 					resultSet = resultSet.concat(resolve(tableSchema) || []);
 					if (!inGrepMode && resultSet.length) break; // Matching current instance only
 				}
-			} while ((inGrepMode || !resultSet.length) && (statementContext = statementContext.superContext?.statementContext))
+			} while ((inGrepMode || !resultSet.length) && (statementContext = statementContext.parentTransformer?.statementContext))
 		}
 
 		// Resolve normally?

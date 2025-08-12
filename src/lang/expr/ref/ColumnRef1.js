@@ -50,12 +50,12 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
             if (deepMatchCallback && !(result = deepMatchCallback(columnSchema, qualifierJson))) return false;
             if (result instanceof AbstractNode || Array.isArray(result)) return result;
 
-            const result_schema = columnSchema.clone({ normalized: true });
-            columnSchema.parentNode._adoptNodes(result_schema);
+            const resultSchema = columnSchema.clone({ normalized: true });
+            columnSchema.parentNode._adoptNodes(resultSchema);
 
             const resolvedColumnRef1 = ColumnRef1.fromJSON({
                 ...columnSchema.name().jsonfy({ nodeNames: false }),
-                result_schema,
+                result_schema: resultSchema,
                 qualifier: qualifierJson
             });
 

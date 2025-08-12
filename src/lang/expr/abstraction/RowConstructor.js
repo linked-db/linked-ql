@@ -43,7 +43,7 @@ export class RowConstructor extends DDLSchemaMixin(TypeSysMixin(AbstractNodeList
             const entriesNode = this.entries() || [];
             const entriesJson = resultJson.entries || [];
 
-            const result_schemas = entriesJson.map((entry, i) => {
+            const resultSchemas = entriesJson.map((entry, i) => {
                 const ident = { nodeName: registry.Identifier.NODE_NAME, value: i };
                 if (entry.result_schema instanceof registry.ColumnSchema) {
                     return entry.result_schema.clone({ renameTo: ident });
@@ -56,7 +56,7 @@ export class RowConstructor extends DDLSchemaMixin(TypeSysMixin(AbstractNodeList
 
             resultJson = {
                 ...resultJson,
-                result_schema: registry.JSONSchema.fromJSON({ entries: result_schemas }, { assert: true }),
+                result_schema: registry.JSONSchema.fromJSON({ entries: resultSchemas }, { assert: true }),
             };
         }
 

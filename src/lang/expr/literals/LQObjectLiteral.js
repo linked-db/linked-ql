@@ -46,25 +46,25 @@ export class LQObjectLiteral extends AbstractLQJsonLiteral {
                 return result.concat(propertyJson);
             }, []);
 
-            const result_schemas = [];
+            const resultSchemas = [];
 
             resultJson = {
                 nodeName: registry.CallExpr.NODE_NAME,
                 name: (options.toDialect || this.options.dialect) === 'mysql' ? 'JSON_OBJECT' : 'JSON_BUILD_OBJECT',
                 arguments: entries.reduce((args, propertyJson, i) => {
 
-                    let result_schema = propertyJson.value.result_schema;
+                    let resultSchema = propertyJson.value.result_schema;
                     const schemaIdent = { ...propertyJson.key, nodeName: registry.Identifier.NODE_NAME };
 
-                    if (result_schema instanceof registry.ColumnSchema) {
-                        result_schema = result_schema.clone({ renameTo: schemaIdent });
+                    if (resultSchema instanceof registry.ColumnSchema) {
+                        resultSchema = resultSchema.clone({ renameTo: schemaIdent });
                     } else {
-                        result_schema = registry.ColumnSchema.fromJSON({
+                        resultSchema = registry.ColumnSchema.fromJSON({
                             name: schemaIdent,
                             data_type: this.entries()[i].value().dataType().jsonfy(),
                         });
                     }
-                    result_schemas.push(result_schema);
+                    resultSchemas.push(resultSchema);
 
                     return args.concat(
                         { ...propertyJson.key, nodeName: registry.StringLiteral.NODE_NAME },
@@ -72,7 +72,7 @@ export class LQObjectLiteral extends AbstractLQJsonLiteral {
                     );
 
                 }, []),
-                result_schema: registry.JSONSchema.fromJSON({ entries: result_schemas }, { assert: true })
+                result_schema: registry.JSONSchema.fromJSON({ entries: resultSchemas }, { assert: true })
             };
         }
 

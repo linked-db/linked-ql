@@ -8,15 +8,15 @@ export class Transformer {
     #rands = new Map;
     #hashes = new Map;
 
-    #superTransformer;
-    get superTransformer() { return this.#superTransformer; }
+    #parentTransformer;
+    get parentTransformer() { return this.#parentTransformer; }
 
     #statementNode;
     get statementNode() { return this.#statementNode; }
 
     get statementContext() {
         if (this.#isStatementContext) return this;
-        return this.#superTransformer.statementContext;
+        return this.#parentTransformer.statementContext;
     }
 
     #isStatementContext;
@@ -25,12 +25,12 @@ export class Transformer {
     #artifacts = new Map;
     get artifacts() { return this.#artifacts; }
 
-    constructor(callback, superTransformer = null, statementNode = null) {
+    constructor(callback, parentTransformer = null, statementNode = null) {
         this.#callback = callback;
-        this.#superTransformer = superTransformer;
+        this.#parentTransformer = parentTransformer;
         this.#statementNode = statementNode;
-        this.#isStatementContext = !superTransformer
-            || statementNode !== superTransformer.statementNode;
+        this.#isStatementContext = !parentTransformer
+            || statementNode !== parentTransformer.statementNode;
     }
 
     rand(type, rands = this.#rands) {
@@ -49,7 +49,7 @@ export class Transformer {
 
         const $defaultTransform = (options1 = options0, childTransformer = originatingContext) => {
 
-            // From superTransformer:
+            // From parentTransformer:
             // implicitly inherit current instance for sub-transforms
             if (typeof options1 === 'function') {
                 childTransformer = new Transformer(options1, childTransformer, this.#statementNode);
@@ -75,9 +75,9 @@ export class Transformer {
             }, key, options1);
         };
 
-        if (this.#superTransformer) {
-            // Call superTransformer and pass originating scope
-            return this.#superTransformer.transform(node, $defaultTransform, key, options0, originatingContext);
+        if (this.#parentTransformer) {
+            // Call parentTransformer and pass originating scope
+            return this.#parentTransformer.transform(node, $defaultTransform, key, options0, originatingContext);
         }
 
         return $defaultTransform();

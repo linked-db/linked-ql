@@ -47,7 +47,7 @@ export class SRFExpr4 extends DDLSchemaMixin(AbstractNodeList) {
                 });
             }
 
-            const result_schema = registry.JSONSchema.fromJSON({
+            const resultSchema = registry.JSONSchema.fromJSON({
                 entries: [
                     ...resultJson.entries.reduce((entries, exprJson) => {
                         const exprJsonEntries = exprJson.result_schema.jsonfy().entries;
@@ -58,8 +58,8 @@ export class SRFExpr4 extends DDLSchemaMixin(AbstractNodeList) {
 
             resultJson = {
                 ...resultJson,
-                result_schema
-            }
+                result_schema: resultSchema
+            };
         }
 
         return resultJson;

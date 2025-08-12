@@ -94,12 +94,12 @@ export class FromItem extends DDLSchemaMixin(AbstractNode) {
     deriveAlias() {
         let derivedAliasJson;
         if (this.alias()?.value()) {
-            derivedAliasJson = { value: this.alias().value(), delim: this.alias()._get('delim') };
+            derivedAliasJson = { as_kw: true, value: this.alias().value(), delim: this.alias()._get('delim') };
         } else if (this.expr() instanceof registry.TableRef1) {
-            derivedAliasJson = { value: this.expr().value(), delim: this.expr()._get('delim') };
+            derivedAliasJson = { as_kw: true, value: this.expr().value(), delim: this.expr()._get('delim') };
         } else if (this.expr() instanceof registry.SRFExpr1
             && this.expr().qualif() instanceof registry.SRFExprDDL2) {
-            derivedAliasJson = { value: this.expr().qualif().alias().value(), delim: this.expr().qualif().alias()._get('delim') };
+            derivedAliasJson = { as_kw: true, value: this.expr().qualif().alias().value(), delim: this.expr().qualif().alias()._get('delim') };
         }
         if (derivedAliasJson) {
             return registry.FromItemAlias.fromJSON(derivedAliasJson);
@@ -118,27 +118,31 @@ export class FromItem extends DDLSchemaMixin(AbstractNode) {
                 delim: derivedAliasJson.delim,
             };
 
-            let result_schema = resultJson.expr.result_schema;
+            let resultSchema = resultJson.expr.result_schema;
 
-            if (result_schema instanceof registry.TableSchema) {
-                result_schema = result_schema.clone({ renameTo: schemaIdent });
+            if (resultSchema instanceof registry.TableSchema) {
+                resultSchema = resultSchema.clone({ renameTo: schemaIdent });
             } else if (schemaIdent) {
-                result_schema = registry.TableSchema.fromJSON({
+                resultSchema = registry.TableSchema.fromJSON({
                     name: schemaIdent,
-                    entries: result_schema?.entries().map((s) => s.jsonfy()) || [],
+                    entries: resultSchema?.entries().map((s) => s.jsonfy()) || [],
                 });
             }
 
             if (resultJson.alias?.columns?.length) {
-                if (resultJson.alias.columns.length !== result_schema.length) {
+                if (resultJson.alias.columns.length !== resultSchema.length) {
                     throw new SyntaxError(`[${this}] Number of column aliases must match number of result columns.`);
                 }
-                result_schema = result_schema.clone({}, new Transformer((node, defaultTransform, key) => {
-                    if (typeof key === 'number' && node.parentNode === result_schema) {
+                resultSchema = resultSchema.clone({}, new Transformer((node, defaultTransform, key) => {
+                    if (typeof key === 'number' && node.parentNode === resultSchema) {
                         if (node instanceof registry.ColumnSchema) {
                             return node.jsonfy({ renameTo: resultJson.alias.columns[key] });
                         }
-                        return { ...node.jsonfy(), nodeName: registry.ColumnSchema.NODE_NAME, name: resultJson.alias.columns[key] };
+                        return {
+                            ...node.jsonfy(),
+                            nodeName: registry.ColumnSchema.NODE_NAME,
+                            name: resultJson.alias.columns[key],
+                        };
                     }
                     return defaultTransform();
                 }));
@@ -150,7 +154,7 @@ export class FromItem extends DDLSchemaMixin(AbstractNode) {
             resultJson = {
                 ...resultJson,
                 alias: applicableAliasJson,
-                result_schema,
+                result_schema: resultSchema,
             };
         }
 

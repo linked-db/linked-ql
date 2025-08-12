@@ -31,7 +31,7 @@ export class SRFExpr2 extends DDLSchemaMixin(AbstractNode) {
         let resultJson = super.jsonfy(options, transformer, linkedDb);
         if (options.deSugar) {
 
-            let result_schema;
+            let resultSchema;
 
             let ordinalityColumn;
             if (resultJson.with_ordinality) {
@@ -45,35 +45,35 @@ export class SRFExpr2 extends DDLSchemaMixin(AbstractNode) {
 
             if (resultJson.call_expr?.result_schema) {
                 // a. Compose from existing
-                let result_schema = resultJson.call_expr?.result_schema;
+                resultSchema = resultJson.call_expr.result_schema;
 
-                if (result_schema instanceof registry.TableSchema
-                    || result_schema instanceof registry.JSONSchema) {
+                if (resultSchema instanceof registry.TableSchema
+                    || resultSchema instanceof registry.JSONSchema) {
 
                     if (ordinalityColumn) {
-                        const result_schema_json = result_schema.jsonfy();
-                        result_schema = result_schema.constructor.fromJSON({
+                        const resultSchema_json = resultSchema.jsonfy();
+                        resultSchema = resultSchema.constructor.fromJSON({
                             name: schemaIdentFromFuncName,
-                            ...result_schema_json, // overridingly
+                            ...resultSchema_json, // overridingly
                             entries: [
-                                ...result_schema_json.entries, 
+                                ...resultSchema_json.entries, 
                                 ordinalityColumn
                             ],
                         });
                     } else {
-                        result_schema = result_schema.clone();
+                        resultSchema = resultSchema.clone();
                     }
 
                 } else {
-                    result_schema = registry.JSONSchema.fromJSON({
+                    resultSchema = registry.JSONSchema.fromJSON({
                         entries: [
-                            result_schema.jsonfy()
+                            resultSchema.jsonfy()
                         ].concat(ordinalityColumn || []),
                     });
                 }
             } else {
                 // b. Compose from Func expr
-                result_schema = registry.JSONSchema.fromJSON({
+                resultSchema = registry.JSONSchema.fromJSON({
                     entries: [{
                         nodeName: registry.ColumnSchema.NODE_NAME,
                         name: schemaIdentFromFuncName,
@@ -84,8 +84,8 @@ export class SRFExpr2 extends DDLSchemaMixin(AbstractNode) {
 
             resultJson = {
                 ...resultJson,
-                result_schema
-            }
+                result_schema: resultSchema
+            };
         }
 
         return resultJson;

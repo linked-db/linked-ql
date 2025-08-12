@@ -1,4 +1,6 @@
 import { AbstractNonDDLStmt } from '../abstracts/AbstractNonDDLStmt.js';
+import { Transformer } from '../Transformer.js';
+import { registry } from '../registry.js';
 
 export class CTEItem extends AbstractNonDDLStmt {
 
@@ -39,10 +41,54 @@ export class CTEItem extends AbstractNonDDLStmt {
 
     cycleClause() { return this._get('cycle_clause'); }
 
-    /* SCHEMA API */
+    /* JSON API */
 
-    resultSchema() {
-        const alias = registry.Identifier.fromJSON({ value: this.alias().value() });
-        return this.expr().resultSchema(transformer).clone({ renameTo: alias }); // DerivedQuery, ValuesTableLiteral
+    jsonfy(options = {}, transformer = null, linkedDb = null) {
+        let resultJson = super.jsonfy(options, transformer, linkedDb);
+        if (options.deSugar) {
+
+            const schemaIdent = {
+                nodeName: registry.Identifier.NODE_NAME,
+                value: resultJson.alias.value,
+                delim: resultJson.alias.delim,
+            };
+
+            let resultSchema = resultJson.expr.result_schema;
+
+            if (resultSchema instanceof registry.TableSchema) {
+                resultSchema = resultSchema.clone({ renameTo: schemaIdent });
+            } else {
+                resultSchema = registry.TableSchema.fromJSON({
+                    name: schemaIdent,
+                    entries: resultSchema?.entries().map((s) => s.jsonfy()) || [],
+                });
+            }
+
+            if (resultJson.alias.columns?.length) {
+                if (resultJson.alias.columns.length !== resultSchema.length) {
+                    throw new SyntaxError(`[${this}] Number of column aliases must match number of result columns.`);
+                }
+                resultSchema = resultSchema.clone({}, new Transformer((node, defaultTransform, key) => {
+                    if (typeof key === 'number' && node.parentNode === resultSchema) {
+                        if (node instanceof registry.ColumnSchema) {
+                            return node.jsonfy({ renameTo: resultJson.alias.columns[key] });
+                        }
+                        return {
+                            ...node.jsonfy(),
+                            nodeName: registry.ColumnSchema.NODE_NAME,
+                            name: resultJson.alias.columns[key],
+                        };
+                    }
+                    return defaultTransform();
+                }));
+            }
+
+            resultJson = {
+                ...resultJson,
+                result_schema: resultSchema,
+            };
+        }
+
+        return resultJson;
     }
 }

@@ -1,4 +1,5 @@
 import { AbstractNonDDLStmt } from '../abstracts/AbstractNonDDLStmt.js';
+import { Transformer } from '../Transformer.js';
 import { registry } from '../registry.js';
 
 export class CTE extends AbstractNonDDLStmt {
@@ -22,7 +23,7 @@ export class CTE extends AbstractNonDDLStmt {
         return [
             { type: 'keyword', value: 'WITH' },
             { type: 'keyword', as: 'recursive', value: 'RECURSIVE', booleanfy: true, optional: true },
-            { type: 'CTEItem', as: 'bindings', arity: { min: 1 }, itemSeparator, assert: true, autoIndent: 2 },
+            { type: 'CTEItem', as: 'declarations', arity: { min: 1 }, itemSeparator, assert: true, autoIndent: 2 },
             { type: this._bodyTypes, as: 'body', assert: true, autoSpacing: '\n' },
         ];
     }
@@ -31,28 +32,47 @@ export class CTE extends AbstractNonDDLStmt {
 
     recursive() { return this._get('recursive'); }
 
-    bindings() { return this._get('bindings'); }
+    declarations() { return this._get('declarations'); }
 
     body() { return this._get('body'); }
 
-    /* SCHEMA API */
+    /* JSON API */
 
-    querySchemas() {
-        // Literally inherit state
-        inheritedQuerySchemas = new Set(inheritedQuerySchemas || []);
+    jsonfy(options = {}, transformer = null, linkedDb = null) {
+        if (!options.deSugar) return super.jsonfy(options, transformer, linkedDb);
 
-        const resultSchemas = new Set;
-        
-        for (const cteElement of this.bindings()) {
-            const tableSchema = cteElement.resultSchema(transformer);
-            inheritedQuerySchemas.add(tableSchema);
-            resultSchemas.add(tableSchema);
-        }
+        let outerResultSchema;
 
-        for (const tableSchema of this.body().querySchemas(transformer)) {
-            resultSchemas.add(tableSchema);
-        }
+        transformer = new Transformer((node, defaultTransform, keyHint) => {
+            // Process CTEItem nodes
+            if (node instanceof registry.CTEItem) {
+                const cteResultJson = defaultTransform();
 
-        return resultSchemas;
+                const resultSchema = cteResultJson.result_schema;
+                transformer.artifacts.get('tableSchemas').add({ type: 'CTEItem', resultSchema });
+
+                return cteResultJson;
+            }
+
+            // Process body nodes
+            if (keyHint === 'body' && node.parentNode === this) {
+                const bodyResultJson = defaultTransform();
+
+                outerResultSchema = bodyResultJson.result_schema;
+
+                return bodyResultJson;
+            }
+
+            return defaultTransform();
+        }, transformer, this);
+
+        transformer.artifacts.set('tableSchemas', new Set);
+
+        // Run transform
+        const resultJson = super.jsonfy(options, transformer, linkedDb);
+        return {
+            ...resultJson,
+            result_schema: outerResultSchema,
+        };
     }
 }

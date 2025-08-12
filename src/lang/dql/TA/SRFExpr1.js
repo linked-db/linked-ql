@@ -26,7 +26,7 @@ export class SRFExpr1 extends DDLSchemaMixin(AbstractNode) {
         if (options.deSugar) {
             
             const columnDefsJson = resultJson.qualif?.column_defs || [];
-            const result_schema = resultJson.qualif?.alias
+            const resultSchema = resultJson.qualif?.alias
                 // a. Compose from "column_defs" with own table alias
                 ? registry.TableSchema.fromJSON({
                     name: resultJson.qualif.alias,
@@ -39,8 +39,8 @@ export class SRFExpr1 extends DDLSchemaMixin(AbstractNode) {
 
             resultJson = {
                 ...resultJson,
-                result_schema
-            }
+                result_schema: resultSchema
+            };
         }
 
         return resultJson;

@@ -6,7 +6,6 @@ export class AbstractStmt extends AbstractNode {
 
     /* JSON API */
 
-	#result_schema;
 	#uuid;
 
     get uuid() {
