@@ -131,7 +131,7 @@ export class InsertStmt extends PayloadStmtMixin(
 					resultSchema = resultSchema.clone({ renameTo: subResultJson.pg_table_alias });
 				}
 
-				transformer.artifacts.get('tableSchemas').add({ resultSchema });
+				transformer.statementContext.artifacts.get('tableSchemas').add({ resultSchema });
 
 				return subResultJson;
 			}

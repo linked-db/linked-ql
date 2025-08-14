@@ -44,16 +44,6 @@ export class CTE extends AbstractNonDDLStmt {
         let outerResultSchema;
 
         transformer = new Transformer((node, defaultTransform, keyHint) => {
-            // Process CTEItem nodes
-            if (node instanceof registry.CTEItem) {
-                const cteResultJson = defaultTransform();
-
-                const resultSchema = cteResultJson.result_schema;
-                transformer.artifacts.get('tableSchemas').add({ type: 'CTEItem', resultSchema });
-
-                return cteResultJson;
-            }
-
             // Process body nodes
             if (keyHint === 'body' && node.parentNode === this) {
                 const bodyResultJson = defaultTransform();

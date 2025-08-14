@@ -86,6 +86,8 @@ export class CTEItem extends AbstractNonDDLStmt {
                 }));
             }
 
+            transformer.statementContext.artifacts.get('tableSchemas').add({ type: 'CTEItem', resultSchema });
+
             resultJson = {
                 ...resultJson,
                 result_schema: resultSchema,

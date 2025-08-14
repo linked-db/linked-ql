@@ -227,7 +227,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		// (2.c): Select
 		const deSugarValuesFromSelect = (selectStmt, dimensionsMap) => {
 			// Declare base SELECT and select list
-			let baseSelect = jsonfy(selectStmt, Infinity);
+			let baseSelect = jsonfy(selectStmt, 2);
 			let baseSelectItems = baseSelect.select_list.entries;
 
 			if (baseSelectItems.length !== columns.length) {
@@ -683,11 +683,11 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			}
 
 			// Compose declaration and add...
-			cte.declarations.push({
+			cte.declarations.push(CTEItem.fromJSON({
 				nodeName: CTEItem.NODE_NAME,
 				alias: { nodeName: CTEItemAlias.NODE_NAME, value: dimensionID },
 				expr: queryJson,
-			});
+			}, this.options).jsonfy(options, transformer, linkedDb));
 
 			if (!indices.length) return;
 
@@ -701,10 +701,10 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 						alias: { ...i.alias, value: i.expr.value, delim: i.expr.delim },
 					};
 				}
-				return {
+				return i.expr.nodeName === ColumnRef0.NODE_NAME ? i : {
 					...i,
 					expr: { ...i.expr, qualifier: undefined },
-					alias: { nodeName: SelectItemAlias.NODE_NAME, value: i.expr.value, delim: i.expr.delim },
+					alias: { nodeName: SelectItemAlias.NODE_NAME, as_kw: true, value: i.expr.value, delim: i.expr.delim },
 				};
 			});
 
@@ -716,7 +716,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 
 			const tableSpec = { nodeName: FromItem.NODE_NAME, expr: { nodeName: TableRef1.NODE_NAME, value: dimensionID } };
 
-			cte.declarations.push({
+			cte.declarations.push(CTEItem.fromJSON({
 				nodeName: CTEItem.NODE_NAME,
 				alias: { nodeName: CTEItemAlias.NODE_NAME, value: `${dimensionID}:indices` },
 				expr: {
@@ -724,7 +724,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 					select_list: { nodeName: SelectList.NODE_NAME, entries: selectItems.concat(rowNumberExpr) },
 					from_clause: { nodeName: FromClause.NODE_NAME, entries: [tableSpec] },
 				},
-			});
+			}, this.options).jsonfy(options, transformer, linkedDb));
 		};
 
 		// (1): Process non-dependent entries
@@ -759,14 +759,17 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			toCTEItem(dimensionID, query, [{ nodeName: SelectItem.NODE_NAME, expr: rhsOperandJson }]);
 		}
 
-		const newOuterReturningList = [];
-
 		// (2): Rewrite resultJson as a CTEItem?
 		if (dependents.length) {
 
+			const newOuterReturningList = [];
 			// Rewrite returning clause
 			for (const fieldExpr of originalReturningList) {
-				newOuterReturningList.push({ ...fieldExpr, expr: { nodeName: ColumnRef1.NODE_NAME, value: fieldExpr.alias.value, delim: fieldExpr.alias.delim } });
+				if (fieldExpr.alias) {
+					newOuterReturningList.push({ ...fieldExpr, expr: { nodeName: ColumnRef1.NODE_NAME, value: fieldExpr.alias.value, delim: fieldExpr.alias.delim } });
+				} else {
+					newOuterReturningList.push({ ...fieldExpr });
+				}
 			}
 
 			// Compose binding and add...
@@ -800,16 +803,16 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 
 			const tableSpec = { nodeName: FromItem.NODE_NAME, expr: { nodeName: TableRef1.NODE_NAME, value: this.uuid } };
 
-			cte.body = {
+			cte.body = CompleteSelectStmt.fromJSON({
 				nodeName: CompleteSelectStmt.NODE_NAME,
 				select_list: { nodeName: SelectList.NODE_NAME, entries: selectItems },
 				from_clause: { nodeName: FromClause.NODE_NAME, entries: [tableSpec] },
-			};
+			}, this.options).jsonfy(options, transformer, linkedDb);
 		} else {
 			// Use resultJson as-is
-			cte.body = resultJson;
+			cte.body = this.constructor.fromJSON(resultJson, this.options).jsonfy(options, transformer, linkedDb);
 		}
 
-		return cte;
+		return { ...cte, result_schema: cte.body.result_schema };
 	}
 }

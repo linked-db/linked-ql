@@ -99,7 +99,7 @@ export class SelectList extends DDLSchemaMixin(AbstractNodeList) {
                 _originalStarJson.result_schema._add('entries', fieldJson.result_schema);
                 return [
                     a.concat(_originalStarJson),
-                    b.concat(fieldJson.result_schema)
+                    b.concat(fieldJson.result_schema.clone())
                 ];
             }
 

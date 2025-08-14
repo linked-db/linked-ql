@@ -26,6 +26,7 @@ export class SelectItem extends DDLSchemaMixin(AbstractNode) {
         let derivedAliasJson = this.alias()?.jsonfy();
 
         let exprNode = this.expr();
+        if (exprNode instanceof registry.ColumnRef0) return;
 
         // Resolve RowConstructor
         if (exprNode instanceof registry.RowConstructor) {
@@ -33,7 +34,7 @@ export class SelectItem extends DDLSchemaMixin(AbstractNode) {
         }
 
         // Resolve CastExpr | PGCastExpr2
-        if (exprNode instanceof registry.CastExpr 
+        if (exprNode instanceof registry.CastExpr
             || exprNode instanceof registry.PGCastExpr2) {
             exprNode = exprNode.expr();
         }
@@ -44,7 +45,7 @@ export class SelectItem extends DDLSchemaMixin(AbstractNode) {
             } else if (exprNode instanceof registry.LQDeepRef1 && exprNode.endpoint() instanceof registry.ColumnRef2) {
                 const endpointNode = exprNode.endpoint();
                 derivedAliasJson = { as_kw: true, value: endpointNode.value(), delim: endpointNode._get('delim') };
-            } else if (!(exprNode instanceof registry.ColumnRef0)) {
+            } else {
                 const isToPG = this.options.dialect === 'postgres';
                 if (exprNode instanceof registry.CallExpr && isToPG) {
                     derivedAliasJson = { as_kw: true, value: exprNode.name().toLowerCase() };
@@ -61,9 +62,11 @@ export class SelectItem extends DDLSchemaMixin(AbstractNode) {
         if (options.deSugar) {
 
             const derivedAliasNode = this.deriveAlias();
-            let asAggr, derivedAliasJson = derivedAliasNode && (transformer
-                ? transformer.transform(derivedAliasNode, ($options = options) => derivedAliasNode.jsonfy($options), 'alias', options)
-                : derivedAliasNode.jsonfy(options));
+
+            let asAggr,
+                derivedAliasJson = derivedAliasNode && (transformer
+                    ? transformer.transform(derivedAliasNode, ($options = options) => derivedAliasNode.jsonfy($options), 'alias', options)
+                    : derivedAliasNode.jsonfy(options));
             if (derivedAliasJson?.is_aggr) ({ is_aggr: asAggr, ...derivedAliasJson } = derivedAliasJson);
 
             const exprNode = this.expr();
@@ -98,8 +101,8 @@ export class SelectItem extends DDLSchemaMixin(AbstractNode) {
                 const tableSchema = resultSchema.parentNode;
                 resultSchema = resultSchema.clone({ renameTo: schemaIdent });
                 tableSchema._adoptNodes(resultSchema);
-            } else if (derivedAliasJson 
-                && !(exprNode instanceof registry.LQDeepRef1) 
+            } else if (derivedAliasJson
+                && !(exprNode instanceof registry.LQDeepRef1)
                 && !(exprNode instanceof registry.ColumnRef0)) {
                 resultSchema = registry.ColumnSchema.fromJSON({
                     name: schemaIdent,
@@ -108,9 +111,10 @@ export class SelectItem extends DDLSchemaMixin(AbstractNode) {
                 exprNode._adoptNodes(resultSchema);
             }
 
-            const applicableAliasJson = (Number(options.deSugar) > 1 || asAggr) 
-                && derivedAliasJson
-                || resultJson.alias;
+            const applicableAliasJson = (asAggr || Number(options.deSugar) > 2 || (
+                Number(options.deSugar) > 1 && (this.parentNode?.entries().length || 0) > 1
+            )) && derivedAliasJson || this.alias()?.jsonfy();
+
             return {
                 nodeName: SelectItem.NODE_NAME,
                 expr: exprJson,
