@@ -7,18 +7,9 @@ export class LQDeepDeepRef2 extends LQDeepDeepRef1 {
 
 	static get _rightType() { return ['LQDeepDeepRef2', 'ColumnRef2', 'ColumnsConstructor']; } // for inheritance
 
-	static morphsTo() { return registry.LQDeepRef2; }
-
 	/* JSON API */
 
-	jsonfy({ toDeepRef = false, ...options } = {}, transformer = null, linkedDb = null) {
-		if (toDeepRef) {
-			return {
-				nodeName: registry.LQDeepRef2.NODE_NAME,
-				left: this.left().jsonfy(),
-				right: this.right().jsonfy()
-			};
-		}
-		return super.jsonfy(options, transformer, linkedDb);
+	jsonfy({ toDeepRef = false, toKind = 2, ...options } = {}, transformer = null, linkedDb = null) {
+		return super.jsonfy({ toDeepRef, toKind, ...options }, transformer = null, linkedDb);
 	}
 }

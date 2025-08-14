@@ -13,6 +13,7 @@ export { OrderElement } from './OrderElement.js';
 export { PartitionByClause } from './PartitionByClause.js';
 export { PGFetchClause } from './PGFetchClause.js';
 export { PGOrderOperator } from './PGOrderOperator.js';
+export { SelectList } from './SelectList.js';
 export { UsingClause } from './UsingClause.js';
 export { WhereClause } from './WhereClause.js';
 export { WindowClause } from './WindowClause.js';

@@ -22,7 +22,7 @@ export class LQBackBackRef extends AbstractMagicRef {
 
 	static get syntaxPriority() { return 1; }
 
-	static morphsTo() { return registry.LQDeepRef1; }
+	static morphsTo() { return [registry.LQDeepRef1, registry.LQDeepRef2, registry.LQDeepDeepRef1, registry.LQDeepDeepRef2]; }
 
 	/* API */
 
@@ -32,14 +32,16 @@ export class LQBackBackRef extends AbstractMagicRef {
 
 	/* JSON API */
 
-	jsonfy(options = {}, transformer = null, linkedDb = null) {
-		if (options.reverseRef) {
+	jsonfy({ reverseRef = false, toKind = 1, ...options } = {}, transformer = null, linkedDb = null) {
+		if (reverseRef) {
 			return {
-				...(options.nodeNames === false ? {} : { nodeName: registry.LQDeepRef1.NODE_NAME }),
+				nodeName: toKind === 2 
+					? (reverseRef === Infinity ? registry.LQDeepDeepRef2.NODE_NAME : registry.LQDeepRef2.NODE_NAME)
+					: (reverseRef === Infinity ? registry.LQDeepDeepRef1.NODE_NAME : registry.LQDeepRef1.NODE_NAME),
+				left: this.right().jsonfy({ toKind: reverseRef !== Infinity ? 1 : 2, ...options }),
 				right: this.left() instanceof registry.LQBackRefEndpoint
 					? { nodeName: registry.ColumnRef2.NODE_NAME, value: this.left().value(), delim: this.left()._get('delim') }
-					: this.left().jsonfy({ ...options, nodeNames: false }),
-				left: this.right().jsonfy({ ...options, nodeNames: false }),
+					: this.left().jsonfy({ reverseRef: Infinity, toKind, ...options }),
 			};
 		}
 		return super.jsonfy(options, transformer, linkedDb);

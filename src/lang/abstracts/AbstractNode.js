@@ -38,7 +38,10 @@ export class AbstractNode {
 	get _ast() { return this.#ast; }
 
 	#options;
-	get options() { return this.#options; }
+	get options() {
+		const options = this.#options || this.#parentNode?.options || { dialect: 'postgres' };
+		return options;
+	}
 
 	#parentNode;
 	get parentNode() { return this.#parentNode; }
@@ -371,6 +374,7 @@ export class AbstractNode {
 	}
 
 	static fromJSON(inputJson, options = {}, callback = null) {
+
 		// This runs first: giving "Expr" - a polymorphic interface to run
 		const astSchema = this.compileASTSchemaFromSyntaxRules(options);
 		// 1. Handle polymorphic interfaces
@@ -488,7 +492,7 @@ export class AbstractNode {
 						$decideThrow(`Failed to resolve any argument for "${fieldName}"`, fieldSchema.rulePath, assertsGrep);
 						return false; // API mismatch
 					}
-					$decideThrow(`Inconsistent "${fieldName}" argument(s)`, fieldSchema.rulePath, assertsGrep);
+					$decideThrow(`Failed to resolve some arguments for "${fieldName}"`, fieldSchema.rulePath, assertsGrep);
 					return false; // API mismatch
 				}
 				if (fieldSchema.singletons) {
@@ -596,7 +600,7 @@ export class AbstractNode {
 			};
 
 			if (value === undefined) return;
-			
+
 			const result = relevantTransformer
 				? relevantTransformer.transform(value, defaultTransform, key, options)
 				: defaultTransform();
@@ -987,7 +991,7 @@ export class AbstractNode {
 		return rendering;
 	}
 
-	_stringifyFromRules(syntaxRules, { trail = [], startingIndentLevel = 0, autoLineBreakThreshold = 100, ...options }, renderingStats = null) {
+	_stringifyFromRules(syntaxRules, { trail = [], startingIndentLevel = 0, autoLineBreakThreshold = 80, ...options }, renderingStats = null) {
 		// Formatters
 		const $space = () => ' ';
 		const $lineBreak = (indentLevel) => {
@@ -1035,15 +1039,25 @@ export class AbstractNode {
 				continue;
 			}
 
-			const activeOptions = { startingIndentLevel: startingIndentLevel + (autoIndent ? 1 : 0) + autoIndentAdjust, autoLineBreakThreshold, ...options };
+			const activeOptions = {
+				startingIndentLevel: startingIndentLevel + (autoIndent ? 1 : 0) + autoIndentAdjust,
+				autoLineBreakThreshold,
+				...options
+			};
 
 			let rendering;
 			if (![undefined, null].includes(arity)) {
 				let shouldRender = false; // Until we match items to syntax's arity
+
 				const entries = this._get(exposure);
+				const count = entries?.length || 0;
+
+				if (typeof autoIndent === 'number' && count < autoIndent) {
+					activeOptions.startingIndentLevel -= 1;
+				}
+
 				if (entries) {
 					if (!(shouldRender = arity === Infinity)) {
-						const count = entries.length;
 						if (_isObject(arity)) {
 							shouldRender = (!('min' in arity) || count >= arity.min)
 								&& (!('max' in arity) || count <= arity.max);
@@ -1075,7 +1089,9 @@ export class AbstractNode {
 			} else if (syntax) {
 				rendering = this._stringifyFromRules(syntax, { trail: activeTrail.concat('syntax'), ...activeOptions }, renderingStats);
 			} else if (syntaxes) {
+
 				let highestRenderingScore = -1;
+
 				for (const [j, syntax] of syntaxes.entries()) {
 					const newRenderingStats = { score: 0 };
 					const $rendering = this._stringifyFromRules(syntax, { trail: activeTrail.concat('syntaxes', j), ...activeOptions }, newRenderingStats);
@@ -1084,6 +1100,7 @@ export class AbstractNode {
 						highestRenderingScore = newRenderingStats.score;
 					}
 				}
+				
 				if (renderingStats) { renderingStats.score += highestRenderingScore; }
 			} else {
 				if (exposure) {
@@ -1146,8 +1163,9 @@ export class AbstractNode {
 
 			// Add "block" tags?
 			let autoSpaceIgnore = false;
+			const hitsAutoLineBreakThreshold = rendering.length > autoLineBreakThreshold || /**/rendering.includes('\n');
 			if (typeof type === 'string' && type.endsWith('_block')) {
-				const blockAutoLineBreakMode = activeOptions.prettyPrint && autoIndent && rendering/* *_block rendering */.length > autoLineBreakThreshold;
+				const blockAutoLineBreakMode = activeOptions.prettyPrint && autoIndent && hitsAutoLineBreakThreshold;
 				const delims = { brace_block: '{}', bracket_block: '[]', paren_block: '()' }[type];
 
 				rendering = [
@@ -1157,7 +1175,7 @@ export class AbstractNode {
 					blockAutoLineBreakMode || /^\s/.test(rendering) ? $lineBreak(startingIndentLevel) : (delims[1] === '}' ? $space() : ''),
 					delims[1],
 				].join('');
-			} else if (activeOptions.prettyPrint && $autoIndent && rendering !== '') {
+			} else if (activeOptions.prettyPrint && $autoIndent && (resultTokens.length || hitsAutoLineBreakThreshold) && rendering !== '') {
 
 				rendering = [
 					$lineBreak(startingIndentLevel + (autoSpacing === '\n' ? 0 : 1)),

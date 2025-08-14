@@ -17,8 +17,6 @@ export class TableSchema extends AbstractSchema {
                     { type, as: 'entries', arity: Infinity, itemSeparator, singletons: 'BY_KEY', optional: true, dialect: 'postgres', autoIndent: true },
                     { type, as: 'entries', arity: { min: 1 }, itemSeparator, singletons: 'BY_KEY', dialect: 'mysql', autoIndent: true },
                 ],
-                autoIndent: true,
-                autoIndentAdjust: -1,
             },
         ];
     }

@@ -19,7 +19,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
             LQBackRef,
         } = registry;
 
-        transformer = new Transformer((node, defaultTransform, keyHint, { deSugar/* IMPORTANT */, asAggr/* IMPORTANT */, ...$options }) => {
+        transformer = new Transformer((node, defaultTransform, keyHint, { deSugar/* EXCLUSION */, asAggr/* EXCLUSION */, ...$options }) => {
 
             const isSpecialColumnRef1 = (node) => {
                 return node instanceof ColumnRef1
@@ -73,8 +73,6 @@ export const SelectorStmtMixin = (Class) => class extends Class {
 
         }, transformer, this/* IMPORTANT */);
 
-        transformer.statementContext.artifacts.set('selectorDimensions', new Map);
-
         return super.jsonfy(options, transformer, linkedDb);
     }
 
@@ -91,6 +89,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
             GroupByClause,
             GroupingElement,
             FromItem,
+            SelectList,
             SelectItem,
             FromItemAlias,
             SelectItemAlias,
@@ -110,10 +109,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
 
         // Mask "rhsOperand"
         const rhsOperandMask = transformer.rand('key', rands);
-        const rhsOperandJson = {
-            ...rhsOperand.jsonfy(),
-            ...(rhsOperand instanceof registry.ColumnRef2 ? { nodeName: registry.ColumnRef1.NODE_NAME } : {}),
-        };
+        const rhsOperandJson = rhsOperand.jsonfy();
         const fieldSpec = {
             nodeName: SelectItem.NODE_NAME,
             expr: rhsOperandJson,
@@ -132,11 +128,11 @@ export const SelectorStmtMixin = (Class) => class extends Class {
                 // SELECT <fieldSpec>
                 expr: {
                     nodeName: CompleteSelectStmt.NODE_NAME,
-                    select_list: [fieldSpec],
+                    select_list: { nodeName: SelectList.NODE_NAME, entries: [fieldSpec] },
                     // FROM <rhsTable>
                     from_clause: {
                         nodeName: FromClause.NODE_NAME,
-                        entries: [{ nodeName: FromItem.NODE_NAME, expr: rhsTable.jsonfy({ ...$options, deSugar: 0 }, transformer, linkedDb) }]
+                        entries: [{ nodeName: FromItem.NODE_NAME, expr: rhsTable.jsonfy({ ...$options, deSugar: 0 }) }]
                     },
                     // GROUP BY <rhsOperandMask>
                     group_by_clause: asAggr ? {
@@ -169,13 +165,15 @@ export const SelectorStmtMixin = (Class) => class extends Class {
         // Add entry...
         const select = (detail) => {
             const selectAlias = transformer.rand('ref', rands);
+
             // Compose:
             // - [...detail] AS <selectAlias>
-            joinJson.expr.expr.select_list.push({
+            joinJson.expr.expr.select_list.entries.push({
                 nodeName: SelectItem.NODE_NAME,
                 expr: detail,
                 alias: { nodeName: SelectItemAlias.NODE_NAME, as_kw: true, value: selectAlias },
             });
+
             return {
                 nodeName: ColumnRef1.NODE_NAME,
                 qualifier: { nodeName: TableRef1.NODE_NAME, value: dimensionID },
@@ -191,13 +189,15 @@ export const SelectorStmtMixin = (Class) => class extends Class {
         return selectorDimension;
     }
 
-    applySelectorDimensions(resultJson, transformer, linkedDb, options) {
+    finalizeJSON(resultJson, transformer, linkedDb, options) {
+        resultJson = super.finalizeJSON(resultJson, transformer, linkedDb, options);
         const selectorDimensions = transformer.statementContext.artifacts.get('selectorDimensions');
 
         resultJson = {
             ...resultJson,
             join_clauses: resultJson.join_clauses?.slice(0) || [],
         };
+        
         for (const [, { query: joinJson }] of selectorDimensions) {
 
             const joinNode = registry.JoinClause.fromJSON(joinJson, this.options);

@@ -49,14 +49,14 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 			if (deepMatchCallback && !(result = deepMatchCallback(tableSchema, qualifierJson))) return false;
 			if (result instanceof AbstractNode || Array.isArray(result)) return result;
 
-			const resolvedTableRef1 = TableRef1.fromJSON({
+			const resolvedTableRef = this.constructor.fromJSON({
 				...tableSchema.name().jsonfy({ nodeNames: false }),
 				result_schema: tableSchema,
 				qualifier: qualifierJson
 			});
-			this.parentNode._adoptNodes(resolvedTableRef1);
+			this.parentNode._adoptNodes(resolvedTableRef);
 
-			return resolvedTableRef1;
+			return resolvedTableRef;
 		};
 
 		// Resolve from outputSchemas first?

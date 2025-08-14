@@ -13,7 +13,7 @@ export class RowConstructor extends DDLSchemaMixin(TypeSysMixin(AbstractNodeList
             syntax: [
                 {
                     type: 'paren_block',
-                    syntax: { type: 'Expr', as: 'entries', arity: Infinity, itemSeparator, autoIndent: 3 },
+                    syntax: { type: ['Expr', /* to support dimensional RHS in DML */'DerivedQuery', 'ValuesTableLiteral'], as: 'entries', arity: Infinity, itemSeparator, autoIndent: 10 },
                 },
             ],
         };

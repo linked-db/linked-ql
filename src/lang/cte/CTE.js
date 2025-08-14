@@ -66,8 +66,6 @@ export class CTE extends AbstractNonDDLStmt {
             return defaultTransform();
         }, transformer, this);
 
-        transformer.artifacts.set('tableSchemas', new Set);
-
         // Run transform
         const resultJson = super.jsonfy(options, transformer, linkedDb);
         return {

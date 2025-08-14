@@ -20,6 +20,8 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
 
     static get syntaxPriority() { return 51; } // above LQBackRefAbstraction
 
+	static morphsTo() { return registry.ColumnRef2; }
+
     /* API */
 
     dataType() { return this.resultSchema()?.dataType() || super.dataType(); }
@@ -109,7 +111,7 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
         return resultSet;
     }
 
-    jsonfy(options = {}, transformer = null, linkedDb = null) {
+    jsonfy({ toKind = 1, ...options } = {}, transformer = null, linkedDb = null) {
         if (options.deSugar
             && ((!this.qualifier() && Number(options.deSugar) > 1)
                 || !this.resultSchema())
@@ -120,6 +122,14 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
             }
             return resolvedJson;
         }
-        return super.jsonfy(options, transformer, linkedDb);
+        let resultJson = super.jsonfy(options, transformer, linkedDb);
+        if (toKind === 2) {
+			resultJson = {
+                ...resultJson,
+				nodeName: registry.ColumnRef2.NODE_NAME,
+			};
+            delete resultJson.qualifier;
+		}
+        return resultJson;
     }
 }

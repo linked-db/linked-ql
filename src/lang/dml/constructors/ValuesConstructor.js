@@ -1,6 +1,7 @@
+import { DDLSchemaMixin } from '../../abstracts/DDLSchemaMixin.js';
 import { AbstractNodeList } from '../../abstracts/AbstractNodeList.js';
 
-export class ValuesConstructor extends AbstractNodeList {
+export class ValuesConstructor extends DDLSchemaMixin(AbstractNodeList) {
 
     /* SYNTAX RULES */
 
@@ -10,13 +11,13 @@ export class ValuesConstructor extends AbstractNodeList {
             syntaxes: [
                 [
                     { type: 'keyword', value: 'VALUES' },
-                    { type: 'RowConstructor', as: 'entries', arity: { min: 1 }, itemSeparator, assert: true }
+                    { type: ['TypedRowConstructor', 'RowConstructor'], as: 'entries', arity: { min: 1 }, itemSeparator, assert: true, autoIndent: 2 }
                 ],
                 {
                     dialect: 'mysql',
                     syntax: [
                         { type: 'keyword', value: ['VALUES', 'VALUE'] },
-                        { type: 'RowConstructor', as: 'entries', arity: { min: 1 }, itemSeparator, assert: true }
+                        { type: ['TypedRowConstructor', 'RowConstructor'], as: 'entries', arity: { min: 1 }, itemSeparator, assert: true, autoIndent: 2 }
                     ]
                 },
             ],
@@ -24,4 +25,18 @@ export class ValuesConstructor extends AbstractNodeList {
     }
 
     static get syntaxPriority() { return -1; }
+
+    /* JSON API */
+
+    jsonfy(options = {}, transformer = null, linkedDb = null) {
+        let resultJson = super.jsonfy({ ...options, deSugar: options.deSugar ? Infinity/* deSugar ROW constructors */ : 0 }, transformer, linkedDb);
+        if (options.deSugar) {
+            const row1_resultSchema = resultJson.entries?.[0]?.result_schema;
+            resultJson = {
+                ...resultJson,
+                result_schema: row1_resultSchema?.clone()
+            }
+        }
+        return resultJson;
+    }
 }

@@ -48,10 +48,10 @@ export class CompositeSelectStmt extends SelectStmt {
 
     [Symbol.iterator]() { return (this.left()?.selectList() || [])[Symbol.iterator](); }
 
-    /* SCHEMA API */
+    /* JSON API */
 
     jsonfy(options = {}, transformer = null, linkedDb = null) {
         const resultJson = super.jsonfy(options, transformer, linkedDb);
-        return { ...resultJson, ddl_schema: resultJson.left?.ddl_schema };
+        return { ...resultJson, result_schema: resultJson.left?.result_schema };
     }
 }

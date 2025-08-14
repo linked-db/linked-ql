@@ -23,7 +23,7 @@ export class DeleteStmt extends SelectorStmtMixin(
                             { type: 'UsingFromClause', as: 'using_clause', optional: true, autoIndent: true },
                             { type: 'JoinClause', as: 'join_clauses', arity: Infinity, optional: true, autoIndent: true },
                             { type: ['PGWhereCurrentClause', 'WhereClause'], as: 'where_clause', optional: true, autoIndent: true },
-                            { type: 'PGReturningClause', as: 'pg_returning_clause', optional: true, autoIndent: true },
+                            { type: 'ReturningClause', as: 'returning_clause', optional: true, autoIndent: true },
                         ],
                     },
                     {
@@ -73,7 +73,7 @@ export class DeleteStmt extends SelectorStmtMixin(
 
     // -- Postgres
 
-    pgPGReturningClause() { return this._get('pg_returning_clause'); }
+    returningClause() { return this._get('returning_clause'); }
 
     // -- MySQL
 
@@ -224,10 +224,13 @@ export class DeleteStmt extends SelectorStmtMixin(
                     expr: {
                         // SELECT <...>
                         nodeName: CompleteSelectStmt.NODE_NAME,
-                        select_list: [{
-                            nodeName: SelectItem.NODE_NAME,
-                            expr: { nodeName: ColumnRef1.NODE_NAME, value: pk }
-                        }],
+                        select_list: {
+                            nodeName: SelectList.NODE_NAME,
+                            entries: [{
+                                nodeName: SelectItem.NODE_NAME,
+                                expr: { nodeName: ColumnRef1.NODE_NAME, value: pk }
+                            }],
+                        },
                         from_clause: {
                             // FROM <tblRefOriginal>
                             nodeName: FromClause.NODE_NAME,

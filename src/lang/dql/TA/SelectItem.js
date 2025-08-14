@@ -108,7 +108,7 @@ export class SelectItem extends DDLSchemaMixin(AbstractNode) {
                 exprNode._adoptNodes(resultSchema);
             }
 
-            const applicableAliasJson = (Number(options.deSugar || 0) > 1 || asAggr) 
+            const applicableAliasJson = (Number(options.deSugar) > 1 || asAggr) 
                 && derivedAliasJson
                 || resultJson.alias;
             return {

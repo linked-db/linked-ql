@@ -9,6 +9,8 @@ export class ColumnRef2 extends AbstractClassicRef {
 
     static get syntaxPriority() { return -1; }
 
+    static morphsTo() { return registry.ColumnRef1; }
+
     /* SCHEMA API */
 
     dataType() { return this.resultSchema()?.dataType() || super.dataType(); }
@@ -48,12 +50,12 @@ export class ColumnRef2 extends AbstractClassicRef {
             }
         } else {
             tableSchemaInScope = this.climbTree((superParentNode, up) => {
+                if (superParentNode instanceof registry.InsertStmt) {
+                    const tableSchema = [...transformer.statementContext.artifacts.get('tableSchemas')][0].resultSchema;
+                    return tableSchema;
+                }
                 if (superParentNode instanceof registry.TableSchema) {
                     return superParentNode;
-                }
-                const potentialSchema = superParentNode.resultSchema?.();
-                if (potentialSchema instanceof registry.TableSchema) {
-                    return potentialSchema;
                 }
                 return up();
             });
@@ -67,13 +69,20 @@ export class ColumnRef2 extends AbstractClassicRef {
         return resultSet;
     }
 
-    jsonfy(options = {}, transformer = null, linkedDb = null) {
+    jsonfy({ toKind = 2, ...options } = {}, transformer = null, linkedDb = null) {
         if (options.deSugar
-            && this.value() !== '*'
             && !this.resultSchema()
             && (transformer || linkedDb)) {
             return this.resolve(transformer, linkedDb).jsonfy(/* IMPORTANT */);
         }
-        return super.jsonfy(options, transformer = null, linkedDb);
+        let resultJson = super.jsonfy(options, transformer, linkedDb);
+        if (toKind === 1) {
+			resultJson = {
+                ...resultJson,
+				nodeName: registry.ColumnRef1.NODE_NAME,
+			};
+            delete resultJson.qualifier; // by LQ_BACK_REF_ENDPOINT
+		}
+        return resultJson;
     }
 }

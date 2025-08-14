@@ -17,6 +17,8 @@ export class LQBackRefEndpoint extends ColumnRef2 {
 
     static get syntaxPriority() { return 52; } // Above ColumnRef1
 
+    static morphsTo() { return ColumnRef2; }
+    
     /* API */
 
     qualifier() { return this._get('qualifier'); }

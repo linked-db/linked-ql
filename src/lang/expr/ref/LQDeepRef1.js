@@ -50,23 +50,23 @@ export class LQDeepRef1 extends LQDeepDeepRef1 {
 		return deepRef;
 	}
 
-	resolve(transformer, linkedDb) {
+	resolve(transformer, linkedDb, toKind = 1) {
 		if (!transformer || !linkedDb) return;
 		if (this.left()?.qualifier?.() instanceof registry.LQBackRefAbstraction) {
-			return this._normalize().resolve(transformer, linkedDb);
+			return this._normalize().resolve(transformer, linkedDb, toKind);
 		}
 
 		let detail;
 		if (this.right() instanceof registry.ColumnRef2) {
-			detail = registry.ColumnRef1.fromJSON(this.right().jsonfy({ nodeNames: false }));
+			detail = this.right().clone({ toKind });
 		} else if (this.right() instanceof registry.LQDeepDeepRef1) {
-			detail = this.right().clone({ toDeepRef: true });
+			detail = this.right().clone({ toDeepRef: true, toKind });
 		} else {
 			detail = this.right();
 		}
 
 		if (this.left() instanceof registry.LQBackRefAbstraction) {
-			const resolution = this.left().expr().resolve(transformer, linkedDb);
+			const resolution = this.left().expr().resolve(transformer, linkedDb, toKind);
 			return { ...resolution, detail };
 		}
 
@@ -79,7 +79,7 @@ export class LQDeepRef1 extends LQDeepDeepRef1 {
 
 		return {
 			lhsOperand: qualifiedLeftOperand, // ColumnRef1
-			rhsOperand: unqualifiedRightOperand, // ColumnRef2
+			rhsOperand: unqualifiedRightOperand.clone({ toKind }), // ColumnRef2
 			rhsTable: qualifiedRightTable, // TableRef2
 			detail,
 		};

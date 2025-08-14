@@ -21,7 +21,10 @@ export class CTEItem extends AbstractNonDDLStmt {
                     { type: 'keyword', as: 'materialized', value: 'MATERIALIZED', booleanfy: true },
                 ],
             },
-            { type: ['DerivedQuery', 'ValuesTableLiteral'], as: 'expr' },
+            {
+                type: 'paren_block',
+                syntax: { type: ['SelectStmt', 'InsertStmt', 'UpsertStmt', 'UpdateStmt', 'DeleteStmt', 'TableStmt', 'ValuesConstructor'], as: 'expr', autoIndent: true },
+            },
             { type: 'PGSearchClause', as: 'search_clause', optional: true },
             { type: 'PGCycleClause', as: 'cycle_clause', optional: true },
         ];

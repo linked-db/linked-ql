@@ -8,8 +8,8 @@ export class DerivedQuery extends DDLSchemaMixin(ParenExpr) {
     static get syntaxRules() {
         return {
             type: 'paren_block',
-            syntax: { type: ['SelectStmt', 'InsertStmt', 'UpsertStmt', 'UpdateStmt', 'DeleteStmt', 'CTE'], as: 'expr' },
-            autoIndent: true,
+            syntax: { type: ['SelectStmt', 'TableStmt', 'CTE'], as: 'expr', autoIndent: true },
+            
         };
     }
 
@@ -25,9 +25,6 @@ export class DerivedQuery extends DDLSchemaMixin(ParenExpr) {
         let resultJson = super.jsonfy(options, transformer, linkedDb);
         if (options.deSugar) {
             const resultSchema = resultJson.expr?.result_schema;
-            if (!resultSchema?.length) {
-                throw new Error(`Derived queries must return a result set.`);
-            }
             resultJson = {
                 ...resultJson,
                 result_schema: resultSchema,

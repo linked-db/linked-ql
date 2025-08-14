@@ -1,3 +1,4 @@
+import { Transformer } from '../../Transformer.js';
 import { FromItem } from '../TA/FromItem.js';
 
 export class JoinClause extends FromItem {
@@ -42,4 +43,29 @@ export class JoinClause extends FromItem {
     outerKW() { return this._get('outer_kw'); }
 
     conditionClause() { return this._get('condition_clause'); }
+
+    /* JSON API */
+
+    jsonfy(options = {}, transformer = null, linkedDb = null) {
+        let conditionClauseTransform;
+
+        if (options.deSugar) {
+            transformer = new Transformer((node, defaultTransform, keyHint) => {
+                if (keyHint === 'condition_clause') {
+                    conditionClauseTransform = defaultTransform;
+                } else return defaultTransform();
+            }, transformer, this.statementNode/* IMPORTANT */);
+        }
+
+        let resultJson = super.jsonfy(options, transformer, linkedDb);
+
+        if (conditionClauseTransform) {
+            resultJson = {
+                ...resultJson,
+                condition_clause: conditionClauseTransform(),
+            };
+        }
+
+        return resultJson;
+    }
 }

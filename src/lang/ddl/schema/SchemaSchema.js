@@ -12,8 +12,6 @@ export class SchemaSchema extends AbstractSchema {
             {
                 type: 'paren_block',
                 syntax: { type: 'TableSchema', as: 'entries', arity: { min: 1 }, itemSeparator, singletons: 'BY_KEY', autoIndent: true },
-                autoIndent: true,
-                autoIndentAdjust: -1,
             },
         ];
     }

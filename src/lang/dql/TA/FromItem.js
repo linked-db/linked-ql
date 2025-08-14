@@ -60,7 +60,7 @@ export class FromItem extends DDLSchemaMixin(AbstractNode) {
                 // TableRef1
                 [
                     { type: 'keyword', as: 'pg_only_kw', value: 'ONLY', optional: true, dialect: 'postgres' },
-                    { type: 'TableRef1', as: 'expr' },
+                    { type: ['TableRef1', 'TableRef2'], as: 'expr' },
                     { type: 'operator', as: 'pg_star_ref', value: '*', booleanfy: true, optional: true, dialect: 'postgres' },
                     { type: 'FromItemAlias', as: 'alias', optional: true },
                     { ...optional_table_sample_clause_postgres },
@@ -95,7 +95,7 @@ export class FromItem extends DDLSchemaMixin(AbstractNode) {
         let derivedAliasJson;
         if (this.alias()?.value()) {
             derivedAliasJson = { as_kw: true, value: this.alias().value(), delim: this.alias()._get('delim') };
-        } else if (this.expr() instanceof registry.TableRef1) {
+        } else if (this.expr() instanceof registry.TableRef1 || this.expr() instanceof registry.TableRef2) {
             derivedAliasJson = { as_kw: true, value: this.expr().value(), delim: this.expr()._get('delim') };
         } else if (this.expr() instanceof registry.SRFExpr1
             && this.expr().qualif() instanceof registry.SRFExprDDL2) {
@@ -147,6 +147,8 @@ export class FromItem extends DDLSchemaMixin(AbstractNode) {
                     return defaultTransform();
                 }));
             }
+
+            transformer.statementContext.artifacts.get('tableSchemas').add({ type: this.joinType?.(), lateral: this.lateralKW(), resultSchema });
 
             const applicableAliasJson = (Number(options.deSugar || 0) > 1 && !(this.expr() instanceof registry.SRFExpr1))
                 && derivedAliasJson

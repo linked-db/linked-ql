@@ -1,6 +1,7 @@
 import { SelectorStmtMixin } from '../abstracts/SelectorStmtMixin.js';
 import { PayloadStmtMixin } from '../abstracts/PayloadStmtMixin.js';
 import { AbstractNonDDLStmt } from '../abstracts/AbstractNonDDLStmt.js';
+import { Transformer } from '../Transformer.js';
 import { registry } from '../registry.js';
 
 export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to a CTE */(SelectorStmtMixin(
@@ -24,7 +25,7 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                             { type: 'FromClause', as: 'pg_from_clause', optional: true, dialect: 'postgres', autoIndent: true },
                             { type: 'JoinClause', as: 'join_clauses', arity: Infinity, optional: true, autoIndent: true },
                             { type: ['PGWhereCurrentClause', 'WhereClause'], as: 'where_clause', optional: true, autoIndent: true },
-                            { type: 'PGReturningClause', as: 'pg_returning_clause', optional: true, autoIndent: true },
+                            { type: 'ReturningClause', as: 'returning_clause', optional: true, autoIndent: true },
                         ],
                     },
                     {
@@ -65,7 +66,7 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
 
     pgFromClause() { return this._get('pg_from_clause'); }
 
-    pgPGReturningClause() { return this._get('pg_returning_clause'); }
+    returningClause() { return this._get('returning_clause'); }
 
     // MySQL
 
@@ -135,21 +136,23 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
         return resultSchemas;
     }
 
-    /* DESUGARING API */
+    /* JSON API */
 
     jsonfy(options = {}, transformer = null, linkedDb = null) {
-        if (options.deSugar) {
-            const rands = options.rands || new Map;
-            const hashes = new Map;
-            options = { ...options, rands, hashes };
-        }
-        return super.jsonfy(options, transformer, linkedDb);
+        if (!options.deSugar) return super.jsonfy(options, transformer, linkedDb);
+
+        transformer = new Transformer((node, defaultTransform) => {
+            return defaultTransform();
+        }, transformer, this/* IMPORTANT */);
+        
+        const resultJson = super.jsonfy(options, transformer, linkedDb);
+        return this.finalizeJSON(resultJson, transformer, linkedDb, options);
     }
 
-    applySelectorDimensions(resultJson, selectorDimensions, options, transformer = null, linkedDb = null) {
-        // This is Postgres-specific
+    finalizeJSON(resultJson, transformer, linkedDb, options) {
         if (this.options.dialect !== 'postgres') {
-            return super/* SelectorStmtMixin */.applySelectorDimensions(resultJson, selectorDimensions, options, transformer, linkedDb);
+            // This is Postgres-specific
+            return super.finalizeJSON(resultJson, transformer, linkedDb, options);
         }
 
         if (resultJson.where_clause?.cursor_name) {
@@ -171,7 +174,7 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
             FromItem,
         } = registry;
 
-        const rand = this._rand('rand');
+        const rand = transformer.rand('join');
 
         // Each table involved in a Deep/BackRef should have a corresponding entry
         // in the "FROM" list where we have the chance to establish our JOIN
@@ -201,7 +204,7 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                         expr: {
                             // SELECT <...>
                             nodeName: CompleteSelectStmt.NODE_NAME,
-                            select_list: [],
+                            select_list: { nodeName: SelectList.NODE_NAME, entries: [] },
                             pg_from_clause: {
                                 // FROM <tblRefOriginal>
                                 nodeName: FromClause.NODE_NAME,
@@ -239,7 +242,7 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
             }
 
             // Select the rewritten ref
-            pgGeneratedFromEntry.from.expr.expr.select_list.push({
+            pgGeneratedFromEntry.from.expr.expr.select_list.entries.push({
                 nodeName: SelectItem.NODE_NAME,
                 expr: { nodeName: ColumnRef1.NODE_NAME, value: colRefOriginal },
                 alias: { nodeName: SelectItemAlias.NODE_NAME, value: colRefRewrite }
@@ -285,8 +288,8 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                     nodeName: WhereClause.NODE_NAME,
                     expr: {
                         nodeName: BinaryExpr.NODE_NAME,
-                        operator: 'AND',
                         left: resultJson.where_clause.expr,
+                        operator: 'AND',
                         right: pgGeneratedFromEntry.where
                     }
                 };

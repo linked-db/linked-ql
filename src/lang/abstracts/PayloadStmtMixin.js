@@ -1,5 +1,7 @@
-import { _eq } from '../util.js';
+import { Transformer } from '../Transformer.js';
+import { WhereClause, WindowSpec } from '../dql/index.js';
 import { registry } from '../registry.js';
+import { _eq } from '../util.js';
 
 export const PayloadStmtMixin = (Class) => class extends Class {
 
@@ -13,7 +15,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		if (!options.deSugar) return super.jsonfy(options, transformer, linkedDb);
 
 		const {
-			LQDeepRef1,
+			LQDeepRef2,
 			AssignmentExpr,
 			DerivedQuery,
 			ColumnsConstructor,
@@ -22,97 +24,94 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			RowConstructor,
 		} = registry;
 
-		const payloadDimensions = new Set;
-
-		const specials = ['columns_list', 'default_values_clause', 'values_clause', 'select_clause'].map((s) => this._get(s));
-		const [columnsList, defaultValuesClause, valuesClause, selectClause] = specials;
-		const hasTopLevelDeepRefs = columnsList?.some((c) => c instanceof LQDeepRef1);
+		const specials = ['column_list', 'default_values_clause', 'values_clause', 'select_clause'].map((s) => this._get(s));
+		const [columnList, defaultValuesClause, valuesClause, selectClause] = specials;
+		const hasTopLevelDeepRefs = columnList?.entries().some((c) => c instanceof LQDeepRef2);
 
 		// --- ASSIGNMENT EXPRS ---------------
 
 		const ignoreList = hasTopLevelDeepRefs ? new Set(specials) : new Set;
-		const transformCallback = (node, keyHint, { deSugar/* IMPORTANT */, ...$options }) => {
-			// Defer to super callback first
-			if (superTransformCallback) {
-				node = superTransformCallback(node, keyHint, { deSugar/* IMPORTANT */, ...$options });
-			}
+		transformer = new Transformer((node, defaultTransform, keyHint, { deSugar/* EXCLUSION */, ...$options }) => {
 
 			// IMPORTANT!!! The bellow tells the default jsonfier to ignore the nodes we'll handle manually
-			if (ignoreList.has(node)) return; // Exclude in output
+			if (ignoreList.has(node)) {
+				return; // Exclude in output
+			}
+
 			// We want to only desugar AssignmentExpr
-			if (!(deSugar && node instanceof AssignmentExpr)) return node; // Default jsonfy
+			if (!(node instanceof AssignmentExpr)) {
+				return defaultTransform();
+			}
 
 			// Is this assignment expr from within "on_conflict_clause"?
 			const onConflictClauseContext = !!this._get('on_conflict_clause')?.containsNode(node);
 			const $$options = { ...$options, onConflictClauseContext };
 
 			// Handle bare assignment exoressions
-			if (node.left() instanceof LQDeepRef1) {
-				const [[deSugaredLeft], [[deSugaredRight]]] = this.deSugarPayload(
+			if (node.left() instanceof LQDeepRef2) {
+				const [[deSugaredLhs], [[deSugaredRhs]]] = this.deSugarPayload(
 					[node.left()],
 					[[node.right()]],
-					payloadDimensions,
-					$$options,
 					transformer,
 					linkedDb,
+					$$options,
 				);
-				if (!deSugaredLeft) return; // Exclude in output
+				if (!deSugaredLhs) return; // Exclude in output
 				return {
 					nodeName: AssignmentExpr.NODE_NAME,
 					operator: '=',
-					left: deSugaredLeft,
-					right: deSugaredRight,
+					left: deSugaredLhs,
+					right: deSugaredRhs,
 				};
 			}
 
 			// Handle compound assignment exoressions
 			if (node.left() instanceof ColumnsConstructor // Postgres
-				&& node.left().entries().some((c) => c instanceof LQDeepRef1)) {
+				&& node.left().entries().some((c) => c instanceof LQDeepRef2)) {
 
-				const columnsList = node.left().entries();
-				let deSugaredColumns,
-					deSugaredRight;
+				const columnList = node.left().entries();
+				let deSugaredLhs,
+					deSugaredRhs;
 
 				if (node.right() instanceof RowConstructor/* Still passes even for TypedRowConstructor */) {
-					[deSugaredColumns, deSugaredRight] = this.deSugarPayload(
-						columnsList,
+					[deSugaredLhs, deSugaredRhs] = this.deSugarPayload(
+						columnList,
 						[node.right().entries()],
-						payloadDimensions,
-						$$options,
 						transformer,
 						linkedDb,
+						$$options,
 					);
-					deSugaredRight = { nodeName: TypedRowConstructor.NODE_NAME/* To be really formal */, entries: deSugaredRight };
+					deSugaredRhs = { nodeName: TypedRowConstructor.NODE_NAME/* To be really formal */, entries: deSugaredRhs };
 				} else if (node.right() instanceof DerivedQuery) {
-					[deSugaredColumns, deSugaredRight] = this.deSugarPayload(
-						columnsList,
+					[deSugaredLhs, deSugaredRhs] = this.deSugarPayload(
+						columnList,
 						node.right().expr(),
-						payloadDimensions,
-						$$options,
 						transformer,
 						linkedDb,
+						$$options,
 					);
-					deSugaredRight = { nodeName: DerivedQuery.NODE_NAME, expr: deSugaredRight };
+					deSugaredRhs = { nodeName: DerivedQuery.NODE_NAME, expr: deSugaredRhs };
 				} else {
-					[deSugaredColumns, deSugaredRight] = this.deSugarPayload(
-						columnsList,
+					[deSugaredLhs, deSugaredRhs] = this.deSugarPayload(
+						columnList,
 						[[node.right()]],
-						payloadDimensions,
-						$$options,
 						transformer,
 						linkedDb,
+						$$options,
 					);
 				}
 
-				if (!deSugaredColumns.length) return; // Exclude in output
+				if (!deSugaredLhs.length) return; // Exclude in output
 				return {
 					nodeName: AssignmentExpr.NODE_NAME,
 					operator: '=',
-					left: { nodeName: ColumnsConstructor.NODE_NAME, entries: deSugaredColumns },
-					right: deSugaredRight,
+					left: { nodeName: ColumnsConstructor.NODE_NAME, entries: deSugaredLhs },
+					right: deSugaredRhs,
 				};
 			}
-		};
+
+			return defaultTransform();
+		}, transformer, this/* IMPORTANT */);
 
 		// Base JSON
 		let resultJson = super.jsonfy(options, transformer, linkedDb);
@@ -121,102 +120,93 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 
 		// Manually jsonfy these
 		if (hasTopLevelDeepRefs) {
-			const [deSugaredColumns, deSugaredValues] = this.deSugarPayload(
-				columnsList,
-				selectClause || valuesClause.entries().map((rowSet) => rowSet.entries()),
-				payloadDimensions,
-				options,
+			const [deSugaredLhs, deSugaredRhs] = this.deSugarPayload(
+				columnList,
+				defaultValuesClause || valuesClause?.entries().map((rowSet) => rowSet.entries()) || selectClause,
 				transformer,
-				linkedDb
+				linkedDb,
+				options,
 			);
+
 			resultJson = {
 				...resultJson,
-				columns_list: deSugaredColumns,
+				column_list: { nodeName: ColumnsConstructor.NODE_NAME, entries: deSugaredLhs },
 			};
-			if (selectClause) {
-				resultJson = { ...resultJson, select_clause: deSugaredValues };
-			} else {
-				const rowsJson = deSugaredValues.map((rowSetJson) => ({ nodeName: TypedRowConstructor.NODE_NAME/* Most cross-dialect */, entries: rowSetJson }));
+
+			if (defaultValuesClause || valuesClause) {
+				const rowsJson = deSugaredRhs.map((rowSetJson) => ({ nodeName: TypedRowConstructor.NODE_NAME/* Most cross-dialect */, entries: rowSetJson }));
 				resultJson = {
 					...resultJson,
 					values_clause: { nodeName: ValuesConstructor.NODE_NAME, entries: rowsJson },
 				};
+			} else {
+				resultJson = { ...resultJson, select_clause: deSugaredRhs };
 			}
 		}
 
-		// Apply payloadDimensions
-		if (payloadDimensions.size) {
-			resultJson = this.applyPayloadDimensions(resultJson, payloadDimensions, options, transformer, linkedDb);
-		}
 		return resultJson;
 	}
 
-	deSugarPayload(columns, values, payloadDimensions, { onConflictClauseContext = false, deSugar, ...$options } = {}, transformer = null, linkedDb = null) {
+	deSugarPayload(columns, values, transformer, linkedDb, { onConflictClauseContext = false, deSugar, ...$options } = {}) {
+		const payloadDimensions = transformer.statementContext.artifacts.get('payloadDimensions');
 
 		const {
-			LQDeepRef1,
+			LQDeepRef2,
 			TableRef1,
+			ColumnRef0,
+			ColumnRef2,
 			TypedRowConstructor,
+			DefaultLiteral,
 			SelectStmt,
 			CompleteSelectStmt,
+			PGDefaultValuesClause,
+			SelectList,
 			SelectItem,
-			FromItem,
 			FromClause,
+			FromItem,
 		} = registry;
 
+		const jsonfy = (node, _deSugar = deSugar) => {
+			return node.jsonfy({ deSugar: _deSugar, ...$options }, transformer, linkedDb);
+		};
+
 		// (1): Columns
-		const deSugarColumnsList = (columnsList, dimensionsMap) => {
-			return columnsList.reduce((columnsList, columnRef, columnOffset) => {
-				if (columnRef instanceof LQDeepRef1) {
-					const dimension = this.createPayloadDimension(columnRef, payloadDimensions, { onConflictClauseContext, ...$options }, transformer, linkedDb);
+		const deSugarColumnsList = (columnList, dimensionsMap) => {
+			return columnList.entries().reduce((columnList, columnRef, columnOffset) => {
+				if (columnRef instanceof LQDeepRef2) {
+
+					const dimension = this.createPayloadDimension(columnRef, transformer, linkedDb, { onConflictClauseContext, ...$options });
 					dimensionsMap.set(columnOffset, dimension);
-					if (dimension.type === 'dependency' && dimension.leftJson) {
-						return columnsList.concat(dimension.leftJson);
+
+					if (dimension.type === 'dependency' && dimension.lhsOperandJson) {
+						return columnList.concat({
+							nodeName: ColumnRef2.NODE_NAME,
+							value: dimension.lhsOperandJson.value,
+							delim: dimension.lhsOperandJson.delim,
+							result_schema: dimension.lhsOperandJson.result_schema,
+						});
 					}
-					return columnsList;
+
+					return columnList;
 				}
-				return columnsList.concat(columnRef.jsonfy/* @case1 */({ deSugar, ...$options }, transformer, linkedDb));
+
+				return columnList.concat(jsonfy(columnRef));
 			}, []);
 		};
 
-		// (2.a): Select
-		const deSugarValuesFromSelect = (selectStmt, dimensionsMap) => {
-			// Declare base SELECT and select list
-			let baseSelect = selectStmt.jsonfy/* @case1 */($options, transformer, linkedDb);
-			let baseSelectList = baseSelect.select_list;
-			if (baseSelectList[0].expr.nodeName === registry.ColumnRef0.NODE_NAME) {
-				baseSelectList/* = infer from schema */; throw new Error(`TODO`);
-			}
-			// Create a CTE entry?
-			if (!onConflictClauseContext) {
-				const cteAlias = this._rand('cte');
-				const cteSelect = { ...baseSelect, uuid: cteAlias, select_list: [{ nodeName: SelectItem.NODE_NAME, expr: { nodeName: registry.ColumnRef0.NODE_NAME } }] };
-				payloadDimensions
-					?.add({ type: 'memo', query: cteSelect });
-				// Use that as new base
-				const newBaseSelectFromItem = { nodeName: FromItem.NODE_NAME, expr: { nodeName: TableRef1.NODE_NAME, value: cteAlias } };
-				baseSelect = {
-					nodeName: CompleteSelectStmt.NODE_NAME,
-					from_clause: { nodeName: FromClause.NODE_NAME, entries: [newBaseSelectFromItem] }
-				};
-			}
-			// Resolve base select list
-			const newBaseSelectList = baseSelectList.reduce((selectList, fieldJson, columnOffset) => {
-				if (dimensionsMap.has(columnOffset)) {
-					let subSelectList;
-					if (fieldJson.expr.nodeName === TypedRowConstructor.NODE_NAME) {
-						subSelectList = fieldJson.expr.entries;
-					} else {
-						subSelectList = [fieldJson.expr];
-					}
-					const valueNode = SelectStmt.fromJson({ ...baseSelect, select_list: subSelectList.map((f) => ({ nodeName: SelectItem.NODE_NAME, expr: f })) });
-					fieldJson = dimensionsMap.get(columnOffset).offload(valueNode, rowOffset);
-					if (fieldJson) return selectList.concat(fieldJson);
-				}
-				return selectList.concat(fieldJson);
+		// (2.a): Default Values
+		const deSugarValuesFromDefaultValues = (defaultValuesClause, dimensionsMap) => {
+			const valuesRow = columnList.entries().reduce((valuesRow, columnRef, columnOffset) => {
+				const valueJson = dimensionsMap.has(columnOffset)
+					? dimensionsMap.get(columnOffset).offload(defaultValuesClause)
+					: { nodeName: DefaultLiteral.NODE_NAME };
+
+				return valueJson
+					? valuesRow.concat(valueJson)
+					: valuesRow;
 			}, []);
-			// The final deSugared query
-			return { ...baseSelect, select_list: newBaseSelectList };
+
+			return [valuesRow];
 		};
 
 		// (2.b): Values
@@ -225,64 +215,148 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				return valuesRow.reduce((valuesRow, valueNode, columnOffset) => {
 					const valueJson = dimensionsMap.has(columnOffset)
 						? dimensionsMap.get(columnOffset).offload(valueNode, rowOffset)
-						: valueNode.jsonfy/* @case1 */({ deSugar, ...$options }, transformer, linkedDb);
-					if (valueJson) return valuesRow.concat(valueJson);
-					return valuesRow;
+						: jsonfy(valueNode);
+
+					return valueJson
+						? valuesRow.concat(valueJson)
+						: valuesRow;
 				}, []);
 			});
 		};
 
+		// (2.c): Select
+		const deSugarValuesFromSelect = (selectStmt, dimensionsMap) => {
+			// Declare base SELECT and select list
+			let baseSelect = jsonfy(selectStmt, Infinity);
+			let baseSelectItems = baseSelect.select_list.entries;
+
+			if (baseSelectItems.length !== columns.length) {
+				throw new Error(`Select list length (${baseSelectItems.length}) does not match columns length (${columns.length})`);
+			}
+
+			// Create a CTE entry?
+			if (!onConflictClauseContext) {
+				const cteAlias = transformer.rand('cte');
+
+				const cteSelect = {
+					...baseSelect,
+					uuid: cteAlias,
+					select_list: {
+						nodeName: SelectList.NODE_NAME,
+						entries: [{ nodeName: SelectItem.NODE_NAME, expr: { nodeName: ColumnRef0.NODE_NAME, value: '*' } }],
+					},
+				};
+				payloadDimensions
+					?.add({ type: 'memo', query: cteSelect });
+
+				// Use that as new base
+				const newBaseSelectFromItem = { nodeName: FromItem.NODE_NAME, expr: { nodeName: TableRef1.NODE_NAME, value: cteAlias } };
+				baseSelect = {
+					nodeName: CompleteSelectStmt.NODE_NAME,
+					from_clause: { nodeName: FromClause.NODE_NAME, entries: [newBaseSelectFromItem] }
+				};
+			}
+
+			// Resolve base select list
+			const newBaseSelectList = baseSelectItems.reduce((selectList, fieldJson, columnOffset) => {
+				if (dimensionsMap.has(columnOffset)) {
+					let subSelectItems;
+
+					if (fieldJson.expr.nodeName === TypedRowConstructor.NODE_NAME) {
+						subSelectItems = fieldJson.expr.entries.map((f) => ({ nodeName: SelectItem.NODE_NAME, expr: f }));
+					} else {
+						subSelectItems = [{ ...fieldJson, result_schema: undefined }];
+					}
+					const valueNode = SelectStmt.fromJson({
+						...baseSelect,
+						select_list: { nodeName: SelectList.NODE_NAME, entries: subSelectItems },
+					});
+
+					fieldJson = dimensionsMap.get(columnOffset).offload(valueNode);
+					if (fieldJson) {
+						return selectList.concat(fieldJson);
+					}
+				}
+
+				return selectList.concat(fieldJson);
+			}, []);
+
+			// The final deSugared query
+			return {
+				...baseSelect,
+				select_list: { nodeName: SelectList.NODE_NAME, entries: newBaseSelectList },
+			};
+		};
+
 		// Process...
 		const dimensionsMap = new Map;
-		const deSugaredColumns = deSugarColumnsList(columns, dimensionsMap);
-		const deSugaredValues = values instanceof SelectStmt
-			? deSugarValuesFromSelect(values, dimensionsMap)
-			: deSugarValuesFromValues(values, dimensionsMap);
+		const deSugaredLhs = deSugarColumnsList(columns, dimensionsMap);
+
+		const deSugaredRhs = values instanceof PGDefaultValuesClause
+			? deSugarValuesFromDefaultValues(values, dimensionsMap)
+			: (values instanceof SelectStmt
+				? deSugarValuesFromSelect(values, dimensionsMap)
+				: deSugarValuesFromValues(values, dimensionsMap));
+
 		dimensionsMap.clear();
 
-		return [deSugaredColumns, deSugaredValues];
+		return [deSugaredLhs, deSugaredRhs];
 	}
 
-	createPayloadDimension(LQRefColumn, payloadDimensions = null, { onConflictClauseContext = false, ...$options } = {}, transformer = null, linkedDb = null) {
-		const { left, right, table } = LQRefColumn.getOperands(transformer, linkedDb);
+	createPayloadDimension(LQRefColumn, transformer, linkedDb, { onConflictClauseContext = false, ...$options } = {}) {
+		const { lhsOperand, rhsOperand, rhsTable, detail } = LQRefColumn.resolve(transformer, linkedDb, 2);
+		const payloadDimensions = transformer.statementContext.artifacts.get('payloadDimensions');
 
 		const {
-			LQDeepRef1,
+			LQDeepRef2,
 			LQBackRefAbstraction,
+			ReturningClause,
 			ColumnRef2,
 			ColumnRef1,
 			TableRef1,
+			SelectList,
+			SelectItem,
 			SelectItemAlias,
 			AssignmentExpr,
 			ColumnsConstructor,
 			TypedRowConstructor,
+			PGDefaultValuesClause,
 			RowConstructor,
 			ValuesConstructor,
 			ValuesTableLiteral,
+			DefaultLiteral,
 			SelectStmt,
 			CompleteSelectStmt,
 			DerivedQuery,
-			SelectItem,
 			FromItem,
 			FromClause,
 			SetClause,
 			BinaryExpr,
+			AggrCallExpr,
 			BoolLiteral,
 			NumberLiteral,
 			UpdateStmt,
 		} = registry;
 
-		const dimensionID = `dimension${onConflictClauseContext ? '/c' : ''}::${[left, right, table].join('/')}`;
-		const leftJson = left.jsonfy/* @case1 */($options, transformer, linkedDb);
-		const rightJson = right.jsonfy/* @case1 */($options, transformer, linkedDb);
+		const jsonfy = (node, deSugar = 0) => {
+			return node.jsonfy({ deSugar, ...$options }, transformer, linkedDb);
+		};
+
+		const $dimensionID = `dimension${onConflictClauseContext ? '/c' : ''}|${[lhsOperand, rhsOperand, rhsTable].join('|')}`;
+		const dimensionID = transformer.statementContext.hash($dimensionID, 'cte');
+
+		const rands = new Map;
+
+		const lhsOperandJson = lhsOperand.jsonfy($options, transformer, linkedDb);
+		const rhsOperandJson = rhsOperand.jsonfy($options, transformer, linkedDb);
+		const rhsTableJson = rhsTable.jsonfy($options, transformer, linkedDb);
 
 		// Figure the expected payload structure
 		let columnsConstructorJson;
-		const refRight = LQRefColumn.right();
-		if (refRight instanceof ColumnsConstructor) {
-			columnsConstructorJson = refRight.jsonfy/* @case1 */($options, transformer, linkedDb);
-		} else if (refRight instanceof ColumnRef2 || refRight instanceof LQDeepRef1) {
-			columnsConstructorJson = { nodeName: ColumnsConstructor.NODE_NAME, entries: [refRight.jsonfy/* @case1 */($options, transformer, linkedDb)] };
+		if (detail instanceof ColumnsConstructor) {
+			columnsConstructorJson = jsonfy(detail);
+		} else if (detail instanceof ColumnRef2 || detail instanceof LQDeepRef2) {
+			columnsConstructorJson = { nodeName: ColumnsConstructor.NODE_NAME, entries: [jsonfy(detail)] };
 		} else {
 			throw new Error(`Invalid columns spec: ${LQRefColumn}`);
 		}
@@ -306,25 +380,39 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		// Compose:
 		// - (SELECT <sourceCol> ->> <sourceRowIndex> FROM <sourceUuid>)
 		const createForeignBinding = (sourceUuid, sourceCol, sourceRowIndex = null, innerFilter = null) => {
-			const fieldExpr = typeof sourceRowIndex === 'number' ? ({
+			let whereExpr = {
 				nodeName: BinaryExpr.NODE_NAME,
-				operator: '->>',
-				left: sourceCol,
-				right: { nodeName: NumberLiteral.NODE_NAME, value: sourceRowIndex },
-			}) : sourceCol;
-			const innerFilterExpr = typeof innerFilter === 'string' ? ({
-				nodeName: BinaryExpr.NODE_NAME,
-				operator: 'IS',
-				left: { nodeName: ColumnRef1.NODE_NAME, value: innerFilter },
-				right: { nodeName: BoolLiteral.NODE_NAME, value: 'TRUE' },
-			}) : null;
-			const tableSpec = { nodeName: FromItem.NODE_NAME, expr: { nodeName: TableRef1.NODE_NAME, value: sourceUuid } };
+				left: { nodeName: ColumnRef1.NODE_NAME, value: '$:index', delim: sourceCol.delim },
+				operator: '=',
+				right: { nodeName: NumberLiteral.NODE_NAME, value: sourceRowIndex + 1 },
+			};
+
+			if (typeof innerFilter === 'string') {
+				whereExpr = {
+					nodeName: BinaryExpr.NODE_NAME,
+					left: whereExpr,
+					operator: 'AND',
+					right: {
+						nodeName: BinaryExpr.NODE_NAME,
+						operator: 'IS',
+						left: { nodeName: ColumnRef1.NODE_NAME, value: innerFilter },
+						right: { nodeName: BoolLiteral.NODE_NAME, value: 'TRUE' },
+					},
+				};
+			}
+
+			const tableSpec = {
+				nodeName: FromItem.NODE_NAME,
+				expr: { nodeName: TableRef1.NODE_NAME, value: `${sourceUuid}:indices` },
+			};
+
 			const selectStmt = {
 				nodeName: CompleteSelectStmt.NODE_NAME,
-				select_list: [{ nodeName: SelectItem.NODE_NAME, expr: fieldExpr }],
+				select_list: { nodeName: SelectList.NODE_NAME, entries: [{ nodeName: SelectItem.NODE_NAME, expr: { ...sourceCol, qualifier: undefined } }] },
 				from_clause: { nodeName: FromClause.NODE_NAME, entries: [tableSpec] },
-				...(innerFilterExpr ? { where_clause: innerFilterExpr } : {}),
+				where_clause: { nodeName: WhereClause.NODE_NAME, expr: whereExpr },
 			};
+
 			return { nodeName: DerivedQuery.NODE_NAME, expr: selectStmt };
 		};
 
@@ -340,42 +428,49 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			// UPDATE t1 SET (a, fk ~> fk ~> a) = (SELECT a, b FROM t3)
 
 			// Here we want to compose:
-			// - WHERE <rightJson> IN (SELECT <leftJson> FROM <this.uuid> [WHERE <on_conflict_updated_status> IS TRUE]? )
+			// - WHERE <rhsOperandJson> IN (SELECT <lhsOperandJson> FROM <this.uuid> [WHERE <on_conflict_updated_status> IS TRUE]? )
 			const onConflictUpdatedStatusAlias = onConflictClauseContext
 				? `${this.uuid}_on_conflict_updated_status` : null;
+
 			const whereClause = {
 				nodeName: BinaryExpr.NODE_NAME,
+				left: rhsOperandJson,
 				operator: 'IN',
-				left: rightJson,
-				right: createForeignBinding(this.uuid, leftJson, null, onConflictUpdatedStatusAlias),
+				right: createForeignBinding(this.uuid, lhsOperandJson, null, onConflictUpdatedStatusAlias),
 			};
 
 			const query = {
-				uuid: this._rand('cte'),
+				uuid: transformer.rand('cte', rands),
 				nodeName: UpdateStmt.NODE_NAME,
-				tables: [{ nodeName: FromItem.NODE_NAME, expr: table.jsonfy/* @case1 */($options, transformer, linkedDb) }],
+				tables: [{ nodeName: FromItem.NODE_NAME, expr: rhsTableJson }],
 				set_clause: { nodeName: SetClause.NODE_NAME, entries: [] },
 				where_clause: whereClause,
 			};
 
 			const offload = (payload) => {
 				if (payload instanceof ValuesTableLiteral) {
-					throw new Error(`Single-row payload structure expected for column structure: ${LQRefColumn.right()}. Recieved ${payload.NODE_NAME}.`);
+					throw new Error(`Single-row payload structure expected for column structure: ${detail}. Recieved ${payload.NODE_NAME}.`);
 				}
 				if (query.set_clause.entries.length) {
-					throw new Error(`Unexpected offload() call on ${LQRefColumn}`);
+					throw new Error(`Unexpected multiple offload() call on ${LQRefColumn}`);
 				}
-				dimensionValidateRowLength(payload);
-				let payloadJson = payload.jsonfy/* @case1 */($options, transformer, linkedDb);
+
+				if (!(payload instanceof PGDefaultValuesClause)) {
+					dimensionValidateRowLength(payload);
+				}
+
+				let payloadJson = jsonfy(payload);
+
 				if (payload instanceof SelectStmt) {
 					payloadJson = { nodeName: DerivedQuery.NODE_NAME, expr: payloadJson };
 				} else if (!(payload instanceof RowConstructor)) {
 					payloadJson = { nodeName: TypedRowConstructor.NODE_NAME/* most formal */, entries: [payloadJson] };
 				}
+
 				query.set_clause.entries.push({
 					nodeName: AssignmentExpr.NODE_NAME,
-					operator: '=',
 					left: columnsConstructorJson,
+					operator: '=',
 					right: payloadJson,
 				});
 			};
@@ -385,7 +480,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				type: 'dependent',
 				query,
 				offload,
-				leftJson,
+				lhsOperandJson,
 				onConflictClauseContext
 			};
 
@@ -398,21 +493,40 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		// --- INSERT/UPSERT -------------
 
 		const query = {
-			uuid: this._rand('cte'),
+			uuid: transformer.rand('cte', rands),
 			nodeName: this.NODE_NAME,
-			table: table.jsonfy/* @case1 */($options, transformer, linkedDb),
-			columns_list: columnsConstructorJson,
+			table_ref: rhsTableJson,
+			column_list: columnsConstructorJson,
 			values_clause: { nodeName: ValuesConstructor.NODE_NAME, entries: [] },
 		};
 
 		const dimensionPushRow = (payload, fKBindingJson = null) => {
-			dimensionValidateRowLength(payload);
-			const rowJson = payload instanceof RowConstructor
-				? payload.jsonfy/* @case1 */($options, transformer, linkedDb)
-				: { nodeName: TypedRowConstructor.NODE_NAME/* most formal */, entries: [payload.jsonfy/* @case1 */($options, transformer, linkedDb)] };
-			if (fKBindingJson) {
-				query.values_clause.entries.push({ ...rowJson, entries: rowJson.entries.concat(fKBindingJson) });
-			} else query.values_clause.entries.push(rowJson);
+			if (payload instanceof PGDefaultValuesClause) {
+				if (fKBindingJson) {
+					const lastIndex = columnsConstructorJson.length - 1;
+
+					query.values_clause.entries.push({
+						nodeName: TypedRowConstructor.NODE_NAME/* most formal */,
+						entries: columnsConstructorJson.map((c, i) => {
+							return i === lastIndex
+								? fKBindingJson
+								: { nodeName: DefaultLiteral.NODE_NAME };
+						}),
+					});
+				} else {
+					delete query.values_clause;
+					query.default_values_clause = jsonfy(payload);
+				}
+			} else {
+				dimensionValidateRowLength(payload);
+				const rowJson = payload instanceof RowConstructor
+					? jsonfy(payload)
+					: { nodeName: TypedRowConstructor.NODE_NAME/* most formal */, entries: [jsonfy(payload)] };
+
+				if (fKBindingJson) {
+					query.values_clause.entries.push({ ...rowJson, entries: rowJson.entries.concat(fKBindingJson) });
+				} else query.values_clause.entries.push(rowJson);
+			}
 		};
 
 		if (LQRefColumn.left() instanceof LQBackRefAbstraction) {
@@ -421,26 +535,34 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			// INSERT INTO t1 (a, (fk <~ fk <~ t2) ~> a) VALUES (2, 44), (3, 11)
 			// INSERT INTO t1 (a, (fk <~ fk <~ t2) ~> a) SELECT a, b FROM t3
 
-			query.columns_list.push(rightJson);
+			query.column_list.entries.push(rhsOperandJson);
 
 			const offload = (payload, rowOffset) => {
-				const fKBindingJson = createForeignBinding(this.uuid, leftJson, rowOffset);
+				const fKBindingJson = createForeignBinding(this.uuid, lhsOperandJson, rowOffset);
 
-				if (payload instanceof CompleteSelectStmt) {
-					dimensionValidateRowLength(payload);
+				if (payload instanceof SelectStmt) {
+					const selectJson = jsonfy(payload, true);
+					dimensionValidateRowLength(selectJson.result_schema);
+
 					delete query.values_clause;
+
 					const fkField = {
 						nodeName: SelectItem.NODE_NAME,
 						expr: fKBindingJson,
-						alias: right instanceof ColumnRef1 ? { nodeName: SelectItemAlias.NODE_NAME, value: right.value() } : undefined
+						alias: rhsOperand instanceof ColumnRef2
+							? { nodeName: SelectItemAlias.NODE_NAME, as_kw: true, value: rhsOperand.value(), delim: rhsOperand._get('delim') }
+							: undefined,
 					};
-					const selectJson = payload.jsonfy/* @case1 */($options, transformer, linkedDb);
-					query.select_clause = { ...selectJson, select_list: selectJson.select_list.concat(fkField) };
+
+					query.select_clause = {
+						...selectJson,
+						select_list: { nodeName: SelectList.NODE_NAME, entries: selectJson.select_list.entries.concat(fkField) },
+					};
 					return;
 				}
 
 				if (payload instanceof ValuesTableLiteral) {
-					for (const rowNode of payload.expr()) {
+					for (const rowNode of payload.entries()) {
 						dimensionPushRow(rowNode, fKBindingJson);
 					}
 				} else dimensionPushRow(payload, fKBindingJson);
@@ -451,7 +573,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				type: 'dependent',
 				query,
 				offload,
-				leftJson
+				lhsOperandJson,
 			};
 
 			payloadDimensions
@@ -464,21 +586,31 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		// INSERT INTO t1 (a, t2 ~> fk ~> a) VALUES (2, 44), (3, 11)
 		// INSERT INTO t1 (a, t2 ~> fk ~> a) SELECT a, b FROM t3
 
+		const rhsOperand1Json = { ...rhsOperandJson, nodeName: ColumnRef1.NODE_NAME };
+
+		query.returning_clause = {
+			nodeName: ReturningClause.NODE_NAME,
+			entries: [{ nodeName: SelectItem.NODE_NAME, expr: rhsOperand1Json }],
+		};
+
 		const offload = (payload, rowOffset) => {
 			if (payload instanceof ValuesTableLiteral) {
 				throw new Error(`Single-row payload structure expected for column structure: ${LQRefColumn.right()}. Recieved ${payload.NODE_NAME}.`);
 			}
-			if (query.values_clause.entries.length || query.select_clause) {
-				throw new Error(`Unexpected offload() call on ${LQRefColumn}`);
-			}
-			if (payload instanceof CompleteSelectStmt) {
-				dimensionValidateRowLength(payload);
+
+			if (payload instanceof SelectStmt) {
+				const selectJson = jsonfy(payload, true);
+				dimensionValidateRowLength(selectJson.result_schema);
+
 				delete query.values_clause;
-				query.select_clause = payload.jsonfy/* @case1 */($options, transformer, linkedDb);
+
+				query.select_clause = selectJson;
 			} else dimensionPushRow(payload);
+
 			// The binding element...
-			const rightPKJson = { nodeName: ColumnRef1.NODE_NAME, value: right.value() };
-			const fKBindingJson = createForeignBinding(query.uuid, rightPKJson, rowOffset);
+			const rhsOperandPKJson = { nodeName: ColumnRef1.NODE_NAME, value: rhsOperand.value(), delim: rhsOperand._get('delim') };
+			const fKBindingJson = createForeignBinding(query.uuid, rhsOperandPKJson, rowOffset);
+
 			return fKBindingJson;
 		};
 
@@ -487,7 +619,8 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			type: 'dependency',
 			query,
 			offload,
-			leftJson
+			lhsOperandJson,
+			rhsOperandJson: rhsOperand1Json
 		};
 
 		payloadDimensions
@@ -496,86 +629,180 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		return payloadDimension;
 	}
 
-	applyPayloadDimensions(resultJson, payloadDimensions, options, transformer = null, linkedDb = null) {
-		const cte = { nodeName: CTE.NODE_NAME, bindings: [], body: null };
+	finalizeJSON(resultJson, transformer, linkedDb, options) {
+		resultJson = super.finalizeJSON(resultJson, transformer, linkedDb, options);
+
+		if (resultJson.returning_clause) {
+			// 1. Re-resolve output list for cases of just-added deep refs in returning_clause
+			// wherein schemas wouldn't have been resolvable at the time
+			// 2. Finalize output list for the last time, honouring given deSugaring level with regards to star selects "*"
+			// and ofcos finalize output schemas
+			const returningClauseJson = this.returningClause().finalizeJSON(resultJson.returning_clause, transformer, linkedDb, options);
+			// Apply now
+			resultJson = {
+				...resultJson,
+				returning_clause: returningClauseJson,
+				result_schema: returningClauseJson.result_schema,
+			};
+		} else {
+			resultJson = {
+				...resultJson,
+				result_schema: registry.JSONSchema.fromJSON({ entries: [] }),
+			};
+		}
+
+		const payloadDimensions = transformer.statementContext.artifacts.get('payloadDimensions');
+		if (!payloadDimensions.size) return resultJson;
 
 		const {
+			ColumnRef0,
+			ColumnRef1,
 			TableRef1,
-			CompleteSelectStmt,
 			FromItem,
-			FromItemAlias,
 			FromClause,
-			PGReturningClause,
+			AggrCallExpr,
+			ReturningClause,
+			SelectList,
+			SelectItem,
+			SelectItemAlias,
 			CTE,
 			CTEItem,
-			UpdateStmt,
-			InsertStmt,
-			UpsertStmt
+			CTEItemAlias,
+			CompleteSelectStmt,
 		} = registry;
 
+		const cte = { nodeName: CTE.NODE_NAME, declarations: [], body: null };
+
 		// Promote a query to a CTEItem
-		const toBinding = (dimensionID, queryJson) => {
+		const toCTEItem = (dimensionID, queryJson, indices = []) => {
+
 			// Desugar query and flatten if itself a CTE
 			if (queryJson.nodeName === CTE.NODE_NAME) {
-				cte.bindings.push(...queryJson.bindings);
+				cte.declarations.push(...queryJson.declarations);
 				queryJson = queryJson.body;
 			}
-			// Compose binding and add...
-			cte.bindings.push({
+
+			// Compose declaration and add...
+			cte.declarations.push({
 				nodeName: CTEItem.NODE_NAME,
-				alias: { nodeName: FromItemAlias.NODE_NAME, value: dimensionID },
+				alias: { nodeName: CTEItemAlias.NODE_NAME, value: dimensionID },
 				expr: queryJson,
 			});
-		};
-		const fromJSON = (queryJson, options) => {
-			for (const Class of [UpdateStmt, InsertStmt, UpsertStmt]) {
-				const node = Class.fromJSON(queryJson, options);
-				if (node) return node;
-			}
+
+			if (!indices.length) return;
+
+			// Compose the "indices" declaration and add...
+			const selectItems = indices.map((i) => {
+				if (i.alias) {
+					// Flip expr/alias
+					return {
+						...i,
+						expr: { ...i.expr, value: i.alias.value, delim: i.alias.delim, qualifier: undefined },
+						alias: { ...i.alias, value: i.expr.value, delim: i.expr.delim },
+					};
+				}
+				return {
+					...i,
+					expr: { ...i.expr, qualifier: undefined },
+					alias: { nodeName: SelectItemAlias.NODE_NAME, value: i.expr.value, delim: i.expr.delim },
+				};
+			});
+
+			const rowNumberExpr = {
+				nodeName: SelectItem.NODE_NAME,
+				expr: { nodeName: AggrCallExpr.NODE_NAME, name: 'ROW_NUMBER', arguments: [], over_clause: { nodeName: WindowSpec.NODE_NAME } },
+				alias: { nodeName: SelectItemAlias.NODE_NAME, as_kw: true, value: '$:index' },
+			};
+
+			const tableSpec = { nodeName: FromItem.NODE_NAME, expr: { nodeName: TableRef1.NODE_NAME, value: dimensionID } };
+
+			cte.declarations.push({
+				nodeName: CTEItem.NODE_NAME,
+				alias: { nodeName: CTEItemAlias.NODE_NAME, value: `${dimensionID}:indices` },
+				expr: {
+					nodeName: CompleteSelectStmt.NODE_NAME,
+					select_list: { nodeName: SelectList.NODE_NAME, entries: selectItems.concat(rowNumberExpr) },
+					from_clause: { nodeName: FromClause.NODE_NAME, entries: [tableSpec] },
+				},
+			});
 		};
 
 		// (1): Process non-dependent entries
-		const dependents = [], lefts = [];
+		const dependents = [],
+			lefts = [];
+
 		let onConflictUpdatedStatusRequired;
-		for (const { id: dimensionID, type, query, leftJson, onConflictClauseContext } of payloadDimensions) {
+		const originalReturningList = resultJson.returning_clause?.entries || [];
+
+		for (const { id: dimensionID, type, query, lhsOperandJson, rhsOperandJson, onConflictClauseContext } of payloadDimensions) {
+
 			// Defer dependents
 			if (type === 'dependent') {
-				if (!lefts.find((existing) => _eq(existing, leftJson))) {
-					lefts.push(leftJson);
+
+				if (!lefts.find((existing) => _eq(existing.expr.value, lhsOperandJson.value))) {
+					const fieldExpr = { nodeName: SelectItem.NODE_NAME, expr: lhsOperandJson };
+					if (originalReturningList.find((existing) => _eq((existing.alias || existing.expr).value, lhsOperandJson.value))) {
+						fieldExpr.alias = { nodeName: SelectItemAlias.NODE_NAME, as_kw: true, value: transformer.rand('key') };
+					}
+					lefts.push(fieldExpr);
 				}
+
 				if (onConflictClauseContext) {
 					onConflictUpdatedStatusRequired = true;
 				}
+
 				dependents.push({ id: dimensionID, query });
 				continue;
 			}
+
 			// Desugar query and flatten if itself a CTE
-			toBinding(dimensionID, fromJSON(query, this.options).jsonfy/* @case2 */(options, transformer, linkedDb));
+			toCTEItem(dimensionID, query, [{ nodeName: SelectItem.NODE_NAME, expr: rhsOperandJson }]);
 		}
+
+		const newOuterReturningList = [];
 
 		// (2): Rewrite resultJson as a CTEItem?
 		if (dependents.length) {
+
 			// Rewrite returning clause
-			const originalPGReturningClause = resultJson.returning_clause;
+			for (const fieldExpr of originalReturningList) {
+				newOuterReturningList.push({ ...fieldExpr, expr: { nodeName: ColumnRef1.NODE_NAME, value: fieldExpr.alias.value, delim: fieldExpr.alias.delim } });
+			}
 
 			// Compose binding and add...
-			const newPGReturningClause = { nodeName: PGReturningClause.NODE_NAME, entries: [...lefts] };
+			const cteReturningClause = {
+				nodeName: ReturningClause.NODE_NAME,
+				entries: [...originalReturningList, ...lefts],
+			};
+
 			if (onConflictUpdatedStatusRequired) {
 				const onConflictUpdatedStatusAlias = `${this.uuid}_on_conflict_updated_status`;
 				// TODO
 			}
-			toBinding(this.uuid, { ...resultJson, returning_clause: newPGReturningClause });
+
+			toCTEItem(this.uuid, { ...resultJson, returning_clause: cteReturningClause }, lefts);
 
 			// Process dependents... after having done the above
 			for (const { id: dimensionID, query } of dependents) {
-				toBinding(dimensionID, fromJSON(query, this.options).jsonfy/* @case2 */(options, transformer, linkedDb));
+				toCTEItem(dimensionID, query);
 			}
 
 			// Derive final body...
+			let selectItems = newOuterReturningList;
+
+			if (!selectItems.length) {
+				selectItems = [{
+					nodeName: SelectItem.NODE_NAME,
+					expr: { nodeName: AggrCallExpr.NODE_NAME, name: 'COUNT', arguments: [{ nodeName: ColumnRef0.NODE_NAME, value: '*' }] },
+					alias: { nodeName: SelectItemAlias.NODE_NAME, as_kw: true, value: 'COUNT' },
+				}];
+			}
+
 			const tableSpec = { nodeName: FromItem.NODE_NAME, expr: { nodeName: TableRef1.NODE_NAME, value: this.uuid } };
+
 			cte.body = {
 				nodeName: CompleteSelectStmt.NODE_NAME,
-				select_list: originalPGReturningClause.entries,
+				select_list: { nodeName: SelectList.NODE_NAME, entries: selectItems },
 				from_clause: { nodeName: FromClause.NODE_NAME, entries: [tableSpec] },
 			};
 		} else {

@@ -27,12 +27,12 @@ export class SRFExpr1 extends DDLSchemaMixin(AbstractNode) {
             
             const columnDefsJson = resultJson.qualif?.column_defs || [];
             const resultSchema = resultJson.qualif?.alias
-                // a. Compose from "column_defs" with own table alias
+                // a. Compose from "column_defs" with explicit table alias
                 ? registry.TableSchema.fromJSON({
                     name: resultJson.qualif.alias,
                     entries: columnDefsJson,
                 })
-                // b. Compose from "column_defs" without own table alias
+                // b. Compose from "column_defs" without explicit table alias
                 : registry.JSONSchema.fromJSON({
                     entries: columnDefsJson,
                 });

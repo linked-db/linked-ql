@@ -22,7 +22,12 @@ export class Transformer {
     #isStatementContext;
     get isStatementContext() { return this.#isStatementContext; }
 
-    #artifacts = new Map;
+    #artifacts = new Map([
+        ['outputSchemas', new Set],
+        ['tableSchemas', new Set],
+        ['selectorDimensions', new Map],
+        ['payloadDimensions', new Set],
+    ]);
     get artifacts() { return this.#artifacts; }
 
     constructor(callback, parentTransformer = null, statementNode = null) {

@@ -29,7 +29,7 @@ export class LQBackRef extends LQBackBackRef {
 		return tableRefs[0];
 	}
 
-	resolve(transformer, linkedDb) {
+	resolve(transformer, linkedDb, toKind = 1) {
 		if (!transformer || !linkedDb) return;
 		const left = this.left();
 
@@ -38,9 +38,10 @@ export class LQBackRef extends LQBackBackRef {
 			: left;
 		const leftEndpointQualifier = qualifiedLeftEndpoint.qualifier();
 
-		const unqualifiedLeftEndpoint = leftEndpointQualifier
-			? registry.ColumnRef2.fromJSON({ ...qualifiedLeftEndpoint.jsonfy({ nodeNames: false }), qualifier: undefined })
-			: qualifiedLeftEndpoint;
+		const unqualifiedLeftEndpoint = registry.ColumnRef2.fromJSON({
+			...qualifiedLeftEndpoint.jsonfy({ nodeNames: false }),
+			qualifier: undefined
+		});
 
 		const resolvedLeftEndpoint = qualifiedLeftEndpoint/* original */.resolve(transformer, linkedDb);
 
@@ -88,16 +89,15 @@ export class LQBackRef extends LQBackBackRef {
 
 		const qualifiedRightTable = this.rhsTable(transformer, linkedDb);
 		const unqualifiedRightOperand = left instanceof LQBackBackRef
-			? left.clone({ reverseRef: true })
-			: registry.ColumnRef2.fromJSON({
-				value: unqualifiedLeftEndpoint.value(),
-				delim: unqualifiedLeftEndpoint._get('delim'),
+			? left.clone({ reverseRef: true, toKind })
+			: unqualifiedLeftEndpoint.constructor.fromJSON({
+				...unqualifiedLeftEndpoint.jsonfy(),
 				result_schema: qualifiedRightTable.resultSchema()._get('entries', unqualifiedLeftEndpoint)
 			});
 
 		return {
 			lhsOperand: qualifiedLeftOperand, // ColumnRef1
-			rhsOperand: unqualifiedRightOperand, // ColumnRef2
+			rhsOperand: unqualifiedRightOperand.clone({ toKind }), // ColumnRef2
 			rhsTable: qualifiedRightTable, // TableRef2
 		};
 	}
