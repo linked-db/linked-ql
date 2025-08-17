@@ -189,8 +189,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
         return selectorDimension;
     }
 
-    finalizeJSON(resultJson, transformer, linkedDb, options) {
-        resultJson = super.finalizeJSON(resultJson, transformer, linkedDb, options);
+    finalizeSelectorJSON(resultJson, transformer, linkedDb, options) {
         const selectorDimensions = transformer.statementContext.artifacts.get('selectorDimensions');
 
         resultJson = {

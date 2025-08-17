@@ -10,7 +10,7 @@ export const PathMixin = (Class) => class extends Class {
 				optional: true,
 				syntax: [
 					{ type: this._qualifierType, as: 'qualifier' },
-					{ type: 'punctuation', value: '.', assert: true, autoSpacing: false },
+					{ type: 'punctuation', value: '.', autoSpacing: false },
 				],
 			},
 			baseRule ||

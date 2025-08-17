@@ -3,6 +3,7 @@ import { PayloadStmtMixin } from '../abstracts/PayloadStmtMixin.js';
 import { AbstractNonDDLStmt } from '../abstracts/AbstractNonDDLStmt.js';
 import { Transformer } from '../Transformer.js';
 import { registry } from '../registry.js';
+import { _eq } from '../util.js';
 
 export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to a CTE */(SelectorStmtMixin(
     AbstractNonDDLStmt
@@ -21,30 +22,30 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                         dialect: 'postgres',
                         syntax: [
                             { type: 'TableAbstraction2', as: 'table_expr' },
-                            { type: 'SetClause', as: 'set_clause' },
-                            { type: 'FromClause', as: 'pg_from_clause', optional: true, dialect: 'postgres', autoIndent: true },
-                            { type: 'JoinClause', as: 'join_clauses', arity: Infinity, optional: true, autoIndent: true },
-                            { type: ['PGWhereCurrentClause', 'WhereClause'], as: 'where_clause', optional: true, autoIndent: true },
-                            { type: 'ReturningClause', as: 'returning_clause', optional: true, autoIndent: true },
+                            { type: 'SetClause', as: 'set_clause', autoSpacing: '\n' },
+                            { type: 'FromClause', as: 'pg_from_clause', optional: true, dialect: 'postgres', autoSpacing: '\n' },
+                            { type: 'JoinClause', as: 'join_clauses', arity: Infinity, optional: true, autoSpacing: '\n' },
+                            { type: ['PGWhereCurrentClause', 'WhereClause'], as: 'where_clause', optional: true, autoSpacing: '\n' },
+                            { type: 'ReturningClause', as: 'returning_clause', optional: true, autoSpacing: '\n' },
                         ],
                     },
                     {
                         dialect: 'mysql',
                         syntax: [
                             { type: 'TableAbstraction2', as: 'table_expr' },
-                            { type: 'SetClause', as: 'set_clause' },
-                            { type: 'WhereClause', as: 'where_clause', optional: true, autoIndent: true },
-                            { type: 'OrderByClause', as: 'my_order_by_clause', optional: true, autoIndent: true },
-                            { type: 'LimitClause', as: 'my_limit_clause', optional: true, autoIndent: true },
+                            { type: 'SetClause', as: 'set_clause', autoSpacing: '\n' },
+                            { type: 'WhereClause', as: 'where_clause', optional: true, autoSpacing: '\n' },
+                            { type: 'OrderByClause', as: 'my_order_by_clause', optional: true, autoSpacing: '\n' },
+                            { type: 'LimitClause', as: 'my_limit_clause', optional: true, autoSpacing: '\n' },
                         ],
                     },
                     {
                         dialect: 'mysql',
                         syntax: [
                             { type: 'TableAbstraction1', as: 'my_update_list', arity: { min: 1 }, itemSeparator },
-                            { type: 'JoinClause', as: 'join_clauses', arity: Infinity, optional: true, autoIndent: true },
-                            { type: 'SetClause', as: 'set_clause' },
-                            { type: 'WhereClause', as: 'where_clause', optional: true, autoIndent: true },
+                            { type: 'JoinClause', as: 'join_clauses', arity: Infinity, optional: true, autoSpacing: '\n' },
+                            { type: 'SetClause', as: 'set_clause', autoSpacing: '\n' },
+                            { type: 'WhereClause', as: 'where_clause', optional: true, autoSpacing: '\n' },
                         ],
                     },
                 ]
@@ -76,66 +77,6 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
 
     myLimitClause() { return this._get('my_limit_clause'); }
 
-    /* SCHEMA API */
-
-    querySchemas() {
-        // Literally inherit inheritedQuerySchemas
-        inheritedQuerySchemas = new Set(inheritedQuerySchemas || []);
-
-        const resultSchemas = new Set;
-
-        const deriveSchema = (aliasName, tableRef) => {
-            const alias = registry.Identifier.fromJSON({ value: aliasName });
-            const tableSchema = tableRef.resultSchema(transformer).clone({ renameTo: alias });
-            inheritedQuerySchemas.add(tableSchema);
-            resultSchemas.add(tableSchema);
-        };
-
-        if (this.tableExpr()) {
-            // Syntaxes 1 & 2
-            const tableExpr = this.tableExpr();
-            const tableRef = tableExpr.tableRef();
-
-            deriveSchema(
-                tableExpr.alias()?.value() || tableRef.value(),
-                tableRef
-            );
-
-            if (this.pgFromClause()) {
-                // Syntax 1
-                for (const fromElement of this.pgFromClause()) {
-                    const fromExpr = fromElement.expr(); // TableRef1 or DerivedQuery, etc.
-                    deriveSchema(
-                        fromElement.alias()?.value() || fromExpr.value(),
-                        fromExpr
-                    );
-                }
-            }
-        } else if (this.myUpdateList()?.length) {
-            // Syntax 3
-            for (const myUpdateExpr of this.myUpdateList()) {
-                const tableRef = myUpdateExpr.tableRef();
-                deriveSchema(
-                    tableRef.value(),
-                    tableRef
-                );
-            }
-        }
-
-        if (this.joinClauses()?.length) {
-            // Syntaxes 1 & 3
-            for (const fromElement of this.joinClauses()) {
-                const fromExpr = fromElement.expr();
-                deriveSchema(
-                    fromElement.alias()?.value() || fromExpr.value(),
-                    fromExpr
-                );
-            }
-        }
-
-        return resultSchemas;
-    }
-
     /* JSON API */
 
     jsonfy(options = {}, transformer = null, linkedDb = null) {
@@ -144,15 +85,47 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
         transformer = new Transformer((node, defaultTransform) => {
             return defaultTransform();
         }, transformer, this/* IMPORTANT */);
-        
-        const resultJson = super.jsonfy(options, transformer, linkedDb);
-        return this.finalizeJSON(resultJson, transformer, linkedDb, options);
+
+        let resultJson = super.jsonfy(options, transformer, linkedDb);
+
+        // Order ouput JSON
+        if ((options.toDialect || this.options.dialect) === 'mysql') {
+            resultJson = {
+                nodeName: resultJson.nodeName,
+                table_expr: resultJson.table_expr,
+                my_update_list: resultJson.my_update_list,
+                join_clauses: resultJson.join_clauses,
+                set_clause: resultJson.set_clause,
+                where_clause: resultJson.where_clause,                
+                my_order_by_clause: resultJson.my_order_by_clause,
+                my_limit_clause: resultJson.my_limit_clause,
+            };
+        } else {
+            resultJson = {
+                nodeName: resultJson.nodeName,
+                table_expr: resultJson.table_expr,
+                set_clause: resultJson.set_clause,
+                pg_from_clause: resultJson.pg_from_clause,
+                join_clauses: resultJson.join_clauses,
+                where_clause: resultJson.where_clause,
+                returning_clause: resultJson.returning_clause,
+                result_schema: resultJson.result_schema,
+            };
+        }
+
+        // 1. Finalize generated JOINS. Must come first
+        resultJson = this.finalizeSelectorJSON(resultJson, transformer, linkedDb, options);
+        // 2. Finalize entire query rewrite - returning a CTE
+        resultJson = this.finalizePayloadJSON(resultJson, transformer, linkedDb, options);
+
+        return resultJson;
     }
 
-    finalizeJSON(resultJson, transformer, linkedDb, options) {
+    finalizeSelectorJSON(resultJson, transformer, linkedDb, options) {
+
         if (this.options.dialect !== 'postgres') {
-            // This is Postgres-specific
-            return super.finalizeJSON(resultJson, transformer, linkedDb, options);
+            // Redirect finalization to the standard finalization logic
+            return super.finalizeSelectorJSON(resultJson, transformer, linkedDb, options);
         }
 
         if (resultJson.where_clause?.cursor_name) {
@@ -162,42 +135,67 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
         const {
             DerivedQuery,
             CompleteSelectStmt,
+            SelectList,
             SelectItem,
-            SelectItemAlias,
             FromItemAlias,
             FromClause,
             WhereClause,
-            ColumnRef1,
+            JoinClause,
             TableRef1,
-            TableRef2,
             BinaryExpr,
             FromItem,
         } = registry;
 
         const rand = transformer.rand('join');
 
+        const selectorDimensions = transformer.statementContext.artifacts.get('selectorDimensions');
+
         // Each table involved in a Deep/BackRef should have a corresponding entry
         // in the "FROM" list where we have the chance to establish our JOIN
         // with a corresponding extra "WHERE" clause that correlates the generated table with the original table
 
-        let pgGeneratedFromEntry;
+        const tableExpr = resultJson.table_expr;
+
+        const tblAliasOriginal = tableExpr.alias.value;
+        const tblAliasOriginal_delim = tableExpr.alias.delim;
+        const tblAliasRewrite = `${rand}:${tblAliasOriginal}`;
+
+        const pkConstraint = tableExpr.result_schema.pkConstraint(true);
+        const pkColumnRef = pkConstraint?.columns()[0].jsonfy({ toKind: 1 });
+
+        let pgGeneratedFromItem;
+
+        const createCorrelationExpr = (columnRef) => {
+            return {
+                nodeName: BinaryExpr.NODE_NAME,
+                left: {
+                    ...columnRef, qualifier: {
+                        nodeName: TableRef1.NODE_NAME,
+                        value: tblAliasOriginal,
+                        delim: tblAliasOriginal_delim
+                    },
+                },
+                operator: '=',
+                right: {
+                    ...columnRef, qualifier: {
+                        nodeName: TableRef1.NODE_NAME,
+                        value: tblAliasRewrite
+                    },
+                },
+            };
+        };
+
+        let selectItems;
         const createOrPatchAFromEntry = (columnRef) => {
+            if (!_eq(columnRef.qualifier.value, tblAliasOriginal, columnRef.qualifier.delim || tblAliasOriginal_delim)) {
+                return columnRef;
+            }
 
-            const tableExpr = resultJson.table_expr;
-            const tblRefOriginal = tableExpr.name.value;
-            const tblAliasOriginal = tableExpr.alias ? tableExpr.alias.value : tableExpr.name.value;
-            const colRefOriginal = columnRef.value;
-
-            if (columnRef.qualifier.value !== tblAliasOriginal) return columnRef;
-
-            const tblAliasRewrite = `${rand}::${tblAliasOriginal}`;
-            const colRefRewrite = `${rand}::${colRefOriginal}`;
-
-            if (!pgGeneratedFromEntry) {
+            if (!pgGeneratedFromItem) {
                 // Compose:
                 // - ( SELECT [] FROM <tblRefOriginal> )
                 // - AS <tblAliasRewrite>
-                const fromElement = {
+                const fromItem = {
                     nodeName: FromItem.NODE_NAME,
                     expr: {
                         nodeName: DerivedQuery.NODE_NAME,
@@ -205,97 +203,109 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                             // SELECT <...>
                             nodeName: CompleteSelectStmt.NODE_NAME,
                             select_list: { nodeName: SelectList.NODE_NAME, entries: [] },
-                            pg_from_clause: {
+                            from_clause: {
                                 // FROM <tblRefOriginal>
                                 nodeName: FromClause.NODE_NAME,
                                 entries: [{
                                     nodeName: FromItem.NODE_NAME,
-                                    expr: { nodeName: TableRef1.NODE_NAME, value: tblRefOriginal }
+                                    expr: tableExpr.table_ref,
+                                    alias: { nodeName: FromItemAlias.NODE_NAME, as_kw: true, value: tblAliasRewrite }
                                 }]
                             },
                         },
                     },
                     // AS <tblAliasRewrite>
-                    as_kw: true,
-                    alias: { nodeName: FromItemAlias.NODE_NAME, value: tblAliasRewrite },
+                    alias: { nodeName: FromItemAlias.NODE_NAME, as_kw: true, value: tblAliasRewrite },
                 };
+
+                selectItems = fromItem.expr.expr.select_list.entries;
 
                 // Compose:
                 // - WHERE <tblAliasOriginal.colRefOriginal> = <tblAliasRewrite.colRefRewrite>
-                const whereClause = {
-                    nodeName: BinaryExpr.NODE_NAME,
-                    left: {
-                        nodeName: ColumnRef1.NODE_NAME,
-                        qualifier: { nodeName: TableRef1.NODE_NAME, value: tblAliasOriginal },
-                        value: colRefOriginal
-                    },
-                    operator: '=',
-                    right: {
-                        nodeName: ColumnRef1.NODE_NAME,
-                        qualifier: { nodeName: TableRef1.NODE_NAME, value: tblAliasRewrite },
-                        value: colRefRewrite
-                    }
-                };
-
+                if (pkColumnRef) {
+                    fromItem.expr.expr.select_list.entries.push({
+                        nodeName: SelectItem.NODE_NAME,
+                        expr: { ...pkColumnRef, qualifier: { nodeName: TableRef1.NODE_NAME, value: tblAliasRewrite }, },
+                    });
+                    fromItem.expr.expr.where_clause = {
+                        nodeName: WhereClause.NODE_NAME,
+                        expr: createCorrelationExpr(pkColumnRef),
+                    };
+                }
                 // Add entry...
-                pgGeneratedFromEntry = { from: fromElement, where: whereClause };
+                pgGeneratedFromItem = fromItem;
             }
 
-            // Select the rewritten ref
-            pgGeneratedFromEntry.from.expr.expr.select_list.entries.push({
-                nodeName: SelectItem.NODE_NAME,
-                expr: { nodeName: ColumnRef1.NODE_NAME, value: colRefOriginal },
-                alias: { nodeName: SelectItemAlias.NODE_NAME, value: colRefRewrite }
-            });
+            // 1. Select the rewritten ref
+            if (!selectItems.find((fieldJson) => _eq(fieldJson.expr.value, columnRef.value, fieldJson.expr.delim || columnRef.delim))) {
+                selectItems.push({
+                    nodeName: SelectItem.NODE_NAME,
+                    expr: { ...columnRef, qualifier: { nodeName: TableRef1.NODE_NAME, value: tblAliasRewrite }, }
+                });
+            }
 
-            // Return the rewritten ref
+            // 2. Use ewritten ref for correlation in the absence of a primary key
+            if (!pkColumnRef) {
+                let whereExpr = createCorrelationExpr(columnRef);
+                if (pgGeneratedFromItem.expr.expr.where_clause) {
+                    whereExpr = {
+                        nodeName: BinaryExpr.NODE_NAME,
+                        left: pgGeneratedFromItem.expr.expr.where_clause.expr,
+                        operator: 'AND',
+                        right: whereExpr
+                    };
+                }
+                pgGeneratedFromItem.expr.expr.where_clause = {
+                    nodeName: WhereClause.NODE_NAME,
+                    expr: whereExpr,
+                };
+            }
+
             return {
-                nodeName: ColumnRef1.NODE_NAME,
+                ...columnRef,
                 qualifier: { nodeName: TableRef1.NODE_NAME, value: tblAliasRewrite },
-                value: colRefRewrite,
             };
         };
 
         // (1)
-        // Inject the generated joins
-        resultJson = {
-            ...resultJson,
-            join_clauses: resultJson.join_clauses?.slice(0) || []
-        };
-
-        // Rewrite original references as FROM entry references
+        // Rewrite original references to FROM entry references
+        const rewrittenJoinEntries = [];
         for (const [, { query: joinJson }] of selectorDimensions) {
-            const binaryExpr = { ...joinJson.condition_clause/* OnClause */.expr };
-            binaryExpr.left = createOrPatchAFromEntry(binaryExpr.left);
-            resultJson.join_clauses.push(joinJson);
+            rewrittenJoinEntries.push({
+                ...joinJson,
+                condition_clause: {
+                    ...joinJson.condition_clause,
+                    expr: {
+                        ...joinJson.condition_clause.expr,
+                        left: createOrPatchAFromEntry(joinJson.condition_clause.expr.left)
+                    },
+                },
+            });
         }
 
         // (2)
         // Inject the "FROM" list generated by createOrPatchAFromEntry()
-        if (pgGeneratedFromEntry) {
+        if (pgGeneratedFromItem) {
             resultJson = {
                 ...resultJson,
                 pg_from_clause: {
                     nodeName: FromClause.NODE_NAME,
-                    entries: resultJson.pg_from_clause?.entries?.slice(0) || []
-                }
+                    entries: (resultJson.pg_from_clause?.entries || []).concat(
+                        FromItem.fromJSON(pgGeneratedFromItem, this.options).jsonfy(options, transformer, linkedDb)
+                    ),
+                },
             };
-            // ...each a DerivedQuery
-            resultJson.pg_from_clause.entries.push(pgGeneratedFromEntry.from);
-            // The "WHERE" clause for correlation
-            if (resultJson.where_clause) {
-                resultJson.where_clause = {
-                    nodeName: WhereClause.NODE_NAME,
-                    expr: {
-                        nodeName: BinaryExpr.NODE_NAME,
-                        left: resultJson.where_clause.expr,
-                        operator: 'AND',
-                        right: pgGeneratedFromEntry.where
-                    }
-                };
-            } else {
-                resultJson.where_clause = { nodeName: WhereClause.NODE_NAME, expr: pgGeneratedFromEntry.where };
-            }
+        }
+
+        // (3)
+        // Inject the generated joins
+        for (const joinJson of rewrittenJoinEntries) {
+            resultJson = {
+                ...resultJson,
+                join_clauses: (resultJson.join_clauses || []).concat(
+                    JoinClause.fromJSON(joinJson, this.options).jsonfy(options, transformer, linkedDb)
+                ),
+            };
         }
 
         return resultJson;

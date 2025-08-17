@@ -40,10 +40,11 @@ FROM (VALUES
 RETURNING id, name, v.row_index; 
 `;
 
-const sql = `SELECT ROW_NUMBER() OVER () AS r, id, name, (
-        SELECT * FROM users
-        WHERE id = r
-      ) AS parent_user FROM users`;
+const sql = `UPDATE users u
+SET name = nn.name
+FROM users nn
+LEFT JOIN users v ON nn.id = v.id
+WHERE u.id = v.id;`;
 console.log('________________________', (await client.query(sql)).rows);
 
 process.exit();

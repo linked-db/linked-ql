@@ -49,7 +49,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			// Handle bare assignment exoressions
 			if (node.left() instanceof LQDeepRef2) {
 				const [[deSugaredLhs], [[deSugaredRhs]]] = this.deSugarPayload(
-					[node.left()],
+					new ColumnsConstructor({ entries: [node.left()] }),
 					[[node.right()]],
 					transformer,
 					linkedDb,
@@ -59,7 +59,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				return {
 					nodeName: AssignmentExpr.NODE_NAME,
 					operator: '=',
-					left: deSugaredLhs,
+					left: deSugaredLhs.entries,
 					right: deSugaredRhs,
 				};
 			}
@@ -68,12 +68,12 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			if (node.left() instanceof ColumnsConstructor // Postgres
 				&& node.left().entries().some((c) => c instanceof LQDeepRef2)) {
 
-				const columnList = node.left().entries();
+				const columnList = node.left();
 				let deSugaredLhs,
 					deSugaredRhs;
 
 				if (node.right() instanceof RowConstructor/* Still passes even for TypedRowConstructor */) {
-					[deSugaredLhs, deSugaredRhs] = this.deSugarPayload(
+					[deSugaredLhs, [deSugaredRhs]] = this.deSugarPayload(
 						columnList,
 						[node.right().entries()],
 						transformer,
@@ -91,7 +91,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 					);
 					deSugaredRhs = { nodeName: DerivedQuery.NODE_NAME, expr: deSugaredRhs };
 				} else {
-					[deSugaredLhs, deSugaredRhs] = this.deSugarPayload(
+					[deSugaredLhs, [deSugaredRhs]] = this.deSugarPayload(
 						columnList,
 						[[node.right()]],
 						transformer,
@@ -386,6 +386,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			BoolLiteral,
 			NumberLiteral,
 			UpdateStmt,
+			TableAbstraction2,
 		} = registry;
 
 		const rands = new Map;
@@ -397,6 +398,9 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		const lhsOperandJson = jsonfy(lhsOperand);
 		const rhsOperandJson = jsonfy(rhsOperand);
 		const rhsTableJson = jsonfy(rhsTable);
+
+		const rhsOperand1Json = { ...rhsOperandJson, nodeName: ColumnRef1.NODE_NAME };
+		const rhsTable1Json = { ...rhsTableJson, nodeName: TableRef1.NODE_NAME };
 
 		// Figure the expected payload structure
 		let columnsConstructorJson;
@@ -483,7 +487,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 
 			const whereClause = {
 				nodeName: BinaryExpr.NODE_NAME,
-				left: rhsOperandJson,
+				left: rhsOperand1Json,
 				operator: 'IN',
 				right: createForeignBinding(baseUUID, lhsOperandJson, null, onConflictUpdatedStatusAlias),
 			};
@@ -491,9 +495,9 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			const query = {
 				uuid: transformer.rand('dependents', rands),
 				nodeName: UpdateStmt.NODE_NAME,
-				tables: [{ nodeName: FromItem.NODE_NAME, expr: rhsTableJson }],
+				table_expr: { nodeName: TableAbstraction2.NODE_NAME, table_ref: rhsTable1Json },
 				set_clause: { nodeName: SetClause.NODE_NAME, entries: [] },
-				where_clause: whereClause,
+				where_clause: { nodeName: WhereClause.NODE_NAME, expr: whereClause },
 			};
 
 			const offload = (payload) => {
@@ -682,7 +686,6 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 
 		// The binding elements...
 		const rhsOperandPKJson = { nodeName: ColumnRef1.NODE_NAME, value: rhsOperand.value(), delim: rhsOperand._get('delim') };
-		const rhsOperand1Json = { ...rhsOperandJson, nodeName: ColumnRef1.NODE_NAME };
 
 		const queryTemplate = () => ({
 			uuid: transformer.rand('dependencies'),
@@ -781,8 +784,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		return payloadDimension;
 	}
 
-	finalizeJSON(resultJson, transformer, linkedDb, options) {
-		resultJson = super.finalizeJSON(resultJson, transformer, linkedDb, options);
+	finalizePayloadJSON(resultJson, transformer, linkedDb, options) {
 
 		if (resultJson.returning_clause) {
 			// 1. Re-resolve output list for cases of just-added deep refs in returning_clause
@@ -821,6 +823,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			CTEItem,
 			CTEItemAlias,
 			CompleteSelectStmt,
+			UpdateStmt,
 		} = registry;
 
 		const baseUUID = transformer.rootContext.hash(this, 'main');
@@ -888,7 +891,6 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 						toCTEItem(uuid, query, wherePredicate);
 					}
 				} else {
-					// memos
 					toCTEItem(uuid, query);
 				}
 			}
@@ -923,7 +925,9 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				// TODO
 			}
 
-			if (resultJson.pg_default_values_clause) {
+			if (resultJson.nodeName === UpdateStmt.NODE_NAME) {
+				toCTEItem(baseUUID, { ...resultJson, returning_clause: cteReturningClause });
+			} else if (resultJson.pg_default_values_clause) {
 				toCTEItem(baseUUID, { ...resultJson, returning_clause: cteReturningClause });
 			} else {
 				toCTEItem(baseUUID, { ...resultJson, returning_clause: cteReturningClause }, lefts);

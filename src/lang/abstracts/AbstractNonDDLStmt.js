@@ -29,8 +29,4 @@ export class AbstractNonDDLStmt extends DDLSchemaMixin(AbstractStmt) {
 		}
 		return queryBindings.filter(b => !b.getDetail('redundant'));
 	}
-
-	finalizeJSON(resultJson, transformer, linkedDb, options) {
-		return resultJson;
-	}
 }

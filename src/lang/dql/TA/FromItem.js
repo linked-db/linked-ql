@@ -151,7 +151,7 @@ export class FromItem extends DDLSchemaMixin(AbstractNode) {
             transformer.statementContext.artifacts.get('tableSchemas').add({ type: this.joinType?.() || 'dql', lateral: this.lateralKW(), resultSchema });
 
             const applicableAliasJson = !(this.expr() instanceof registry.SRFExpr1) && (
-                Number(options.deSugar) > 2 || Number(options.deSugar) > 1 && (this.parentNode?.entries().length || 0) > 1
+                Number(options.deSugar) > 2 || Number(options.deSugar) > 1 && (this.parentNode?.length || 0) > 1
             ) && derivedAliasJson || resultJson.alias;
             resultJson = {
                 ...resultJson,

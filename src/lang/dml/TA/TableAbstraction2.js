@@ -1,7 +1,8 @@
+import { DDLSchemaMixin } from '../../abstracts/DDLSchemaMixin.js';
 import { AbstractNode } from '../../abstracts/AbstractNode.js';
 import { registry } from '../../registry.js';
 
-export class TableAbstraction2 extends AbstractNode {
+export class TableAbstraction2 extends DDLSchemaMixin(AbstractNode) {
 
     /* SYNTAX RULES */
 
@@ -29,13 +30,17 @@ export class TableAbstraction2 extends AbstractNode {
     /* SCHEMA API */
 
     deriveAlias() {
-        let derivedAliasJson;
+        let derivedAlias;
         if (this.alias()) {
-            derivedAliasJson = { as_kw: true, value: this.alias().value(), delim: this.alias()._get('delim') };
+            derivedAlias = this.alias();
         } else {
-            derivedAliasJson = { as_kw: true, value: this.tableRef().value(), delim: this.tableRef()._get('delim') };
+            derivedAlias = registry.SelectItemAlias.fromJSON({
+                as_kw: true,
+                value: this.tableRef().value(),
+                delim: this.tableRef()._get('delim'),
+            });
         }
-        return registry.SelectItemAlias.fromJSON(derivedAliasJson);
+        return derivedAlias;
     }
 
     jsonfy(options = {}, transformer = null, linkedDb = null) {
@@ -50,12 +55,12 @@ export class TableAbstraction2 extends AbstractNode {
                 delim: derivedAliasJson.delim,
             };
 
-            let resultSchema = resultJson.expr.result_schema.clone({ renameTo: schemaIdent });
-            if (subResultJson.pg_table_alias) {
-                resultSchema = resultSchema.clone({ renameTo: subResultJson.pg_table_alias });
+            let resultSchema = resultJson.table_ref.result_schema.clone({ renameTo: schemaIdent });
+            if (resultJson.alias) {
+                resultSchema = resultSchema.clone({ renameTo: { nodeName: registry.Identifier.NODE_NAME, value: resultJson.alias.value, delim: resultJson.alias.delim } });
             }
 
-            transformer.statementContext.artifacts.get('tableSchemas').add({ type: 'dml', resultSchema });
+            transformer.statementContext.artifacts.get('tableSchemas').add({ resultSchema });
 
             const applicableAliasJson = Number(options.deSugar) > 1
                 && derivedAliasJson

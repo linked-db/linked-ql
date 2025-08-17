@@ -12,8 +12,6 @@ export class InsertStmt extends PayloadStmtMixin(
 	static get _clause() { return 'INSERT'; }
 
 	static get syntaxRules() {
-		const itemSeparator = { type: 'punctuation', value: ',' };
-
 		const optional_alias_postgres = {
 			optional: true,
 			syntax: [
@@ -138,8 +136,36 @@ export class InsertStmt extends PayloadStmtMixin(
 			return defaultTransform();
 		}, transformer, this/* IMPORTANT */);
 
-		// 0. Run transform
 		let resultJson = super.jsonfy(options, transformer, linkedDb);
+
+		// Order ouput JSON
+		if ((options.toDialect || this.options.dialect) === 'mysql') {
+			resultJson = {
+				nodeName: resultJson.nodeName,
+				table_ref: resultJson.table_ref,
+				my_partition_clause: resultJson.my_partition_clause,
+				column_list: resultJson.column_list,
+				values_clause: resultJson.values_clause,
+				select_clause: resultJson.select_clause,
+				my_table_clause: resultJson.my_table_clause,
+				my_set_clause: resultJson.my_set_clause,
+				my_row_alias: resultJson.my_row_alias,
+				conflict_handling_clause: resultJson.conflict_handling_clause,
+			};
+		} else {
+			resultJson = {
+				nodeName: resultJson.nodeName,
+				table_ref: resultJson.table_ref,
+				pg_table_alias: resultJson.pg_table_alias,
+				column_list: resultJson.column_list,
+				pg_default_values_clause: resultJson.pg_default_values_clause,
+				values_clause: resultJson.values_clause,
+				select_clause: resultJson.select_clause,
+				conflict_handling_clause: resultJson.conflict_handling_clause,
+				returning_clause: resultJson.returning_clause,
+				result_schema: resultJson.result_schema,
+			};
+		}
 
 		if ((options.toDialect || this.options.dialect) === 'postgres'
 			&& !resultJson.pg_table_alias
@@ -154,8 +180,9 @@ export class InsertStmt extends PayloadStmtMixin(
 			}
 		}
 
-		// 2. Finalize generated JOINS
-        // Generated JOINs are injected into the query
-		return this.finalizeJSON(resultJson, transformer, linkedDb, options);
+		// 1. Finalize entire query rewrite - returning a CTE
+		resultJson = this.finalizePayloadJSON(resultJson, transformer, linkedDb, options);
+
+		return resultJson;
 	}
 }

@@ -53,6 +53,8 @@ VALUES
   ROW ('rreeeee', (VALUES ROW (5, 60), ROW (5, 2000)))
 RETURNING id, email`; // [✔]
 
+const resultNode = await registry['InsertStmt'].parse(sql);
+
 sql = `
 INSERT INTO users
   (id, email, (parent_user <~ users) ~> (id, email))
@@ -63,7 +65,9 @@ INSERT INTO users
   (id, email, (parent_user <~ users) ~> email)
 SELECT id, order_total, parent_order FROM orders WHERE 1`;
 
-//const resultNode = await registry['InsertStmt'].parse(sql);
+
+
+
 
 
 
@@ -100,7 +104,23 @@ INSERT INTO users
   (id, email, parent_user ~> (id, email))
 SELECT id, order_total AS email, ROW(2, parent_order) AS rr FROM orders as t WHERE 1`;
 
-const resultNode = await registry['InsertStmt'].parse(sql);
+//const resultNode = await registry['InsertStmt'].parse(sql);
+
+
+
+
+
+sql = `
+UPDATE users AS u
+SET
+  id = 2,
+  email = 'x@x.com',
+  (username, (parent_user <~ users) ~> id) = (232, 3445)
+WHERE parent_user ~> id = 2`;
+
+//const resultNode = await registry['UpdateStmt'].parse(sql);
+
+//const resultNode = await registry['Expr'].parse('(parent_user <~ parent_user <~ users) ~> id');
 
 
 

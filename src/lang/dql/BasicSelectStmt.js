@@ -98,7 +98,7 @@ export class BasicSelectStmt extends SelectorStmtMixin(
 
         // 2. Finalize generated JOINS
         // Generated JOINs are injected into the query
-        resultJson = this.finalizeJSON(resultJson, transformer, linkedDb, options);
+        resultJson = this.finalizeSelectorJSON(resultJson, transformer, linkedDb, options);
 
         // 3. Re-resolve output list for cases of just-added deep refs in selectList
         // wherein schemas wouldn't have been resolvable at the time

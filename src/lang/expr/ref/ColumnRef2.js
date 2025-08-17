@@ -41,29 +41,35 @@ export class ColumnRef2 extends AbstractClassicRef {
             return resolvedColumnRef2;
         };
 
-        let tableSchemaInScope;
+        let tableSchemasInScope;
         if (this.parentNode instanceof AbstractMagicRef) {
             if (this === this.parentNode.operand()) {
-                tableSchemaInScope = this.parentNode.parentNode.rhsSchema(transformer, linkedDb);
+                tableSchemasInScope = [this.parentNode.parentNode.rhsSchema(transformer, linkedDb)];
             } else {
-                tableSchemaInScope = this.parentNode.rhsSchema(transformer, linkedDb);
+                tableSchemasInScope = [this.parentNode.rhsSchema(transformer, linkedDb)];
             }
         } else {
-            tableSchemaInScope = this.climbTree((superParentNode, up) => {
-                if (superParentNode instanceof registry.InsertStmt) {
-                    const tableSchema = [...transformer.statementContext.artifacts.get('tableSchemas')][0].resultSchema;
-                    return tableSchema;
+            tableSchemasInScope = this.climbTree((superParentNode, up) => {
+                if (superParentNode instanceof registry.InsertStmt || superParentNode instanceof registry.UpdateStmt) {
+                    let tableSchemas = [...transformer.statementContext.artifacts.get('tableSchemas')].map((t) => t.resultSchema);
+                    // For updates, postgres target columns are resolved from just the target table
+                    if (this.options.dialect !== 'mysql') {
+                        tableSchemas = tableSchemas.slice(0, 1);
+                    }
+                    return tableSchemas;
                 }
                 if (superParentNode instanceof registry.TableSchema) {
-                    return superParentNode;
+                    return [superParentNode];
                 }
                 return up();
             });
         }
 
-        for (const columnSchema of tableSchemaInScope || []) {
-            resultSet = resultSet.concat(resolve(columnSchema) || []);
-            if (!inGrepMode && resultSet.length) break; // Matching current instance only
+        outer: for (const tableSchema of tableSchemasInScope || []) {
+            for (const columnSchema of tableSchema) {
+                resultSet = resultSet.concat(resolve(columnSchema) || []);
+                if (!inGrepMode && resultSet.length) break outer; // Matching current instance only
+            }
         }
 
         return resultSet;
