@@ -11,8 +11,12 @@ export const DDLSchemaMixin = (Class) => class extends Class {
 			return super.fromJSON(inputJson, options, callback);
 		}
 		const { result_schema, ...restJson } = inputJson;
+
 		const instance = super.fromJSON(restJson, options, callback);
-		if (instance) {
+		if (instance && result_schema) {
+			if (!(result_schema instanceof AbstractNode)) {
+				throw new Error(`Invalid Schema object passed at inputJson.result_schema`);
+			}
 			instance.#result_schema = result_schema;
 		}
 		return instance;

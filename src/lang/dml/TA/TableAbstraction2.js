@@ -55,7 +55,7 @@ export class TableAbstraction2 extends AbstractNode {
                 resultSchema = resultSchema.clone({ renameTo: subResultJson.pg_table_alias });
             }
 
-            transformer.statementContext.artifacts.get('tableSchemas').add({ resultSchema });
+            transformer.statementContext.artifacts.get('tableSchemas').add({ type: 'dml', resultSchema });
 
             const applicableAliasJson = Number(options.deSugar) > 1
                 && derivedAliasJson

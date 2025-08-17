@@ -77,12 +77,12 @@ export class ColumnRef2 extends AbstractClassicRef {
         }
         let resultJson = super.jsonfy(options, transformer, linkedDb);
         if (toKind === 1) {
-			resultJson = {
+            resultJson = {
                 ...resultJson,
-				nodeName: registry.ColumnRef1.NODE_NAME,
-			};
+                nodeName: registry.ColumnRef1.NODE_NAME,
+            };
             delete resultJson.qualifier; // by LQ_BACK_REF_ENDPOINT
-		}
+        }
         return resultJson;
     }
 }

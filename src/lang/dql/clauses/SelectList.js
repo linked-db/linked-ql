@@ -21,12 +21,12 @@ export class SelectList extends DDLSchemaMixin(AbstractNodeList) {
         let resolvedOutputList = [];
 
         const shouldFlattenUnaliasedRootObjects = Number(options.deSugar) > 2;
-        const shouldDedupe = true;
+        const shouldDedupe = false;
 
         const addOutputItem = (itemJson) => {
             if (shouldDedupe) {
                 resolvedOutputList = resolvedOutputList.reduce((result, existing) => {
-                    if (_eq(itemJson.alias.value, existing.alias.value, itemJson.alias.delim || existing.alias.delim)) {
+                    if (itemJson.alias && existing.alias && _eq(itemJson.alias.value, existing.alias.value, itemJson.alias.delim || existing.alias.delim)) {
                         return result;
                     }
                     return result.concat(existing);
@@ -84,7 +84,7 @@ export class SelectList extends DDLSchemaMixin(AbstractNodeList) {
         let starsFound;
 
         const [
-            selectItems, 
+            selectItems,
             outputSchemas
         ] = resultJson.entries.reduce(([a, b], { _originalStarJson, ...fieldJson }) => {
 

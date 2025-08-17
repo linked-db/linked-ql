@@ -1,6 +1,6 @@
 import { TokenStream } from '../src/lang/TokenStream.js';
 
-const sql = ``;
+const sql = `DEFAULT VALUES`;
 
 const tokenStream = await TokenStream.create(sql, { structured: true });
 

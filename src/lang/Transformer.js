@@ -19,6 +19,10 @@ export class Transformer {
         return this.#parentTransformer.statementContext;
     }
 
+    get rootContext() {
+        return this.#parentTransformer?.rootContext || this;
+    }
+
     #isStatementContext;
     get isStatementContext() { return this.#isStatementContext; }
 
@@ -40,7 +44,7 @@ export class Transformer {
 
     rand(type, rands = this.#rands) {
         rands.set(type, !rands.has(type) ? 0 : rands.get(type) + 1);
-        return `$${type}${rands.get(type)}`;
+        return `$:${type}${rands.get(type)}`;
     }
 
     hash(value, type, hashes = this.#hashes) {

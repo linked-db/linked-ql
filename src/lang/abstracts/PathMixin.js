@@ -36,10 +36,8 @@ export const PathMixin = (Class) => class extends Class {
 		return result;
 	}
 
-	static async parse(input, { left = undefined, minPrecedence = 0, trail = [], ...options } = {}) {
-		if (left) return;
-
-		const tokenStream = await this.toStream(input, options);
+	static async _parseFromRules(tokenStream, syntaxRules, { left = undefined, minPrecedence = 0, trail, ...options }, resultAST = {}) {
+		if (left) return super._parseFromRules(tokenStream, syntaxRules, { left, minPrecedence, trail, ...options }, resultAST);
 		const qualifierTokens = [];
 
 		while (true) {
@@ -49,7 +47,7 @@ export const PathMixin = (Class) => class extends Class {
 				qualifierTokens.push(await tokenStream.eat());
 				qualifierTokens.push(await tokenStream.eat());
 			} else break;
-			// Determine whether to eat the punctuation ahead pf another loop
+			// Determine whether to eat the punctuation ahead of another loop
 			if (await tokenStream.match(2, 'punctuation', '.') || (await tokenStream.match(2, 'version_spec') && await tokenStream.match(3, 'punctuation', '.'))) {
 				qualifierTokens.push(await tokenStream.eat());
 			}
@@ -64,7 +62,7 @@ export const PathMixin = (Class) => class extends Class {
 		} else {
 			left = false; // Explicitly set to false to prevent super.parse() trying parsing the qualifier rule
 		}
-		
-		return await super.parse(tokenStream, { left, minPrecedence, trail, ...options });
+
+		return await super._parseFromRules(tokenStream, syntaxRules, { left, minPrecedence, trail, ...options }, resultAST);
 	}
 }

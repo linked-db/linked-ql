@@ -8,7 +8,7 @@ export class SelectItem extends DDLSchemaMixin(AbstractNode) {
 
     static get syntaxRules() {
         return [
-            { type: ['ColumnRef0', 'Expr', 'MYVarAssignmentExpr'], as: 'expr' },
+            { type: ['Expr', 'ColumnRef0', 'MYVarAssignmentExpr'], as: 'expr' },
             { type: 'SelectItemAlias', as: 'alias', optional: true }
         ];
     }
@@ -49,8 +49,6 @@ export class SelectItem extends DDLSchemaMixin(AbstractNode) {
                 const isToPG = this.options.dialect === 'postgres';
                 if (exprNode instanceof registry.CallExpr && isToPG) {
                     derivedAliasJson = { as_kw: true, value: exprNode.name().toLowerCase() };
-                } else {
-                    derivedAliasJson = { as_kw: true, value: isToPG ? '?column?' : exprNode.stringify() };
                 }
             }
         }
@@ -93,7 +91,14 @@ export class SelectItem extends DDLSchemaMixin(AbstractNode) {
 
             // ----------------
 
-            const schemaIdent = derivedAliasJson && { nodeName: registry.Identifier.NODE_NAME, value: derivedAliasJson.value, delim: derivedAliasJson.delim };
+            const schemaIdent = derivedAliasJson && {
+                nodeName: registry.Identifier.NODE_NAME,
+                value: derivedAliasJson.value,
+                delim: derivedAliasJson.delim
+            } || {
+                nodeName: registry.Identifier.NODE_NAME,
+                value: this.options.dialect === 'postgres' ? '?column?' : exprNode.stringify(),
+            };
 
             let resultSchema = exprJson.result_schema;
 
@@ -101,8 +106,7 @@ export class SelectItem extends DDLSchemaMixin(AbstractNode) {
                 const tableSchema = resultSchema.parentNode;
                 resultSchema = resultSchema.clone({ renameTo: schemaIdent });
                 tableSchema._adoptNodes(resultSchema);
-            } else if (derivedAliasJson
-                && !(exprNode instanceof registry.LQDeepRef1)
+            } else if (!(exprNode instanceof registry.LQDeepRef1)
                 && !(exprNode instanceof registry.ColumnRef0)) {
                 resultSchema = registry.ColumnSchema.fromJSON({
                     name: schemaIdent,

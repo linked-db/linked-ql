@@ -61,9 +61,17 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 
 		// Resolve from outputSchemas first?
 		if (transformer && this.canReferenceInlineTables()) {
-			let statementContext = transformer.statementContext
+			let statementContext = transformer.statementContext;
+			let originalType;
 			do {
 				for (const { type, resultSchema: tableSchema } of statementContext.artifacts.get('tableSchemas')) {
+					if (originalType && originalType !== 'dml' && type === 'dml') {
+						// The nested SELECT in an "INSERT ... SELECT" shouldn't see the INSERT
+						continue;
+					}
+					if (!originalType) {
+						originalType = type;
+					}
 					if (type === 'CTEItem' && deepMatchCallback) {
 						// columns can't directly reference CTE output columns
 						continue;

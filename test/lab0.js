@@ -40,6 +40,10 @@ FROM (VALUES
 RETURNING id, name, v.row_index; 
 `;
 
-console.log('________________________', (await client.query(usersSql3)).rows);
+const sql = `SELECT ROW_NUMBER() OVER () AS r, id, name, (
+        SELECT * FROM users
+        WHERE id = r
+      ) AS parent_user FROM users`;
+console.log('________________________', (await client.query(sql)).rows);
 
 process.exit();

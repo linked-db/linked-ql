@@ -148,7 +148,7 @@ export class FromItem extends DDLSchemaMixin(AbstractNode) {
                 }));
             }
 
-            transformer.statementContext.artifacts.get('tableSchemas').add({ type: this.joinType?.(), lateral: this.lateralKW(), resultSchema });
+            transformer.statementContext.artifacts.get('tableSchemas').add({ type: this.joinType?.() || 'dql', lateral: this.lateralKW(), resultSchema });
 
             const applicableAliasJson = !(this.expr() instanceof registry.SRFExpr1) && (
                 Number(options.deSugar) > 2 || Number(options.deSugar) > 1 && (this.parentNode?.entries().length || 0) > 1
