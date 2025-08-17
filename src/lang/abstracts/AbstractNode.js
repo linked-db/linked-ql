@@ -492,7 +492,6 @@ export class AbstractNode {
 						$decideThrow(`Failed to resolve any argument for "${fieldName}"`, fieldSchema.rulePath, assertsGrep);
 						return false; // API mismatch
 					}
-					console.log(inputJson, resultArray+'');
 					$decideThrow(`Failed to resolve some arguments for "${fieldName}"`, fieldSchema.rulePath, assertsGrep);
 					return false; // API mismatch
 				}

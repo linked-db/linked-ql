@@ -157,6 +157,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			ColumnRef1,
 			SelectItemAlias,
 			ColumnRef2,
+			ColumnsConstructor,
 			TypedRowConstructor,
 			RowConstructor,
 			DefaultLiteral,
@@ -245,21 +246,22 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			// Create a CTE entry?
 			let memoSelect;
 			if (!onConflictClauseContext
-				&& baseSelect.from_clause) {
-				const memoSelectAlias = transformer.rand('memo');
+				&& baseSelect.from_clause
+				&& !/^[`"]\$memo~.+[`"]$/.test(selectStmt.fromClause().entries()[0].expr() + '')) {
+				const memoSelectAlias = transformer.rootContext.rand('memo');
 				memoSelect = {
 					...baseSelect,
 					uuid: memoSelectAlias,
-					select_list: { nodeName: SelectList.NODE_NAME, entries: [rowNumberExpr('$:row_number:a')] },
+					select_list: { nodeName: SelectList.NODE_NAME, entries: [rowNumberExpr('$row_number~a')] },
 				};
 				payloadDimensions.add({ type: 'memo', query: memoSelect });
+
 				const newBaseSelectFromItem = { nodeName: FromItem.NODE_NAME, expr: { nodeName: TableRef1.NODE_NAME, value: memoSelectAlias } };
 				baseSelect = {
 					nodeName: CompleteSelectStmt.NODE_NAME,
 					select_list: { nodeName: SelectList.NODE_NAME, entries: [] },
 					from_clause: { nodeName: FromClause.NODE_NAME, entries: [newBaseSelectFromItem] },
 				};
-
 			}
 
 			// Resolve base select list
@@ -268,7 +270,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				if (fieldJson.alias && obfuscateAlias) {
 					fieldJson = {
 						...fieldJson,
-						alias: { ...fieldJson.alias, value: fieldJson.alias.value + transformer.rand('rand') },
+						alias: { ...fieldJson.alias, value: fieldJson.alias.value + transformer.rand('rand', { asSalt: true }) },
 					};
 				} else if (!fieldJson.alias) {
 					fieldJson.alias = { nodeName: SelectItemAlias.NODE_NAME, as_kw: true, value: transformer.rand('value') };
@@ -292,6 +294,12 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 								alias: fieldJson.alias,
 							}, true);
 						});
+						if (!(columns.get(columnOffset).right() instanceof ColumnsConstructor)) {
+							subSelectItems = [{
+								nodeName: SelectItem.NODE_NAME,
+								expr: { nodeName: TypedRowConstructor.NODE_NAME, entries: subSelectItems.map((s) => s.expr) },
+							}];
+						}
 					} else {
 						subSelectItems = [rewriteAgainstMemoSelect(fieldJson)];
 					}
@@ -389,7 +397,6 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			TableAbstraction2,
 		} = registry;
 
-		const rands = new Map;
 		const baseUUID = transformer.rootContext.hash(this, 'main');
 		const jsonfy = (node) => {
 			return node.jsonfy($options, transformer, linkedDb);
@@ -401,6 +408,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 
 		const rhsOperand1Json = { ...rhsOperandJson, nodeName: ColumnRef1.NODE_NAME };
 		const rhsTable1Json = { ...rhsTableJson, nodeName: TableRef1.NODE_NAME };
+		const isDeepRef = detail instanceof LQDeepRef2;
 
 		// Figure the expected payload structure
 		let columnsConstructorJson;
@@ -415,6 +423,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		// Payload structure length validity
 		const columnsLength = columnsConstructorJson.entries.length;
 		const dimensionValidateRowLength = (rowNode, result_schema = null) => {
+			if (isDeepRef) return rowNode;
 			let rowLength = 1;
 			if (result_schema) {
 				rowLength = result_schema.length;
@@ -441,7 +450,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			if (whereExprRhs) {
 				whereExpr = {
 					nodeName: BinaryExpr.NODE_NAME,
-					left: { nodeName: ColumnRef1.NODE_NAME, value: '$:row_number:b' },
+					left: { nodeName: ColumnRef1.NODE_NAME, value: '$row_number~b' },
 					operator: '=',
 					right: whereExprRhs,
 				};
@@ -456,7 +465,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 
 			const tableSpec = {
 				nodeName: FromItem.NODE_NAME,
-				expr: { nodeName: TableRef1.NODE_NAME, value: whereExprRhs ? `${sourceUuid}:indices` : sourceUuid },
+				expr: { nodeName: TableRef1.NODE_NAME, value: whereExprRhs ? `${sourceUuid}~indices` : sourceUuid },
 			};
 
 			const selectStmt = {
@@ -493,7 +502,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			};
 
 			const query = {
-				uuid: transformer.rand('dependents', rands),
+				uuid: transformer.rootContext.rand('dependents'),
 				nodeName: UpdateStmt.NODE_NAME,
 				table_expr: { nodeName: TableAbstraction2.NODE_NAME, table_ref: rhsTable1Json },
 				set_clause: { nodeName: SetClause.NODE_NAME, entries: [] },
@@ -564,13 +573,13 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 					query.pg_default_values_clause = jsonfy(payload);
 				}
 			} else {
-				let rowJson = jsonfy(payload);
 				dimensionValidateRowLength(payload);
-				if (fKBindingJson) {
-					rowJson = { ...rowJson, entries: rowJson.entries.concat(fKBindingJson) };
-				}
+				let rowJson = jsonfy(payload);
 				if (!(payload instanceof RowConstructor)) {
 					rowJson = { nodeName: RowConstructor.NODE_NAME/* most formal */, entries: [rowJson] };
+				}
+				if (fKBindingJson) {
+					rowJson = { ...rowJson, entries: rowJson.entries.concat(fKBindingJson) };
 				}
 				query.values_clause.entries.push(rowJson);
 			}
@@ -584,7 +593,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			// INSERT INTO t1 (a, (fk <~ fk <~ t2) ~> a) SELECT a, b FROM t3
 
 			const queryTemplate = () => ({
-				uuid: transformer.rand('dependents'),
+				uuid: transformer.rootContext.rand('dependents'),
 				nodeName: this.NODE_NAME,
 				table_ref: rhsTableJson,
 				column_list: ColumnsConstructor.fromJSON({ entries: columnsConstructorJson.entries.concat(rhsOperandJson) }).jsonfy(),
@@ -606,21 +615,21 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 
 			const offload = (payload, correlationRhs = null) => {
 
+				if (!queries.length) {
+					queries.push(queryTemplate());
+				}
+				let currentQuery = queries[queries.length - 1];
+
 				if (payload instanceof SelectStmt) {
 					// Meaning we're from a literal INSERT ... SELECT statement, not an INSERT ... VALUES (+SELECT) statement
 					// and this time, we want to correlate with base query's row number
 					correlationRhs = {
 						nodeName: ColumnRef1.NODE_NAME,
-						value: '$:row_number:a',
+						value: '$row_number~a',
 					};
 				}
 
 				const fKBindingJson = createForeignBinding(baseUUID, lhsOperandJson, correlationRhs);
-
-				if (!queries.length) {
-					queries.push(queryTemplate());
-				}
-				let currentQuery = queries[queries.length - 1];
 
 				// Scenario 2:
 				// When the base query is an INSERT ... VALUES (+DerivedQuery)
@@ -640,7 +649,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				// or when the preceding scenario is the case
 				if (payload instanceof SelectStmt) {
 					let selectJson = jsonfy(payload);
-					if (!isDerivedQuery) {
+					if (!isDerivedQuery && !isDeepRef) {
 						// Fully qualify output names to match target column names. Not necessary at the LinkedQL level
 						selectJson = deriveSelectAliasesFromColumns(selectJson, columnsConstructorJson);
 					}
@@ -688,7 +697,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		const rhsOperandPKJson = { nodeName: ColumnRef1.NODE_NAME, value: rhsOperand.value(), delim: rhsOperand._get('delim') };
 
 		const queryTemplate = () => ({
-			uuid: transformer.rand('dependencies'),
+			uuid: transformer.rootContext.rand('dependencies'),
 			nodeName: this.NODE_NAME,
 			table_ref: rhsTableJson,
 			column_list: columnsConstructorJson,
@@ -707,6 +716,8 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				queries.push(queryTemplate());
 			}
 			let currentQuery = queries[queries.length - 1];
+
+			// -------------
 
 			let isDerivedQuery = false;
 
@@ -730,14 +741,15 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				let selectJson = jsonfy(payload);
 				let correlationRhs;
 				if (!isDerivedQuery) {
-					// Fully qualify output names to match target column names. Not necessary at the LinkedQL level
-					selectJson = deriveSelectAliasesFromColumns(selectJson, columnsConstructorJson);
-
+					if (!isDeepRef) {
+						// Fully qualify output names to match target column names. Not necessary at the LinkedQL level
+						selectJson = deriveSelectAliasesFromColumns(selectJson, columnsConstructorJson);
+					}
 					// Meaning we're from a literal INSERT ... SELECT statement, not an INSERT ... VALUES (+SELECT) statement
 					// and this time, we want to correlate with base query's row number
 					correlationRhs = {
 						nodeName: ColumnRef1.NODE_NAME,
-						value: '$:row_number:a',
+						value: '$row_number~a',
 					};
 				}
 
@@ -828,29 +840,35 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 
 		const baseUUID = transformer.rootContext.hash(this, 'main');
 		const cte = { nodeName: CTE.NODE_NAME, declarations: [], body: null };
-		const $transformer = new Transformer((node, defaultTransform) => defaultTransform(), null, this);
+		const $transformer = transformer;//new Transformer((node, defaultTransform) => defaultTransform(), null, this);
 
 		// Promote a query to a CTEItem
 		const toCTEItem = (dimensionID, queryJson, indices = [], transformer = $transformer) => {
 
-			// Desugar query and flatten if itself a CTE
-			if (queryJson.nodeName === CTE.NODE_NAME) {
-				cte.declarations.push(...queryJson.declarations);
-				queryJson = queryJson.body;
-			}
-
-			// Compose declaration and add...
-			cte.declarations.push(CTEItem.fromJSON({
+			let cteItemJson = CTEItem.fromJSON({
 				nodeName: CTEItem.NODE_NAME,
 				alias: { nodeName: CTEItemAlias.NODE_NAME, value: dimensionID },
 				expr: queryJson,
-			}, this.options).jsonfy(options, transformer, linkedDb));
+			}, this.options).jsonfy(options, transformer, linkedDb);
+
+			// Desugar query and flatten if itself a CTE
+			if (cteItemJson.expr?.nodeName === CTE.NODE_NAME) {
+				cte.declarations.push(...cteItemJson.expr.declarations);
+				cteItemJson = {
+					nodeName: CTEItem.NODE_NAME,
+					alias: { nodeName: CTEItemAlias.NODE_NAME, value: dimensionID },
+					expr: cteItemJson.expr.body,
+				};
+			}
+
+			// Compose declaration and add...
+			cte.declarations.push(cteItemJson);
 
 			if (!indices.length) return;
 
 			cte.declarations.push(CTEItem.fromJSON({
 				nodeName: CTEItem.NODE_NAME,
-				alias: { nodeName: CTEItemAlias.NODE_NAME, value: `${dimensionID}:indices` },
+				alias: { nodeName: CTEItemAlias.NODE_NAME, value: `${dimensionID}~indices` },
 				expr: flipSelectFromWithRowNumbers(indices, dimensionID),
 			}, this.options).jsonfy(options, transformer, linkedDb));
 		};
@@ -986,7 +1004,7 @@ const deriveSelectAliasesFromColumns = (selectJson, columnsConstructorJson) => {
 };
 
 const flipSelectFromWithRowNumbers = (selectItems, fromName) => {
-	const rowNumberJson = rowNumberExpr('$:row_number:b');
+	const rowNumberJson = rowNumberExpr('$row_number~b');
 
 	selectItems = selectItems.map((fieldJson) => {
 		if (fieldJson.alias) {

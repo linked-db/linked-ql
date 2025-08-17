@@ -42,12 +42,12 @@ export class Transformer {
             || statementNode !== parentTransformer.statementNode;
     }
 
-    rand(type, rands = this.#rands) {
+    rand(type, { asSalt = false, rands = this.#rands } = {}) {
         rands.set(type, !rands.has(type) ? 0 : rands.get(type) + 1);
-        return `$:${type}${rands.get(type)}`;
+        return `${asSalt ? '~' : '$'}${type}~${rands.get(type)}`;
     }
 
-    hash(value, type, hashes = this.#hashes) {
+    hash(value, type, { hashes = this.#hashes } = {}) {
         if (!hashes.has(value)) {
             hashes.set(value, this.rand(type));
         }

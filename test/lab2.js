@@ -53,7 +53,7 @@ VALUES
   ROW ('rreeeee', (VALUES ROW (5, 60), ROW (5, 2000)))
 RETURNING id, email`; // [✔]
 
-const resultNode = await registry['InsertStmt'].parse(sql);
+//const resultNode = await registry['InsertStmt'].parse(sql);
 
 sql = `
 INSERT INTO users
@@ -101,10 +101,10 @@ SELECT id, order_total AS email, parent_order AS rr FROM orders as t WHERE 1`;
 
 sql = `
 INSERT INTO users
-  (id, email, parent_user ~> (id, email))
+  (username, email, (parent_user <~ parent_user <~ users) ~> parent_user ~> (status, email))
 SELECT id, order_total AS email, ROW(2, parent_order) AS rr FROM orders as t WHERE 1`;
 
-//const resultNode = await registry['InsertStmt'].parse(sql);
+const resultNode = await registry['InsertStmt'].parse(sql);
 
 
 
