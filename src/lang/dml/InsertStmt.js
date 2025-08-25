@@ -137,10 +137,12 @@ export class InsertStmt extends PayloadStmtMixin(
 		}, transformer, this/* IMPORTANT */);
 
 		let resultJson = super.jsonfy(options, transformer, linkedDb);
+		const toDialect = options.toDialect || this.options.dialect;
 
 		// Order ouput JSON
-		if ((options.toDialect || this.options.dialect) === 'mysql') {
+		if (toDialect === 'mysql') {
 			resultJson = {
+				uuid: resultJson.uuid,
 				nodeName: resultJson.nodeName,
 				table_ref: resultJson.table_ref,
 				my_partition_clause: resultJson.my_partition_clause,
@@ -154,6 +156,7 @@ export class InsertStmt extends PayloadStmtMixin(
 			};
 		} else {
 			resultJson = {
+				uuid: resultJson.uuid,
 				nodeName: resultJson.nodeName,
 				table_ref: resultJson.table_ref,
 				pg_table_alias: resultJson.pg_table_alias,
@@ -167,7 +170,7 @@ export class InsertStmt extends PayloadStmtMixin(
 			};
 		}
 
-		if ((options.toDialect || this.options.dialect) === 'postgres'
+		if (toDialect === 'postgres'
 			&& !resultJson.pg_table_alias
 			&& Number(options.deSugar) > 2) {
 			resultJson = {

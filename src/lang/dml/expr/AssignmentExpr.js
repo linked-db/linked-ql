@@ -9,7 +9,7 @@ export class AssignmentExpr extends BinaryExpr {
             { type: ['LQDeepRef1', 'ColumnsConstructor', 'ColumnRef2'], as: 'left', dialect: 'postgres' },
             { type: ['LQDeepRef1', 'ColumnRef1'], as: 'left', dialect: 'mysql' },
             { type: 'operator', as: 'operator', value: '=' },
-            { type: ['ValuesTableLiteral', 'Expr'], as: 'right' },
+            { type: ['ValuesTableLiteral', 'DerivedQuery', 'Expr'], as: 'right' },
         ];
     }
 }

@@ -166,10 +166,10 @@ export class DeleteStmt extends SelectorStmtMixin(
         return super.jsonfy(options, transformer, linkedDb);
     }
 
-    applySelectorDimensions(resultJson, selectorDimensions, options, transformer = null, linkedDb = null) {
-        // This is Postgres-specific
+    finalizeSelectorJSON(resultJson, transformer, linkedDb, options) {
         if (this.options.dialect !== 'postgres') {
-            return super/* SelectorStmtMixin */.applySelectorDimensions(resultJson, selectorDimensions, options, transformer, linkedDb);
+            // Redirect finalization to the standard finalization logic
+            return super.finalizeSelectorJSON(resultJson, transformer, linkedDb, options);
         }
 
         const {

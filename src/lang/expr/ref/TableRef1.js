@@ -52,15 +52,15 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 			const resolvedTableRef = this.constructor.fromJSON({
 				...tableSchema.name().jsonfy({ nodeNames: false }),
 				result_schema: tableSchema,
-				qualifier: qualifierJson
+				qualifier: qualifierJson,
 			});
-			this.parentNode._adoptNodes(resolvedTableRef);
+			this.parentNode?._adoptNodes(resolvedTableRef);
 
 			return resolvedTableRef;
 		};
 
 		// Resolve from outputSchemas first?
-		if (transformer && this.canReferenceInlineTables()) {
+		if (this.canReferenceInlineTables() && transformer) {
 			let statementContext = transformer.statementContext;
 			let originalType;
 			do {
@@ -130,7 +130,7 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 		}
 
 		if (options.deSugar && resultJson.version_spec) {
-			resultJson = { version_spec: undefined, ...resultJson };
+			resultJson = { ...resultJson, version_spec: undefined };
 		}
 
 		return resultJson;

@@ -29,7 +29,7 @@ export class SelectStmt extends AbstractNonDDLStmt {
                     { type: 'WindowClause', as: 'window_clause', optional: true, autoSpacing: '\n' },
                     ...
                     extRules
-                ],
+                ], autoSpacing: '\n',
             },
         ];
         const part2 = () => [

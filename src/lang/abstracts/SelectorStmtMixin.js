@@ -70,7 +70,6 @@ export const SelectorStmtMixin = (Class) => class extends Class {
 
             // Other
             return defaultTransform();
-
         }, transformer, this/* IMPORTANT */);
 
         return super.jsonfy(options, transformer, linkedDb);
@@ -177,14 +176,13 @@ export const SelectorStmtMixin = (Class) => class extends Class {
             return {
                 nodeName: ColumnRef1.NODE_NAME,
                 qualifier: { nodeName: TableRef1.NODE_NAME, value: dimensionID },
-                value: selectAlias
+                value: selectAlias,
             };
         };
 
         const selectorDimension = { id: dimensionID, type: 'join', query: joinJson, alias, select, detail };
 
-        selectorDimensions
-            ?.set(dimensionID, selectorDimension);
+        selectorDimensions.set(dimensionID, selectorDimension);
 
         return selectorDimension;
     }

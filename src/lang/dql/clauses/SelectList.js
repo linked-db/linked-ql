@@ -9,7 +9,7 @@ export class SelectList extends DDLSchemaMixin(AbstractNodeList) {
 
     static get syntaxRules() {
         const itemSeparator = { type: 'punctuation', value: ',' };
-        return { type: 'SelectItem', as: 'entries', arity: { min: 1 }, itemSeparator, assert: true, autoIndent: 6 };
+        return { type: 'SelectItem', as: 'entries', arity: { min: 1 }, itemSeparator, assert: true, autoIndent: 2 };
     }
 
     /* JSON API */

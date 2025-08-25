@@ -29,13 +29,14 @@ export class PGTypedArrayLiteral extends AbstractNodeList {
     /* JSON API */
 
     jsonfy(options = {}, transformer = null, linkedDb = null) {
+        let resultJson = super.jsonfy(options, transformer, linkedDb);
         if ((options.toDialect || this.options.dialect) === 'mysql') {
-            return {
+            resultJson = {
                 nodeName: registry.CallExpr.NODE_NAME,
                 name: 'JSON_ARRAY',
-                arguments: this.entries().map((e) => e.jsonfy/* @case1 */(options, transformer, linkedDb)),
+                arguments: resultJson.entries,
             };
         }
-        return super.jsonfy(options, transformer, linkedDb);
+        return resultJson;
     }
 }

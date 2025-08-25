@@ -341,7 +341,8 @@ export class TokenStream {
                 // this block must run before the generic whitespace-handling block below
                 // Meanhwile, we're also using the opportunity to handle delimited ones's ending
                 if (localState.token?.type === 'version_spec') {
-                    const isEndTag = localState.token.delim ? char === localState.token.delim : (charIsWhitespace || char === '.' || char === ',' || char === ';' || char === ')');
+                    const isEndQuote = localState.token.delim && char === localState.token.delim;
+                    const isEndTag = isEndQuote || (charIsWhitespace || char === '.' || char === ',' || char === ';' || char === ')');
                     if (isEndTag) {
                         yield* $finalizeToken(localState.token);
                         localState.token = null;
@@ -357,7 +358,7 @@ export class TokenStream {
                     } else {
                         localState.token.value += char;
                     }
-                    if (!isEndTag) {
+                    if (!isEndTag || isEndQuote) {
                         state.next();
                         continue;
                     }

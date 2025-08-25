@@ -28,35 +28,35 @@ $describe('Parser - DQL Clauses', () => {
         });
     });
 
-    $describe('TableAbstraction3', () => {
+    $describe('FromItem', () => {
         $it('should parse a table reference as a from element', async () => {
-            await testParseAndStringify('TableAbstraction3', 'my_table');
+            await testParseAndStringify('FromItem', 'my_table');
         });
 
         $it('should parse a from element with an AS keyword', async () => {
-            await testParseAndStringify('TableAbstraction3', 'my_table AS t');
+            await testParseAndStringify('FromItem', 'my_table AS t');
         });
 
         $it('should parse a from element with an alias, omitting the AS keyword', async () => {
-            await testParseAndStringify('TableAbstraction3', 'my_table t');
+            await testParseAndStringify('FromItem', 'my_table t');
         });
 
         $it('should parse a subquery as a from element with an alias', async () => {
-            await testParseAndStringify('TableAbstraction3', '(SELECT 2) AS subq');
+            await testParseAndStringify('FromItem', '(SELECT 2) AS subq');
         });
 
         $it('should parse a table reference with an ONLY keyword (inheritance)', async () => {
-            await testParseAndStringify('TableAbstraction3', 'ONLY my_parent_table', { dialect: 'postgres' });
-            await testParseAndStringify('TableAbstraction3', 'ONLY my_parent_table *', { dialect: 'postgres' });
+            await testParseAndStringify('FromItem', 'ONLY my_parent_table', { dialect: 'postgres' });
+            await testParseAndStringify('FromItem', 'ONLY my_parent_table *', { dialect: 'postgres' });
         });
 
-        $describe('TableAbstraction3 - TABLESAMPLE', () => {
+        $describe('FromItem - TABLESAMPLE', () => {
             $it('should parse TABLESAMPLE BERNOULLI', async () => {
-                await testParseAndStringify('TableAbstraction3', 'my_table TABLESAMPLE BERNOULLI (20)', { dialect: 'postgres' });
+                await testParseAndStringify('FromItem', 'my_table TABLESAMPLE BERNOULLI (20)', { dialect: 'postgres' });
             });
 
             $it('should parse TABLESAMPLE SYSTEM with REPEATABLE', async () => {
-                await testParseAndStringify('TableAbstraction3', 'my_table TABLESAMPLE SYSTEM (50) REPEATABLE (123)', { dialect: 'postgres' });
+                await testParseAndStringify('FromItem', 'my_table TABLESAMPLE SYSTEM (50) REPEATABLE (123)', { dialect: 'postgres' });
             });
         });
     });
@@ -99,11 +99,11 @@ $describe('Parser - DQL Clauses', () => {
         });
 
         $it('should parse ROWS FROM with function list and aliases', async () => {
-            await testParseAndStringify('FromClause', 'FROM ROWS FROM(func1(), func2()) AS funcs (a, b)', { dialect: 'postgres' });
+            await testParseAndStringify('FromClause', 'FROM ROWS FROM (func1(), func2()) AS funcs (a, b)', { dialect: 'postgres' });
         });
 
         $it('should parse ROWS FROM with WITH ORDINALITY', async () => {
-            await testParseAndStringify('FromClause', 'FROM ROWS FROM(func1(), func2()) WITH ORDINALITY', { dialect: 'postgres' });
+            await testParseAndStringify('FromClause', 'FROM ROWS FROM (func1(), func2()) WITH ORDINALITY', { dialect: 'postgres' });
         });
     });
 
@@ -400,6 +400,33 @@ $describe('Parser - DQL Statements', () => {
             await testParseAndStringify('CompleteSelectStmt', `SELECT * FROM (VALUES (1, 'a'), (2, 'b')) AS pairs (id, label)`);
             await testParseAndStringify('CompleteSelectStmt', `SELECT named, (SELECT COUNT(*) FROM logins WHERE user_id = users.id) AS login_count FROM users`);
             await testParseAndStringify('CompleteSelectStmt', `SELECT region, product, GROUPING(region) AS is_region_grouped, GROUPING(product) AS is_product_grouped FROM sales GROUP BY CUBE (region, product)`, { dialect: 'postgres' });
+        });
+    });
+
+    $describe('CompositeSelectStmt: advanced From Items - Postgres', () => {
+        $it('should parse a SELECT ... FROM (VALUES ...)', async () => {
+            await testParseAndStringify('CompleteSelectStmt', `SELECT a, c FROM (VALUES (1, 2, '3')) t (a, b, c)`);
+        });
+
+        $it('should parse a SELECT ... FROM <call expression>', async () => {
+            await testParseAndStringify('CompleteSelectStmt', `SELECT * FROM call_expr()`);
+        });
+
+        $it('should parse a SELECT ... FROM <call expression> WITH ORDINALITY', async () => {
+            await testParseAndStringify('CompleteSelectStmt', `SELECT * FROM call_expr() WITH ORDINALITY t (x, y)`);
+        });
+
+        $it('should parse a SELECT ... FROM <call expression> with inline column schemas', async () => {
+            await testParseAndStringify('CompleteSelectStmt', `SELECT * FROM call_expr() AS (x VARCHAR, y TEXT)`);
+            await testParseAndStringify('CompleteSelectStmt', `SELECT * FROM call_expr() AS t (x VARCHAR, y TEXT)`);
+        });
+
+        $it('should parse a SELECT ... FROM ROWS FROM <call expression>', async () => {
+            await testParseAndStringify('CompleteSelectStmt', `SELECT * FROM ROWS FROM (call_expr1() AS (x VARCHAR, y TEXT), call_expr2(), call_expr3() AS (z JSON))`);
+        });
+
+        $it('should parse a SELECT ... FROM ROWS FROM <call expression> WITH ORDINALITY', async () => {
+            await testParseAndStringify('CompleteSelectStmt', `SELECT * FROM ROWS FROM (call_expr1() AS (x VARCHAR, y TEXT), call_expr2(), call_expr3() AS (z JSON)) WITH ORDINALITY`);
         });
     });
 

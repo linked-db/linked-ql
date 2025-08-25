@@ -8,8 +8,8 @@ export class PGDefaultValuesClause extends AbstractNode {
         return {
             dialect: 'postgres',
             syntax: [
-                { type: 'keyword', value: 'DEFAULT' },
-                { type: 'keyword', as: '_'/* temp fix */, value: 'VALUES' },
+                { type: 'keyword', as: '.', value: 'DEFAULT' },
+                { type: 'keyword', value: 'VALUES' },
             ]
         };
     }

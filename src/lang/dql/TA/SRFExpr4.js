@@ -14,8 +14,7 @@ export class SRFExpr4 extends DDLSchemaMixin(AbstractNodeList) {
             {
                 type: 'paren_block',
                 syntax: { type: 'SRFExpr3', as: 'entries', arity: { min: 1 }, itemSeparator, assert: true, autoIndent: 2 },
-                autoIndent: true,
-                autoSpacing: false
+                autoIndent: true
             },
             {
                 optional: true,

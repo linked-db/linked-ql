@@ -182,7 +182,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 					const dimension = this.createPayloadDimension(columnRef, transformer, linkedDb, { onConflictClauseContext, ...$options });
 					dimensionsMap.set(columnOffset, dimension);
 
-					if (dimension.type === 'dependencies' && dimension.lhsOperandJson) {
+					if (dimension.refMode === 'dependency' && dimension.lhsOperandJson) {
 						return columnList.concat({
 							nodeName: ColumnRef2.NODE_NAME,
 							value: dimension.lhsOperandJson.value,
@@ -222,10 +222,17 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		const deSugarValuesFromValues = (valuesEntries, dimensionsMap) => {
 			return valuesEntries.map((valuesRow, rowOffset) => {
 				return valuesRow.reduce((valuesRow, valueNode, columnOffset) => {
-					const valueJson = dimensionsMap.has(columnOffset)
-						? dimensionsMap.get(columnOffset).offload(valueNode, rowOffset)
-						: jsonfy(valueNode);
-
+					let valueJson;
+					if (columns.get(columnOffset) instanceof LQDeepRef2 && valueNode instanceof DefaultLiteral) {
+						valueJson = dimensionsMap.get(columnOffset).offload(
+							PGDefaultValuesClause.fromJSON({ value: 'DEFAULT' }, this.options),
+							rowOffset
+						);
+					} else if (dimensionsMap.has(columnOffset)) {
+						valueJson = dimensionsMap.get(columnOffset).offload(valueNode, rowOffset);
+					} else {
+						valueJson = jsonfy(valueNode);
+					}
 					return valueJson
 						? valuesRow.concat(valueJson)
 						: valuesRow;
@@ -254,7 +261,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 					uuid: memoSelectAlias,
 					select_list: { nodeName: SelectList.NODE_NAME, entries: [rowNumberExpr('$row_number~a')] },
 				};
-				payloadDimensions.add({ type: 'memo', query: memoSelect });
+				payloadDimensions.add({ refMode: 'memo', query: memoSelect });
 
 				const newBaseSelectFromItem = { nodeName: FromItem.NODE_NAME, expr: { nodeName: TableRef1.NODE_NAME, value: memoSelectAlias } };
 				baseSelect = {
@@ -406,8 +413,12 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		const rhsOperandJson = jsonfy(rhsOperand);
 		const rhsTableJson = jsonfy(rhsTable);
 
-		const rhsOperand1Json = { ...rhsOperandJson, nodeName: ColumnRef1.NODE_NAME };
+		const lhsOperand1Json = lhsOperand.jsonfy({ toKind: 1 });
+		const rhsOperand1Json = rhsOperand.jsonfy({ toKind: 1 });
 		const rhsTable1Json = { ...rhsTableJson, nodeName: TableRef1.NODE_NAME };
+		const refMode = LQRefColumn.left() instanceof LQBackRefAbstraction
+			? 'dependent'
+			: 'dependency';
 		const isDeepRef = detail instanceof LQDeepRef2;
 
 		// Figure the expected payload structure
@@ -429,9 +440,13 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				rowLength = result_schema.length;
 			} else if (rowNode instanceof RowConstructor || rowNode instanceof SelectStmt) {
 				rowLength = rowNode.length;
+			} else if (rowNode instanceof SelectStmt) {
+				rowLength = rowNode.length;
+			} else if (rowNode instanceof DerivedQuery) {
+				rowLength = rowNode.expr().length;
 			}
-			if (rowLength > columnsLength) throw new Error(`[${rowNode}] Payload has more columns than target columns`);
-			if (rowLength < columnsLength) throw new Error(`[${rowNode}] Payload has fewer columns than target columns`);
+			if (rowLength > columnsLength) throw new Error(`[${rowNode}] Payload has more columns than target columns: ${detail}.`);
+			if (rowLength < columnsLength) throw new Error(`[${rowNode}] Payload has fewer columns than target columns: ${detail}.`);
 			return rowNode;
 		};
 
@@ -502,7 +517,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			};
 
 			const query = {
-				uuid: transformer.rootContext.rand('dependents'),
+				uuid: transformer.rootContext.rand(refMode),
 				nodeName: UpdateStmt.NODE_NAME,
 				table_expr: { nodeName: TableAbstraction2.NODE_NAME, table_ref: rhsTable1Json },
 				set_clause: { nodeName: SetClause.NODE_NAME, entries: [] },
@@ -517,7 +532,12 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 					throw new Error(`Unexpected multiple offload() call on ${LQRefColumn}`);
 				}
 
+				// Carry deep values forward
 				let payloadJson = jsonfy(payload);
+				if (isDeepRef && !(payload instanceof PGDefaultValuesClause)) {
+					payload = TypedRowConstructor.fromJSON({ entries: [payloadJson] }, this.options);
+					payloadJson = jsonfy(payload);
+				}
 
 				if (payload instanceof SelectStmt) {
 					payloadJson = { nodeName: DerivedQuery.NODE_NAME, expr: payloadJson, result_schema: payloadJson.result_schema };
@@ -536,16 +556,19 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 					operator: '=',
 					right: payloadJson,
 				});
+
+				if (refMode === 'dependency') {
+					return lhsOperand1Json;
+				}
 			};
 
 			const payloadDimension = {
-				type: 'dependents',
+				refMode,
 				query,
 				offload,
 				lhsOperandJson,
 				onConflictClauseContext
 			};
-
 			payloadDimensions.add(payloadDimension);
 
 			return payloadDimension;
@@ -576,7 +599,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				dimensionValidateRowLength(payload);
 				let rowJson = jsonfy(payload);
 				if (!(payload instanceof RowConstructor)) {
-					rowJson = { nodeName: RowConstructor.NODE_NAME/* most formal */, entries: [rowJson] };
+					rowJson = { nodeName: TypedRowConstructor.NODE_NAME/* most formal */, entries: [rowJson] };
 				}
 				if (fKBindingJson) {
 					rowJson = { ...rowJson, entries: rowJson.entries.concat(fKBindingJson) };
@@ -586,14 +609,14 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		};
 
 		// BackRefing INSERTS
-		if (LQRefColumn.left() instanceof LQBackRefAbstraction) {
+		if (refMode === 'dependent') {
 
 			// INSERT INTO t1 (a, (fk <~ fk <~ t2) ~> (a, b)) VALUES (2, ROW(44, 33)), (3, ROW(11, 22))
 			// INSERT INTO t1 (a, (fk <~ fk <~ t2) ~> a) VALUES (2, 44), (3, 11)
 			// INSERT INTO t1 (a, (fk <~ fk <~ t2) ~> a) SELECT a, b FROM t3
 
 			const queryTemplate = () => ({
-				uuid: transformer.rootContext.rand('dependents'),
+				uuid: transformer.rootContext.rand(refMode),
 				nodeName: this.NODE_NAME,
 				table_ref: rhsTableJson,
 				column_list: ColumnsConstructor.fromJSON({ entries: columnsConstructorJson.entries.concat(rhsOperandJson) }).jsonfy(),
@@ -670,6 +693,11 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 					currentQuery.values_clause = { nodeName: ValuesConstructor.NODE_NAME, entries: [] };
 				}
 
+				// Carry deep values forward
+				if (isDeepRef && !(payload instanceof PGDefaultValuesClause)) {
+					payload = TypedRowConstructor.fromJSON({ entries: [jsonfy(payload)] });
+				}
+
 				if (payload instanceof ValuesTableLiteral) {
 					for (const rowNode of payload.entries()) {
 						dimensionPushRow(currentQuery, rowNode, fKBindingJson);
@@ -678,7 +706,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			};
 
 			const payloadDimension = {
-				type: 'dependents',
+				refMode,
 				queries,
 				offload,
 				lhsOperandJson,
@@ -697,17 +725,18 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		const rhsOperandPKJson = { nodeName: ColumnRef1.NODE_NAME, value: rhsOperand.value(), delim: rhsOperand._get('delim') };
 
 		const queryTemplate = () => ({
-			uuid: transformer.rootContext.rand('dependencies'),
+			uuid: transformer.rootContext.rand(refMode),
 			nodeName: this.NODE_NAME,
 			table_ref: rhsTableJson,
 			column_list: columnsConstructorJson,
 			returning_clause: {
 				nodeName: ReturningClause.NODE_NAME,
 				entries: [{ nodeName: SelectItem.NODE_NAME, expr: rhsOperand1Json }],
-			}
+			},
 		});
 
 		const offload = (payload) => {
+
 			if (payload instanceof ValuesTableLiteral) {
 				throw new Error(`Single-row payload structure expected for column structure: ${LQRefColumn.right()}. Recieved ${payload.NODE_NAME}.`);
 			}
@@ -716,8 +745,6 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				queries.push(queryTemplate());
 			}
 			let currentQuery = queries[queries.length - 1];
-
-			// -------------
 
 			let isDerivedQuery = false;
 
@@ -740,6 +767,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 
 				let selectJson = jsonfy(payload);
 				let correlationRhs;
+
 				if (!isDerivedQuery) {
 					if (!isDeepRef) {
 						// Fully qualify output names to match target column names. Not necessary at the LinkedQL level
@@ -747,10 +775,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 					}
 					// Meaning we're from a literal INSERT ... SELECT statement, not an INSERT ... VALUES (+SELECT) statement
 					// and this time, we want to correlate with base query's row number
-					correlationRhs = {
-						nodeName: ColumnRef1.NODE_NAME,
-						value: '$row_number~a',
-					};
+					correlationRhs = { nodeName: ColumnRef1.NODE_NAME, value: '$row_number~a' };
 				}
 
 				dimensionValidateRowLength(payload, selectJson.result_schema);
@@ -771,6 +796,11 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				currentQuery.values_clause = { nodeName: ValuesConstructor.NODE_NAME, entries: [] };
 			}
 
+			// Carry deep values forward
+			if (isDeepRef && !(payload instanceof PGDefaultValuesClause)) {
+				payload = TypedRowConstructor.fromJSON({ entries: [jsonfy(payload)] });
+			}
+
 			dimensionPushRow(currentQuery, payload);
 
 			let correlationRhs;
@@ -784,7 +814,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		};
 
 		const payloadDimension = {
-			type: 'dependencies',
+			refMode,
 			queries,
 			offload,
 			lhsOperandJson,
@@ -854,6 +884,12 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			// Desugar query and flatten if itself a CTE
 			if (cteItemJson.expr?.nodeName === CTE.NODE_NAME) {
 				cte.declarations.push(...cteItemJson.expr.declarations);
+
+				if (this instanceof UpdateStmt && cteItemJson.expr.body.nodeName === CompleteSelectStmt.NODE_NAME) {
+					// This is a stray "SELECT COUNT(*)" statement owing to how dependencies are rendered in the CTE as dependents
+					return;
+				}
+
 				cteItemJson = {
 					nodeName: CTEItem.NODE_NAME,
 					alias: { nodeName: CTEItemAlias.NODE_NAME, value: dimensionID },
@@ -881,9 +917,9 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		let onConflictUpdatedStatusRequired = false;
 		const originalReturningList = resultJson.returning_clause?.entries || [];
 
-		for (const { type, query: $query, queries, lhsOperandJson, rhsOperandJson, onConflictClauseContext } of payloadDimensions) {
+		for (const { refMode, query: $query, queries, lhsOperandJson, rhsOperandJson, onConflictClauseContext } of payloadDimensions) {
 			for (const { uuid, ...query } of ($query && [$query] || queries)) {
-				if (type === 'dependents') { // Defer dependents
+				if (refMode === 'dependent' || (this instanceof UpdateStmt && refMode === 'dependency')) { // Defer dependents
 
 					if (!lefts.find((existing) => _eq(existing.expr.value, lhsOperandJson.value))) {
 						const fieldExpr = { nodeName: SelectItem.NODE_NAME, expr: lhsOperandJson };
@@ -898,7 +934,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 					}
 
 					dependents.push({ uuid, ...query });
-				} else if (type === 'dependencies') {
+				} else if (refMode === 'dependency') {
 					const wherePredicate = [{ nodeName: SelectItem.NODE_NAME, expr: rhsOperandJson }];
 
 					if (resultJson.select_clause) {
@@ -943,7 +979,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				// TODO
 			}
 
-			if (resultJson.nodeName === UpdateStmt.NODE_NAME) {
+			if (this instanceof UpdateStmt) {
 				toCTEItem(baseUUID, { ...resultJson, returning_clause: cteReturningClause });
 			} else if (resultJson.pg_default_values_clause) {
 				toCTEItem(baseUUID, { ...resultJson, returning_clause: cteReturningClause });
@@ -952,7 +988,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			}
 
 			// Process dependents... after having done the above
-			for (let { uuid, ...query } of dependents) {
+			for (const { uuid, ...query } of dependents) {
 				toCTEItem(uuid, query);
 			}
 
@@ -976,7 +1012,9 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			}, this.options).jsonfy(options, $transformer, linkedDb);
 		} else {
 			// Use resultJson as-is
-			cte.body = this.constructor.fromJSON(resultJson, this.options).jsonfy(options, $transformer, linkedDb);
+			const Classes = [this.constructor].concat(this.constructor.morphsTo()); // InsertStmt/UpsertStmt
+			const instance = Classes.reduce((prev, C) => prev || C.fromJSON(resultJson, this.options), undefined);
+			cte.body = instance.jsonfy(options, $transformer, linkedDb);
 		}
 
 		return { ...cte, result_schema: cte.body.result_schema };

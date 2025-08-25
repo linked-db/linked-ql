@@ -61,9 +61,10 @@ export class LQObjectLiteral extends AbstractLQJsonLiteral {
                     } else {
                         resultSchema = registry.ColumnSchema.fromJSON({
                             name: schemaIdent,
-                            data_type: this.entries()[i].value().dataType().jsonfy(),
+                            data_type: this.entries()[i].value()?.dataType().jsonfy() || { nodeName: registry.DataType.NODE_NAME, value: 'TEXT' },
                         });
                     }
+                    
                     resultSchemas.push(resultSchema);
 
                     return args.concat(

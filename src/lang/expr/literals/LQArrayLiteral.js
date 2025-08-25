@@ -22,13 +22,14 @@ export class LQArrayLiteral extends AbstractLQJsonLiteral {
     /* JSON API */
 
     jsonfy(options = {}, transformer = null, linkedDb = null) {
+        let resultJson = super.jsonfy(options, transformer, linkedDb);
         if (options.deSugar) {
             const resultSchemas = [];
 
-            return {
+            resultJson = {
                 nodeName: registry.CallExpr.NODE_NAME,
                 name: (options.toDialect || this.options.dialect) === 'mysql' ? 'JSON_ARRAY' : 'JSON_BUILD_ARRAY',
-                arguments: this.entries().map((e, i) => {
+                arguments: resultJson.entries.map((e, i) => {
 
                     let resultSchema = e.result_schema;
                     const schemaIdent = { value: i, nodeName: registry.Identifier.NODE_NAME };
@@ -43,12 +44,12 @@ export class LQArrayLiteral extends AbstractLQJsonLiteral {
                     }
                     resultSchemas.push(resultSchema);
 
-                    return e.jsonfy/* @case1 */(options, transformer, linkedDb);
+                    return e;
                 }),
                 result_schema: registry.JSONSchema.fromJSON({ entries: resultSchemas }, { assert: true })
             };
         }
 
-        return super.jsonfy(options, transformer, linkedDb);
+        return resultJson;
     }
 }

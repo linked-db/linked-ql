@@ -91,17 +91,19 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
         // Order ouput JSON
         if ((options.toDialect || this.options.dialect) === 'mysql') {
             resultJson = {
+                uuid: resultJson.uuid,
                 nodeName: resultJson.nodeName,
                 table_expr: resultJson.table_expr,
                 my_update_list: resultJson.my_update_list,
                 join_clauses: resultJson.join_clauses,
                 set_clause: resultJson.set_clause,
-                where_clause: resultJson.where_clause,                
+                where_clause: resultJson.where_clause,
                 my_order_by_clause: resultJson.my_order_by_clause,
                 my_limit_clause: resultJson.my_limit_clause,
             };
         } else {
             resultJson = {
+                uuid: resultJson.uuid,
                 nodeName: resultJson.nodeName,
                 table_expr: resultJson.table_expr,
                 set_clause: resultJson.set_clause,
@@ -110,6 +112,24 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                 where_clause: resultJson.where_clause,
                 returning_clause: resultJson.returning_clause,
                 result_schema: resultJson.result_schema,
+            };
+        }
+
+        if (!resultJson.set_clause?.entries.length) {
+            // All assignments were BackRefs and have been offloaded
+            const pkConstraint = resultJson.table_expr.result_schema.pkConstraint(true);
+            const pkColumn = pkConstraint.columns()[0];
+            resultJson = {
+                ...resultJson,
+                set_clause: {
+                    ...resultJson.set_clause,
+                    entries: [{
+                        nodeName: registry.AssignmentExpr.NODE_NAME,
+                        left: pkColumn.jsonfy(),
+                        operator: '=',
+                        right: pkColumn.jsonfy({ toKind: 1 })
+                    }],
+                },
             };
         }
 
@@ -122,7 +142,6 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
     }
 
     finalizeSelectorJSON(resultJson, transformer, linkedDb, options) {
-
         if (this.options.dialect !== 'postgres') {
             // Redirect finalization to the standard finalization logic
             return super.finalizeSelectorJSON(resultJson, transformer, linkedDb, options);

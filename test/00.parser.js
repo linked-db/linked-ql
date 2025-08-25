@@ -29,9 +29,9 @@ export function $it(text, callback) {
                 console.log(
                     baseIndentation + ('  '.repeat(indentation))
                     + chalk.green('∟'),
-                    chalk.gray(entryPoint) + ' '.repeat(Math.max(0, 15 - entryPoint.length - 2)) + chalk.gray(`.parse(`)
-                    + chalk.green(formatSql(sql, formattingOptions))
-                    + chalk.gray(`)`),
+                    chalk.gray(entryPoint) + ' '.repeat(Math.max(0, 15 - entryPoint.length - 2)) + chalk.gray(`.parse(\``)
+                    + chalk.green(formatSql(sql.replace(/`/g, '\\`'), formattingOptions))
+                    + chalk.gray(`\`)`),
                     chalk.gray(formatSql(`--> ${nodeName}:`, formattingOptions)),
                     chalk.green(formatSql(resultNode?.stringify(options), formattingOptions)),
                     ...(desugaredResultNode !== resultNode ? [
@@ -44,7 +44,7 @@ export function $it(text, callback) {
     });
 }
 
-export async function testParseAndStringify(entryPoint, sql, options = {}, linkedDb = null) {
+export async function testParseAndStringify(entryPoint, sql, options = {}, linkedDb = null, transformTarget = null) {
     let nodeName = entryPoint;
     if (Array.isArray(entryPoint)) {
         [entryPoint, nodeName] = entryPoint;
@@ -56,6 +56,8 @@ export async function testParseAndStringify(entryPoint, sql, options = {}, linke
 
     const resultNode = await registry[entryPoint].parse(sql, options);
     expect(resultNode).to.be.instanceOf(registry[nodeName]);
+
+    // ------------------------- deSugaring
 
     let desugaredResultNode = resultNode;
     if (options.deSugar) {
@@ -70,6 +72,8 @@ export async function testParseAndStringify(entryPoint, sql, options = {}, linke
     expect(
         normalizeSql(desugaredResultNode.stringify(options))
     ).to.equal(normalizeSql(expectedSql, normalizerOptions));
+
+    // ------------------------- cloning
 
     const resultClone = registry[entryPoint].fromJSON(resultNode.jsonfy(), resultNode.options);
     expect(resultClone).to.be.instanceOf(registry[nodeName]);

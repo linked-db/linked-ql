@@ -64,7 +64,7 @@ export class SchemaRef extends AbstractClassicRef {
         }
 
         if (options.deSugar && resultJson.version_spec) {
-			resultJson = { version_spec: undefined, ...resultJson };
+			resultJson = { ...resultJson, version_spec: undefined };
 		}
         return resultJson;
     }

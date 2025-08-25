@@ -1,13 +1,15 @@
 import { $describe, $it, testParseAndStringify } from './00.parser.js';
+import { expect } from 'chai';
 
 $describe('Parser - DML Clauses', () => {
     $describe('SetClause', () => {
         $it('should parse SET with single column assignment', async () => {
-            await testParseAndStringify('SetClause', 'SET col1 = 1');
+            await testParseAndStringify('SetClause', 'SET col1 = 1', { dialect: 'postgres' });
+            expect(testParseAndStringify('SetClause', 'SET tbl.col1 = 1', { dialect: 'postgres' })).to.be.rejected;
         });
 
         $it('should parse SET with qualified single column assignment', async () => {
-            await testParseAndStringify('SetClause', 'SET tbl.col1 = 1');
+            await testParseAndStringify('SetClause', 'SET tbl.col1 = 1', { dialect: 'mysql' });
         });
 
         $it('should parse SET with multiple column assignments', async () => {
@@ -16,10 +18,12 @@ $describe('Parser - DML Clauses', () => {
 
         $it('should parse SET with row assignment', async () => {
             await testParseAndStringify('SetClause', 'SET (col1, col2) = (SELECT a, b FROM t)', { dialect: 'postgres' });
+            expect(testParseAndStringify('SetClause', 'SET (col1, col2) = (SELECT a, b FROM t)', { dialect: 'mysql' })).to.be.rejected;
         });
 
         $it('should parse SET with subquery assignment', async () => {
             await testParseAndStringify('SetClause', 'SET col1 = (SELECT MAX(val) FROM t)', { dialect: 'postgres' });
+            expect(testParseAndStringify('SetClause', 'SET col1 = (SELECT MAX(val) FROM t)', { dialect: 'mysql' })).to.be.rejected;
         });
 
         $it('should parse SET with expression', async () => {
@@ -73,49 +77,49 @@ $describe('Parser - DML Clauses', () => {
         });
 
         $it('should parse ROWS USING with function list and aliases', async () => {
-            await testParseAndStringify('UsingFromClause', 'USING ROWS FROM(func1(), func2()) AS funcs (a, b)', { dialect: 'postgres' });
+            await testParseAndStringify('UsingFromClause', 'USING ROWS FROM (func1(), func2()) AS funcs (a, b)', { dialect: 'postgres' });
         });
 
         $it('should parse ROWS FROM with WITH ORDINALITY', async () => {
-            await testParseAndStringify('UsingFromClause', 'USING ROWS FROM(func1(), func2()) WITH ORDINALITY', { dialect: 'postgres' });
+            await testParseAndStringify('UsingFromClause', 'USING ROWS FROM (func1(), func2()) WITH ORDINALITY', { dialect: 'postgres' });
         });
     });
 
-    $describe('PGReturningClause', () => {
+    $describe('ReturningClause', () => {
         $it('should parse RETURNING *', async () => {
-            await testParseAndStringify('PGReturningClause', 'RETURNING *');
+            await testParseAndStringify('ReturningClause', 'RETURNING *');
         });
 
         $it('should parse RETURNING single column', async () => {
-            await testParseAndStringify('PGReturningClause', 'RETURNING id');
+            await testParseAndStringify('ReturningClause', 'RETURNING id');
         });
 
         $it('should parse RETURNING multiple columns', async () => {
-            await testParseAndStringify('PGReturningClause', 'RETURNING id, name, created_at');
+            await testParseAndStringify('ReturningClause', 'RETURNING id, name, created_at');
         });
 
         $it('should parse RETURNING with expressions', async () => {
-            await testParseAndStringify('PGReturningClause', 'RETURNING id, name || \'_user\' AS username');
+            await testParseAndStringify('ReturningClause', 'RETURNING id, name || \'_user\' AS username');
         });
 
         $it('should parse RETURNING with function call', async () => {
-            await testParseAndStringify('PGReturningClause', 'RETURNING NOW() AS created');
+            await testParseAndStringify('ReturningClause', 'RETURNING NOW() AS created');
         });
 
         $it('should parse RETURNING with qualified column', async () => {
-            await testParseAndStringify('PGReturningClause', 'RETURNING users.id, users.name');
+            await testParseAndStringify('ReturningClause', 'RETURNING users.id, users.name');
         });
 
         $it('should parse RETURNING with alias', async () => {
-            await testParseAndStringify('PGReturningClause', 'RETURNING id AS user_id, name AS username');
+            await testParseAndStringify('ReturningClause', 'RETURNING id AS user_id, name AS username');
         });
 
         $it('should parse RETURNING with subquery', async () => {
-            await testParseAndStringify('PGReturningClause', 'RETURNING (SELECT MAX(id) FROM users) AS max_id');
+            await testParseAndStringify('ReturningClause', 'RETURNING (SELECT MAX(id) FROM users) AS max_id');
         });
 
         $it('should parse RETURNING with arithmetic expressions', async () => {
-            await testParseAndStringify('PGReturningClause', 'RETURNING id + 1 AS next_id');
+            await testParseAndStringify('ReturningClause', 'RETURNING id + 1 AS next_id');
         });
     });
 });
@@ -127,12 +131,12 @@ $describe('Parser - DML Statements', () => {
         });
 
         $it('should parse UPDATE with SET using qualified column', async () => {
-            await testParseAndStringify('UpdateStmt', "UPDATE users SET users.name = 'Bob'");
+            await testParseAndStringify('UpdateStmt', "UPDATE users SET users.name = 'Bob'", { dialect: 'mysql' });
         });
 
         $it('should parse UPDATE with multiple column assignments', async () => {
             await testParseAndStringify('UpdateStmt', "UPDATE users SET col1 = 1, col2 = 2");
-            await testParseAndStringify('UpdateStmt', "UPDATE users SET users.col1 = 1, users.col2 = 2");
+            await testParseAndStringify('UpdateStmt', "UPDATE users SET users.col1 = 1, users.col2 = 2", { dialect: 'mysql' });
         });
 
         $it('should parse UPDATE with composite column assignment', async () => {
@@ -151,16 +155,15 @@ $describe('Parser - DML Statements', () => {
         });
 
         $it('should parse UPDATE with subquery assignment', async () => {
-            await testParseAndStringify('UpdateStmt', "UPDATE users SET col1 = (SELECT MAX(val) FROM t)");
+            await testParseAndStringify('UpdateStmt', "UPDATE users SET col1 = (SELECT MAX(val) FROM t)", { dialect: 'postgres' });
         });
 
         $it('should parse UPDATE with qualified table and schema', async () => {
             await testParseAndStringify('UpdateStmt', "UPDATE public.users SET name = 'Bob'");
-            await testParseAndStringify('UpdateStmt', "UPDATE public.users SET public.users.name = 'Bob'");
         });
 
         $it('should parse UPDATE with table alias', async () => {
-            await testParseAndStringify('UpdateStmt', "UPDATE users u SET u.name = 'Bob'");
+            await testParseAndStringify('UpdateStmt', "UPDATE users u SET u.name = 'Bob'", { dialect: 'mysql' });
         });
 
         $it('should parse UPDATE with SET and WHERE clause', async () => {
@@ -170,7 +173,7 @@ $describe('Parser - DML Statements', () => {
 
         $it('should parse UPDATE with SET and FROM clause', async () => {
             await testParseAndStringify('UpdateStmt', "UPDATE users SET col1 = t.val FROM t WHERE t.id = 1", { dialect: 'postgres' });
-            await testParseAndStringify('UpdateStmt', "UPDATE users u SET u.col1 = t.val FROM t WHERE t.id = u.id", { dialect: 'postgres' });
+            await testParseAndStringify('UpdateStmt', "UPDATE users u SET col1 = t.val FROM t WHERE t.id = u.id", { dialect: 'postgres' });
             await testParseAndStringify('UpdateStmt', "UPDATE users SET name = logins.last_login FROM logins WHERE users.id = logins.user_id", { dialect: 'postgres' });
             await testParseAndStringify('UpdateStmt', "UPDATE users SET col1 = t.val FROM t, s WHERE t.id = s.id", { dialect: 'postgres' });
         });
@@ -252,7 +255,7 @@ $describe('Parser - DML Statements', () => {
         });
 
         $it('should parse a DELETE statement with USING ROWS FROM (Postgres)', async () => {
-            await testParseAndStringify('DeleteStmt', 'DELETE FROM users USING ROWS FROM(func1(), func2()) AS funcs (a, b) WHERE users.id = funcs.a', { dialect: 'postgres' });
+            await testParseAndStringify('DeleteStmt', 'DELETE FROM users USING ROWS FROM (func1(), func2()) AS funcs (a, b) WHERE users.id = funcs.a', { dialect: 'postgres' });
         });
 
         $it('should parse a DELETE statement with multiple WHERE conditions', async () => {

@@ -52,7 +52,7 @@ export class ColumnRef2 extends AbstractClassicRef {
             tableSchemasInScope = this.climbTree((superParentNode, up) => {
                 if (superParentNode instanceof registry.InsertStmt || superParentNode instanceof registry.UpdateStmt) {
                     let tableSchemas = [...transformer.statementContext.artifacts.get('tableSchemas')].map((t) => t.resultSchema);
-                    // For updates, postgres target columns are resolved from just the target table
+                    // For UPDATEs, and of cos INSERTs, postgres target columns are resolved from just the target table
                     if (this.options.dialect !== 'mysql') {
                         tableSchemas = tableSchemas.slice(0, 1);
                     }

@@ -66,7 +66,7 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
             return resolvedColumnRef1;
         };
 
-        if (this.canReferenceOutputColumns()) {
+        if (this.canReferenceOutputColumns() && transformer) {
             // Resolve from outputSchemas first
             let statementContext = transformer.statementContext
             for (const columnSchema of statementContext.artifacts.get('outputSchemas')) {
@@ -112,6 +112,9 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
     }
 
     jsonfy({ toKind = 1, ...options } = {}, transformer = null, linkedDb = null) {
+        if (options.deSugar && this.qualifier()?.identifiesAs((options.toDialect || this.options.dialect) === 'mysql' ? 'VALUES' : 'EXCLUDED')) {
+            options = { ...options, deSugar: 0 };
+        }
         if (options.deSugar
             && ((!this.qualifier() && Number(options.deSugar) > 1)
                 || !this.resultSchema())

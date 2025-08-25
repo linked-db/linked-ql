@@ -101,7 +101,6 @@ describe('AbstractNode schema compilation, hydration & jsonfication - DummyNode2
         expect(node.jsonfy()).to.deep.eq({
             nodeName: 'DUMMY_NODE1',
             prop1: 'id',
-            prop2: undefined
         });
     });
 
@@ -162,7 +161,6 @@ describe('AbstractNode schema compilation, hydration & jsonfication - DummyNode2
             expect(node.jsonfy()).to.deep.eq({
                 nodeName: 'DUMMY_NODE2',
                 ...json,
-                alias: undefined
             });
         });
     });
@@ -315,11 +313,7 @@ describe('AbstractNode schema compilation, hydration & jsonfication - DummyNode2
             expect(node.jsonfy()).to.deep.eq({
                 nodeName: 'DUMMY_NODE3',
                 name: 'a',
-                value: undefined,
                 operator: '+',
-                left: undefined,
-                op: undefined,
-                right: undefined
             });
         });
 

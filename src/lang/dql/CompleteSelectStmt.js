@@ -31,7 +31,7 @@ export class CompleteSelectStmt extends BasicSelectStmt {
 
         const result = await super.parse(tokenStream, { minPrecedence, trail, ...options });
         if (await tokenStream.match('operator', ['INTERSECT', 'UNION', 'EXCEPT'])) {
-            if (this.orderByClause() || this.offsetClause() || this.limitClause() || this.forClause()) {
+            if (result.order_by_clause || result.offset_clause || result.limit_clause || result.for_clause) {
                 const current = tokenStream.current();
                 const message = `[${this.NODE_NAME}] Unexpected ${current.type} token:${typeof current.value === 'string' ? ` "${current.value}"` : ''} at <line ${current.line}, column ${current.column}>`;
                 throw new SyntaxError(message);

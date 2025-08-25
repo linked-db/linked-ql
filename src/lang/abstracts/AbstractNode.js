@@ -220,8 +220,8 @@ export class AbstractNode {
 		return this.clone(options, transformer, linkedDb);
 	}
 
-	toDialect(dialect, transformer = null, linkedDb = null) {
-		const options = { toDialect: dialect };
+	toDialect(dialect, options = {}, transformer = null, linkedDb = null) {
+		options = { ...options, toDialect: dialect/* overrridingly */ };
 		return this.clone(options, transformer, linkedDb);
 	}
 
@@ -574,6 +574,7 @@ export class AbstractNode {
 			}
 			return new this(resultAST, options);
 		}
+		//console.log('||', inputJson);
 		$decideThrow(`Failed to match any schema${lastAssertion ? `. ${lastAssertion}` : ''}`, this.NODE_NAME);
 	}
 
@@ -600,7 +601,7 @@ export class AbstractNode {
 			};
 
 			if (value === undefined) return;
-
+			
 			const result = relevantTransformer
 				? relevantTransformer.transform(value, defaultTransform, key, options)
 				: defaultTransform();
@@ -724,14 +725,11 @@ export class AbstractNode {
 				throw new SyntaxError(`[${activeTrailStr}] Unsupported attributes in rule: "${unsupportedAttrs.join('", "')}".`);
 			}
 			const isTokenRule = typeof type === 'string' && type[0] === type[0].toLowerCase();
+			const supportsLeft = exposure && !isTokenRule && rulesArray[i + 1]?.type === 'operator' || (rulesArray[i + 1]?.type === 'punctuation' && rulesArray[i + 1]?.value === '.');
 			// -----
 			// Definitions...
 			// -----
 			const acquireLeft = async () => {
-				if (!exposure || isTokenRule) return;
-				if (!(rulesArray[i + 1]?.type === 'operator' || (rulesArray[i + 1]?.type === 'punctuation' && rulesArray[i + 1]?.value === '.'))) {
-					return;
-				}
 				if (Array.isArray(peek) && !await peekToken(-1)) return;
 				for (const name of [].concat(type)) {
 					if (left instanceof registry[name]) {
@@ -788,11 +786,20 @@ export class AbstractNode {
 			// Validation...
 			// -----
 
-			if (left && type || left === false && optional) {
-				// left === false is typically passed from PathMixin()
-				if (left && !await acquireLeft()) return;
-				left = null;
-				continue;
+			if (type) {
+				if (left) {
+					if (!supportsLeft) return;
+					// left === false is typically passed from PathMixin()
+					if (!await acquireLeft()) return;
+					left = null;
+					continue;
+				} else if (left === false && supportsLeft) {
+					if (optional) {
+						left = null;
+						continue;
+					}
+					return;
+				}
 			}
 
 			// 2. Exit on any of the following...
@@ -991,7 +998,7 @@ export class AbstractNode {
 		return rendering;
 	}
 
-	_stringifyFromRules(syntaxRules, { trail = [], startingIndentLevel = 0, autoLineBreakThreshold = 80, ...options }, renderingStats = null) {
+	_stringifyFromRules(syntaxRules, { trail = [], startingIndentLevel = 0, autoLineBreakThreshold = 60, ...options }, renderingStats = null) {
 		// Formatters
 		const $space = () => ' ';
 		const $lineBreak = (indentLevel) => {
@@ -1072,7 +1079,8 @@ export class AbstractNode {
 						|| (typeof autoIndent === 'number' && entries.length >= autoIndent)
 						|| autoSpacing === '\n';
 					// Determine item spacing...
-					const $autoItemSpacing = activeOptions.prettyPrint && $autoIndent && itemsRendering.join(' ').length > autoLineBreakThreshold
+					const renderingsStr = itemsRendering.join(' ');
+					const $autoItemSpacing = activeOptions.prettyPrint && $autoIndent && (renderingsStr.length > autoLineBreakThreshold || renderingsStr.includes('\n'))
 						? $lineBreak(activeOptions.startingIndentLevel)
 						: $space();
 					// Compose separator
@@ -1100,7 +1108,7 @@ export class AbstractNode {
 						highestRenderingScore = newRenderingStats.score;
 					}
 				}
-				
+
 				if (renderingStats) { renderingStats.score += highestRenderingScore; }
 			} else {
 				if (exposure) {

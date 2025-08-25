@@ -103,13 +103,9 @@ $describe('Parser - DDL Constraints', () => {
       await testParseAndStringify('PGTableEXConstraint', 'EXCLUDE USING GIST (c WITH &&)');
       await testParseAndStringify('PGTableEXConstraint', 'EXCLUDE USING GIST ((lower(col)) WITH =, other_col WITH &&)');
       const sql =
-`EXCLUDE USING GIST (
-  (lower(col1)) WITH =, col2 WITH &&
-)
-INCLUDE (extra)
-WITH (fillfactor = 80)
-USING INDEX TABLESPACE fastspace
-WHERE (col3 IS NOT NULL)`;
+`EXCLUDE USING GIST ((
+  lower(col1)
+) WITH =, col2 WITH &&) INCLUDE (extra) WITH (fillfactor = 80) USING INDEX TABLESPACE fastspace WHERE (col3 IS NOT NULL)`;
       await testParseAndStringify('PGTableEXConstraint', sql, { prettyPrint: true, autoLineBreakThreshold: 5 });
     });
   });

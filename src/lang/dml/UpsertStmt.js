@@ -1,5 +1,7 @@
 import { SugarMixin } from '../abstracts/SugarMixin.js';
 import { InsertStmt } from './InsertStmt.js';
+import { registry } from '../registry.js';
+import { _eq } from '../util.js';
 
 export class UpsertStmt extends SugarMixin(InsertStmt) {
 
@@ -7,34 +9,69 @@ export class UpsertStmt extends SugarMixin(InsertStmt) {
 
 	static get _clause() { return 'UPSERT'; }
 
+	static morphsTo() { return [InsertStmt].concat(super.morphsTo()); }
+
 	/* DESUGARING API */
 
-	jsonfy(options = {}, transformer = null, linkedDb = null) {
-		if (!options.deSugar || true/* TODO */) return super.jsonfy(options, transformer, linkedDb);
-
-		if (this.conflictHandlingClause()) {
-			throw new Error(`A redundanct "ON CONFLICT" clause in query.`);
+	finalizePayloadJSON(resultJson, transformer, linkedDb, options) {
+		if (resultJson.conflict_handling_clause) {
+			throw new Error(`An explicit conflict handling clause is forbidden on the UPSERT statement.`);
 		}
-		const resultJson = super.jsonfy(options, transformer, linkedDb);
 
-		// So let's auto-construct the on-conflict clause for the operation
-		const columns = (this.set() ? this.set().columns() : this.columns().entries()).map(c => c.name());
-		const refFn = this.params.dialect === 'mysql' ? col => q => q.fn('VALUES', col) : col => ['EXCLUDED', col];
-		const onConflictClause = OnConflictClause.fromJSON(this, { entries: [] });
-		for (const col of columns) onConflictClause.add([col, refFn(col)]);
-		// Postgres requires conflict conditions to be specified
-		if (this.params.dialect !== 'mysql') {
-			const tblSchema = this.into().schema();
-			const uniqueKeys = [].concat(tblSchema.primaryKey() || []).concat(tblSchema.uniqueKeys()).map(uk => uk.columns());
-			if (!uniqueKeys.length) throw new Error(`Table ${this.into().clone({ fullyQualified: true })} has no unique keys defined to process an UPSERT operation. You may want to perform a direct INSERT operation.`);
-			const conflictTarget = uniqueKeys.find(keyComp => _intersect(keyComp, columns).length) || uniqueKeys[0];
-			onConflictClause.columnsSpec(...conflictTarget);
+		const tableSchema = [...transformer.statementContext.artifacts.get('tableSchemas')].map((t) => t.resultSchema)[0];
+		const toDialect = options.toDialect || this.options.dialect;
+
+		let columnNamesJson;
+		if (resultJson.my_set_clause) {
+			columnNamesJson = resultJson.my_set_clause.entries.map((e) => ({ value: e.left.value, delim: e.left.delim }));
+		} else if (resultJson.column_list) {
+			columnNamesJson = resultJson.column_list.entries.map((e) => ({ value: e.value, delim: e.delim }));
+		} else {
+			columnNamesJson = tableSchema.columns().map((c) => c.name().jsonfy({ nodeNames: false }));
 		}
-		return {
-			nodeName: InsertStatement.NODE_NAME,
-			...superJson,
-			onConflictClause: onConflictClause.jsonfy(options, transformer, linkedDb),
-			...(flags ? { flags } : {})
+
+		const conflictHandlingClause = {
+			nodeName: toDialect === 'mysql'
+				? registry.MYOnDuplicateKeyUpdateClause.NODE_NAME
+				: registry.PGOnConflictClause.NODE_NAME,
+			entries: columnNamesJson.map((c) => ({
+				nodeName: registry.AssignmentExpr.NODE_NAME,
+				left: {
+					nodeName: toDialect === 'mysql'
+						? registry.ColumnRef1.NODE_NAME
+						: registry.ColumnRef2.NODE_NAME,
+					...c,
+				},
+				operator: '=',
+				right: {
+					...c,
+					nodeName: registry.ColumnRef1.NODE_NAME,
+					qualifier: { value: toDialect === 'mysql' ? 'VALUES' : 'EXCLUDED' },
+				}
+			})),
 		};
+
+		if (toDialect === 'postgres') {
+			const uniqueKeysColumnSets = [].concat(tableSchema.pkConstraint(true) || []).concat(tableSchema.ukConstraints(true)).map((k) => k.columns().map((c) => c.jsonfy()));
+			if (!uniqueKeysColumnSets.length) {
+				throw new Error(`Table ${this.tableRef()} has no unique keys defined to process an UPSERT operation. You may want to perform a direct INSERT operation.`);
+			}
+
+			const firstUniqueKeysColumnSet = uniqueKeysColumnSets.find((colSet) => colSet.find((k) => columnNamesJson.find((c) => _eq(k.value, c.value, k.delim || c.delim)))) || uniqueKeysColumnSets[0];
+
+			conflictHandlingClause.conflict_target = {
+				nodeName: registry.PGConflictTarget.NODE_NAME,
+				index_list: firstUniqueKeysColumnSet.map((c) => ({
+					nodeName: registry.PGConflictTargetIndexSpec.NODE_NAME,
+					column_name: c
+				})),
+			};
+		}
+		
+		return super.finalizePayloadJSON({
+			...resultJson,
+			nodeName: InsertStmt.NODE_NAME,
+			conflict_handling_clause: conflictHandlingClause
+		}, transformer, linkedDb, options);
 	}
 }

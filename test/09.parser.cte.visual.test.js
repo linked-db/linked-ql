@@ -38,18 +38,18 @@ $describe('Parser - CTE Statements', () => {
     $it('', async () => {
         const sql =
             `SELECT *
-  FROM (
-    WITH TopCustomers AS (
-        SELECT
-          customer_id,
-          total_orders
-          FROM orders
-          ORDER BY total_orders DESC
-          LIMIT 10
-      )
-    SELECT customer_id
-      FROM TopCustomers
-  ) AS ten_best_customers`;
+FROM (
+  WITH TopCustomers AS (
+    SELECT
+      customer_id,
+      total_orders
+    FROM orders
+    ORDER BY total_orders DESC
+    LIMIT 10
+  )
+  SELECT customer_id
+  FROM TopCustomers
+) AS ten_best_customers`;
         await testParseAndStringify('CompleteSelectStmt', sql, { prettyPrint: true, autoLineBreakThreshold: 5 });
     });
 
@@ -69,28 +69,28 @@ $describe('Parser - CTE Statements', () => {
         $it('should parse a CTE with SEARCH clause', async () => {
             const sql =
                 `WITH RECURSIVE t (n) AS (
-    SELECT 1
-    UNION ALL
-    SELECT n + 1
-      FROM t
-      WHERE n < 100
-  ) SEARCH DEPTH FIRST BY n SET order_col
+  SELECT 1
+  UNION ALL
+  SELECT n + 1
+  FROM t
+  WHERE n < 100
+) SEARCH DEPTH FIRST BY n SET order_col
 SELECT *
-  FROM t`;
+FROM t`;
             await testParseAndStringify('CTE', sql, { dialect: 'postgres', prettyPrint: true, autoLineBreakThreshold: 5 });
         });
 
         $it('should parse a CTE with CYCLE clause', async () => {
             const sql =
                 `WITH RECURSIVE t (n) AS (
-    SELECT 1
-    UNION ALL
-    SELECT n + 1
-      FROM t
-      WHERE n < 100
-  ) CYCLE n SET is_cycle TO TRUE DEFAULT FALSE USING cycle_path
+  SELECT 1
+  UNION ALL
+  SELECT n + 1
+  FROM t
+  WHERE n < 100
+) CYCLE n SET is_cycle TO TRUE DEFAULT FALSE USING cycle_path
 SELECT *
-  FROM t`;
+FROM t`;
             await testParseAndStringify('CTE', sql, { dialect: 'postgres', prettyPrint: true, autoLineBreakThreshold: 5 });
         });
     });
