@@ -7,7 +7,8 @@ const sql =
   `public (
   users (
     id SERIAL PRIMARY KEY,
-    parent_user INTEGER,
+    parent_user1 INTEGER,
+    parent_user2 INTEGER,
     metadata INTEGER,
     username VARCHAR(50) NOT NULL UNIQUE,
     email VARCHAR(100) NOT NULL UNIQUE CHECK (email LIKE '%@%'),
@@ -17,7 +18,8 @@ const sql =
     CHECK (password_hash LIKE '3...'),
     status VARCHAR(10) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'banned')),
     CONSTRAINT fk_meta FOREIGN KEY (metadata) REFERENCES public2.user_metadata (id) ON DELETE CASCADE,
-    CONSTRAINT fk_parent_user FOREIGN KEY (parent_user) REFERENCES users (id) ON DELETE CASCADE
+    CONSTRAINT fk_parent_user1 FOREIGN KEY (parent_user1) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_parent_user2 FOREIGN KEY (parent_user2) REFERENCES users (id) ON DELETE CASCADE
   ),
   orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

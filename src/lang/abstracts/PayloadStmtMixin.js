@@ -828,27 +828,10 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 
 	finalizePayloadJSON(resultJson, transformer, linkedDb, options) {
 
-		if (resultJson.returning_clause) {
-			// 1. Re-resolve output list for cases of just-added deep refs in returning_clause
-			// wherein schemas wouldn't have been resolvable at the time
-			// 2. Finalize output list for the last time, honouring given deSugaring level with regards to star selects "*"
-			// and ofcos finalize output schemas
-			const returningClauseJson = this.returningClause().finalizeJSON(resultJson.returning_clause, transformer, linkedDb, options);
-			// Apply now
-			resultJson = {
-				...resultJson,
-				returning_clause: returningClauseJson,
-				result_schema: returningClauseJson.result_schema,
-			};
-		} else {
-			resultJson = {
-				...resultJson,
-				result_schema: registry.JSONSchema.fromJSON({ entries: [] }, this.options),
-			};
-		}
-
 		const payloadDimensions = transformer.statementContext.artifacts.get('payloadDimensions');
-		if (!payloadDimensions.size) return resultJson;
+		if (!payloadDimensions.size) {
+			return resultJson;
+		}
 
 		const {
 			ColumnRef0,

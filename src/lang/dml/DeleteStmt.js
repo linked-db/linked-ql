@@ -1,10 +1,8 @@
 import { SelectorStmtMixin } from '../abstracts/SelectorStmtMixin.js';
-import { AbstractNonDDLStmt } from '../abstracts/AbstractNonDDLStmt.js';
-import { registry } from '../registry.js';
+import { Transformer } from '../Transformer.js';
+import { DMLStmt } from './DMLStmt.js';
 
-export class DeleteStmt extends SelectorStmtMixin(
-    AbstractNonDDLStmt
-) {
+export class DeleteStmt extends SelectorStmtMixin(DMLStmt) {
 
     /* SYNTAX RULES */
 
@@ -87,167 +85,52 @@ export class DeleteStmt extends SelectorStmtMixin(
 
     myLimitClause() { return this._get('my_limit_clause'); }
 
-    /* SCHEMA API */
-
-    querySchemas() {
-        // Literally inherit inheritedQuerySchemas
-        inheritedQuerySchemas = new Set(inheritedQuerySchemas || []);
-
-        const resultSchemas = new Set;
-
-        const deriveSchema = (aliasName, tableRef) => {
-            const alias = registry.Identifier.fromJSON({ value: aliasName });
-            const tableSchema = tableRef.resultSchema(transformer).clone({ renameTo: alias });
-            inheritedQuerySchemas.add(tableSchema);
-            resultSchemas.add(tableSchema);
-        };
-
-        if (this.tableExpr()) {
-            // Syntaxes 1 & 4
-            const tableExpr = this.tableExpr();
-            const tableRef = tableExpr.tableRef();
-            deriveSchema(
-                tableExpr.alias()?.value() || tableRef.value(),
-                tableRef
-            );
-        } else if (this.myDeleteList()?.length) {
-            // Syntaxes 2 & 3
-            for (const myDeleteExpr of this.myDeleteList()) {
-                const tableRef = myDeleteExpr.tableRef();
-                deriveSchema(
-                    tableRef.value(),
-                    tableRef
-                );
-            }
-        }
-
-        if (this.usingClause()) {
-            // Syntaxes 1 & 3
-            for (const fromElement of this.usingClause()) {
-                const fromExpr = fromElement.expr(); // TableRef1 or DerivedQuery, etc.
-                deriveSchema(
-                    fromElement.alias()?.value() || fromExpr.value(),
-                    fromExpr
-                );
-            }
-        } else if (this.myFromClause()) {
-            // Syntax 2
-            for (const fromElement of this.myFromClause()) {
-                const fromExpr = fromElement.expr();
-                deriveSchema(
-                    fromElement.alias()?.value() || fromExpr.value(),
-                    fromExpr
-                );
-            }
-        }
-
-        if (this.joinClauses()) {
-            // Syntax 1, 2, & 3
-            for (const fromElement of this.joinClauses()) {
-                const fromExpr = fromElement.expr(); // TableRef1 or DerivedQuery, etc.
-                deriveSchema(
-                    fromElement.alias()?.value() || fromExpr.value(),
-                    fromExpr
-                );
-            }
-        }
-
-        return resultSchemas;
-    }
-
-    /* DESUGARING API */
+    /* JSON API */
 
     jsonfy(options = {}, transformer = null, linkedDb = null) {
-        if (options.deSugar) {
-            const rands = options.rands || new Map;
-            const hashes = new Map;
-            options = { ...options, rands, hashes };
+        if (!options.deSugar) return super.jsonfy(options, transformer, linkedDb);
+
+        transformer = new Transformer((node, defaultTransform) => {
+            return defaultTransform();
+        }, transformer, this/* IMPORTANT */);
+
+        let resultJson = super.jsonfy(options, transformer, linkedDb);
+
+        // Order ouput JSON
+        if ((options.toDialect || this.options.dialect) === 'mysql') {
+            resultJson = {
+                uuid: resultJson.uuid,
+                nodeName: resultJson.nodeName,
+                my_delete_list: resultJson.my_delete_list,
+                my_from_clause: resultJson.my_from_clause,
+                using_clause: resultJson.using_clause,
+                join_clauses: resultJson.join_clauses,
+                where_clause: resultJson.where_clause,
+                // last syntax
+                table_expr: resultJson.table_expr,
+                my_partition_clause: resultJson.my_partition_clause,
+                where_clause: resultJson.where_clause,
+                my_order_by_clause: resultJson.my_order_by_clause,
+                my_limit_clause: resultJson.my_limit_clause,
+            };
+        } else {
+            resultJson = {
+                uuid: resultJson.uuid,
+                nodeName: resultJson.nodeName,
+                table_expr: resultJson.table_expr,
+                using_clause: resultJson.using_clause,
+                join_clauses: resultJson.join_clauses,
+                where_clause: resultJson.where_clause,
+                returning_clause: resultJson.returning_clause,
+                result_schema: resultJson.result_schema,
+            };
         }
-        return super.jsonfy(options, transformer, linkedDb);
-    }
 
-    finalizeSelectorJSON(resultJson, transformer, linkedDb, options) {
-        if (this.options.dialect !== 'postgres') {
-            // Redirect finalization to the standard finalization logic
-            return super.finalizeSelectorJSON(resultJson, transformer, linkedDb, options);
-        }
-
-        const {
-            FromItem,
-            TableAbstraction2,
-            SelectItemAlias,
-            FromItemAlias,
-            TableRef2,
-            TableRef1,
-            ColumnRef1,
-            SelectItem,
-            FromClause,
-            CompleteSelectStmt,
-            DerivedQuery,
-            BinaryExpr,
-        } = registry;
-
-        if (resultJson.where_clause?.cursor_name) {
-            throw new Error(`Deep/Back Refs are currently not supported with a "WHERE CURRENT OF..." statement`);
-        }
-
-        const rand = this._rand('rand');
-
-        // Rewrite to a "WHERE IN ( SELECT ... )" logic
-        // moving the existing WHERE clause, if any, into the subquery
-
-        const tblRefOriginal = resultJson.table_expr.name.value;
-        const tblAliasOriginal = resultJson.table_expr.alias ? resultJson.table_expr.alias.value : resultJson.table_expr.name.value;
-        const tblAliasRewrite = `${rand}::${tblAliasOriginal}`;
-        const whereClauseOriginal = resultJson.where_clause;
-        const pk = this.table().resultSchema(transformer, true)/* TableSchema */.pkConstraint(true)?.columns()[0];
-        if (!pk) throw new Error(``);
-
-        // The re-write...
-        resultJson = {
-            ...resultJson,
-            table_expr: {
-                nodeName: TableAbstraction2.NODE_NAME,
-                name: { nodeName: TableRef2.NODE_NAME, value: tblRefOriginal },
-                alias: { nodeName: SelectItemAlias.NODE_NAME, value: tblAliasRewrite }
-            },
-            where_clause: {
-                nodeName: BinaryExpr.NODE_NAME,
-                left: {
-                    nodeName: ColumnRef1.NODE_NAME,
-                    qualifier: { nodeName: TableRef1.NODE_NAME, value: tblAliasRewrite },
-                    value: pk,
-                },
-                operator: 'IN',
-                right: {
-                    nodeName: DerivedQuery.NODE_NAME,
-                    expr: {
-                        // SELECT <...>
-                        nodeName: CompleteSelectStmt.NODE_NAME,
-                        select_list: {
-                            nodeName: SelectList.NODE_NAME,
-                            entries: [{
-                                nodeName: SelectItem.NODE_NAME,
-                                expr: { nodeName: ColumnRef1.NODE_NAME, value: pk }
-                            }],
-                        },
-                        from_clause: {
-                            // FROM <tblRefOriginal>
-                            nodeName: FromClause.NODE_NAME,
-                            entries: [{
-                                nodeName: FromItem.NODE_NAME,
-                                expr: { nodeName: TableRef2.NODE_NAME, value: tblRefOriginal },
-                                alias: { nodeName: FromItemAlias.NODE_NAME, value: tblAliasOriginal }
-                            }]
-                        },
-                        where_clause: whereClauseOriginal,
-                        join_clauses: [...selectorDimensions].map((d) => d.query),
-                    },
-                }
-
-            }
-        };
-
+        // 1. Finalize output JSON
+		resultJson = this.finalizeOutputJSON(resultJson, transformer, linkedDb, options);
+        // 2. Finalize generated JOINS
+        resultJson = this.finalizeSelectorJSON(resultJson, transformer, linkedDb, options);
+        
         return resultJson;
     }
 }

@@ -1,11 +1,9 @@
 import { PayloadStmtMixin } from '../abstracts/PayloadStmtMixin.js';
-import { AbstractNonDDLStmt } from '../abstracts/AbstractNonDDLStmt.js';
+import { DMLStmt } from './DMLStmt.js';
 import { Transformer } from '../Transformer.js';
 import { registry } from '../registry.js';
 
-export class InsertStmt extends PayloadStmtMixin(
-	AbstractNonDDLStmt
-) {
+export class InsertStmt extends PayloadStmtMixin(DMLStmt) {
 
 	/* SYNTAX RULES */
 
@@ -183,7 +181,9 @@ export class InsertStmt extends PayloadStmtMixin(
 			}
 		}
 
-		// 1. Finalize entire query rewrite - returning a CTE
+		// 1. Finalize output JSON
+		resultJson = this.finalizeOutputJSON(resultJson, transformer, linkedDb, options);
+		// 2. Finalize generated JOINS. Must come last
 		resultJson = this.finalizePayloadJSON(resultJson, transformer, linkedDb, options);
 
 		return resultJson;

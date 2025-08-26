@@ -40,11 +40,13 @@ FROM (VALUES
 RETURNING id, name, v.row_index; 
 `;
 
-const sql = `UPDATE users u
-SET name = nn.name
-FROM users nn
-LEFT JOIN users v ON nn.id = v.id
-WHERE u.id = v.id;`;
+const sql = `
+DELETE FROM public.users AS u
+USING (
+    SELECT u2.id
+    FROM public.users AS u2
+    
+) as u2 WHERE u.id = u2.id`;
 console.log('________________________', (await client.query(sql)).rows);
 
 process.exit();

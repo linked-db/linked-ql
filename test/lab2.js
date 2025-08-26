@@ -249,12 +249,9 @@ SET
 
 
 sql = `
-UPSERT INTO users
-  (email, (parent_user <~ users) ~> id)
-VALUES
-  ('dd', 23),
-  ('dffff', 333)`;
-const resultNode = await registry['UpsertStmt'].parse(sql);
+DELETE FROM users
+WHERE parent_user2 ~> id = 3`;
+const resultNode = await registry['DeleteStmt'].parse(sql);
 
 //const resultNode = await registry['UpdateStmt'].parse(sql);
 //const resultNode = await registry['Expr'].parse('(parent_user <~ parent_user <~ users) ~> id');

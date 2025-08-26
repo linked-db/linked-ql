@@ -1,6 +1,6 @@
-import { AbstractDDLStmt } from '../abstracts/AbstractDDLStmt.js';
+import { DDLStmt } from './DDLStmt.js';
 
-export class CreateTableStmt extends AbstractDDLStmt {
+export class CreateTableStmt extends DDLStmt {
 
     /* SYNTAX RULES */
 
