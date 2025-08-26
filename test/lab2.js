@@ -249,9 +249,15 @@ SET
 
 
 sql = `
-DELETE FROM users
-WHERE parent_user2 ~> id = 3`;
-const resultNode = await registry['DeleteStmt'].parse(sql);
+INSERT INTO users
+  (email, parent_user2)
+VALUES
+  ('dd', 23),
+  ('dffff', 333)
+ON CONFLICT (email) DO UPDATE SET
+  (parent_user2 <~ users) ~> email = 2
+RETURNING id`;
+const resultNode = await registry['InsertStmt'].parse(sql);
 
 //const resultNode = await registry['UpdateStmt'].parse(sql);
 //const resultNode = await registry['Expr'].parse('(parent_user <~ parent_user <~ users) ~> id');

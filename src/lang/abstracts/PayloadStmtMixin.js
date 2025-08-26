@@ -42,14 +42,18 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				return defaultTransform();
 			}
 
-			// Is this assignment expr from within "on_conflict_clause"?
-			const onConflictClauseContext = !!this._get('on_conflict_clause')?.containsNode(node);
-			const $$options = { ...$options, onConflictClauseContext };
+			// Is this assignment expr from within "conflict_handling_clause"?
+			const conflictHandlingClauseContext = !!this._get('conflict_handling_clause')?.containsNode(node);
+			if (conflictHandlingClauseContext && this.options.dialect !== 'postgres') {
+				return defaultTransform();
+			}
+
+			const $$options = { ...$options, conflictHandlingClauseContext };
 
 			// Handle bare assignment exoressions
 			if (node.left() instanceof LQDeepRef2) {
 				const [[deSugaredLhs], [[deSugaredRhs]]] = this.deSugarPayload(
-					new ColumnsConstructor({ entries: [node.left()] }),
+					ColumnsConstructor.fromJSON({ entries: [node.left().jsonfy()] }),
 					[[node.right()]],
 					transformer,
 					linkedDb,
@@ -59,7 +63,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				return {
 					nodeName: AssignmentExpr.NODE_NAME,
 					operator: '=',
-					left: deSugaredLhs.entries,
+					left: deSugaredLhs,
 					right: deSugaredRhs,
 				};
 			}
@@ -148,7 +152,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		return resultJson;
 	}
 
-	deSugarPayload(columns, values, transformer, linkedDb, { onConflictClauseContext = false, deSugar, ...$options } = {}) {
+	deSugarPayload(columns, values, transformer, linkedDb, { conflictHandlingClauseContext = false, deSugar, ...$options } = {}) {
 		const payloadDimensions = transformer.statementContext.artifacts.get('payloadDimensions');
 
 		const {
@@ -179,7 +183,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			return columnList.entries().reduce((columnList, columnRef, columnOffset) => {
 				if (columnRef instanceof LQDeepRef2) {
 
-					const dimension = this.createPayloadDimension(columnRef, transformer, linkedDb, { onConflictClauseContext, ...$options });
+					const dimension = this.createPayloadDimension(columnRef, transformer, linkedDb, { conflictHandlingClauseContext, ...$options });
 					dimensionsMap.set(columnOffset, dimension);
 
 					if (dimension.refMode === 'dependency' && dimension.lhsOperandJson) {
@@ -252,7 +256,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 
 			// Create a CTE entry?
 			let memoSelect;
-			if (!onConflictClauseContext
+			if (!conflictHandlingClauseContext
 				&& baseSelect.from_clause
 				&& !/^[`"]\$memo~.+[`"]$/.test(selectStmt.fromClause().entries()[0].expr() + '')) {
 				const memoSelectAlias = transformer.rootContext.rand('memo');
@@ -367,7 +371,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		return [deSugaredLhs, deSugaredRhs];
 	}
 
-	createPayloadDimension(LQRefColumn, transformer, linkedDb, { onConflictClauseContext = false, ...$options } = {}) {
+	createPayloadDimension(LQRefColumn, transformer, linkedDb, { conflictHandlingClauseContext = false, ...$options } = {}) {
 		const { lhsOperand, rhsOperand, rhsTable, detail } = LQRefColumn.resolve(transformer, linkedDb, 2);
 		const payloadDimensions = transformer.statementContext.artifacts.get('payloadDimensions');
 
@@ -495,7 +499,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 
 		// --- UPDATE -------------
 
-		if (this instanceof UpdateStmt || onConflictClauseContext) {
+		if (this instanceof UpdateStmt || conflictHandlingClauseContext) {
 
 			// UPDATE t1 SET (a, (fk <~ fk <~ t2) ~> (a, b)) = ROW(2, ROW(44, 33))
 			// UPDATE t1 SET (a, (fk <~ fk <~ t2) ~> a) = ROW(2, ROW(44, 33))
@@ -505,9 +509,9 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			// UPDATE t1 SET (a, fk ~> fk ~> a) = (SELECT a, b FROM t3)
 
 			// Here we want to compose:
-			// - WHERE <rhsOperandJson> IN (SELECT <lhsOperandJson> FROM <baseUUID> [WHERE <on_conflict_updated_status> IS TRUE]? )
-			const onConflictUpdatedStatusAlias = onConflictClauseContext
-				? `${baseUUID}_on_conflict_updated_status` : null;
+			// - WHERE <rhsOperandJson> IN (SELECT <lhsOperandJson> FROM <baseUUID> [WHERE <conflict_based_update> IS TRUE]? )
+			const onConflictUpdatedStatusAlias = conflictHandlingClauseContext
+				? `${baseUUID}_conflict_based_update` : null;
 
 			const whereClause = {
 				nodeName: BinaryExpr.NODE_NAME,
@@ -567,7 +571,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				query,
 				offload,
 				lhsOperandJson,
-				onConflictClauseContext
+				conflictHandlingClauseContext
 			};
 			payloadDimensions.add(payloadDimension);
 
@@ -844,6 +848,8 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			SelectList,
 			SelectItem,
 			SelectItemAlias,
+			NumberLiteral,
+			BinaryExpr,
 			CTE,
 			CTEItem,
 			CTEItemAlias,
@@ -900,9 +906,9 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		let onConflictUpdatedStatusRequired = false;
 		const originalReturningList = resultJson.returning_clause?.entries || [];
 
-		for (const { refMode, query: $query, queries, lhsOperandJson, rhsOperandJson, onConflictClauseContext } of payloadDimensions) {
+		for (const { refMode, query: $query, queries, lhsOperandJson, rhsOperandJson, conflictHandlingClauseContext } of payloadDimensions) {
 			for (const { uuid, ...query } of ($query && [$query] || queries)) {
-				if (refMode === 'dependent' || (this instanceof UpdateStmt && refMode === 'dependency')) { // Defer dependents
+				if (refMode === 'dependent' || (this instanceof UpdateStmt && refMode === 'dependency') || conflictHandlingClauseContext) { // Defer dependents
 
 					if (!lefts.find((existing) => _eq(existing.expr.value, lhsOperandJson.value))) {
 						const fieldExpr = { nodeName: SelectItem.NODE_NAME, expr: lhsOperandJson };
@@ -912,7 +918,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 						lefts.push(fieldExpr);
 					}
 
-					if (onConflictClauseContext) {
+					if (conflictHandlingClauseContext) {
 						onConflictUpdatedStatusRequired = true;
 					}
 
@@ -942,27 +948,40 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		if (dependents.length) {
 
 			// Rewrite returning clause
+			const cteReturningList = [];
 			const newOuterReturningList = [];
-			for (const fieldExpr of originalReturningList) {
-				if (fieldExpr.alias) {
-					newOuterReturningList.push({ ...fieldExpr, expr: { nodeName: ColumnRef1.NODE_NAME, value: fieldExpr.alias.value, delim: fieldExpr.alias.delim } });
-				} else {
-					newOuterReturningList.push({ ...fieldExpr });
+			for (let fieldExpr of originalReturningList) {
+				if (!fieldExpr.alias) {
+					fieldExpr = {
+						...fieldExpr,
+						alias: { nodeName: SelectItemAlias.NODE_NAME, as_kw: true, value: transformer.rand('key') },
+					};
 				}
+				cteReturningList.push(fieldExpr);
+				newOuterReturningList.push({ ...fieldExpr, expr: { nodeName: ColumnRef1.NODE_NAME, value: fieldExpr.alias.value, delim: fieldExpr.alias.delim } });
+			}
+
+			// Add conflict_based_update?
+			if (onConflictUpdatedStatusRequired) {
+				const onConflictUpdatedStatusAlias = `${baseUUID}_conflict_based_update`;
+				cteReturningList.push({
+					nodeName: SelectItem.NODE_NAME,
+					expr: {
+						nodeName: BinaryExpr.NODE_NAME,
+						left: { nodeName: ColumnRef1.NODE_NAME, value: 'XMAX' },
+						operator: '!=',
+						right: { nodeName: NumberLiteral.NODE_NAME, value: '0' },
+					},
+					alias: { nodeName: SelectItemAlias.NODE_NAME, as_kw: true, value: onConflictUpdatedStatusAlias },
+				});
 			}
 
 			// Compose binding and add...
-			const cteReturningClause = {
-				nodeName: ReturningClause.NODE_NAME,
-				entries: [...originalReturningList, ...lefts],
-			};
+			const cteReturningClause = { nodeName: ReturningClause.NODE_NAME, entries: [...cteReturningList, ...lefts/* NOTE: cteReturningList may contain "*" */] };
 
-			if (onConflictUpdatedStatusRequired) {
-				const onConflictUpdatedStatusAlias = `${baseUUID}_on_conflict_updated_status`;
-				// TODO
-			}
-
-			if (this instanceof UpdateStmt) {
+			// Base query as CTE item
+			// If UpdateStmt or onConflictUpdatedStatusRequired, we do not pass lefts
+			if (this instanceof UpdateStmt || onConflictUpdatedStatusRequired) {
 				toCTEItem(baseUUID, { ...resultJson, returning_clause: cteReturningClause });
 			} else if (resultJson.pg_default_values_clause) {
 				toCTEItem(baseUUID, { ...resultJson, returning_clause: cteReturningClause });

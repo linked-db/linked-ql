@@ -20,7 +20,7 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
 
     static get syntaxPriority() { return 51; } // above LQBackRefAbstraction
 
-	static morphsTo() { return registry.ColumnRef2; }
+    static morphsTo() { return registry.ColumnRef2; }
 
     /* API */
 
@@ -53,7 +53,7 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
             if (result instanceof AbstractNode || Array.isArray(result)) return result;
 
             const resultSchema = columnSchema.clone({ normalized: true });
-            columnSchema.parentNode._adoptNodes(resultSchema);
+            columnSchema.parentNode?._adoptNodes(resultSchema);
 
             const resolvedColumnRef1 = ColumnRef1.fromJSON({
                 ...columnSchema.name().jsonfy({ nodeNames: false }),
@@ -66,6 +66,19 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
             return resolvedColumnRef1;
         };
 
+        // 1. Resolve system refs statically
+        const systemColumns = (this.options.dialect || 'postgres') === 'postgres'
+            ? ['CTID', 'OID', 'XMIN', 'XMAX', 'TABLEOID']
+            : [];
+        if (systemColumns.includes(name?.toUpperCase())) {
+            const columnSchema = registry.ColumnSchema.fromJSON({
+                name: { nodeName: registry.Identifier.NODE_NAME, value: name },
+                data_type: { nodeName: registry.DataType.NODE_NAME, value: 'INT' },
+            }, { assert: true });
+            return [].concat(resolve(columnSchema) || []);
+        }
+
+        // 2. Resolve from outputSchemas first?
         if (this.canReferenceOutputColumns() && transformer) {
             // Resolve from outputSchemas first
             let statementContext = transformer.statementContext
@@ -75,6 +88,7 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
             }
         }
 
+        // 3. Resolve normally
         if (inGrepMode || !resultSet.length) {
             // Resolve normally
             resultSet = resultSet.concat((new registry.TableRef1(this.qualifier()?.jsonfy() || {})).lookup(
@@ -112,9 +126,6 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
     }
 
     jsonfy({ toKind = 1, ...options } = {}, transformer = null, linkedDb = null) {
-        if (options.deSugar && this.qualifier()?.identifiesAs((options.toDialect || this.options.dialect) === 'mysql' ? 'VALUES' : 'EXCLUDED')) {
-            options = { ...options, deSugar: 0 };
-        }
         if (options.deSugar
             && ((!this.qualifier() && Number(options.deSugar) > 1)
                 || !this.resultSchema())
@@ -127,12 +138,12 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
         }
         let resultJson = super.jsonfy(options, transformer, linkedDb);
         if (toKind === 2) {
-			resultJson = {
+            resultJson = {
                 ...resultJson,
-				nodeName: registry.ColumnRef2.NODE_NAME,
-			};
+                nodeName: registry.ColumnRef2.NODE_NAME,
+            };
             delete resultJson.qualifier;
-		}
+        }
         return resultJson;
     }
 }

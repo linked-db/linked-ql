@@ -13,7 +13,7 @@ export class MYOnDuplicateKeyUpdateClause extends AbstractNodeList {
                 { type: 'keyword', value: 'DUPLICATE' },
                 { type: 'keyword', value: 'KEY' },
                 { type: 'keyword', value: 'UPDATE' },
-                { type: 'AssignmentExpr', as: 'entries', arity: { min: 1 }, itemSeparator, assert: true, autoIndent: 2 },
+                { type: 'AssignmentExpr', as: 'entries', arity: { min: 1 }, itemSeparator, assert: true, autoIndent: true },
             ]
         };
     }

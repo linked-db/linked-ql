@@ -149,12 +149,6 @@ $describe('DeSugaring - Refs Resolution', () => {
             await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: 2 }, linkedDb);
         });
 
-        $it('should parse a "star" ref', async () => {
-            const inputSql = `SELECT * FROM users`;
-            const outputSql = `SELECT * FROM public.users`;
-            await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: 2 }, linkedDb);
-        });
-
         $it('should parse and deSugar/expand a "star" ref', async () => {
             const inputSql =
                 `SELECT *
@@ -530,6 +524,23 @@ FROM orders as t
 WHERE 1`;
             const outputSql =
                 `WITH "$memo~0" AS (SELECT ROW_NUMBER() OVER () AS "$row_number~a", t.id AS id, t.order_total AS email, 2 AS "rr~rand~0", t.parent_order AS "rr~rand~1" FROM public.orders AS t WHERE 1), "$main~0" AS (INSERT INTO public.users (username, email) SELECT "$memo~0".id AS id, "$memo~0".email AS email FROM "$memo~0" RETURNING users.id), "$main~0~indices" AS (SELECT "$main~0".id AS id, ROW_NUMBER() OVER () AS "$row_number~b" FROM "$main~0"), "$dependency~0" AS (INSERT INTO public.users (status, email) SELECT "$memo~0"."rr~rand~0" AS status, "$memo~0"."rr~rand~1" AS email FROM "$memo~0" RETURNING users.id), "$dependency~0~indices" AS (SELECT "$dependency~0".id AS id, ROW_NUMBER() OVER () AS "$row_number~b" FROM "$dependency~0"), "$dependency~1" AS (INSERT INTO public.users (parent_user2) SELECT (SELECT "$main~0~indices".id FROM "$main~0~indices" WHERE "$main~0~indices"."$row_number~b" = "$memo~0"."$row_number~a") AS parent_user2 FROM "$memo~0" RETURNING users.id), "$dependency~1~indices" AS (SELECT "$dependency~1".id AS id, ROW_NUMBER() OVER () AS "$row_number~b" FROM "$dependency~1"), "$dependent~0" AS (INSERT INTO public.users (parent_user1, parent_user2) SELECT (SELECT "$dependency~0~indices".id FROM "$dependency~0~indices" WHERE "$dependency~0~indices"."$row_number~b" = "$memo~0"."$row_number~a") AS parent_user1, (SELECT "$dependency~1~indices".id FROM "$dependency~1~indices" WHERE "$dependency~1~indices"."$row_number~b" = "$memo~0"."$row_number~a") AS parent_user2 FROM "$memo~0") SELECT COUNT(*) AS COUNT FROM "$main~0"`;
+            await testParseAndStringify('InsertStmt', [inputSql, outputSql], { deSugar: 2, prettyPrint: true }, linkedDb);
+        });
+    });
+
+    $describe('INSERT ... ON CONFLICT', () => {
+        $it('should parse a basic deep INSERT ... ON CONFLICT statement', async () => {
+            const inputSql =
+                `INSERT INTO users
+  (email, parent_user2)
+VALUES
+  ('dd', 23),
+  ('dffff', 333)
+ON CONFLICT (email) DO UPDATE SET
+  (parent_user2 <~ users) ~> email = 2
+RETURNING id`;
+            const outputSql =
+                `WITH "$main~0" AS (INSERT INTO public.users (email, parent_user2) VALUES ('dd', 23), ('dffff', 333) ON CONFLICT (email) DO UPDATE SET id = users.id RETURNING users.id AS "$key~1", XMAX != 0 AS "$main~0_conflict_based_update", users.id AS "$key~0"), "$dependent~0" AS (UPDATE public.users AS users SET (email) = ROW (2) WHERE users.parent_user2 IN (SELECT users.id FROM "$main~0" WHERE "$main~0"."$main~0_conflict_based_update" IS TRUE)) SELECT "$main~0"."$key~1" AS "$key~1" FROM "$main~0"`;
             await testParseAndStringify('InsertStmt', [inputSql, outputSql], { deSugar: 2, prettyPrint: true }, linkedDb);
         });
     });

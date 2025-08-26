@@ -23,7 +23,7 @@ export class PGOnConflictClause extends AbstractNodeList {
                             { type: 'keyword', value: 'DO' },
                             { type: 'keyword', value: 'UPDATE' },
                             { type: 'keyword', value: 'SET' },
-                            { type: 'AssignmentExpr', as: 'entries', arity: { min: 1 }, itemSeparator, assert: true, autoIndent: 2 },
+                            { type: 'AssignmentExpr', as: 'entries', arity: { min: 1 }, itemSeparator, assert: true, autoIndent: true },
                             { type: 'WhereClause', as: 'where_clause', optional: true, autoIndent: true },
                         ],
                     ],

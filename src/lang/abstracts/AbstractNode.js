@@ -574,7 +574,6 @@ export class AbstractNode {
 			}
 			return new this(resultAST, options);
 		}
-		//console.log('||', inputJson);
 		$decideThrow(`Failed to match any schema${lastAssertion ? `. ${lastAssertion}` : ''}`, this.NODE_NAME);
 	}
 

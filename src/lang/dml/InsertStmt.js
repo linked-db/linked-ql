@@ -168,6 +168,25 @@ export class InsertStmt extends PayloadStmtMixin(DMLStmt) {
 			};
 		}
 
+        if (resultJson.conflict_handling_clause?.entries
+			&& !resultJson.conflict_handling_clause.entries.length) {
+            // All assignments were BackRefs and have been offloaded
+            const pkConstraint = resultJson.table_ref.result_schema.pkConstraint(true);
+            const pkColumn = pkConstraint.columns()[0];
+            resultJson = {
+                ...resultJson,
+                conflict_handling_clause: {
+                    ...resultJson.conflict_handling_clause,
+                    entries: [{
+                        nodeName: registry.AssignmentExpr.NODE_NAME,
+                        left: pkColumn.jsonfy(),
+                        operator: '=',
+                        right: pkColumn.jsonfy({ toKind: 1 })
+                    }],
+                },
+            };
+        }
+
 		if (toDialect === 'postgres'
 			&& !resultJson.pg_table_alias
 			&& Number(options.deSugar) > 2) {

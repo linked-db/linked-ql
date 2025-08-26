@@ -80,7 +80,7 @@ export class SelectList extends DDLSchemaMixin(AbstractNodeList) {
     }
 
     finalizeJSON(resultJson, transformer, linkedDb, options) {
-        const shouldDeSugarStars = Number(options.deSugar) > 2;
+        const shouldDeSugarStars = Number(options.deSugar) > 1;
         let starsFound;
 
         const [

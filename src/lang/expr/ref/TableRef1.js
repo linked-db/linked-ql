@@ -59,7 +59,18 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 			return resolvedTableRef;
 		};
 
-		// Resolve from outputSchemas first?
+		// 1. Resolve system refs statically
+		const systemTableRefs = (this.options.dialect || 'postgres') === 'postgres'
+            ? ['EXCLUDED']
+            : [];
+        if (systemTableRefs.includes(name?.toUpperCase()) && transformer) {
+            const tableSchema = [...transformer.statementContext.artifacts.get('tableSchemas')][0].resultSchema.clone({
+				renameTo: { nodeName: registry.Identifier.NODE_NAME, value: name },
+			});
+            return [].concat(resolve(tableSchema) || []);
+        }
+
+		// 2. Resolve from InlineTables first?
 		if (this.canReferenceInlineTables() && transformer) {
 			let statementContext = transformer.statementContext;
 			let originalType;
@@ -82,7 +93,7 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 			} while ((inGrepMode || !resultSet.length) && (statementContext = statementContext.parentTransformer?.statementContext))
 		}
 
-		// Resolve normally?
+		// 3. Resolve normally
 		if (!deepMatchCallback/* we're not trying to qualify a column */ && (inGrepMode || !resultSet.length)) {
 			resultSet = resultSet.concat((new registry.SchemaRef(this.qualifier()?.jsonfy() || {})).lookup(
 				(schemaSchema) => {
