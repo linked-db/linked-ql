@@ -13,9 +13,9 @@ _**Next-generation SQL (Postgres & MySQL)** for modern apps!_
 <br>
 
 <picture>
-  <source media="(max-width: 799px)" srcset="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-mobile-a.png?raw=true">
-  <source media="(min-width: 800px)" srcset="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-main-a.png?raw=true">
-    <img src="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-main-a.png?raw=true" alt="Linked QL Banner" width="100%">
+  <source media="(max-width: 799px)" srcset="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-mobile.png?raw=true">
+  <source media="(min-width: 800px)" srcset="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-main.png?raw=true">
+    <img src="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-main.png?raw=true" alt="Linked QL Banner" width="100%">
 </picture>
 
 <br>
@@ -79,8 +79,8 @@ To report bugs or request features, please submit an [issue](https://github.com/
 
 MIT. (See [LICENSE](https://github.com/linked-db/linked-ql?tab=MIT-1-ov-file))
 
-[npm-version-src]: https://img.shields.io/npm/v/@linked-db/linked-ql@next?style=flat&colorA=18181B&colorB=F0DB4F
-[npm-version-href]: https://npmjs.com/package/@linked-db/linked-ql@next
+[npm-version-src]: https://img.shields.io/npm/v/@linked-db/linked-ql?style=flat&colorA=18181B&colorB=F0DB4F
+[npm-version-href]: https://npmjs.com/package/@linked-db/linked-ql
 [npm-downloads-src]: https://img.shields.io/npm/dm/@linked-db/linked-ql@next?style=flat&colorA=18181B&colorB=F0DB4F
 [npm-downloads-href]: https://npmjs.com/package/@linked-db/linked-ql@next
 [bundle-src]: https://img.shields.io/bundlephobia/minzip/@linked-db/linked-ql@next?style=flat&colorA=18181B&colorB=F0DB4F
