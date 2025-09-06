@@ -30,6 +30,10 @@ Linked QL is JS-based and database-agnostic—supporting PostgreSQL, MySQL and m
 
 </div>
 
+> [!IMPORTANT]  
+> This is LinkedQL_@latest_—our first iteration
+> See [LinkedQL_@next_](https://github.com/linked-db/linked-ql/tree/next) for our next iteration
+
 <div align="center">
 
 ---------------------------------
