@@ -36,7 +36,7 @@
     "test:coverage": "c8 --reporter=text-lcov npm run test | coveralls",
     "build": "esbuild main=src/index.js --bundle --minify --sourcemap --outdir=dist",
     "preversion": "npm run test && npm run build && git add -A dist",
-    "postversion": "npm publish",
+    "postversion": "npm publish --tag next",
     "postpublish": "git push && git push --tags"
   },
   "dependencies": {
