@@ -79,11 +79,11 @@ To report bugs or request features, please submit an [issue](https://github.com/
 
 MIT. (See [LICENSE](https://github.com/linked-db/linked-ql?tab=MIT-1-ov-file))
 
-[npm-version-src]: https://img.shields.io/npm/v/@linked-db/linked-ql?style=flat&colorA=18181B&colorB=F0DB4F
+[npm-version-src]: https://img.shields.io/npm/v/@linked-db/linked-ql?style=flat&colorA=18181B&colorB=teal
 [npm-version-href]: https://npmjs.com/package/@linked-db/linked-ql
-[npm-downloads-src]: https://img.shields.io/npm/dm/@linked-db/linked-ql@next?style=flat&colorA=18181B&colorB=F0DB4F
+[npm-downloads-src]: https://img.shields.io/npm/dm/@linked-db/linked-ql@next?style=flat&colorA=18181B&colorB=teal
 [npm-downloads-href]: https://npmjs.com/package/@linked-db/linked-ql@next
-[bundle-src]: https://img.shields.io/bundlephobia/minzip/@linked-db/linked-ql@next?style=flat&colorA=18181B&colorB=F0DB4F
+[bundle-src]: https://img.shields.io/bundlephobia/minzip/@linked-db/linked-ql@next?style=flat&colorA=18181B&colorB=teal
 [bundle-href]: https://bundlephobia.com/result?p=@linked-db/linked-ql@next
-[license-src]: https://img.shields.io/github/license/linked-db/linked-ql.svg?style=flat&colorA=18181B&colorB=F0DB4F
+[license-src]: https://img.shields.io/github/license/linked-db/linked-ql.svg?style=flat&colorA=18181B&colorB=teal
 [license-href]: https://github.com/linked-db/linked-ql/blob/next/LICENSE
