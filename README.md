@@ -31,9 +31,9 @@ Linked QL is JS-based and works both in Nodejs and in the browser (coming soon)
 </div>
 
 > [!IMPORTANT]  
-> This is _LinkedQL @next_—our upcoming iteration
+> This is _@linked-db/linked-ql@next_ — our upcoming iteration
 > 
-> See [_LinkedQL @0.3_](https://github.com/linked-db/linked-ql) for our current iteration—being the version covered in the [wiki](https://github.com/linked-db/linked-ql/wiki)
+> See [_@linked-db/linked-ql@0.3.*_](https://github.com/linked-db/linked-ql) for our current iteration—being the version covered in the [wiki](https://github.com/linked-db/linked-ql/wiki)
 
 ---------------------------------
 
@@ -79,11 +79,11 @@ To report bugs or request features, please submit an [issue](https://github.com/
 
 MIT. (See [LICENSE](https://github.com/linked-db/linked-ql?tab=MIT-1-ov-file))
 
-[npm-version-src]: https://img.shields.io/npm/v/@linked-db/linked-ql?style=flat&colorA=18181B&colorB=F0DB4F
-[npm-version-href]: https://npmjs.com/package/@linked-db/linked-ql
-[npm-downloads-src]: https://img.shields.io/npm/dm/@linked-db/linked-ql?style=flat&colorA=18181B&colorB=F0DB4F
-[npm-downloads-href]: https://npmjs.com/package/@linked-db/linked-ql
-[bundle-src]: https://img.shields.io/bundlephobia/minzip/@linked-db/linked-ql?style=flat&colorA=18181B&colorB=F0DB4F
-[bundle-href]: https://bundlephobia.com/result?p=@linked-db/linked-ql
+[npm-version-src]: https://img.shields.io/npm/v/@linked-db/linked-ql@next?style=flat&colorA=18181B&colorB=F0DB4F
+[npm-version-href]: https://npmjs.com/package/@linked-db/linked-ql@next
+[npm-downloads-src]: https://img.shields.io/npm/dm/@linked-db/linked-ql@next?style=flat&colorA=18181B&colorB=F0DB4F
+[npm-downloads-href]: https://npmjs.com/package/@linked-db/linked-ql@next
+[bundle-src]: https://img.shields.io/bundlephobia/minzip/@linked-db/linked-ql@next?style=flat&colorA=18181B&colorB=F0DB4F
+[bundle-href]: https://bundlephobia.com/result?p=@linked-db/linked-ql@next
 [license-src]: https://img.shields.io/github/license/linked-db/linked-ql.svg?style=flat&colorA=18181B&colorB=F0DB4F
 [license-href]: https://github.com/linked-db/linked-ql/blob/master/LICENSE
