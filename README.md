@@ -31,8 +31,9 @@ Linked QL is JS-based and works both in Nodejs and in the browser (coming soon)
 </div>
 
 > [!IMPORTANT]  
-> This is **`@linked-db/linked-ql@next`** (our @next release)
-> See [LinkedQL (current)](https://github.com/linked-db/linked-ql) for the current version—being the version documented in the wiki
+> This is _LinkedQL @next_—our newest iteration
+> 
+> See [_LinkedQL @latest_](https://github.com/linked-db/linked-ql) for our first iteration—being the version covered in the [wiki](https://github.com/linked-db/linked-ql/wiki)
 
 ---------------------------------
 
