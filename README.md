@@ -81,8 +81,8 @@ MIT. (See [LICENSE](https://github.com/linked-db/linked-ql?tab=MIT-1-ov-file))
 
 [npm-version-src]: https://img.shields.io/npm/v/@linked-db/linked-ql?style=flat&colorA=18181B&colorB=teal
 [npm-version-href]: https://npmjs.com/package/@linked-db/linked-ql
-[npm-downloads-src]: https://img.shields.io/npm/dm/@linked-db/linked-ql@next?style=flat&colorA=18181B&colorB=teal
-[npm-downloads-href]: https://npmjs.com/package/@linked-db/linked-ql@next
+[npm-downloads-src]: https://img.shields.io/npm/dm/@linked-db/linked-ql?style=flat&colorA=18181B&colorB=teal
+[npm-downloads-href]: https://npmjs.com/package/@linked-db/linked-ql
 [bundle-src]: https://img.shields.io/bundlephobia/minzip/@linked-db/linked-ql@next?style=flat&colorA=18181B&colorB=teal
 [bundle-href]: https://bundlephobia.com/result?p=@linked-db/linked-ql@next
 [license-src]: https://img.shields.io/github/license/linked-db/linked-ql.svg?style=flat&colorA=18181B&colorB=teal
