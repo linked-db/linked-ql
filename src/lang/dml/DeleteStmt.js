@@ -109,7 +109,6 @@ export class DeleteStmt extends SelectorStmtMixin(DMLStmt) {
                 // last syntax
                 table_expr: resultJson.table_expr,
                 my_partition_clause: resultJson.my_partition_clause,
-                where_clause: resultJson.where_clause,
                 my_order_by_clause: resultJson.my_order_by_clause,
                 my_limit_clause: resultJson.my_limit_clause,
             };
