@@ -13,9 +13,9 @@ _**Next-generation SQL (Postgres & MySQL)** for modern apps!_
 <br>
 
 <picture>
-  <source media="(max-width: 799px)" srcset="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-mobile.png?raw=true">
-  <source media="(min-width: 800px)" srcset="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-main.png?raw=true">
-    <img src="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-main.png?raw=true" alt="Linked QL Banner" width="100%">
+  <source media="(max-width: 799px)" srcset="https://github.com/linked-db/linked-ql/blob/next/resources/linked-ql-mobile.png?raw=true">
+  <source media="(min-width: 800px)" srcset="https://github.com/linked-db/linked-ql/blob/next/resources/linked-ql-main.png?raw=true">
+    <img src="https://github.com/linked-db/linked-ql/blob/next/resources/linked-ql-main.png?raw=true" alt="Linked QL Banner" width="100%">
 </picture>
 
 <br>
@@ -86,4 +86,4 @@ MIT. (See [LICENSE](https://github.com/linked-db/linked-ql?tab=MIT-1-ov-file))
 [bundle-src]: https://img.shields.io/bundlephobia/minzip/@linked-db/linked-ql@next?style=flat&colorA=18181B&colorB=F0DB4F
 [bundle-href]: https://bundlephobia.com/result?p=@linked-db/linked-ql@next
 [license-src]: https://img.shields.io/github/license/linked-db/linked-ql.svg?style=flat&colorA=18181B&colorB=F0DB4F
-[license-href]: https://github.com/linked-db/linked-ql/blob/master/LICENSE
+[license-href]: https://github.com/linked-db/linked-ql/blob/next/LICENSE
