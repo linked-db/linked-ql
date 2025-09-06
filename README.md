@@ -2,7 +2,7 @@
     
 # Linked QL
 
-_**Next-gen database tooling** For Postgres & MySQL!_
+_**Next-generation SQL (Postgres & MySQL)** for modern apps!_
 
 [![npm version][npm-version-src]][npm-version-href][![npm downloads][npm-downloads-src]][npm-downloads-href]
 [![bundle][bundle-src]][bundle-href]
@@ -24,7 +24,7 @@ _**Next-gen database tooling** For Postgres & MySQL!_
 
 [Follow](https://x.com/LinkedQL) • [Sponsor](https://github.com/sponsors/ox-harris)
 
-LinkedQL is a next-generation database client that gives you an advanced form of SQL with features that make you insanely productive with SQL—native Postgres and MySQL.
+LinkedQL is next-generation SQL (Postgres and MySQL) for modern apps—and tooling for modern workflows.
 
 Linked QL is JS-based and works both in Nodejs and in the browser (coming soon)
 
@@ -32,7 +32,7 @@ Linked QL is JS-based and works both in Nodejs and in the browser (coming soon)
 
 > [!IMPORTANT]  
 > This is **`@linked-db/linked-ql@next`** (our @next release)
-> See [LinkedQL (current)](https://github.com/linked-db/linked-ql) for the current version. This is the version documented in the wiki
+> See [LinkedQL (current)](https://github.com/linked-db/linked-ql) for the current version—being the version documented in the wiki
 
 ---------------------------------
 
