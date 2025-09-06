@@ -2,7 +2,7 @@
     
 # Linked QL
 
-_**The Database Client++** For Modern Apps!_
+_**Next-gen database tooling** For Postgres & MySQL!_
 
 [![npm version][npm-version-src]][npm-version-href][![npm downloads][npm-downloads-src]][npm-downloads-href]
 [![bundle][bundle-src]][bundle-href]
@@ -24,450 +24,47 @@ _**The Database Client++** For Modern Apps!_
 
 [Follow](https://x.com/LinkedQL) • [Sponsor](https://github.com/sponsors/ox-harris)
 
-LinkedQL is a database client that converges query abstraction, migrations & version control, realtime applications, and developer tooling.
+LinkedQL is a next-generation database client that gives you an advanced form of SQL with features that make you insanely productive with SQL—native Postgres and MySQL.
 
-Linked QL is JS-based and dual-dialect: PostgreSQL + MySQL/mariadb!
+Linked QL is JS-based and works both in Nodejs and in the browser (coming soon)
 
 </div>
 
-<div align="center">
+> [!IMPORTANT]  
+> This is **`@linked-db/linked-ql@next`** (our @next release)
+> See [LinkedQL (current)](https://github.com/linked-db/linked-ql) for the current version. This is the version documented in the wiki
 
 ---------------------------------
 
-[SELECT](https://github.com/linked-db/linked-ql/wiki/SELECT) • [INSERT](https://github.com/linked-db/linked-ql/wiki/INSERT) • [UPSERT](https://github.com/linked-db/linked-ql/wiki/UPSERT) • [UPDATE](https://github.com/linked-db/linked-ql/wiki/UPDATE) • [DELETE](https://github.com/linked-db/linked-ql/wiki/DELETE) • [CREATE](https://github.com/linked-db/linked-ql/wiki/CREATE) • [RENAME](https://github.com/linked-db/linked-ql/wiki/RENAME) • [ALTER](https://github.com/linked-db/linked-ql/wiki/ALTER) • [DROP](https://github.com/linked-db/linked-ql/wiki/DROP)
+## ⏳ Why LinkedQL?
 
-[Docs](https://github.com/linked-db/linked-ql/wiki) • [LANG](https://github.com/linked-db/linked-ql/wiki/LANG) • [API](https://github.com/linked-db/linked-ql/wiki/API) • [CLI](https://github.com/linked-db/linked-ql/wiki/CLI) • [Migrations](https://github.com/linked-db/linked-ql/wiki/Migrations)
+- SQL is 🔥, but sucks; LinkedQL gives you next-level SQL
+- ORMs are 🚀, but miss the mark; LinkedQL gives you next-level SQL — with DeepRefs
+- Dedicated sync engines? Much baggage; LinkedQL gives you next-level SQL — with reactivity
+- Migrations remain a time-sink; LinkedQL gives you next-level SQL — with automatic versioning
 
-</div>
+## 🚀 Features
 
-<br>
-<br>
+- Syntax Shorthands — ⮑ DeepRefs
+- Syntax Shorthands — 🧩 JSON Notation
+- Syntax Shorthands — 📦 UPSERTs
+- Schema Evolution — 🧬 Automatic Versioning
+- Schema Evolution — 🧷 Version Binding
+- Schema Ops — 🤖 Diff-based Migrations
+- Reactivity — ⚡ Live Queries
+- IDE Tooling — 🔍 Static Error Checking
+- IDE Tooling — 🛡️ Type Safety
+- IDE Tooling — 💡 Autocompletion
 
-<table style="table-layout: fixed;">
-<tr><th>
+## ⚙️ How It Works
 
-_What we're doing differently?_
-    
-</th></tr>
-<tr><td>
+_coming soon_
 
-<div align="center">
+## ✍️ Documentation
 
-Not an ORM like Prisma or Drizzle, and yet, not an ordinary database query client!
-
-Here's a breif tour:
-
-</div>
-
-</td></td>
-<tr><td>
-<details _name="features"><summary>A SQL-native experience</summary>
-
-If you miss the art and power of SQL, then you'll love Linked QL! While SQL as a language may have come to be *the exception* in the database tooling ecosystem, it is <ins>the default</ins> in Linked QL! That is a go-ahead to, in fact, #usethelanguage whenever it feels inclined!
-
-##### └ *Preview:*
-
-```js
-// (1): A basic query with parameters
-const result = await client.query(
-    `SELECT
-        name,
-        email
-    FROM users
-    WHERE role = $1`,
-    ['admin']
-);
-console.log(result);
-```
-
-```js
-// (2): A basic DDL query
-const result = await client.query(
-    `CREATE TABLE users (
-        id int primary key generated always as identity,
-        name varchar,
-        email varchar,
-        phone varchar,
-        role varchar,
-        created_time timestamp
-    )`
-);
-console.log(result);
-```
-
-</details>
-</td></tr>
-
-<tr><td>
-<details _name="features"><summary>Powerful syntax sugars</summary>
-
-Go ahead and model structures and traverse relationships like they were plain JSON objects—right within the language! Meet Linked QL's set of syntax extensions to SQL that <ins>do the hard work</ins>, <ins>cut your query in half</ins>, and even <ins>save you multiple round trips</ins>! *(See ➞ [JSON Sugars](https://github.com/linked-db/linked-ql/wiki/JSON-Sugars), [Magic Paths](https://github.com/linked-db/linked-ql/wiki/Magic-Paths), [Upserts](https://github.com/linked-db/linked-ql/wiki/UPSERT))*
-
-##### └ *Preview:*
-
-```js
-// (1): JSON Sugars
-const result = await client.query(
-    `SELECT
-        name,
-        email,
-        { email, phone AS mobile } AS format1,
-        [ email, phone ] AS format2
-    FROM users`
-);
-console.log(result);
-```
-
-```js
-// (2): Magic Paths
-const result = await client.query(
-    `SELECT
-        title,
-        content,
-        author ~> name AS author_name
-    FROM books
-    WHERE author ~> role = $1`,
-    ['admin']
-);
-console.log(result);
-```
-
-```js
-// (3): Upsert
-const result = await client.query(
-    `UPSERT INTO public.users 
-        ( name, email, role )
-    VALUES
-        ( 'John Doe', 'jd@example.com', 'admin' ),
-        ( 'Alice Blue', 'ab@example.com', 'guest' )`
-);
-console.log(result);
-```
-
-</details>
-</td></tr>
-
-<tr><td>
-<details _name="features"><summary>Progressive enhancement</summary>
-
-While the typical ORM often imposes a high level of abstraction where that's not desired, Linked QL offers a <ins>SQL-by-default, progressive enhancement</ins> workflow that lets you think from the ground up! And at whatever part of that spectrum you find a sweet spot, you also get the same powerful set of features that Linked QL has to offer! *(See ➞ [Examples](https://github.com/linked-db/linked-ql/wiki/LANG))*
-
-##### └ *Preview:*
-
-```js
-// (a): SQL
-const result = await client.query(
-    `SELECT
-        name,
-        email
-    FROM users
-    WHERE role = $1 OR role = $2`,
-    ['admin', 'contributor']
-);
-```
-
-```js
-// (b): Object-Based Query Builder
-const result = await client.database('public').table('users').select({
-    fields: [ 'name', 'email' ],
-    where: { some: [
-        { eq: ['role', { binding: 'admin' }] },
-        { eq: ['role', { binding: 'contributor' }] }
-    ] }
-});
-```
-
-```js
-// (c): Function-Based Query Builder
-const result = await client.database('public').table('users').select({
-    fields: [ 'name', 'email' ],
-    where: (q) => q.some(
-        (r) => r.eq('role', (s) => s.binding('admin')),
-        (r) => r.eq('role', (s) => s.binding('contributor')),
-    )
-});
-```
-
-</details>
-</td></tr>
-
-<tr><td>
-<details _name="features"><summary>Automatic schema inference</summary>
-
-Whereas the typical ORM requires you to feed them with your database schema (case in point: [Drizzle](https://orm.drizzle.team/)), Linked QL <ins>automatically infers it</ins> and magically maintains 100% schema-awareness throughout (without necessarily looking again)! You get a whole lot of manual work entirely taken out of the equation! *(See ➞ [Automatic Schema Inference](https://github.com/linked-db/linked-ql/wiki/Automatic-Schema-Inference))*
-
-##### └ *Preview:*
-
-*Simply <ins>plug</ins> to your database and <ins>play</ins>:*
-
-```js
-// Import pg and LinkedQl
-import pg from 'pg';
-import { SQLClient } from '@linked-db/linked-ql/sql';
-
-// Connect to your database
-const connectionParams = { connectionString: process.env.SUPABASE_CONNECTION_STRING }
-const pgClient = new pg.Client(connectionParams);
-await pgClient.connect();
-
-// Use LinkedQl as a wrapper over that
-const client = new SQLClient(pgClient, { dialect: 'postgres' });
-```
-
-*Query structures on the fly... without the upfront schema work:*
-
-```js
-const result = await client.query(
-    `SELECT
-        access_token,
-        user_id: { email, phone, role } AS user,
-        last_active
-    FROM auth.users
-    WHERE user_id ~> email = $1`,
-    ['johndoe@example.com']
-);
-```
-
-</details>
-</td></tr>
-
-<tr><td>
-<details _name="features"><summary>Automatic schema versioning</summary>
-
-While the typical database has no concept of versioning, Linked QL comes with it to your database, and along with it a powerful rollback (and rollforward) mechanism! On each DDL operation you make against your database (`CREATE`, `ALTER`, `DROP`), you get a savepoint automatically created for you and a seamless rollback path you can take anytime! *(See ➞ [Automatic Schema Versioning](https://github.com/linked-db/linked-ql/wiki/Automatic-Schema-Versioning))*
-
-##### └ *Preview:*
-
-*Perform a DDL operation and obtain a reference to the automatically created savepoint:*
-
-```js
-// (a): Using the "RETURNING" clause at DDL execution time
-const savepoint = await client.query(
-    `CREATE TABLE public.users (
-        id int,
-        name varchar
-    )
-    RETURNING SAVEPOINT`,
-    { desc: 'Create users table' }
-);
-```
-
-```js
-// (b): Or using the database.savepoint() API at any time
-const savepoint = await client.database('public').savepoint();
-```
-
-*Either way, see what you got there:*
-
-```js
-// (a): Some important details about the referenced point in time
-console.log(savepoint.versionTag()); // 1
-console.log(savepoint.commitDesc()); // Create users table
-console.log(savepoint.commitDate()); // 2024-07-17T22:40:56.786Z
-```
-
-```js
-// (b): Your rollback path
-console.log(savepoint.reverseSQL());
-// "DROP TABLE public.users CASCADE"
-```
-
-```js
-// (c): Your rollback magic wand button
-await savepoint.rollback({
-    desc: 'Users table no more necessary'
-});
-```
-
-</details>
-</td></tr>
-
-<tr><td>
-<details _name="features"><summary>Diff-based migration</summary>
-
-Whereas schema evolution remains a drag in the database tooling ecosystem, it comes as a particularly nifty experience in Linked QL! As against the conventional script-based migrations approach, Linked QL follows a diff-based approach that lets you manage your entire DB structure <ins>declaratively</ins> out of a single `schema.json` (or `schema.yml`) file! *(See ➞ [Migrations](https://github.com/linked-db/linked-ql/wiki/Migrations))*
-
-##### └ *Preview:*
-
-*Declare your project's DB structure:*
-
-> `./database/schema.json`
-
-```js
-[
-    {
-        "name": "database_1",
-        "tables": []
-    },
-    {
-        "name": "database_2",
-        "tables": []
-    }
-]
-```
-
-> *For an existing DB, usa a command to generate your DB structure: `npx linkedql generate`.*
-
-*Extend your database with tables and columns. Remove existing ibjects or edit them in-place. Then, use a command to commit your changes to your DB:*
-
-```cmd
-npx linkedql commit
-```
-
-</details>
-</td></tr>
-<tr><td>
-
-<div align="center">
-
-<br>
-
-And we've got a few things in the radar: extensive TypeScript support (something we love about Prisma); Linked QL Realtime—a realtime data API for offline-first applications.
-
-</div>
-
-</td></tr>
-</table>
-
-<br>
-
-<table style="table-layout: fixed;">
-<tr><th>
-
-_Getting Started_
-    
-</th></tr>
-<tr><td>
-
-<div align="center">
-
-Install Linked QL:
-
-<code>npm install @linked-db/linked-ql</code>
-
-</div>
-
-</td></td>
-<tr><td>
-<details _name="setup"><summary>Postgres / Supabase / Neon / etc</summary>
-
-Install and connect the [`pg`](https://github.com/brianc/node-postgres) client. (Or another postgres client of your choice.) Use Linked QL as a wrapper over that.
-
-```cmd
-npm install pg
-```
-
-```js
-// Import pg and LinkedQl
-import pg from 'pg';
-import { SQLClient } from '@linked-db/linked-ql/sql';
-
-// Connect pg
-const connectionParams = {
-    host: 'localhost',
-    port: 5432,
-};
-const pgClient = new pg.Client(connectParams);
-await pgClient.connect();
-
-// Use LinkedQl as a wrapper over that
-const client = new SQLClient(pgClient, { dialect: 'postgres' });
-```
-
-For Supabase/Neon/etc., simply update `connectionParams` to use the *connectionString* for your remote DB:
-
-```js
-const connectionParams = { connectionString: process.env.SUPABASE_CONNECTION_STRING };
-```
-
-> **Note that your postgres database must be `v15.x` or higher.**
-
-</details>
-</td></tr>
-<tr><td>
-<details _name="setup"><summary>MySQL / mariadb</summary>
-
-Install and connect the [`mariadb`](https://github.com/mariadb-corporation/mariadb-connector-nodejs) client. (Or, where applicable, the [`mysql`](https://www.npmjs.com/package/mysql)/[`mysql2`](https://www.npmjs.com/package/mysql2).) Use Linked QL as a wrapper over that.
-
-```cmd
-npm install mariadb
-```
-
-```js
-// Import mariadb and LinkedQl
-import mariadb from 'mariadb';
-import { SQLClient } from '@linked-db/linked-ql/sql';
-
-// Connect pg
-const myConnection = await mariadb.createConnection({
-    host: '127.0.0.1',
-    user: 'root',
-    port: 3306,
-    multipleStatements: true, // Required
-    bitOneIsBoolean: true, // The default, but required
-    trace: true, // Recommended
-});
-// Use LinkedQl as a wrapper over that
-const client = new SQLClient(myConnection, { dialect: 'mysql' });
-```
-
-> **Note that your mariadb database must be `v10.5.2` or higher.** (MySQL `v8` comparably.) In addition, Linked QL needs to be able to run multiple statements in one query. The `multipleStatements` connector parameter above is thus required. We also needed to have the `bitOneIsBoolean` parameter in place.
-
-</details>
-</td></tr>
-<tr><td>
-<details _name="setup"><summary>Indexed DB (Coming soon)</summary>
-
-```js
-// Import the IDB Client
-import { IDBClient } from '@linked-db/linked-ql/idb';
-
-// Create an instance.
-const client = new IDBClient;
-```
-
-</details>
-</td></tr>
-<tr><td>
-<details _name="setup"><summary>In-Mem DB (Coming soon)</summary>
-
-```js
-// Import the ODB Client
-import { ODBClient } from '@linked-db/linked-ql/odb';
-
-// Create an instance.
-const client = new ODBClient;
-```
-
-</details>
-</td></tr>
-<tr><td>
-
-<div align="center">
-
-<br>
-
-All `client` instances above implement the same [interface](https://github.com/linked-db/linked-ql/wiki/API)! The primary query interface therein is the [`client.query()`](https://github.com/linked-db/linked-ql/wiki/clientquery) method. For a quick list of examples, see [here](https://github.com/linked-db/linked-ql/wiki/LANG).
-
-</div>
-
-</td></tr>
-</table>
-
-
-<br>
-<br>
-
-<div align="center">
-
-[Docs](https://github.com/linked-db/linked-ql/wiki) • [LANG](https://github.com/linked-db/linked-ql/wiki/LANG) • [API](https://github.com/linked-db/linked-ql/wiki/API) • [CLI](https://github.com/linked-db/linked-ql/wiki/CLI) • [Migrations](https://github.com/linked-db/linked-ql/wiki/Migrations)
-
-
-[SELECT](https://github.com/linked-db/linked-ql/wiki/SELECT) • [INSERT](https://github.com/linked-db/linked-ql/wiki/INSERT) • [UPSERT](https://github.com/linked-db/linked-ql/wiki/UPSERT) • [UPDATE](https://github.com/linked-db/linked-ql/wiki/UPDATE) • [DELETE](https://github.com/linked-db/linked-ql/wiki/DELETE) • [CREATE](https://github.com/linked-db/linked-ql/wiki/CREATE) • [RENAME](https://github.com/linked-db/linked-ql/wiki/RENAME) • [ALTER](https://github.com/linked-db/linked-ql/wiki/ALTER) • [DROP](https://github.com/linked-db/linked-ql/wiki/DROP)
+_coming soon_
 
 ---------------------------------
-
-</div>
 
 > [!IMPORTANT]
 >

@@ -2,4 +2,5 @@
 !/.gitignore
 !.eslintrc.yml
 coverage
+demo
 node_modules

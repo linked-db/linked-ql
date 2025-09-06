@@ -40,13 +40,15 @@ FROM (VALUES
 RETURNING id, name, v.row_index; 
 `;
 
-const sql = `
+let sql = `
 DELETE FROM public.users AS u
 USING (
     SELECT u2.id
     FROM public.users AS u2
     
 ) as u2 WHERE u.id = u2.id`;
+
+sql = `DROP TABLE IF EXISTS public.people CASCADE;`;
 console.log('________________________', (await client.query(sql)).rows);
 
 process.exit();
