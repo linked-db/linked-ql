@@ -24,16 +24,16 @@ _**Next-generation SQL (Postgres & MySQL)** for modern apps!_
 
 [Follow](https://x.com/LinkedQL) • [Sponsor](https://github.com/sponsors/ox-harris)
 
-LinkedQL is next-generation SQL (Postgres and MySQL) for modern apps—and tooling for modern workflows.
+LinkedQL is next-generation SQL (Postgres and MySQL) for modern apps—plus tooling for modern workflows.
 
 Linked QL is JS-based and works both in Nodejs and in the browser (coming soon)
 
 </div>
 
 > [!IMPORTANT]  
-> This is _LinkedQL @next_—our newest iteration
+> This is _LinkedQL @next_—our upcoming iteration
 > 
-> See [_LinkedQL @latest_](https://github.com/linked-db/linked-ql) for our first iteration—being the version covered in the [wiki](https://github.com/linked-db/linked-ql/wiki)
+> See [_LinkedQL @0.3_](https://github.com/linked-db/linked-ql) for our current iteration—being the version covered in the [wiki](https://github.com/linked-db/linked-ql/wiki)
 
 ---------------------------------
 
