@@ -51,23 +51,23 @@ Linked QL is JS-based and works both in Nodejs and in the browser (coming soon)
 
 ## ⚓ Why LinkedQL?
 
-- SQL is powerful, but painful 🐌; LinkedQL gives you advanced SQL 🔥
-- ORMs? The bad abstraction problem 🎭; LinkedQL gives you advanced SQL — with DeepRefs for relationships ⮑
-- Dedicated sync engines? Much baggage 🧳; LinkedQL gives you advanced SQL — with reactivity over raw SQL ⚡
-- Migrations remain a manual exercise 🏗️; LinkedQL gives you advanced SQL — with automatic DB versioning ⏱
+- SQL is powerful, but painful 🐌<br>LinkedQL gives you advanced SQL 🔥
+- ORMs and the bad abstraction problem 🎭?<br>LinkedQL gives you advanced SQL — with DeepRefs for relationships ⮑
+- Dedicated sync engines and the baggage 🧳?<br>LinkedQL gives you advanced SQL — with reactivity over raw SQL ⚡
+- Migrations and the everyday manual exercise 🏗️?<br>LinkedQL gives you advanced SQL — with automatic DB versioning ⏱
 
 ## 🚀 Features
 
-- Syntax Shorthands — ⮑ DeepRefs
-- Syntax Shorthands — 🧩 JSON Notation
-- Syntax Shorthands — 📦 UPSERTs
-- Schema Evolution — ⏱ Automatic Versioning
-- Schema Evolution — 🧷 Version Binding
-- Schema Ops — 🤖 Diff-based Migrations
-- Reactivity — ⚡ Live Queries
-- IDE Tooling — 🔍 Static Error Checking
-- IDE Tooling — 🛡️ Type Safety
-- IDE Tooling — 💡 Autocompletion
+- Syntax Shorthands — DeepRefs ⮑
+- Syntax Shorthands — JSON Notation 🧩
+- Syntax Shorthands — UPSERTs 📦
+- Schema Evolution — Automatic Versioning ⏱
+- Schema Evolution — Version Binding 🧷
+- Schema Ops — Diff-based Migrations 🤖
+- Reactivity — Live Queries ⚡
+- IDE Tooling — Static Error Checking 🔍
+- IDE Tooling — Type Safety 🛡️
+- IDE Tooling — Autocompletion 💡
 
 ## ⚙️ How It Works
 
