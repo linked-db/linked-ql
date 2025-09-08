@@ -52,9 +52,9 @@ Linked QL is JS-based and works both in Nodejs and in the browser (coming soon)
 ## ⚓ Why LinkedQL?
 
 - SQL is powerful, but painful 🐌<br>LinkedQL gives you advanced SQL 🔥
-- ORMs and the bad abstraction problem 🎭?<br>LinkedQL gives you advanced SQL — with ⮑ DeepRefs for relationships
-- Dedicated sync engines and the baggage 🧳?<br>LinkedQL gives you advanced SQL — with ⚡ reactivity over raw SQL
-- Migrations and the everyday workflow overhead 🏗️?<br>LinkedQL gives you advanced SQL — with ⏱ automatic DB versioning
+- ORMs and the bad abstraction problem? 🎭<br>LinkedQL gives you advanced SQL — with ⮑ DeepRefs for relationships
+- Dedicated sync engines and the baggage? 🧳<br>LinkedQL gives you advanced SQL — with ⚡ reactivity over raw SQL
+- Migrations and the everyday workflow overhead? 🏗️<br>LinkedQL gives you advanced SQL — with ⏱ automatic DB versioning
 
 ## 🚀 Features
 
