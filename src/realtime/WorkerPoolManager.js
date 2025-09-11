@@ -19,7 +19,7 @@ export class WorkerPoolManager {
             console.error('Failed to create replication slot:', err);
             process.exit(1);
         });
-        
+
         const basePath = fileURLToPath(import.meta.url);
         this.workerScript = workerScript || join(basePath, '../stream/worker.js');
         this.brokerScript = brokerScript || join(basePath, '../stream/broker.js');
@@ -47,10 +47,10 @@ export class WorkerPoolManager {
             });
         }
 
-        this.workers = new Set(); // now a Set for O(1) add/remove
-        this.workerLoad = new Map();      // worker -> #subscriptions
-        this.subscriptions = new Map();   // table -> worker
-        this.callbacks = new Map();       // table -> Set of app-level callbacks
+        this.workers = new Set; // now a Set for O(1) add/remove
+        this.workerLoad = new Map;      // worker -> #subscriptions
+        this.subscriptions = new Map;   // table -> worker
+        this.callbacks = new Map;       // table -> Set of app-level callbacks
         this.batchInterval = batchInterval;
         this.scaleCheckInterval = scaleCheckInterval;
         this.maxLoadPerWorker = maxLoadPerWorker;
