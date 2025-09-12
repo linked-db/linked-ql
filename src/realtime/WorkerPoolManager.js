@@ -12,14 +12,6 @@ export class WorkerPoolManager {
         scaleCheckInterval = 500,
         maxLoadPerWorker = 10
     } = {}) {
-
-        const sql = (command) => `SELECT * FROM pg_${command}_replication_slot('linkedql_slot', 'wal2json')`;
-        query(sql`drop`); // ignore errors
-        query(sql`create_logical`).catch(err => {
-            console.error('Failed to create replication slot:', err);
-            process.exit(1);
-        });
-
         const basePath = fileURLToPath(import.meta.url);
         this.workerScript = workerScript || join(basePath, '../stream/worker.js');
         this.brokerScript = brokerScript || join(basePath, '../stream/broker.js');
@@ -33,6 +25,16 @@ export class WorkerPoolManager {
             },
             slot: 'linkedql_slot',
         };
+        this.#init();
+    }
+
+    async #init() {
+        const sql = (command) => `SELECT * FROM pg_${command}_replication_slot('linkedql_slot', 'wal2json')`;
+        await query(sql`drop`); // ignore errors
+        await query(sql`create_logical`).catch(err => {
+            console.error('Failed to create replication slot:', err);
+            process.exit(1);
+        });
 
         if (this.walSourceDescriptor.type === 'broker') {
             const brokerProc = spawn('node', [this.brokerScript], {

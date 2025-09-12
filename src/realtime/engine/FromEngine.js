@@ -1,11 +1,12 @@
+import { SimpleEmitter } from './SimpleEmitter.js';
 import { ExprEngine } from './ExprEngine.js';
 
-const oldIdSymbol = Symbol('oldId');
+const oldIdSymbol = Symbol.for('oldId');
 
-export class FromEngine {
+export class FromEngine extends SimpleEmitter {
 
     constructor({ fromItems, joinClauses, tableSchemas = {} }, options = {}) {
-        this._map = new Map();
+        super();
 
         this.fromItems = fromItems;
         this.joinClauses = joinClauses;
@@ -17,7 +18,7 @@ export class FromEngine {
         this.exprEngine = new ExprEngine(this.options);
 
         this.tables = {};
-        this.compositeIds = new Map();
+        this.compositeIds = new Map;
         this.pendingOperations = [];
 
         this._normalize();
@@ -25,12 +26,12 @@ export class FromEngine {
 
     _normalize() {
         this.aliasOrder = [];               // [{ value, value_cs, delim }]
-        this.aliasToTable = new Map();      // alias_cs -> table_cs
-        this.tableToAliases = new Map();    // table_cs -> Set(alias_cs)
-        this.normalizedJoins = new Map();   // rightAlias_cs -> joinClause
+        this.aliasToTable = new Map;      // alias_cs -> table_cs
+        this.tableToAliases = new Map;    // table_cs -> Set(alias_cs)
+        this.normalizedJoins = new Map;   // rightAlias_cs -> joinClause
 
-        this.pkMap = new Map();             // table_cs -> [pkColumn]
-        this.pkSelectors = new Map();       // table_cs -> fn(row) => rowId
+        this.pkMap = new Map;             // table_cs -> [pkColumn]
+        this.pkSelectors = new Map;       // table_cs -> fn(row) => rowId
 
         // Helper to register an alias and setup related structures
         const acquireTable = (exprNode, aliasNode) => {
@@ -51,7 +52,7 @@ export class FromEngine {
             this.aliasToTable.set(aliasJson.value_cs, tableJson.value_cs);
 
             if (!this.tableToAliases.has(tableJson.value_cs)) {
-                this.tableToAliases.set(tableJson.value_cs, new Set());
+                this.tableToAliases.set(tableJson.value_cs, new Set);
             }
             this.tableToAliases.get(tableJson.value_cs).add(aliasJson.value_cs);
 
@@ -155,25 +156,6 @@ export class FromEngine {
         }
     }
 
-    on(event, fn) {
-        if (!this._map.has(event)) this._map.set(event, new Set());
-        this._map.get(event).add(fn);
-        return () => this._map.get(event).delete(fn);
-    }
-
-    emit(event, payload) {
-        const s = this._map.get(event);
-        if (!s) return;
-        for (const fn of Array.from(s)) {
-            try {
-                fn(payload);
-            } catch (err) {
-                // eslint-disable-next-line no-console
-                console.error('emitter handler error', err);
-            }
-        }
-    }
-
     push(tableName, row) {
         if (!this.tableToAliases.has(tableName)) return;
         this.pendingOperations.push({ kind: 'push', tableName, row });
@@ -195,7 +177,7 @@ export class FromEngine {
             const { kind, tableName, row } = this.pendingOperations.shift();
 
             if (!this.tables[tableName]) {
-                this.tables[tableName] = new Map();
+                this.tables[tableName] = new Map;
             }
             const table = this.tables[tableName];
             const pkColumn = this.pkMap.get(tableName).join('|');
@@ -331,7 +313,7 @@ export class FromEngine {
                     }
                     break;
                 case 'RIGHT':
-                    const matchedRightRows = new Set();
+                    const matchedRightRows = new Set;
                     for (const lComposite of rowsAsComposites) {
                         for (const rRow of rightRows) {
                             const compositeRow = { ...lComposite, [rightAlias]: rRow };
@@ -349,8 +331,8 @@ export class FromEngine {
                     }
                     break;
                 case 'FULL':
-                    const matchedLefts = new Set();
-                    const matchedRights = new Set();
+                    const matchedLefts = new Set;
+                    const matchedRights = new Set;
                     for (const lComposite of rowsAsComposites) {
                         for (const rRow of rightRows) {
                             const compositeRow = { ...lComposite, [rightAlias]: rRow };
