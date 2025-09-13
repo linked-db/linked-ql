@@ -25,7 +25,7 @@ export class FromEngine extends SimpleEmitter {
     }
 
     _normalize() {
-        this.aliasOrder = [];               // [{ value, value_cs, delim }]
+        this.aliasOrder = [];             // [{ value, value_cs, delim }]
         this.aliasToTable = new Map;      // alias_cs -> table_cs
         this.tableToAliases = new Map;    // table_cs -> Set(alias_cs)
         this.normalizedJoins = new Map;   // rightAlias_cs -> joinClause

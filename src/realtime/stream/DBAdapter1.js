@@ -1,4 +1,4 @@
-import { LogicalReplicationService, Wal2JsonPlugin } from 'pg-logical-replication';
+import { LogicalReplicationService, Wal2JsonPlugin, PgoutputPlugin } from 'pg-logical-replication';
 import { SimpleEmitter } from '../engine/SimpleEmitter.js';
 import pg from 'pg';
 
