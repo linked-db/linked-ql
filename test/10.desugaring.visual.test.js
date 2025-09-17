@@ -1,5 +1,5 @@
 import { $describe, $it, testParseAndStringify } from './00.parser.js';
-import { LinkedDB } from '../src/db/LinkedDB.js';
+import { LinkedDB } from '../src/lang/LinkedDB.js';
 
 let linkedDb;
 $describe('DeSugaring Setup', () => {

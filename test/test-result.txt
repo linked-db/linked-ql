@@ -1,32 +1,18 @@
 
 
-  FromEngine Core Functionality
-    INNER JOIN
-      ✔ should emit a single push when a matching row is pushed
-      ✔ should emit a patch when a joined row is updated
-      ✔ should emit a delete when a joined row is removed
-    LEFT JOIN
-      ✔ should emit a push with null padding when a left-side row is pushed
-      ✔ should patch a null-padded row when a matching right-side row is pushed
-      ✔ should patch a row back to null padding when a matching right-side row is deleted
-    RIGHT JOIN
-      ✔ should emit a push with null padding when a right-side row is pushed
-      ✔ should patch a null-padded row when a matching left-side row is pushed
-      ✔ should patch a row back to null padding when a matching left-side row is deleted
-      ✔ should emit a delete when a right-side row is removed
-    FULL JOIN
-      ✔ should push a null-padded row for a left-side push
-      ✔ should push a null-padded row for a right-side push
-      ✔ should patch to a full join when a match is pushed
-      ✔ should patch to null padding when a joined row is deleted
-    CROSS JOIN
-      ✔ should emit a new composite row for every existing row when a new row is pushed
-    Special Joins (NATURAL/USING)
-      ✔ should handle NATURAL JOIN by inferring common column `common_id`
-      ✔ should handle multi-column USING JOIN on `id` and `common_id`
-    Multi-Table Joins
-      ✔ should correctly handle a 3-table INNER JOIN
+  TokenStream - Basic Tokenization & Stream Control
+    1) should tokenize a simple SELECT statement with correct types and positions
 
 
-  18 passing (10ms)
+  0 passing (3ms)
+  1 failing
+
+  1) TokenStream - Basic Tokenization & Stream Control
+       should tokenize a simple SELECT statement with correct types and positions:
+     TypeError: Cannot read properties of undefined (reading 'length')
+      at AbstractDBAdapter._matchSelector (file:///Users/mac/Documents/CODE/linked-ql/src/db/abstracts/AbstractDBAdapter.js:17:38)
+      at Context.<anonymous> (file:///Users/mac/Documents/CODE/linked-ql/test/11realtime.fromengine.tests.js:11:33)
+      at process.processImmediate (node:internal/timers:505:21)
+
+
 

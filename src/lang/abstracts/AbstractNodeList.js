@@ -14,6 +14,8 @@ export class AbstractNodeList extends AbstractNode {
 
     ['entries']() { return (this._get('entries') || []).slice(0); }
 
+    delete(index) { return this._delete('entries', index); }
+
     get(index) { return this._get('entries', index); }
 
     set(index, value) { return this._set('entries', index, value); }

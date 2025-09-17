@@ -1,5 +1,5 @@
 import '../src/lang/index.js';
-import { Query } from '../src/lang/Query.js';
+import { Script } from '../src/lang/Script.js';
 
 let sql = `
 WITH RECURSIVE employee_hierarchy AS NOT MATERIALIZED (
@@ -94,7 +94,7 @@ TABLE public.users *;
 `;
 
 let t1b;
-t1b = await Query.parse(sql);
+t1b = await Script.parse(sql);
 
 console.log('\n\n\n\nresultClassic:\n');
 console.log(t1b?.stringify());

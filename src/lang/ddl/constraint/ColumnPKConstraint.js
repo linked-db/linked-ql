@@ -8,7 +8,7 @@ export class ColumnPKConstraint extends ConstraintSchema {
     static get syntaxRules() {
         return this.buildSyntaxRules([
             { type: 'keyword', value: 'PRIMARY' },
-            { type: 'keyword', value: 'KEY', assert: true },
+            { type: 'keyword', as: '.', value: 'KEY', assert: true },
             { type: 'PGIndexParameters', as: 'pg_index_parameters', optional: true, dialect: 'postgres' },
         ]);
     }

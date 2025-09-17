@@ -1,6 +1,6 @@
 import { AbstractNodeList } from './abstracts/AbstractNodeList.js';
 
-export class Query extends AbstractNodeList {
+export class Script extends AbstractNodeList {
 
     /* SYNTAX RULES */
 

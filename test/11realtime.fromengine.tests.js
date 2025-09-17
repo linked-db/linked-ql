@@ -1,348 +1,294 @@
-import { expect } from 'chai';
-import { FromEngine } from '../src/realtime/engine/FromEngine.js';
+import { expect, use } from 'chai';
+import chaiAsPromised from 'chai-as-promised';
+use(chaiAsPromised);
 
-// --- Helpers to build AST nodes as per spec ---
-const row = (id, data) => ({ id, ...data });
+import '../src/lang/index.js';
+import { AbstractDBAdapter } from '../src/db/abstracts/AbstractDBAdapter.js';
+import { StorageEngine } from '../src/db/local/StorageEngine.js';
+import { LocalDBClient } from '../src/db/local/LocalDBClient.js';
+import { PGClient } from '../src/db/classic/PGClient.js';
+const out = 3;
 
-const fromItem = (name, alias) => ({
-    nodeName: 'FROM_ITEM',
-    lateral_kw: false,
-    expr: { nodeName: 'TABLE_REF1', value: name },
-    alias: { nodeName: 'FROM_ITEM_ALIAS', value: alias }
+describe('Util', () => {
+
+    it('should match plain db selector', async () => {
+        const instance = new AbstractDBAdapter;
+        const a = instance._matchSelector('lq_test_public', ['lq_test_public', 'lq_test_private']);
+        const b = instance._matchSelector('lq_test_public', ['lq_test_public2', 'lq_test_private']);
+        expect(a).to.be.true;
+        expect(b).to.be.false;
+    });
+
+    it('should match negated plain db selector', async () => {
+        const instance = new AbstractDBAdapter();
+        const a = instance._matchSelector('lq_test_public', ['!lq_test_public', 'lq_test_private']);
+        const b = instance._matchSelector('lq_test_public', ['!lq_test_public2', 'lq_test_public']);
+        const c = instance._matchSelector('lq_test_public', ['!lq_test_public2', '!lq_test_private']);
+        expect(a).to.be.false;
+        expect(b).to.be.true;
+        expect(c).to.be.true;
+    });
+
+    it('should match wildcard db selector', async () => {
+        const instance = new AbstractDBAdapter();
+        const a = instance._matchSelector('lq_test_public', ['%ublic', 'lq_test_private']);
+        const b = instance._matchSelector('lq_test_public', ['publi%']);
+        const c = instance._matchSelector('lq_test_public', ['publo%']);
+        expect(a).to.be.true;
+        expect(b).to.be.true;
+        expect(c).to.be.false;
+    });
+
+    it('should match negated wildcard db selector', async () => {
+        const instance = new AbstractDBAdapter();
+        const a = instance._matchSelector('lq_test_public', ['!%ublic', 'lq_test_private']);
+        const b = instance._matchSelector('lq_test_public', ['!publi%']);
+        const c = instance._matchSelector('lq_test_public', ['!publo%']);
+        expect(a).to.be.false;
+        expect(b).to.be.false;
+        expect(c).to.be.true;
+    });
 });
 
-const columnRef = (tableAlias, columnName) => ({
-    nodeName: 'COLUMN_REF1',
-    value: columnName,
-    qualifier: { nodeName: 'TABLE_REF1', value: tableAlias }
+describe('StorageEngine', () => {
+
+    let storageEngine;
+
+    it('should create basic table schema', async () => {
+        storageEngine = new StorageEngine;
+        const createTableSuccess = storageEngine.createTable('tbl1');
+        expect(createTableSuccess).to.be.true;
+    });
+
+    it('should reject creating an existing table schema', async () => {
+        expect(() => storageEngine.createTable('tbl1')).to.throw();
+    });
+
+    it('should retrieve just-created table schema', async () => {
+        const tableNames = storageEngine.tableNames();
+        expect(tableNames).to.include('tbl1');
+
+        const tblSchema = storageEngine.tableSchema('tbl1');
+        expect(tblSchema).to.be.an('object');
+
+        const pkCols = storageEngine.tablePK('tbl1');
+        expect(pkCols).to.be.an('array').with.length(1);
+    });
+
+    it('should pass basic INSERT', async () => {
+        const pk = storageEngine.insert('tbl1', { id: 34, name: 'John' });
+        expect(pk).to.eq('[34]');
+    });
+
+    it('should reject duplicate-key INSERT', async () => {
+        expect(() => storageEngine.insert('tbl1', { id: 34, name: 'John' })).to.throw();
+    });
+
+    it('should pass basic UPDATE', async () => {
+        const pk = storageEngine.update('tbl1', { id: 34, name: 'John2' });
+        expect(pk).to.eq('[34]');
+    });
+
+    it('should pass basic READ', async () => {
+        const record = storageEngine.get('tbl1', { id: 34 });
+        expect(record).to.deep.eq({ id: 34, name: 'John2' });
+    });
+
+    it('should pass basic scan', async () => {
+        const records = storageEngine.scan('tbl1');
+        const _records = [];
+        for await (const record of records) {
+            _records.push(record);
+        }
+        expect(_records).to.have.length(1);
+        expect(_records[0]).to.deep.eq({ id: 34, name: 'John2' });
+    });
+
+    it('should pass basic DELETE', async () => {
+        const pk = storageEngine.delete('tbl1', { id: 34 });
+        expect(pk).to.eq('[34]');
+
+        const record = storageEngine.get('tbl1', { id: 34 });
+        expect(record).to.be.undefined;
+    });
+
+    it('should do auto-increment', async () => {
+        const pk1 = storageEngine.insert('tbl1', { name: 'John' });
+        expect(pk1).to.eq('[1]');
+
+        const pk2 = storageEngine.insert('tbl1', { name: 'John' });
+        expect(pk2).to.eq('[2]');
+    });
 });
 
-const onClause = (leftTable, leftCol, rightTable, rightCol) => ({
-    nodeName: 'ON_CLAUSE',
-    expr: {
-        nodeName: 'BINARY_EXPR',
-        left: columnRef(leftTable, leftCol),
-        operator: '=',
-        right: columnRef(rightTable, rightCol)
-    }
+describe('LocalDBClient', () => {
+
+    let client, database1, database2;
+    before(() => {
+        client = new LocalDBClient;
+        database1 = client.createDatabase('lq_test_public');
+        database2 = client.createDatabase('lq_test_private');
+        database1.createTable('tbl1');
+        database2.createTable('tbl1');
+        database2.createTable('tbl2');
+    });
+
+
+    it('should pass basic database-create', async () => {
+        expect(database1).to.instanceOf(StorageEngine);
+        expect(database2).to.instanceOf(StorageEngine);
+    });
+
+    it('should reject duplicated database-create', async () => {
+        expect(() => client.createDatabase('lq_test_public')).to.throw();
+    });
+
+    it('should showCreate() for given selector (1)', async () => {
+        const a = await client.showCreate([{ schemaName: 'lq_test_public' }], true);
+
+        expect(a).to.have.lengthOf(1);
+        expect(a[0].name().value()).to.eq('lq_test_public');
+
+        const b = await client.showCreate([{ schemaName: 'lq_test_public', tables: ['*'] }], true);
+        const c = await client.showCreate([{ schemaName: 'lq_test_public' }], true);
+
+        expect(b).to.have.lengthOf(1);
+        expect(c).to.have.lengthOf(1);
+
+        expect(b[0].tables()).to.have.lengthOf(1);
+        expect(c[0].tables()).to.have.lengthOf(1);
+
+        expect(b[0].tables()[0].name().value()).to.eq('tbl1');
+        expect(c[0].tables()[0].name().value()).to.eq('tbl1');
+    });
+
+    it('should showCreate() for given selector (2)', async () => {
+        const b = await client.showCreate([{ schemaName: 'lq_test_public', tables: ['tbl1'] }], true);
+        const c = await client.showCreate([{ schemaName: 'lq_test_public', tables: ['!tbl1'] }], true);
+
+        expect(b).to.have.lengthOf(1);
+        expect(c).to.have.lengthOf(1);
+
+        expect(b[0].tables()).to.have.lengthOf(1);
+        expect(c[0].tables()).to.have.lengthOf(0);
+
+        expect(b[0].tables()[0].name().value()).to.eq('tbl1');
+    });
+
+    it('should showCreate() for given selector (3)', async () => {
+        const b = await client.showCreate([{ schemaName: '*', tables: ['tbl1'] }], true);
+        const c = await client.showCreate([{ schemaName: '*', tables: ['!tbl1'] }], true);
+
+        expect(b).to.have.lengthOf(2);
+        expect(c).to.have.lengthOf(2);
+
+        expect(b[0].tables()).to.have.lengthOf(1);
+        expect(b[0].tables()[0].name().value()).to.eq('tbl1');
+
+        expect(c[1]/* lq_test_private */.tables()).to.have.lengthOf(1);
+        expect(b[1]/* lq_test_private */.tables()[0].name().value()).to.eq('tbl1');
+        expect(c[1]/* lq_test_private */.tables()[0].name().value()).to.eq('tbl2');
+    });
+
+    it('should showCreate() for given selector (3)', async () => {
+        const b = await client.showCreate([{ schemaName: '*', tables: ['tbl1'] }]);
+        const c = await client.showCreate([{ schemaName: '*', tables: ['*'] }]);
+
+        expect(b).to.have.lengthOf(2);
+        expect(c).to.have.lengthOf(3);
+
+        expect(b[0].name().value()).to.eq('tbl1');
+        expect(b[1].name().value()).to.eq('tbl1');
+
+        expect(c[0].name().value()).to.eq('tbl1');
+        expect(c[1].name().value()).to.eq('tbl1');
+        expect(c[2].name().value()).to.eq('tbl2');
+    });
 });
 
-const usingClause = (cols) => ({
-    nodeName: 'USING_CLAUSE',
-    column: Array.isArray(cols) ? { entries: cols.map(c => ({ value: c })) } : { value: cols }
-});
+describe('PGClient', () => {
 
-const joinClause = (type, rightTable, rightAlias, condition) => ({
-    nodeName: 'JOIN_CLAUSE',
-    expr: { nodeName: 'TABLE_REF1', value: rightTable },
-    alias: { nodeName: 'FROM_ITEM_ALIAS', value: rightAlias },
-    join_type: type,
-    outer_kw: ['LEFT', 'RIGHT', 'FULL'].includes(type),
-    condition_clause: condition
-});
-
-// --- Test Data ---
-const testData = {
-    users: [row(1, { name: 'Alice', common_id: 1 }), row(2, { name: 'Bob', common_id: 2 })],
-    orders: [row(1, { user_id: 1, item: 'A', common_id: 1 }), row(102, { user_id: 2, item: 'B', common_id: 2 }), row(103, { user_id: 3, item: 'C', common_id: 3 })],
-};
-
-const tableSchema = (tableName) => {
-    return {
-        primaryKey: 'id',
-        columns: Object.keys(testData[tableName][0]),
-    };
-};
-
-// --- Event collector ---
-function collectEvents() {
-    const events = [];
-    return { events, listener: (e) => events.push(e) };
-}
-
-// --- Test Suites ---
-describe('FromEngine Core Functionality', () => {
-
-    describe('INNER JOIN', () => {
-        let engine, eventsCollector;
-        const joinCondition = onClause('u', 'id', 'o', 'user_id');
-        beforeEach(() => {
-            engine = new FromEngine({
-                fromItems: [fromItem('users', 'u')],
-                joinClauses: [joinClause('INNER', 'orders', 'o', joinCondition)]
-            });
-            eventsCollector = collectEvents();
-            engine.on('data', eventsCollector.listener);
+    let client, database1, database2;
+    before(async () => {
+        client = new PGClient({
+            database: 'postgres',
         });
-
-        it('should emit a single push when a matching row is pushed', () => {
-            engine.push('users', testData.users[0]);
-            engine.push('orders', testData.orders[0]);
-            engine.compute();
-            expect(eventsCollector.events).to.have.lengthOf(1);
-            expect(eventsCollector.events[0].kind).to.equal('push');
-            expect(eventsCollector.events[0].compositeRow).to.deep.include({ u: testData.users[0], o: testData.orders[0] });
-        });
-
-        it('should emit a patch when a joined row is updated', () => {
-            engine.push('users', testData.users[0]);
-            engine.push('orders', testData.orders[0]);
-            engine.compute();
-            eventsCollector.events.length = 0;
-            const patchedUser = { ...testData.users[0], name: 'Alice P.' };
-            engine.patch('users', patchedUser);
-            engine.compute();
-            expect(eventsCollector.events).to.have.lengthOf(1);
-            expect(eventsCollector.events[0].kind).to.equal('patch');
-            expect(eventsCollector.events[0].compositeRow.u.name).to.equal('Alice P.');
-        });
-
-        it('should emit a delete when a joined row is removed', () => {
-            engine.push('users', testData.users[0]);
-            engine.push('orders', testData.orders[0]);
-            engine.compute();
-            eventsCollector.events.length = 0;
-            engine.delete('users', testData.users[0]);
-            engine.compute();
-            expect(eventsCollector.events).to.have.lengthOf(1);
-            expect(eventsCollector.events[0].kind).to.equal('delete');
-        });
+        await client.connect();
+        await client.query('CREATE SCHEMA IF NOT EXISTS lq_test_public');
+        await client.query('CREATE SCHEMA IF NOT EXISTS lq_test_private');
+        await client.query(`CREATE TABLE IF NOT EXISTS lq_test_public.tbl1 (
+            id INT PRIMARY KEY GENERATED BY DEFAULT AS IDENTITY
+        )`);
+        await client.query(`CREATE TABLE IF NOT EXISTS lq_test_private.tbl1 (
+            id INT PRIMARY KEY GENERATED BY DEFAULT AS IDENTITY
+        )`);
+        await client.query(`CREATE TABLE IF NOT EXISTS lq_test_private.tbl2 (
+            id INT PRIMARY KEY GENERATED BY DEFAULT AS IDENTITY
+        )`);
     });
 
-    describe('LEFT JOIN', () => {
-        let engine, eventsCollector;
-        const joinCondition = onClause('u', 'id', 'o', 'user_id');
-        beforeEach(() => {
-            engine = new FromEngine({
-                fromItems: [fromItem('users', 'u')],
-                joinClauses: [joinClause('LEFT', 'orders', 'o', joinCondition)]
-            });
-            eventsCollector = collectEvents();
-            engine.on('data', eventsCollector.listener);
-        });
-
-        it('should emit a push with null padding when a left-side row is pushed', () => {
-            engine.push('users', testData.users[0]);
-            engine.compute();
-            expect(eventsCollector.events).to.have.lengthOf(1);
-            expect(eventsCollector.events[0].kind).to.equal('push');
-            expect(eventsCollector.events[0].compositeRow).to.deep.include({ u: testData.users[0], o: null });
-        });
-
-        it('should patch a null-padded row when a matching right-side row is pushed', () => {
-            engine.push('users', testData.users[0]);
-            engine.compute();
-            eventsCollector.events.length = 0;
-            engine.push('orders', testData.orders[0]);
-            engine.compute();
-            expect(eventsCollector.events).to.have.lengthOf(1);
-            expect(eventsCollector.events[0].kind).to.equal('patch');
-            expect(eventsCollector.events[0].compositeRow).to.deep.include({ u: testData.users[0], o: testData.orders[0] });
-        });
-
-        it('should patch a row back to null padding when a matching right-side row is deleted', () => {
-            engine.push('users', testData.users[0]);
-            engine.push('orders', testData.orders[0]);
-            engine.compute();
-            eventsCollector.events.length = 0;
-            engine.delete('orders', testData.orders[0]);
-            engine.compute();
-            expect(eventsCollector.events).to.have.lengthOf(1);
-            expect(eventsCollector.events[0].kind).to.equal('patch');
-            expect(eventsCollector.events[0].compositeRow).to.deep.include({ u: testData.users[0], o: null });
-        });
+    after(async () => {
+        await client.query('DROP SCHEMA IF EXISTS lq_test_public CASCADE');
+        await client.query('DROP SCHEMA IF EXISTS lq_test_private CASCADE');
     });
 
-    describe('RIGHT JOIN', () => {
-        let engine, eventsCollector;
-        const joinCondition = onClause('u', 'id', 'o', 'user_id');
-        beforeEach(() => {
-            engine = new FromEngine({
-                fromItems: [fromItem('users', 'u')],
-                joinClauses: [joinClause('RIGHT', 'orders', 'o', joinCondition)]
-            });
-            eventsCollector = collectEvents();
-            engine.on('data', eventsCollector.listener);
-        });
+    it('should showCreate() for given selector (1)', async () => {
+        const a = await client.showCreate([{ schemaName: 'lq_test_public' }], true);
 
-        it('should emit a push with null padding when a right-side row is pushed', () => {
-            engine.push('orders', testData.orders[2]); // Orphan order
-            engine.compute();
-            expect(eventsCollector.events).to.have.lengthOf(1);
-            expect(eventsCollector.events[0].kind).to.equal('push');
-            expect(eventsCollector.events[0].compositeRow).to.deep.include({ u: null, o: testData.orders[2] });
-        });
+        expect(a).to.have.lengthOf(1);
+        expect(a[0].name().value()).to.eq('lq_test_public');
 
-        it('should patch a null-padded row when a matching left-side row is pushed', () => {
-            engine.push('orders', testData.orders[0]);
-            engine.compute();
-            eventsCollector.events.length = 0;
-            engine.push('users', testData.users[0]);
-            engine.compute();
-            expect(eventsCollector.events).to.have.lengthOf(1);
-            expect(eventsCollector.events[0].kind).to.equal('patch');
-            expect(eventsCollector.events[0].compositeRow).to.deep.include({ u: testData.users[0], o: testData.orders[0] });
-        });
+        const b = await client.showCreate([{ schemaName: 'lq_test_public', tables: ['*'] }], true);
+        const c = await client.showCreate([{ schemaName: 'lq_test_public' }], true);
 
-        it('should patch a row back to null padding when a matching left-side row is deleted', () => {
-            engine.push('users', testData.users[0]);
-            engine.push('orders', testData.orders[0]);
-            engine.compute();
-            eventsCollector.events.length = 0;
-            engine.delete('users', testData.users[0]);
-            engine.compute();
-            expect(eventsCollector.events).to.have.lengthOf(1);
-            expect(eventsCollector.events[0].kind).to.equal('patch');
-            expect(eventsCollector.events[0].compositeRow).to.deep.include({ u: null, o: testData.orders[0] });
-        });
+        expect(b).to.have.lengthOf(1);
+        expect(c).to.have.lengthOf(1);
 
-        it('should emit a delete when a right-side row is removed', () => {
-            engine.push('users', testData.users[0]);
-            engine.push('orders', testData.orders[0]);
-            engine.compute();
-            eventsCollector.events.length = 0;
-            engine.delete('orders', testData.orders[0]);
-            engine.compute();
-            expect(eventsCollector.events).to.have.lengthOf(1);
-            expect(eventsCollector.events[0].kind).to.equal('delete');
-        });
-    });
-    
-    describe('FULL JOIN', () => {
-        let engine, eventsCollector;
-        const joinCondition = onClause('u', 'id', 'o', 'user_id');
-        beforeEach(() => {
-            engine = new FromEngine({
-                fromItems: [fromItem('users', 'u')],
-                joinClauses: [joinClause('FULL', 'orders', 'o', joinCondition)]
-            });
-            eventsCollector = collectEvents();
-            engine.on('data', eventsCollector.listener);
-        });
+        expect(b[0].tables()).to.have.lengthOf(1);
+        expect(c[0].tables()).to.have.lengthOf(1);
 
-        it('should push a null-padded row for a left-side push', () => {
-            engine.push('users', testData.users[0]);
-            engine.compute();
-            expect(eventsCollector.events[0].kind).to.equal('push');
-            expect(eventsCollector.events[0].compositeRow.o).to.be.null;
-        });
-
-        it('should push a null-padded row for a right-side push', () => {
-            engine.push('orders', testData.orders[2]);
-            engine.compute();
-            expect(eventsCollector.events[0].kind).to.equal('push');
-            expect(eventsCollector.events[0].compositeRow.u).to.be.null;
-        });
-
-        it('should patch to a full join when a match is pushed', () => {
-            engine.push('users', testData.users[0]);
-            engine.compute();
-            eventsCollector.events.length = 0;
-            engine.push('orders', testData.orders[0]);
-            engine.compute();
-            expect(eventsCollector.events[0].kind).to.equal('patch');
-            expect(eventsCollector.events[0].compositeRow.u).to.not.be.null;
-            expect(eventsCollector.events[0].compositeRow.o).to.not.be.null;
-        });
-
-        it('should patch to null padding when a joined row is deleted', () => {
-            engine.push('users', testData.users[0]);
-            engine.push('orders', testData.orders[0]);
-            engine.compute();
-            eventsCollector.events.length = 0;
-            engine.delete('users', testData.users[0]);
-            engine.compute();
-            expect(eventsCollector.events[0].kind).to.equal('patch');
-            expect(eventsCollector.events[0].compositeRow.u).to.be.null;
-        });
+        expect(b[0].tables()[0].name().value()).to.eq('tbl1');
+        expect(c[0].tables()[0].name().value()).to.eq('tbl1');
     });
 
-    describe('CROSS JOIN', () => {
-        let engine, eventsCollector;
-        beforeEach(() => {
-            engine = new FromEngine({
-                fromItems: [fromItem('users', 'u')],
-                joinClauses: [joinClause('CROSS', 'orders', 'o')],
-            });
-            eventsCollector = collectEvents();
-            engine.on('data', eventsCollector.listener);
-        });
-        
-        it('should emit a new composite row for every existing row when a new row is pushed', () => {
-            engine.push('users', testData.users[0]);
-            engine.push('orders', testData.orders[0]);
-            engine.push('orders', testData.orders[1]);
-            engine.compute();
-            eventsCollector.events.length = 0;
-            engine.push('users', testData.users[1]);
-            engine.compute();
-            expect(eventsCollector.events).to.have.lengthOf(2); // 2 new rows for the new user
-        });
+    it('should showCreate() for given selector (2)', async () => {
+        const b = await client.showCreate([{ schemaName: 'lq_test_public', tables: ['tbl1'] }], true);
+        const c = await client.showCreate([{ schemaName: 'lq_test_public', tables: ['!tbl1'] }], true);
+
+        expect(b).to.have.lengthOf(1);
+        expect(c).to.have.lengthOf(1);
+
+        expect(b[0].tables()).to.have.lengthOf(1);
+        expect(c[0].tables()).to.have.lengthOf(0);
+
+        expect(b[0].tables()[0].name().value()).to.eq('tbl1');
     });
 
-    describe('Special Joins (NATURAL/USING)', () => {
-        it('should handle NATURAL JOIN by inferring common column `common_id`', () => {
-            const engine = new FromEngine({
-                fromItems: [fromItem('users', 'u')],
-                joinClauses: [{
-                    nodeName: 'JOIN_CLAUSE',
-                    expr: { nodeName: 'TABLE_REF1', value: 'orders' },
-                    alias: { nodeName: 'FROM_ITEM_ALIAS', value: 'o' },
-                    natural_kw: true,
-                    join_type: 'INNER'
-                }],
-                tableSchemas: {
-                    users: tableSchema('users'),
-                    orders: tableSchema('orders'),
-                },
-            });
-            const eventsCollector = collectEvents();
-            engine.on('data', eventsCollector.listener);
-            engine.push('users', testData.users[0]);
-            engine.push('orders', testData.orders[0]);
-            engine.compute();
-            expect(eventsCollector.events[0].compositeRow.u.common_id).to.equal(eventsCollector.events[0].compositeRow.o.common_id);
-        });
+    it('should showCreate() for given selector (3)', async () => {
+        const b = await client.showCreate([{ schemaName: 'lq_test_%', tables: ['tbl1'] }], true);
+        const c = await client.showCreate([{ schemaName: 'lq_test_%', tables: ['!tbl1'] }], true);
 
-        it('should handle multi-column USING JOIN on `id` and `common_id`', () => {
-            const engine = new FromEngine({
-                fromItems: [fromItem('users', 'u')],
-                joinClauses: [joinClause('INNER', 'orders', 'o', usingClause(['id', 'common_id']))]
-            });
-            const eventsCollector = collectEvents();
-            engine.on('data', eventsCollector.listener);
-            // Simulate data where 'id' and 'common_id' match
-            engine.push('users', { id: 1, common_id: 1, name: 'Alice' });
-            engine.push('orders', { id: 1, common_id: 1, user_id: 1 });
-            engine.compute();
-            expect(eventsCollector.events).to.have.lengthOf(1);
-        });
+        expect(b).to.have.lengthOf(2);
+        expect(c).to.have.lengthOf(2);
+
+        expect(b[0].tables()).to.have.lengthOf(1);
+        expect(b[0].tables()[0].name().value()).to.eq('tbl1');
+
+        const lq_test_private = c.find((s) => s.identifiesAs('lq_test_private'));
+        expect(lq_test_private.tables()).to.have.lengthOf(1);
+        expect(lq_test_private.tables()[0].name().value()).to.eq('tbl2');
     });
 
-    describe('Multi-Table Joins', () => {
-        it('should correctly handle a 3-table INNER JOIN', () => {
-            const engine = new FromEngine({
-                fromItems: [fromItem('users', 'u')],
-                joinClauses: [
-                    joinClause('INNER', 'orders', 'o', onClause('u', 'id', 'o', 'user_id')),
-                    joinClause('INNER', 'payments', 'p', onClause('o', 'id', 'p', 'order_id'))
-                ]
-            });
-            const eventsCollector = collectEvents();
-            engine.on('data', eventsCollector.listener);
-            
-            engine.push('users', { id: 1, name: 'Alice' });
-            engine.push('orders', { id: 101, user_id: 1 });
-            engine.push('payments', { id: 201, order_id: 101 });
-            engine.compute();
-            
-            expect(eventsCollector.events).to.have.lengthOf(1);
-            expect(eventsCollector.events[0].kind).to.equal('push');
-            expect(eventsCollector.events[0].compositeRow).to.deep.include({
-                u: { id: 1, name: 'Alice' },
-                o: { id: 101, user_id: 1 },
-                p: { id: 201, order_id: 101 }
-            });
-        });
+    it('should showCreate() for given selector (3)', async () => {
+        const b = await client.showCreate([{ schemaName: 'lq_test_%', tables: ['tbl1'] }]);
+        const c = await client.showCreate([{ schemaName: 'lq_test_%', tables: ['*'] }]);
+
+        expect(b).to.have.lengthOf(2);
+        expect(c).to.have.lengthOf(3);
+
+        expect(b[0].name().value()).to.eq('tbl1');
+        expect(b[1].name().value()).to.eq('tbl1');
+
+        expect(c.map((s) => s.name().value())).to.have.members(['tbl1', 'tbl1', 'tbl2']);
     });
 });

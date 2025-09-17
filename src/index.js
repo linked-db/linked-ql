@@ -1,5 +1,5 @@
 import './lang/index.js';
-import { Query } from './lang/Query.js';
+import { Script } from './lang/Script.js';
 
-//console.log('LinkedQL loaded', (await Query.parse('SELECT * FROM users; INSERT INTO u SELECT *;')) + '');
-export { Query };
+//console.log('LinkedQL loaded', (await Script.parse('SELECT * FROM users; INSERT INTO u SELECT *;')) + '');
+export { Script };

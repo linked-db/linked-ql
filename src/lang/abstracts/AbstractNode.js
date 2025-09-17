@@ -92,7 +92,7 @@ export class AbstractNode {
 	_set(fieldName, indexOrValue, valueOnIndex = undefined, cs = undefined) {
 		const index = arguments.length > 2 ? indexOrValue : undefined;
 		const value = arguments.length > 2 ? valueOnIndex : indexOrValue;
-		const existing = this._get(fieldName, index, cs);
+		const existing = typeof index !== 'undefined' ? this._get(fieldName, index, cs) : undefined;
 		if (existing) {
 			this._unadoptNodes(...[].concat(existing));
 		}

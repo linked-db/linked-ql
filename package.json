@@ -31,9 +31,9 @@
     "linkedql": "src/cli/index.js"
   },
   "scripts": {
-    "test": "mocha --extension .test.js --recursive --timeout 5000",
-    "test0": "mocha 'test/*.tests.js' --recursive --timeout 5000 > test/test-result.txt",
-    "testd": "mocha 'test/*.tests.js' --recursive --timeout 5000 > test/test-result.txt",
+    "test": "mocha --extension .test.js --recursive --timeout 5000 --exit",
+    "test0": "mocha 'test/*.tests.js' --recursive --timeout 5000 --exit",
+    "testd": "mocha 'test/*.tests.js' --recursive --timeout 5000 --exit > test/test-result.txt",
     "test:coverage": "c8 --reporter=text-lcov npm run test | coveralls",
     "build": "esbuild main=src/index.js --bundle --minify --sourcemap --outdir=dist",
     "preversion": "npm run test && npm run build && git add -A dist",

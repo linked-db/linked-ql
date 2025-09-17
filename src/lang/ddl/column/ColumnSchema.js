@@ -52,6 +52,12 @@ export class ColumnSchema extends AbstractSchema {
         }
     }
 
+    autoIncrementConstraint() {
+        for (const cons of this) {
+            if (cons instanceof registry.MYColumnAutoIncrementModifier) return cons;
+        }
+    }
+
     nullConstraint() {
         for (const cons of this) {
             if (cons instanceof registry.ColumnNullConstraint) return cons;
