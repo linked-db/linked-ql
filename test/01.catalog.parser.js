@@ -2,7 +2,6 @@ import { testParseAndStringify } from './00.parser.js';
 
 const catalog = [];
 
-
 const sql =
   `public (
   users (

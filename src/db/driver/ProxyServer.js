@@ -2,7 +2,7 @@ import net from 'node:net';
 import { fork } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { SimpleEmitter } from '../abstracts/SimpleEmitter.js';
-import { PGClient } from './PGClient.js';
+import { PGDriver } from './PGDriver.js';
 
 export class ProxyServer extends SimpleEmitter {
 
@@ -15,7 +15,7 @@ export class ProxyServer extends SimpleEmitter {
             throw new Error('[broker] "env.DB_PARAMS" is a required parameter and must be a string.');
         }
         this.#env = env;
-        this.#dbClient = new PGClient(this.#env.DB_PARAMS, this.#env.WAL_SLOT);
+        this.#dbClient = new PGDriver(this.#env.DB_PARAMS, this.#env.WAL_SLOT);
     }
 
     async start() {

@@ -1,9 +1,10 @@
 import { fork } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { AbstractClient } from './abstracts/AbstractClient.js';
-import { AbstractDBAdapter } from './abstracts/AbstractDBAdapter.js';
+import { AbstractDriver } from './abstracts/AbstractDriver.js';
 import { RealtimeClient } from './realtime/RealtimeClient.js';
-import { ProxyClient } from './classic/ProxyClient.js';
+import { ProxyDriver } from './driver/ProxyDriver.js';
+import { normalizeQueryArgs } from './abstracts/util.js';
 
 export class Client extends AbstractClient {
 
@@ -12,15 +13,15 @@ export class Client extends AbstractClient {
 
     constructor(dbAdapter = { dialect: 'postgres' }) {
         super();
-        if (!(dbAdapter instanceof AbstractDBAdapter)) {
-            throw new TypeError('dbAdapter must be an instance of AbstractDBAdapter');
+        if (!(dbAdapter instanceof AbstractDriver)) {
+            throw new TypeError('dbAdapter must be an instance of AbstractDriver');
         }
         this.#dbAdapter = dbAdapter;
         this.#realtime = new RealtimeClient(this.#dbAdapter);
     }
 
     async query(...args) {
-        const [query, options] = this._resolveQueryArgs(...args);
+        const [query, options] = normalizeQueryArgs(...args);
         if (options.live) {
             return this.#realtime.query(query, options);
         }
@@ -39,7 +40,7 @@ export class Client extends AbstractClient {
 if (process.send && process.argv.includes('--linked-ql-client-autorun')) {
     const DB_PARAMS = process.env.DB_PARAMS;
 
-    const dbAdapter = new ProxyClient(DB_PARAMS);
+    const dbAdapter = new ProxyDriver(DB_PARAMS);
     const instance = new Client(dbAdapter);
 
     process.on('message', () => {

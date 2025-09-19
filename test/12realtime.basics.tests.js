@@ -1,0 +1,350 @@
+import { expect } from 'chai';
+
+import '../src/lang/index.js';
+import { LocalDriver } from '../src/db/local/LocalDriver.js';
+import { PGDriver } from '../src/db/driver/PGDriver.js';
+
+// TODO: repeat some of these tests with double keys
+
+export function collectEvents() {
+    const events = [];
+    return { events, listener: (e) => events.push(...[].concat(e)) };
+}
+
+describe('Local - Subscriptions', () => {
+
+    describe('StorageEngine - Mutation Events', () => {
+
+        let driver, storage, relation, eventsCollector;
+        before(async () => {
+            driver = new LocalDriver;
+            storage = await driver.createSchema('lq_test_public');
+            await storage.createTable('tbl1');
+            relation = { name: 'tbl1', keyColumns: ['id'] };
+            eventsCollector = collectEvents();
+            storage.on('mutation', eventsCollector.listener);
+        });
+
+        it('should emit mutation event ("insert") for an insert operation', async () => {
+            eventsCollector.events.length = 0;
+
+            const record = { id: 10, fname: 'John', email: 'x@x.com' };
+            await storage.insert('tbl1', record);
+
+            expect(eventsCollector.events).to.have.lengthOf(1);
+            expect(eventsCollector.events[0].type).to.equal('insert');
+            expect(eventsCollector.events[0]).to.deep.includes({ relation, new: record });
+        });
+
+        it('should emit mutation event ("update") for an update operation', async () => {
+            eventsCollector.events.length = 0;
+
+            const key = { id: 10 };
+            const record = { id: 10, fname: 'John Doe', email: 'x@x.com' };
+            await storage.update('tbl1', record);
+
+            expect(eventsCollector.events).to.have.lengthOf(1);
+            expect(eventsCollector.events[0].type).to.equal('update');
+            expect(eventsCollector.events[0]).to.deep.includes({ relation, key, new: record });
+        });
+
+        it('should emit mutation event ("delete") for a delete operation', async () => {
+            eventsCollector.events.length = 0;
+
+            const key = { id: 10 };
+            await storage.delete('tbl1', key);
+
+            expect(eventsCollector.events).to.have.lengthOf(1);
+            expect(eventsCollector.events[0].type).to.equal('delete');
+            expect(eventsCollector.events[0]).to.deep.includes({ relation, key });
+        });
+    });
+
+    describe('LocalDriver - Subscriptions', () => {
+
+        let driver, storage, relation, eventsCollector;
+        before(async () => {
+            driver = new LocalDriver;
+            storage = await driver.createSchema('lq_test_public');
+
+            await storage.createTable('tbl1');
+
+            relation = { schema: 'lq_test_public', name: 'tbl1', keyColumns: ['id'] };
+            eventsCollector = collectEvents();
+            driver.subscribe(eventsCollector.listener);
+        });
+
+        it('should emit mutation event ("insert") for an insert operation', async () => {
+            eventsCollector.events.length = 0;
+
+            const record = { id: 10, fname: 'John', email: 'x@x.com' };
+            await storage.insert('tbl1', record);
+
+            expect(eventsCollector.events).to.have.lengthOf(1);
+            expect(eventsCollector.events[0].type).to.equal('insert');
+            expect(eventsCollector.events[0]).to.deep.includes({ relation, new: record });
+        });
+
+        it('should emit mutation event ("update") for an update operation', async () => {
+            eventsCollector.events.length = 0;
+
+            const key = { id: 10 };
+            const record = { id: 10, fname: 'John Doe', email: 'x@x.com' };
+            await storage.update('tbl1', record);
+
+            expect(eventsCollector.events).to.have.lengthOf(1);
+            expect(eventsCollector.events[0].type).to.equal('update');
+            expect(eventsCollector.events[0]).to.deep.includes({ relation, key, new: record });
+        });
+
+        it('should emit mutation event ("delete") for a delete operation', async () => {
+            eventsCollector.events.length = 0;
+
+            const key = { id: 10 };
+            await storage.delete('tbl1', key);
+
+            expect(eventsCollector.events).to.have.lengthOf(1);
+            expect(eventsCollector.events[0].type).to.equal('delete');
+            expect(eventsCollector.events[0]).to.deep.includes({ relation, key });
+        });
+    });
+});
+
+describe('Classic - Subscriptions', () => {
+
+    describe('PGDriver - Subscriptions (1)', () => {
+
+        let driver, relation, eventsCollector;
+        before(async () => {
+            driver = new PGDriver({ realtime: true });
+            await driver.connect();
+
+            await driver.dropSchema('lq_test_public');
+            await driver.createSchema('lq_test_public');
+            await driver.query(`CREATE TABLE IF NOT EXISTS lq_test_public.tbl1 (
+                id INT PRIMARY KEY GENERATED BY DEFAULT AS IDENTITY,
+                fname TEXT,
+                email TEXT
+            )`);
+
+            relation = { schema: 'lq_test_public', name: 'tbl1', keyColumns: ['id'] };
+            eventsCollector = collectEvents();
+            driver.subscribe(eventsCollector.listener);
+        });
+
+        after(async () => {
+            await driver.dropSchema('lq_test_public');
+            await driver.disconnect();
+        });
+
+        it('should emit mutation event ("insert") for an insert operation', async () => {
+            eventsCollector.events.length = 0;
+
+            const record = { id: 10, fname: 'John', email: 'x@x.com' };
+            await driver.query(`
+                INSERT INTO lq_test_public.tbl1 (id, fname, email)
+                VALUES (${record.id}, '${record.fname}', '${record.email}')
+            `);
+
+            await new Promise((r) => setTimeout(r, 50));
+
+            expect(eventsCollector.events).to.have.lengthOf(1);
+            expect(eventsCollector.events[0].type).to.equal('insert');
+            expect(eventsCollector.events[0]).to.deep.includes({ relation, new: record });
+        });
+
+        it('should emit mutation event ("update") for an update operation', async () => {
+            eventsCollector.events.length = 0;
+
+            const record = { id: 10, fname: 'John Doe', email: 'x@x.com' };
+            const key = { id: 10 };
+            await driver.query(`
+                UPDATE lq_test_public.tbl1 SET fname = '${record.fname}' WHERE id = ${key.id}
+            `);
+
+            await new Promise((r) => setTimeout(r, 50));
+
+            expect(eventsCollector.events).to.have.lengthOf(1);
+            expect(eventsCollector.events[0].type).to.equal('update');
+            expect(eventsCollector.events[0]).to.deep.includes({ relation, key, new: record });
+        });
+
+        it('should emit mutation event ("delete") for a delete operation', async () => {
+            eventsCollector.events.length = 0;
+
+            const key = { id: 10 };
+            await driver.query(`
+                DELETE FROM lq_test_public.tbl1 WHERE id = ${key.id}
+            `);
+
+            await new Promise((r) => setTimeout(r, 50));
+
+            expect(eventsCollector.events).to.have.lengthOf(1);
+            expect(eventsCollector.events[0].type).to.equal('delete');
+            expect(eventsCollector.events[0]).to.deep.includes({ relation, key });
+        });
+    });
+
+    describe('PGDriver - Subscriptions (2)', () => {
+
+        const schemaNames = ['lq_test_public', 'lq_test_private'];
+        let driver, relations = [];
+        before(async () => {
+            driver = new PGDriver({ realtime: true });
+            await driver.connect();
+
+            for (const schemaName of schemaNames) {
+                await driver.dropSchema(schemaName);
+                await driver.createSchema(schemaName);
+                await driver.query(`CREATE TABLE IF NOT EXISTS ${schemaName}.tbl1 (
+                    id INT PRIMARY KEY GENERATED BY DEFAULT AS IDENTITY,
+                    fname TEXT,
+                    email TEXT
+                )`);
+                relations.push({ schema: schemaName, name: 'tbl1', keyColumns: ['id'] });
+            }
+        });
+
+        after(async () => {
+            for (const schemaName of schemaNames) {
+                await driver.dropSchema(schemaName);
+            }
+            await driver.disconnect();
+        });
+
+        it('should emit mutation event ("insert") for an insert operation', async () => {
+            const eventsCollector1 = collectEvents();
+            driver.subscribe(eventsCollector1.listener);
+
+            const eventsCollector2 = collectEvents();
+            driver.subscribe({ ['*']: ['tbl1'] }, eventsCollector2.listener);
+
+            const eventsCollector3 = collectEvents();
+            driver.subscribe({ [schemaNames[0]]: ['*'] }, eventsCollector3.listener);
+
+            const eventsCollector4 = collectEvents();
+            driver.subscribe({ [schemaNames[1]]: '*' }, eventsCollector4.listener);
+
+            const eventsCollector5 = collectEvents();
+            driver.subscribe({ [schemaNames[1]]: 'tbl1' }, eventsCollector5.listener);
+
+            const records = [
+                { id: 10, fname: 'John1', email: 'x1@x.com' },
+                { id: 20, fname: 'John2', email: 'x2@x.com' },
+                { id: 30, fname: 'John3', email: 'x3@x.com' },
+                { id: 40, fname: 'John4', email: 'x4@x.com' },
+            ];
+
+            await driver.query(`
+                INSERT INTO ${schemaNames[0]}.tbl1 (id, fname, email)
+                VALUES
+                    (${records[0].id}, '${records[0].fname}', '${records[0].email}'),
+                    (${records[1].id}, '${records[1].fname}', '${records[1].email}');
+                -- ||||||||||||||||||||
+                INSERT INTO ${schemaNames[1]}.tbl1 (id, fname, email)
+                VALUES
+                    (${records[2].id}, '${records[2].fname}', '${records[2].email}'),
+                    (${records[3].id}, '${records[3].fname}', '${records[3].email}')
+            `);
+
+            await new Promise((r) => setTimeout(r, 50));
+
+            // --------- All
+            for (const eventsCollector of [eventsCollector1, eventsCollector2]) {
+                expect(eventsCollector.events).to.have.lengthOf(4);
+                expect(eventsCollector.events.map((e) => e.type)).to.deep.eq(['insert', 'insert', 'insert', 'insert']);
+
+                expect(eventsCollector.events[0]).to.deep.includes({ relation: relations[0], new: records[0] });
+                expect(eventsCollector.events[1]).to.deep.includes({ relation: relations[0], new: records[1] });
+                expect(eventsCollector.events[2]).to.deep.includes({ relation: relations[1], new: records[2] });
+                expect(eventsCollector.events[3]).to.deep.includes({ relation: relations[1], new: records[3] });
+            }
+
+            // --------- Records - 0 & 1, 2 & 3
+            const eventsCollectors = [eventsCollector3, eventsCollector4];
+            for (let i = 0; i < 2; i++) {
+                const eventsCollector = eventsCollectors[i];
+
+                expect(eventsCollector.events).to.have.lengthOf(2);
+                expect(eventsCollector.events.map((e) => e.type)).to.deep.eq(['insert', 'insert']);
+
+                expect(eventsCollector.events[0]).to.deep.includes({ relation: relations[i], new: records[i === 0 ? 0 : 2] });
+                expect(eventsCollector.events[1]).to.deep.includes({ relation: relations[i], new: records[i === 0 ? 1 : 3] });
+            }
+
+            // --------- Records - 2 & 3
+            expect(eventsCollector5.events).to.have.lengthOf(2);
+            expect(eventsCollector5.events.map((e) => e.type)).to.deep.eq(['insert', 'insert']);
+
+            expect(eventsCollector5.events[0]).to.deep.includes({ relation: relations[1], new: records[2] });
+            expect(eventsCollector5.events[1]).to.deep.includes({ relation: relations[1], new: records[3] });
+        });
+
+        it('should emit mutation event ("update") for an update operation', async () => {
+            const eventsCollector1 = collectEvents();
+            driver.subscribe(eventsCollector1.listener);
+
+            const eventsCollector2 = collectEvents();
+            driver.subscribe({ ['*']: ['tbl1'] }, eventsCollector2.listener);
+
+            const eventsCollector3 = collectEvents();
+            driver.subscribe({ [schemaNames[0]]: ['*'] }, eventsCollector3.listener);
+
+            const eventsCollector4 = collectEvents();
+            driver.subscribe({ [schemaNames[1]]: '*' }, eventsCollector4.listener);
+
+            const eventsCollector5 = collectEvents();
+            driver.subscribe({ [schemaNames[1]]: 'tbl1' }, eventsCollector5.listener);
+
+            const records1 = [
+                { id: 10, fname: 'John1', email: 'x1@x.com' },
+                { id: 20, fname: 'John2', email: 'x2@x.com' },
+            ];
+            const records1b = records1.map((r) => ({ ...r, id: r.id + 1 }));
+            const keys1 = records1.map((r) => ({ id: r.id }));
+
+            const keys2 = [
+                { id: 30 },
+                { id: 40 },
+            ];
+
+            await driver.query(`
+                UPDATE ${schemaNames[0]}.tbl1 SET id = id + 1 WHERE id IN (${keys1.map((r) => r.id).join(', ')});
+                -- ||||||||||||||||||||
+                DELETE FROM ${schemaNames[1]}.tbl1 WHERE id IN (${keys2.map((r) => r.id).join(', ')});
+            `);
+
+            await new Promise((r) => setTimeout(r, 50));
+
+            // --------- All
+            for (const eventsCollector of [eventsCollector1, eventsCollector2]) {
+                expect(eventsCollector.events).to.have.lengthOf(4);
+                expect(eventsCollector.events.map((e) => e.type)).to.deep.eq(['update', 'update', 'delete', 'delete']);
+
+                expect(eventsCollector.events[0]).to.deep.includes({ type: 'update', relation: relations[0], key: keys1[0], new: records1b[0] });
+                expect(eventsCollector.events[1]).to.deep.includes({ type: 'update', relation: relations[0], key: keys1[1], new: records1b[1] });
+                expect(eventsCollector.events[2]).to.deep.includes({ type: 'delete', relation: relations[1], key: keys2[0] });
+                expect(eventsCollector.events[3]).to.deep.includes({ type: 'delete', relation: relations[1], key: keys2[1] });
+            }
+
+            // --------- Only updates
+            expect(eventsCollector3.events).to.have.lengthOf(2);
+            expect(eventsCollector3.events.map((e) => e.type)).to.deep.eq(['update', 'update']);
+
+            expect(eventsCollector3.events[0]).to.deep.includes({ relation: relations[0], key: keys1[0], new: records1b[0] });
+            expect(eventsCollector3.events[1]).to.deep.includes({ relation: relations[0], key: keys1[1], new: records1b[1] });
+
+            // --------- Only deletes
+            const eventsCollectors = [eventsCollector4, eventsCollector5];
+            for (let i = 0; i < 2; i++) {
+                const eventsCollector = eventsCollectors[i];
+
+                expect(eventsCollector.events).to.have.lengthOf(2);
+                expect(eventsCollector.events.map((e) => e.type)).to.deep.eq(['delete', 'delete']);
+
+                expect(eventsCollector.events[0]).to.deep.includes({ relation: relations[1], key: keys2[0] });
+                expect(eventsCollector.events[1]).to.deep.includes({ relation: relations[1], key: keys2[1] });
+            }
+        });
+    });
+});

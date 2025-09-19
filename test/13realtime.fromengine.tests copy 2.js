@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import { FromEngine } from '../src/realtime/engine/FromEngine.js';
+import { collectEvents } from './12realtime.basics.tests.js';
 
 // --- Helpers to build AST nodes as per spec ---
 const row = (id, data) => ({ id, ...data });
@@ -53,12 +54,6 @@ const tableSchema = (tableName) => {
         columns: Object.keys(testData[tableName][0]),
     };
 };
-
-// --- Event collector ---
-function collectEvents() {
-    const events = [];
-    return { events, listener: (e) => events.push(e) };
-}
 
 // --- Test Suites ---
 describe('FromEngine Core Functionality', () => {

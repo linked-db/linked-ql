@@ -1,122 +1,256 @@
 import pg from 'pg';
 import { LogicalReplicationService, PgoutputPlugin } from 'pg-logical-replication';
-import { ReferentialAction, SchemaSchema, TableSchema } from '../../lang/ddl/index.js';
+import { AbstractDriver } from '../abstracts/AbstractDriver.js';
 import { Expr, Identifier, StringLiteral } from '../../lang/expr/index.js';
-import { AbstractDBAdapter } from '../abstracts/AbstractDBAdapter.js';
+import { ReferentialAction, SchemaSchema, TableSchema } from '../../lang/ddl/index.js';
+import { normalizeSelectorArg, parseSchemaSelectors } from '../abstracts/util.js';
 
-export class PGClient extends AbstractDBAdapter {
+export class PGDriver extends AbstractDriver {
 
     #connectionParams;
+    #realtime;
     #walSlot;
+    #walPublications;
+
     #nativeClient;
     #walClient;
+
     #subscribers = new Map;
 
     get dialect() { return 'postgres'; }
+    get realtime() { return this.#realtime; }
 
-    constructor(connectionParams, walSlot = null) {
+    get walSlot() { return this.#walSlot; }
+    get walPublications() { return this.#walPublications; }
+
+    constructor({
+        realtime = false,
+        walSlot = 'linkedql_default_slot',
+        walPublications = 'linkedql_default_publication',
+        ...connectionParams
+    } = {}) {
         super();
         this.#connectionParams = connectionParams;
+        this.#realtime = realtime;
+
         this.#walSlot = walSlot;
+        this.#walPublications = [].concat(walPublications);
+
         // Setup clients
-        this.#nativeClient = new pg.Client(this.#connectionParams);
-        if (walSlot) {
-            this.#walClient = new LogicalReplicationService({
-                connection: this.#connectionParams,
-                slotName: this.#walSlot,
-                plugin: new PgoutputPlugin({}),
-            });
-            this.#walClient.on('data', (lsn, log) => {
-                if (!log || !log.change) return;
-                this.#fanout(log.change);
-            });
+        this.#nativeClient = new pg.Pool(this.#connectionParams);
+        this.#nativeClient.on('error', (err) => {
+            this.emit('error', `Native Client error: ${err}`);
+        });
+
+        if (this.#realtime) {
+            if (!this.#walSlot) throw new Error(`Unable to start realtime; options.walSlot cannot be empty.`);
+            if (!this.#walPublications.length) throw new Error(`Unable to start realtime; options.walPublications cannot be empty.`);
+            this.#walClient = new LogicalReplicationService(this.#connectionParams);
+
             this.#walClient.on('error', (err) => {
                 this.emit('error', `WAL Client error: ${err}`);
+            });
+
+            // Handle "data" messages
+            let currentXid;
+            const walTransactions = new Map;
+            const walRelations = new Map;
+            const resolveRel = (rel) => {
+                if (rel._refs) return rel;
+                return Object.defineProperty(rel, '_refs', {
+                    value: [
+                        JSON.stringify([rel.schema, rel.name]),
+                        JSON.stringify(['*', rel.name]),
+                        JSON.stringify([rel.schema, '*']),
+                    ]
+                });
+            };
+
+            this.#walClient.on('data', (lsn, msg) => {
+                switch (msg.tag) {
+
+                    case 'begin':
+                        currentXid = msg.xid;
+                        walTransactions.set(currentXid, []);
+                        break;
+
+                    case 'relation':
+                        walRelations.set(msg.relationOid, resolveRel({
+                            schema: msg.schema,
+                            name: msg.name,
+                            keyColumns: msg.keyColumns,
+                        }));
+                        break;
+
+                    case 'insert':
+                    case 'update':
+                    case 'delete': {
+                        const rel = walRelations.get(msg.relation.relationOid) || resolveRel({
+                            schema: msg.relation.schema,
+                            name: msg.relation.name,
+                            keyColumns: msg.relation.keyColumns,
+                        });
+                        const evt = {
+                            type: msg.tag,
+                            relation: rel
+                        };
+                        if (msg.tag === 'insert') {
+                            evt.new = msg.new;
+                        } else if (msg.tag === 'update') {
+                            evt.key = msg.key || Object.fromEntries(rel.keyColumns.map((k) => [k, msg.old?.[k] || msg.new?.[k]]));
+                            evt.new = msg.new;
+                            evt.old = msg.old; // If REPLICA IDENTITY FULL
+                        } else if (msg.tag === 'delete') {
+                            evt.key = msg.key || Object.fromEntries(rel.keyColumns.map((k) => [k, msg.old[k]]));
+                            evt.old = msg.old; // If REPLICA IDENTITY FULL
+                        }
+                        walTransactions.get(currentXid)?.push(evt);
+                        break;
+                    }
+
+                    case 'commit': {
+                        const events = walTransactions.get(currentXid);
+                        if (events?.length) {
+                            const relationHashes = new Set(events.reduce((arr, e) => arr.concat(e.relation._refs), []));
+                            this.#fanout(events, relationHashes);
+                        }
+                        walTransactions.delete(currentXid);
+                        currentXid = null;
+                        break;
+                    }
+
+                    default:
+                        break; // ignore other tags like 'type'
+                }
             });
         }
     }
 
     async connect() {
         await this.#nativeClient.connect();
-        await this.#walClient?.start();
+        if (!this.#walClient) return;
+
+        const sql1 = `SELECT slot_name FROM pg_replication_slots WHERE slot_name = '${this.#walSlot}'`;
+        const result1 = await this.#nativeClient.query(sql1);
+        if (!result1.rows.length) {
+            const sql = `SELECT * FROM pg_create_logical_replication_slot('${this.#walSlot}', 'pgoutput')`;
+            await this.#nativeClient.query(sql);
+        }
+        const sql2 = `SELECT pubname FROM pg_publication WHERE pubname IN ('${this.#walPublications.join("', '")}')`;
+        const result2 = await this.#nativeClient.query(sql2);
+        await Promise.all(this.#walPublications.map(async (pub) => {
+            if (!result2.rows.find((r) => r.pubname === pub)) {
+                const sql = `CREATE PUBLICATION ${pub} FOR ALL TABLES`;
+                await this.#nativeClient.query(sql);
+            }
+        }));
+
+        // Subscribe...
+        const walPlugin = new PgoutputPlugin({ publicationNames: this.#walPublications, protoVersion: 2 });
+        const sub = this.#walClient.subscribe(walPlugin, this.#walSlot);
+        //await sub; // awaits forever
+        await new Promise((r) => setTimeout(r, 5));
     }
 
-    // ------------------
+    async disconnect() {
+        const end = this.#nativeClient.end();
+        //await end; // awaits forever
+        await this.#walClient?.stop();
+        await new Promise((r) => setTimeout(r, 5));
+    }
+
+    // ---------Schema
+
+    async schemaNames() {
+        const sql = `SELECT schema_name FROM information_schema.schemata ORDER BY array_position(current_schemas(false), schema_name)`;
+        const result = await this.#nativeClient.query(sql);
+        return result.rows || result;
+    }
+
+    async createSchema(schemaName) {
+        const sql = `CREATE SCHEMA IF NOT EXISTS ${schemaName}`;
+        const result = await this.#nativeClient.query(sql);
+        return result.rows || result;
+    }
+
+    async dropSchema(schemaName) {
+        const sql = `DROP SCHEMA IF EXISTS ${schemaName} CASCADE`;
+        const result = await this.#nativeClient.query(sql);
+        return result.rows || result;
+    }
+
+    async showCreate(selector, schemaWrapped = false) {
+        selector = normalizeSelectorArg(selector);
+        const sql = this._composeShowCreateSQL(selector);
+        const result = await this.#nativeClient.query(sql);
+        return await this._formatShowCreateResult(result.rows || result, schemaWrapped);
+    }
+
+    // ---------Query
 
     async query(...args) {
         const result = await this.#nativeClient.query(...args);
         return result.rows || result;
     }
 
-    async subscribe(table, callback) {
-        if (!this.#subscribers.has(table)) {
-            this.#subscribers.set(table, new Set);
+    // ---------Subscriptions
+
+    subscribe(selector, callback) {
+        if (typeof selector === 'function') {
+            callback = selector;
+            selector = '*';
         }
-        this.#subscribers.get(table).add(callback);
-        return () => {
-            this.#subscribers.get(table)?.delete(callback);
-            if (!this.#subscribers.get(table)?.size) {
-                this.#subscribers.delete(table);
-            }
-        };
+        selector = normalizeSelectorArg(selector, true);
+        this.#subscribers.set(callback, selector);
+        return () => this.#subscribers.delete(callback);
     }
 
-    async showCreate(selector, schemaScoped = false) {
-        const sql = this._composeSchemaSQL(selector);
-        const result = await this.#nativeClient.query(sql);
-        return await this._formatSchemasResult(result.rows || result, schemaScoped);
-    }
-
-    // ------------------
-
-    #fanout(events) {
-        const eventsByTable = {};
-        for (const e of events) {
-            const table = e.table || '*';
-            if (!eventsByTable[table]) {
-                eventsByTable[table] = [];
+    #fanout(events, relationHashes) {
+        for (const [cb, selectorSet] of this.#subscribers.entries()) {
+            let _events = [];
+            // Match and filter
+            for (const selector of selectorSet) {
+                if (selector === '["*","*"]') {
+                    _events = [...events];
+                    break;
+                } else if (relationHashes.has(selector)) {
+                    _events = events.filter((e) => e.relation._refs.some((r) => selectorSet.has(r)));
+                    break;
+                }
             }
-            eventsByTable[table].push(e);
-        }
-        for (const [table, events] in Object.entries(eventsByTable)) {
-            let subscribers = [...(this.#subscribers.get(table) || [])];
-            if (table !== '*') {
-                subscribers = subscribers.concat(...(this.#subscribers.get('*') || []));
-            }
-            for (const cb of subscribers) {
-                cb(events);
-            }
+            if (!_events.length) continue;
+            // Successful match
+            cb(_events);
         }
     }
 
-    _composeSchemaSQL(selector = {}) {
+    // ----------------------
+
+    _composeShowCreateSQL(selector) {
         const utils = this._createCommonSQLUtils();
         const $parts = {
             fields: [],
             dbWhere: '',
             tblWhere: '',
             orderBy: '',
-            depth: 0
+            depth: 2
         };
-        if (Array.isArray(selector)) {
-            const schemaNames = selector.map((s) => s.schemaName).filter((s) => s !== '*');
-            $parts.dbWhere = schemaNames.length ? `\nWHERE ${utils.matchSelector('db.schema_name', schemaNames)}` : '';
-            const $tblWhere = selector.reduce((cases, s) => {
-                const tbls = [].concat(s.tables || []).filter((s) => s !== '*');
-                if (!tbls.length) return cases;
-                return cases.concat(`CASE WHEN ${utils.matchSelector('db.schema_name', [s.schemaName]) || 'TRUE'} THEN ${utils.matchSelector('tbl.table_name', tbls) || 'TRUE'} END`);
-            }, []);
-            $parts.tblWhere = $tblWhere.length ? ` AND (${$tblWhere.join(' OR ')})` : '';
-            $parts.depth = 2;
-        } else {
-            let schemaSelector = [].concat(selector.schemaNames || []);
-            if ((schemaSelector = schemaSelector.filter((s) => s !== '*')).length) {
-                const $dbWhere = utils.matchSelector('db.schema_name', schemaSelector);
-                $parts.dbWhere = $dbWhere ? `\nWHERE ${$dbWhere}` : '';
-            }
-            $parts.orderBy = `\nORDER BY array_position(current_schemas(false), db.schema_name)`;
-            $parts.depth = selector.depth || 0;
+        const schemaNames = Object.keys(selector).filter((s) => s !== '*');
+        if (schemaNames.length) {
+            $parts.dbWhere = `\nWHERE ${utils.matchSelector('db.schema_name', schemaNames)}`;
         }
+        const $tblWhere = Object.entries(selector).reduce((cases, [schemaName, objectNames]) => {
+            const tbls = objectNames.filter((s) => s !== '*');
+            if (!tbls.length) return cases;
+            if (schemaName === '*') {
+                return cases.concat(`tbl.table_name IN '${tbls.join("', '")}'`);
+            }
+            return cases.concat(`CASE
+                WHEN ${utils.matchSelector('db.schema_name', [schemaName]) || 'TRUE'
+                } THEN ${utils.matchSelector('tbl.table_name', tbls) || 'TRUE'
+                } END`);
+        }, []);
+        $parts.tblWhere = $tblWhere.length ? ` AND (${$tblWhere.join(' OR ')})` : '';
         // -- THE COLUMNS PART
         const buildColumns = () => {
             // Composition
@@ -241,7 +375,7 @@ export class PGClient extends AbstractDBAdapter {
             jsonAgg: (expr) => this.dialect === 'mysql' ? `JSON_ARRAYAGG(${expr})` : `JSON_AGG(${expr})`,
             anyValue: (col) => this.dialect === 'mysql' ? col : `MAX(${col})`,
             matchSelector: (ident, enums) => {
-                const [names, _names, patterns, _patterns] = this._parseSchemaSelectors(enums);
+                const [names, _names, patterns, _patterns] = parseSchemaSelectors(enums);
                 const $names = names.length && !(names.length === 1 && names[0] === '*') ? `${ident} IN (${names.map(utils.str).join(', ')})` : null;
                 const $_names = _names.length ? `${ident} NOT IN (${_names.map(utils.str).join(', ')})` : null;
                 const $patterns = patterns.length ? patterns.map((p) => `${ident} ILIKE ${utils.str(p.replace(/_/g, '\\_'))} ESCAPE '\\'`).join(' AND ') : null;
@@ -252,7 +386,7 @@ export class PGClient extends AbstractDBAdapter {
         return utils;
     }
 
-    async _formatSchemasResult(result, schemaScoped) {
+    async _formatShowCreateResult(result, schemaWrapped) {
         // Util:
         const formatRelation = async (cons) => {
             const consSchema = {
@@ -317,7 +451,7 @@ export class PGClient extends AbstractDBAdapter {
                     const columnSchemaJson = {
                         nodeName: 'COLUMN_SCHEMA',
                         name: { nodeName: 'COLUMN_IDENT', value: col.column_name },
-                        data_type: { nodeName: 'DATA_TYPE', value: col.data_type, ...(col.character_maximum_length ? { specificity: [await parseExpr(col.character_maximum_length+'')] } : {}) },
+                        data_type: { nodeName: 'DATA_TYPE', value: col.data_type, ...(col.character_maximum_length ? { specificity: [await parseExpr(col.character_maximum_length + '')] } : {}) },
                         entries: [],
                     };
                     tableSchemaJson.entries.push(columnSchemaJson);
@@ -401,12 +535,12 @@ export class PGClient extends AbstractDBAdapter {
                     }
                 }
 
-                (schemaScoped ? schemaSchemaJson.entries : schemas).push(
+                (schemaWrapped ? schemaSchemaJson.entries : schemas).push(
                     TableSchema.fromJSON(tableSchemaJson, { dialect: this.dialect })
                 );
             }
 
-            if (schemaScoped) {
+            if (schemaWrapped) {
                 schemas.push(SchemaSchema.fromJSON(schemaSchemaJson, { dialect: this.dialect }));
             }
         }

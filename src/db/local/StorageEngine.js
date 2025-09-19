@@ -18,7 +18,7 @@ export class StorageEngine extends SimpleEmitter {
         };
     }
 
-    createTable(tableSchemaJson) {
+    async createTable(tableSchemaJson) {
         if (typeof tableSchemaJson === 'string') {
             tableSchemaJson = {
                 name: { value: tableSchemaJson },
@@ -50,12 +50,12 @@ export class StorageEngine extends SimpleEmitter {
         return true;
     }
 
-    tableNames() { return this.#schemas.tables().map((t) => t.name().value()); }
+    async tableNames() { return this.#schemas.tables().map((t) => t.name().value()); }
 
-    tableSchema(table) { return this.#schemas.get(table); }
+    async tableSchema(table) { return this.#schemas.get(table); }
 
-    tablePK(table) {
-        const tableSchema = this.tableSchema(table);
+    async tablePK(table) {
+        const tableSchema = await this.tableSchema(table);
         let pkRefs;
         if ((pkRefs = tableSchema?.pkConstraint(true)?.columns())?.length) {
             return pkRefs.map((pkRef) => tableSchema.get(pkRef));
@@ -72,9 +72,9 @@ export class StorageEngine extends SimpleEmitter {
         return v;
     }
 
-    #computeKey(table, record, forInsert = false) {
+    async #computeKey(table, record, forInsert = false) {
         let pkCols;
-        if (pkCols = this.tablePK(table)) {
+        if (pkCols = await this.tablePK(table)) {
             const autoIncr = pkCols.some((pkCol) => (pkCol.identityConstraint() || pkCol.autoIncrementConstraint()));
 
             const values = [];
@@ -98,42 +98,49 @@ export class StorageEngine extends SimpleEmitter {
         return JSON.stringify(Object.values(record));
     }
 
-    insert(table, record) {
+    async insert(table, record) {
         if (!this.#schemas.get(table)) {
             throw new Error(`Table "${table}" does not exist`);
         }
         const t = this.#tables.get(table) || new Map();
         this.#tables.set(table, t);
         const stored = { ...record };
-        const key = this.#computeKey(table, stored, true);
+        const key = await this.#computeKey(table, stored, true);
         if (t.has(key)) throw new Error(`Duplicate key for "${table}": ${key}`);
         t.set(key, stored);
-        this.emit(table, { kind: 'insert', key, record: { ...stored } });
+        const keyColumns = (await this.tablePK(table)).map((k) => k.name().value());
+        this.emit('mutation', { type: 'insert', relation: { name: table, keyColumns }, new: { ...stored } });
         return key;
     }
 
-    update(table, record) {
+    async update(table, record) {
         const t = this.#tables.get(table);
         if (!t) throw new Error(`Table "${table}" does not exist`);
         const stored = { ...record };
-        const key = this.#computeKey(table, stored, false);
-        if (!t.has(key)) throw new Error(`Record not found in "${table}" for key ${key}`);
+        const key = await this.#computeKey(table, stored, false);
+        const old = t.get(key);
+        if (!old) throw new Error(`Record not found in "${table}" for key ${key}`);
         t.set(key, stored);
-        this.emit(table, { kind: 'update', key, record: { ...stored } });
+        const keyColumns = (await this.tablePK(table)).map((k) => k.name().value());
+        const _key = Object.fromEntries(keyColumns.map((k) => [k, old[k]]));
+        this.emit('mutation', { type: 'update', relation: { name: table, keyColumns }, key: _key, old, new: { ...stored } });
         return key;
     }
 
-    delete(table, record) {
+    async delete(table, record) {
         const t = this.#tables.get(table);
         if (!t) throw new Error(`Table "${table}" does not exist`);
-        const key = this.#computeKey(table, { ...record }, false);
-        if (!t.has(key)) throw new Error(`Record not found in "${table}" for key ${key}`);
+        const key = await this.#computeKey(table, { ...record }, false);
+        const old = t.get(key);
+        if (!old) throw new Error(`Record not found in "${table}" for key ${key}`);
         t.delete(key);
-        this.emit(table, { kind: 'delete', key });
+        const keyColumns = (await this.tablePK(table)).map((k) => k.name().value());
+        const _key = Object.fromEntries(keyColumns.map((k) => [k, old[k]]));
+        this.emit('mutation', { type: 'delete', relation: { name: table, keyColumns }, key: _key, old });
         return key;
     }
 
-    get(table, keyOrRecord) {
+    async get(table, keyOrRecord) {
         const t = this.#tables.get(table);
         if (!t) throw new Error(`Table "${table}" does not exist`);
 
@@ -143,7 +150,7 @@ export class StorageEngine extends SimpleEmitter {
             key = keyOrRecord;
         } else if (typeof keyOrRecord === 'object' && keyOrRecord !== null) {
             // compute key from record-like object
-            key = this.#computeKey(table, { ...keyOrRecord }, false);
+            key = await this.#computeKey(table, { ...keyOrRecord }, false);
         } else {
             throw new Error(`Invalid keyOrRecord type for get(): ${typeof keyOrRecord}`);
         }

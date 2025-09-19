@@ -34,14 +34,6 @@ const matchFilters = (a, b) => {
     return _filters;
 };
 
-// CTE_REF
-// collect table refs
-// collect primary keys
-// Make schema and type hidden by defaylt
-// export meta
-// revisist aliases
-// support scalar subqueries as CTE
-// do case-sensitivity
 export class QueryWindow extends SimpleEmitter {
 
     static splitLogic(expr) {

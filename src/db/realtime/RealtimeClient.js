@@ -1,5 +1,6 @@
 import { AbstractClient } from '../abstracts/AbstractClient.js';
-import { AbstractDBAdapter } from '../abstracts/AbstractDBAdapter.js';
+import { AbstractDriver } from '../abstracts/AbstractDriver.js';
+import { normalizeQueryArgs } from '../abstracts/util.js';
 import { QueryWindow } from './QueryWindow.js';
 
 export class RealtimeClient extends AbstractClient {
@@ -9,14 +10,14 @@ export class RealtimeClient extends AbstractClient {
 
     constructor(dbAdapter) {
         super();
-        if (!(dbAdapter instanceof AbstractDBAdapter)) {
-            throw new TypeError('dbAdapter must be an instance of AbstractDBAdapter');
+        if (!(dbAdapter instanceof AbstractDriver)) {
+            throw new TypeError('dbAdapter must be an instance of AbstractDriver');
         }
         this.#dbAdapter = dbAdapter;
     }
 
     async query(...args) {
-        const [query, options] = this._resolveQueryArgs(...args);
+        const [query, options] = normalizeQueryArgs(...args);
         const queryWindow = this.createWindow(query);
         const initialResult = await queryWindow.initialResult();
         const abortLine = queryWindow.on('mutation', (event) => {

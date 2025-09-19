@@ -1,5 +1,5 @@
 import { AbstractClient } from './abstracts/AbstractClient.js';
-import { AbstractDBAdapter } from './abstracts/AbstractDBAdapter.js';
+import { AbstractDriver } from './abstracts/AbstractDriver.js';
 import { ProxyServer } from './classic/ProxyServer.js';
 import { Client } from './Client.js';
 
@@ -19,7 +19,7 @@ export class Pool extends AbstractClient {
 
     constructor(dbParams, poolParams = {}) {
         super();
-        if (dbParams instanceof AbstractDBAdapter) {
+        if (dbParams instanceof AbstractDriver) {
             throw new TypeError('dbParams must be a plain object');
         }
         this.#dbParams = dbParams;

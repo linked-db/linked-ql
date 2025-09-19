@@ -1,7 +1,8 @@
 import net from 'node:net';
-import { AbstractDBAdapter } from '../abstracts/AbstractDBAdapter.js';
+import { AbstractDriver } from '../abstracts/AbstractDriver.js';
+import { normalizeQueryArgs } from '../abstracts/util.js';
 
-export class ProxyClient extends AbstractDBAdapter {
+export class ProxyDriver extends AbstractDriver {
 
     #serverHost;
     #serverPort;
@@ -41,7 +42,7 @@ export class ProxyClient extends AbstractDBAdapter {
     }
 
     async query(...args) {
-        const [query, options] = this._resolveQueryArgs(...args);
+        const [query, options] = normalizeQueryArgs(...args);
         if (!this.#serverSocket) throw new Error(`No connection to remote host.`);
         const result = await this.#serverSocket.write(JSON.stringify({ type: 'query', query, options }) + '\n');
         if (result.type === 'error') throw new Error(result.message);
