@@ -236,7 +236,7 @@ await client.query(
 
 > coming soon - with a screencast
 
-### ` 4 |` IDE Tooling
+### ` 4 |` IDE Niceties
 
 #### `4.1 |` Static error checking
 
