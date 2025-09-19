@@ -32,15 +32,19 @@ Linked QL is JS-based and works both in Nodejs and in the browser (coming soon)
 
 </div>
 
+> [!IMPORTANT]  
+> This is **@linked-db/linked-ql@next** — our upcoming iteration.  
+> See [@linked-db/linked-ql@0.3.*](https://github.com/linked-db/linked-ql) for the current version (covered in the [wiki](https://github.com/linked-db/linked-ql/wiki)).
+
 ## 💡 Here's your quick-start
 
-1) Install
+1) _Install_
 
 ```bash
 npm i @linked-db/linked-ql@next
 ```
 
-2) Use as your regular PG or MySQL client
+2) _Use as your regular PG or MySQL client_
 
 ```js
 import { PGClient } from '@linked-db/linked-ql/pg';
@@ -58,7 +62,7 @@ await client.connect();
 const result = await client.query(`SELECT 10`);
 ```
 
-3) Try fun things... like:
+3) _Try fun things... like:_
 
 ```js
 const users = await client.query(
@@ -67,10 +71,6 @@ const users = await client.query(
   ['admin']
 );
 ```
-
-> [!IMPORTANT]  
-> This is **@linked-db/linked-ql@next** — our upcoming iteration.  
-> See [@linked-db/linked-ql@0.3.*](https://github.com/linked-db/linked-ql) for the current version (covered in the [wiki](https://github.com/linked-db/linked-ql/wiki)).
 
 ---
 <!--
@@ -90,8 +90,6 @@ const users = await client.query(
 ## 🚀 Features
 
 1) **Syntax Niceties**
-
----
 
 <details><summary>DeepRefs<br>⮑ Traverse relationships on the fly</summary>
 
@@ -117,8 +115,6 @@ const users = await client.query(
 
 </details>
 
----
-
 <details><summary>JSON notation<br>🧩 Use JSON notation directly</summary>
 
 ```js
@@ -132,8 +128,6 @@ const users = await client.query(
 ```
 
 </details>
-
----
 
 <details><summary>The UPSERT statement<br>📦 Do upserts without the extra syntax</summary>
 
@@ -150,11 +144,7 @@ const users = await client.query(
 
 </details>
 
----
-
 2) **Reactivity**
-
----
 
 <details><summary>Live queries<br>⚡ Run reactive SQL</summary>
 
@@ -168,11 +158,7 @@ const users = await client.query(
 
 </details>
 
----
-
 3. **Schema Evolution**
-
----
 
 <details><summary>Automatic versioning<br>⏱ Run self-versioned schema changes</summary>
 
@@ -204,8 +190,6 @@ await savepoint.rollback({
 
 </details>
 
----
-
 <details><summary>Version binding<br>🧷 Bind query to specific db/table versions</summary>
 
 ```js
@@ -217,26 +201,16 @@ await client.query(
 
 </details>
 
----
-
 <details><summary>Diff-based migrations<br>🤖 Put your workflow on autopilot</summary>
 </details>
 
----
-
 4. **IDE Tooling***
-
----
 
 <details><summary>Static error checking<br>🔍 Catch mistakes before they hit production</summary>
 </details>
 
----
-
 <details><summary>Type safety<br>🛡️ Strong types, no guessing</summary>
 </details>
-
----
 
 <details><summary>Autocompletion<br>💡 Smarter queries in your editor</summary>
 </details>
@@ -250,47 +224,29 @@ Things are moving really fast; and I'm keeping the progress bars here live
 **Core Parser/Compiler**  
 > `████████████████████` 100%  
 
----
-
 **Core Transform Engine**  
 > `████████████████████` 100%  
-
----
 
 **InMemory DB Engine**  
 > `████████████████░░░░` 80%  
 
----
-
 **DB Drivers - PG, MySQL, InMem (MySQL catching up)**  
 > `██████████████████░░` 90%
-
----
 
 **Realtime Engine**  
 > `████████████████░░░░` 80%
 
----
-
 **Version Binding**  
 > `████░░░░░░░░░░░░░░░░` 20%
-
----
 
 **Revamped Auto-Versioning Engine (_defer to @linked-db/linked-ql@0.3.\*_)**  
 > `██░░░░░░░░░░░░░░░░░░` 10%
 
----
-
 **Revamped Migration Wizard (_defer to @linked-db/linked-ql@0.3.\*_)**  
 > `██░░░░░░░░░░░░░░░░░░` 10%
 
----
-
 **IDE Tooling**  
 > `██░░░░░░░░░░░░░░░░░░` 10%  
-
----
 
 **Revamped Docs**  
 > `░░░░░░░░░░░░░░░░░░░░` 0%  
