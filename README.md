@@ -199,7 +199,8 @@ await savepoint.rollback({ desc: 'Users table no more necessary' });
 ```js
 // Make this query version-safe
 await client.query(
-  `SELECT * FROM users@3`
+  `SELECT * FROM users@3
+  LEFT JOIN books@2_1 ON users.id = books.author
 );
 ```
 
