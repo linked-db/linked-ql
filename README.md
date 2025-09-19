@@ -97,7 +97,7 @@ const users = await client.query(
 
 #### `1.1 |` Live queries
 
-⚡ _Run reactive SQL with `{ live: true }`_
+⚡ _Turn on reactivity on arbitrary SQL with `{ live: true }`_
 
 ```js
 // Pass { live: true } to get live results
@@ -135,7 +135,7 @@ const users = await client.query(
 
 #### `2.2 |` JSON shorthands
 
-🧩 _Use JSON notation directly_: `{}`, `[]`
+🧩 Model shapes visually using JSON literals_: `{}`, `[]`
 
 ```js
 // Shape your output data visually
@@ -149,7 +149,7 @@ const users = await client.query(
 
 #### `2.3 |` The UPSERT statement
 
-📦 _Do upserts without conditional clauses_
+📦 _Do upserts with a literal UPSERT statement_
 
 ```js
 // Forget ON CONFLICT / ON DUPLICATE KEY
