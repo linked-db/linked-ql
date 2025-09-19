@@ -25,7 +25,8 @@ _**Next-generation SQL (Postgres & MySQL)** for modern apps._
 [👉 Follow](https://x.com/LinkedQL) • [💖 Sponsor](https://github.com/sponsors/ox-harris)
 
 
-LinkedQL is a classic Postgres/MySQL client — like `node-postgres` and `mysql2` — but reimagined for modern apps! Bundling: _Handy syntax shorthands_ • _Out-of-the-box reactivity_ • _Automatic database versioning & painless migrations_ • _Smart workflow automation_ 
+LinkedQL is a classic Postgres/MySQL client — like `node-postgres` and `mysql2` — but reimagined for modern apps! Bundling:
+_Handy syntax shorthands_ • _Out-of-the-box reactivity_ • _Automatic database versioning & painless migrations_ • _Smart workflow automation_ 
 
 **Actually...** it's less a DB client revolution, more an SQL upgrade — that brings the best of modern database tooling into SQL itself.
 
@@ -149,10 +150,11 @@ const users = await client.query(
     [ u.email, u.phone ] AS contact
   FROM users AS u`
 );
-console.log(users[0]);
 ```
 
 ```js
+console.log(users[0]);
+/*
 {
   id: 2,
   first_name: 'John',
@@ -160,6 +162,7 @@ console.log(users[0]);
   name: { first: 'John', last: 'Doe' },
   contact: ['x@x.com', '012345678'],
 }
+*/
 ```
 
 #### `2.3 |` The UPSERT statement
