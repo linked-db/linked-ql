@@ -111,7 +111,7 @@ const users = await client.query(
 
 #### `2.1 |` DeepRefs
 
-⮑  _Follow relationships using simple arrow notation: `a ~> c ~> d`_
+⮑  _Follow relationships using simple arrow notation_: `a ~> c ~> d`
 
 ```js
 // DeepRefs let you access deeply nested columns
@@ -135,7 +135,7 @@ const users = await client.query(
 
 #### `2.2 |` JSON shorthands
 
-🧩 Model shapes visually using JSON literals_: `{}`, `[]`
+🧩 _Model shapes visually using JSON literals_: `{}`, `[]`
 
 ```js
 // Shape your output data visually
