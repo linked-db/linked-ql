@@ -114,8 +114,8 @@ export class InsertStmt extends PayloadStmtMixin(DMLStmt) {
 
 	/* JSON API */
 
-	jsonfy(options = {}, transformer = null, linkedDb = null) {
-		if (!options.deSugar) return super.jsonfy(options, transformer, linkedDb);
+	jsonfy(options = {}, transformer = null, dbContext = null) {
+		if (!options.deSugar) return super.jsonfy(options, transformer, dbContext);
 
 		transformer = new Transformer((node, defaultTransform) => {
 			// Process table abstraction nodes
@@ -134,7 +134,7 @@ export class InsertStmt extends PayloadStmtMixin(DMLStmt) {
 			return defaultTransform();
 		}, transformer, this/* IMPORTANT */);
 
-		let resultJson = super.jsonfy(options, transformer, linkedDb);
+		let resultJson = super.jsonfy(options, transformer, dbContext);
 		const toDialect = options.toDialect || this.options.dialect;
 
 		// Order ouput JSON
@@ -201,9 +201,9 @@ export class InsertStmt extends PayloadStmtMixin(DMLStmt) {
 		}
 
 		// 1. Finalize output JSON
-		resultJson = this.finalizeOutputJSON(resultJson, transformer, linkedDb, options);
+		resultJson = this.finalizeOutputJSON(resultJson, transformer, dbContext, options);
 		// 2. Finalize generated JOINS. Must come last
-		resultJson = this.finalizePayloadJSON(resultJson, transformer, linkedDb, options);
+		resultJson = this.finalizePayloadJSON(resultJson, transformer, dbContext, options);
 
 		return resultJson;
 	}

@@ -14,8 +14,8 @@ export class SelectList extends DDLSchemaMixin(AbstractNodeList) {
 
     /* JSON API */
 
-    jsonfy(options = {}, transformer = null, linkedDb = null) {
-        let resultJson = super.jsonfy(options, transformer, linkedDb);
+    jsonfy(options = {}, transformer = null, dbContext = null) {
+        let resultJson = super.jsonfy(options, transformer, dbContext);
         if (!options.deSugar) return resultJson;
 
         let resolvedOutputList = [];
@@ -79,7 +79,7 @@ export class SelectList extends DDLSchemaMixin(AbstractNodeList) {
         };
     }
 
-    finalizeJSON(resultJson, transformer, linkedDb, options) {
+    finalizeJSON(resultJson, transformer, dbContext, options) {
         const shouldDeSugarStars = Number(options.deSugar) > 1;
         let starsFound;
 
@@ -106,7 +106,7 @@ export class SelectList extends DDLSchemaMixin(AbstractNodeList) {
             if (!fieldJson.result_schema) {
                 const fieldNode = registry.SelectItem.fromJSON(fieldJson, this.options);
                 this._adoptNodes(fieldNode);
-                fieldJson = fieldNode.jsonfy(options, transformer, linkedDb);
+                fieldJson = fieldNode.jsonfy(options, transformer, dbContext);
             }
 
             return [

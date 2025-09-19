@@ -7,14 +7,14 @@ export class DMLStmt extends AbstractNonDDLStmt {
 
     static get syntaxRules() { return { type: ['InsertStmt', 'UpsertStmt', 'UpdateStmt', 'DeleteStmt'] }; }
 
-    finalizeOutputJSON(resultJson, transformer, linkedDb, options) {
+    finalizeOutputJSON(resultJson, transformer, dbContext, options) {
 
         if (resultJson.returning_clause) {
             // 1. Re-resolve output list for cases of just-added deep refs in returning_clause
             // wherein schemas wouldn't have been resolvable at the time
             // 2. Finalize output list for the last time, honouring given deSugaring level with regards to star selects "*"
             // and ofcos finalize output schemas
-            const returningClauseJson = this.returningClause().finalizeJSON(resultJson.returning_clause, transformer, linkedDb, options);
+            const returningClauseJson = this.returningClause().finalizeJSON(resultJson.returning_clause, transformer, dbContext, options);
             // Apply now
             resultJson = {
                 ...resultJson,

@@ -26,8 +26,8 @@ export class ScalarSubquery extends DerivedQuery {
 
     /* JSON API */
 
-    jsonfy(options = {}, transformer = null, linkedDb = null) {
-        let resultJson = super.jsonfy(options, transformer, linkedDb);
+    jsonfy(options = {}, transformer = null, dbContext = null) {
+        let resultJson = super.jsonfy(options, transformer, dbContext);
         if (options.deSugar) {
             let resultSchema = resultJson.expr?.result_schema;
             if (resultSchema?.length !== 1) {

@@ -76,7 +76,7 @@ export class QueryWindow extends SimpleEmitter {
         this.resetFilters(filters);
         this.#options = options;
 
-        this.#isSingleTable = this.#fromEngine.aliasOrder.length === 1;
+        this.#isSingleTable = this.#fromEngine.aliasesToTable.size === 1;
         this.#isWindowedQuery = false;
 
         this.#exprEngine = new ExprEngine(this.#options);
@@ -95,27 +95,27 @@ export class QueryWindow extends SimpleEmitter {
             this.#generatorDisconnect();
         }
         if (!parentWindow) return;
-        this.#generatorDisconnect = parentWindow.on('data', (event) => {
-            if (event.kind === 'delete') {
-                if (this.#localRecords.has(event.oldJointId)) {
-                    this.#localDelete(event.oldJointId);
+        this.#generatorDisconnect = parentWindow.on('data', (jointEvent) => {
+            if (jointEvent.type === 'delete') {
+                if (this.#localRecords.has(jointEvent.oldJointId)) {
+                    this.#localDelete(jointEvent.oldJointId);
                 } else return; // A delete event that mismatches
             } else {
-                if (!this.#satisfiesFilters(event.jointRecord)) {
+                if (!this.#satisfiesFilters(jointEvent.jointRecord)) {
                     // Handle mismatch...
-                    if (event.kind === 'update' && this.#localRecords.has(event.oldJointId)) {
+                    if (jointEvent.type === 'update' && this.#localRecords.has(jointEvent.oldJointId)) {
                         // An update that translates to delete
-                        this.#localDelete(event.oldJointId);
-                        event = { ...event, kind: 'delete' };
+                        this.#localDelete(jointEvent.oldJointId);
+                        jointEvent = { ...jointEvent, type: 'delete' };
                     } else return; // An update|insert eventthat mismatches
                 }
-                if (event.kind === 'update' && !this.#localRecords.has(event.oldJointId)) {
+                if (jointEvent.type === 'update' && !this.#localRecords.has(jointEvent.oldJointId)) {
                     // An update that translates to insert
-                    this.#localSet(event.newJointId, event.jointId);
-                    event = { ...event, kind: 'insert' };
+                    this.#localSet(jointEvent.newJointId, jointEvent.jointId);
+                    jointEvent = { ...jointEvent, type: 'insert' };
                 }
             }
-            this.#fanout(event);
+            this.#fanout(jointEvent);
         });
     }
 
@@ -233,16 +233,18 @@ export class QueryWindow extends SimpleEmitter {
     async #queryHeadless(extraFilters = [], jointIdCreateCallback = null) {
         // Record ID create util
         if (!jointIdCreateCallback) {
-            const aliasOrder = Object.keys(result[0]);
+            const aliases = [...this.#fromEngine.aliasesToTable.keys()];
             jointIdCreateCallback = (jointRecord) => {
-                const newKeysList = aliasOrder.map((alias) => {
-                    const keyNames = this.pkMap.get(alias);
-                    return jointRecord[alias]
-                        ? keyNames.map((k) => jointRecord[alias][k])
-                        : [];
+                const newKeysList = aliases.map((alias) => {
+                    const aliasInfo = this.#fromEngine.aliasesToTable.get(alias);
+                    const _newKeys = aliasInfo.keyColumns.map((k) => jointRecord[alias][k]);
+                    if (_newKeys.every((s) => s === null)) {
+                        return null; // IMPORTANT
+                    }
+                    return _newKeys;
                 });
-                const jointId = this.#keysToJointId(...newKeysList);
-                return [jointId];
+                const jointId = this.#keysToJointId(newKeysList);
+                return [jointId/* oldKeys */, null];
             };
         }
         // Map to joint IDs
@@ -257,12 +259,12 @@ export class QueryWindow extends SimpleEmitter {
         return resultMap;
     }
 
-    #keysToJointId(...keyValues) {
-        return `[${keyValues.map((a) => [].concat(a).join(',')).join('][')}]`;
+    #keysToJointId(keyValues) {
+        return JSON.stringify(keyValues);
     }
 
     #keysFromJointId(jointId) {
-        return jointId.replace(/^\[|\]$/g, '').split('][');
+        return JSON.parse(jointId);
     }
 
     #localSet(jointId, jointRecord) {
@@ -286,10 +288,8 @@ export class QueryWindow extends SimpleEmitter {
         return mode === 2
             ? jointRecord
             : Object.fromEntries(Object.keys(jointRecord).map((alias) => {
-                const keyNames = this.pkMap.get(alias);
-                const rowObj = jointRecord[alias]
-                    ? Object.fromEntries(keyNames.map((k) => [k, jointRecord[alias][k]]))
-                    : null;
+                const aliasInfo = this.#fromEngine.aliasesToTable.get(alias);
+                const rowObj = Object.fromEntries(aliasInfo.keyColumns.map((k) => [k, jointRecord[alias][k]]));
                 return [alias, rowObj];
             }));
     }
@@ -308,91 +308,105 @@ export class QueryWindow extends SimpleEmitter {
 
     // --------------------------
 
-    #normalizeEvents(aliases, events) {
+    #normalizeEvents(events) {
         // Normalize oldKeys stuff
-        const normalizedEvents = events.filter((e) => e.tag === 'insert' || e.tag === 'update' || e.tag === 'delete').map((e) => {
-            const keyNames = e.oldKeys
-                ? e.oldKeys.keyNames
-                : this.pkMap.get(aliases[0]);
-            const oldKeys = keyNames.map((k, i) => e.old?.[k] ?? e.oldKeys?.keyValues?.[i] ?? e.new[k]);
-            const newKeys = keyNames.map((k, i) => e.new?.[k] ?? e.old?.[k] ?? e.oldKeys.keyValues[i]);
-            return { ...e, keyNames, oldKeys, newKeys };
+        const normalizedEvents = events.filter((e) => e.type === 'insert' || e.type === 'update' || e.type === 'delete').map((e) => {
+            const relationHash = JSON.stringify([e.relation.schema, e.relation.name]);
+            const affectedAliases = [...this.#fromEngine.aliasesToTable.values()].map((aliasInfo) => aliasInfo.hash === relationHash);
+            const keyColumns = e.relation.keyColumns;
+            const oldKeys = e.key
+                ? Object.values(e.key)
+                : keyColumns.map((k) => e.new[k]);
+            const newKeys = e.new
+                ? keyColumns.map((k) => e.new[k])
+                : oldKeys.slice(0);
+            return { ...e, keyColumns, oldKeys, newKeys, relationHash, affectedAliases };
         });
         // 2. Normalize sequences and gather some intelligence stuff
         const normalizedEventsMap = new Map;
         const keyHistoryMap = new Map;
-        for (const event of normalizedEvents) {
-            const oldId = this.#keysToJointId(event.oldKeys);
+        for (const normalizedEvent of normalizedEvents) {
+            const oldId = this.#keysToJointId(normalizedEvent.oldKeys);
             let previous, newId;
             if (previous = normalizedEventsMap.get(oldId)) {
-                if (previous.tag === 'insert' && event.tag === 'delete') {
+                if (previous.type === 'insert' && normalizedEvent.type === 'delete') {
                     // Ignore; inconsequential
                     continue;
                 }
-                if (previous.tag === 'delete' && event.tag === 'insert') {
+                if (previous.type === 'delete' && normalizedEvent.type === 'insert') {
                     // Treat as update should in case props were changed before reinsertion
-                    normalizedEventsMap.set(oldId, { ...event, tag: 'update', old: previous.old });
+                    normalizedEventsMap.set(oldId, { ...normalizedEvent, type: 'update', old: previous.old });
                     continue;
                 }
-                if (previous.tag === 'insert' && event.tag === 'update') {
+                if (previous.type === 'insert' && normalizedEvent.type === 'update') {
                     // Use the lastest state of said record, but as an insert
-                    normalizedEventsMap.set(oldId, { ...event, tag: 'insert' });
+                    normalizedEventsMap.set(oldId, { ...normalizedEvent, type: 'insert' });
                     continue;
                 }
-                if (previous.tag === 'update' && event.tag === 'delete') {
+                if (previous.type === 'update' && normalizedEvent.type === 'delete') {
                     // Honur latest event using same ID
                     normalizedEventsMap.delete(oldId); // Don't retain old slot
-                    keyHistoryMap.delete(oldId); // Forget about any key transition in previous
+                    keyHistoryMap.get(normalizedEvent.relationHash)?.delete(oldId); // Forget about any key transition in previous
                     // Flow down normally
                 }
-            } else if (event.tag === 'update' && (previous = keyHistoryMap.get(oldId)?.event)) {
-                const _event = { ...event, oldKeys: previous.oldKeys, old: previous.old }; // Honour latest, but mapped to old keys
+            } else if (normalizedEvent.type === 'update' && (previous = keyHistoryMap.get(normalizedEvent.relationHash)?.get(oldId)?.normalizedEvent)) {
+                const _normalizedEvent = { ...normalizedEvent, oldKeys: previous.oldKeys, old: previous.old }; // Honour latest, but mapped to old keys
                 normalizedEventsMap.delete(oldId); // Don't retain old slot; must come first
-                normalizedEventsMap.set(oldId, _event);
+                normalizedEventsMap.set(oldId, _normalizedEvent);
                 // Do history stuff
-                if ((newId = this.#keysToJointId(_event.newKeys)) !== oldId) {
-                    keyHistoryMap.set(newId, { oldId: keyHistoryMap.get(oldId).oldId/* original oldId */, event: _event });
-                    keyHistoryMap.delete(oldId); // Forget previous history; must come only after
+                if ((newId = this.#keysToJointId(_normalizedEvent.newKeys)) !== oldId) {
+                    if (!keyHistoryMap.has(normalizedEvent.relationHash)) {
+                        keyHistoryMap.set(normalizedEvent.relationHash, new Map);
+                    }
+                    keyHistoryMap.get(normalizedEvent.relationHash).set(newId, { oldId: keyHistoryMap.get(normalizedEvent.relationHash).get(oldId).oldId/* original oldId */, normalizedEvent: _normalizedEvent });
+                    keyHistoryMap.get(normalizedEvent.relationHash).delete(oldId); // Forget previous history; must come only after
                 }
                 continue;
-            } else if (event.tag === 'update' && (newId = this.#keysToJointId(event.newKeys)) !== oldId) {
-                keyHistoryMap.set(newId, { oldId, event });
+            } else if (normalizedEvent.type === 'update' && (newId = this.#keysToJointId(normalizedEvent.newKeys)) !== oldId) {
+                if (!keyHistoryMap.has(normalizedEvent.relationHash)) {
+                    keyHistoryMap.set(normalizedEvent.relationHash, new Map);
+                }
+                keyHistoryMap.get(normalizedEvent.relationHash).set(newId, { oldId, normalizedEvent });
                 // Flow down normally
             }
-            normalizedEventsMap.set(oldId, event);
+            normalizedEventsMap.set(oldId, normalizedEvent);
         }
         // 3. For updates that include primary changes
         // we'll need to derive oldJointIds from keyHistoryMap
         let jointIdCreateCallback = null;
         if (keyHistoryMap.size) {
+            const aliases = [...this.#fromEngine.aliasesToTable.keys()];
             jointIdCreateCallback = (jointRecord) => {
-                const [oldKeysList, newKeysList] = this.aliasOrder.reduce(([o, n], alias) => {
-                    const keyNames = this.pkMap.get(alias);
-                    const _newKeys = jointRecord[alias]
-                        ? keyNames.map((k) => jointRecord[alias][k])
-                        : [];
+                const [oldKeysList, newKeysList] = aliases.reduce(([o, n], alias) => {
+                    const aliasInfo = this.#fromEngine.aliasesToTable.get(alias);
+                    const relationHash = aliasInfo.hash;
+                    const keyColumns = aliasInfo.keyColumns;
+                    let _newKeys = keyColumns.map((k) => jointRecord[alias][k]);
+                    if (_newKeys.every((s) => s === null)) {
+                        _newKeys = null; // null: IMPORTANT
+                    }
                     const _newKeys_str = this.#keysToJointId(_newKeys);
                     let _oldKeys;
-                    if (aliases.includes(alias) && keyHistoryMap.has(_newKeys_str)) {
-                        _oldKeys = keyHistoryMap.get(_newKeys_str).event.oldKeys;
+                    if (_newKeys && keyHistoryMap.get(relationHash)?.has(_newKeys_str)) {
+                        _oldKeys = keyHistoryMap.get(relationHash).get(_newKeys_str).normalizedEvent.oldKeys;
                     } else {
                         _oldKeys = _newKeys;
                     }
                     return [[...o, _oldKeys], [...n, _newKeys]];
                 }, [[], []]);
-                const oldJointId = this.#keysToJointId(...oldKeysList);
-                const newJointId = this.#keysToJointId(...newKeysList);
+                const oldJointId = this.#keysToJointId(oldKeysList);
+                const newJointId = this.#keysToJointId(newKeysList);
                 return [oldJointId, newJointId];
             };
         }
         return [normalizedEventsMap, jointIdCreateCallback];
     }
 
-    async #handleEvents(aliases, events) {
+    async #handleEvents(events) {
         const [
             normalizedEventsMap,
             jointIdCreateCallback,
-        ] = this.#normalizeEvents(aliases, events);
+        ] = this.#normalizeEvents(events);
         if (this.#isSingleTable) {
             this.#handleEvents_SingleTable(normalizedEventsMap);
         } else if (!this.#isWindowedQuery) {
@@ -404,37 +418,37 @@ export class QueryWindow extends SimpleEmitter {
 
     async #handleEvents_SingleTable(normalizedEventsMap) {
         const idChanges = new Map;
-        e: for (const event of normalizedEventsMap.values()) {
-            switch (event.tag) {
+        e: for (const normalizedEvent of normalizedEventsMap.values()) {
+            switch (normalizedEvent.type) {
                 case 'insert':
-                    const jointId_1 = this.#keysToJointId(event.newKeys);
-                    const jointRecord_1 = { [aliases[0]]: event.new };
+                    const jointId_1 = this.#keysToJointId([normalizedEvent.newKeys]);
+                    const jointRecord_1 = { [normalizedEvent.affectedAliases[0]]: normalizedEvent.new };
                     if (!this.#satisfiesFilters(jointRecord_1)) {
                         continue e;
                     }
                     this.#localSet(jointId_1, jointRecord_1);
-                    this.#fanout({ kind: 'insert', newJointId: jointId_1, jointRecord: jointRecord_1 });
+                    this.#fanout({ type: 'insert', newJointId: jointId_1, jointRecord: jointRecord_1 });
                     break;
                 case 'update':
-                    const jointId_2 = this.#keysToJointId(event.oldKeys);
+                    const jointId_2 = this.#keysToJointId([normalizedEvent.oldKeys]);
                     if (!this.#localRecords.has(jointId_2)) {
                         continue e;
                     }
-                    const jointRecord_2 = { [aliases[0]]: event.new };
+                    const jointRecord_2 = { [normalizedEvent.affectedAliases[0]]: normalizedEvent.new };
                     this.#localSet(jointId_2, jointRecord_2);
-                    const jointId_3 = this.#keysToJointId(event.newKeys);
+                    const jointId_3 = this.#keysToJointId([normalizedEvent.newKeys]);
                     if (jointId_3 !== jointId_2) {
                         idChanges.set(jointId_2, jointId_3);
                     }
-                    this.#fanout({ kind: 'update', oldJointId: jointId_2, newJointId: jointId_3, jointRecord: jointRecord_2 });
+                    this.#fanout({ type: 'update', oldJointId: jointId_2, newJointId: jointId_3, jointRecord: jointRecord_2 });
                     break;
                 case 'delete':
-                    const jointId_4 = this.#keysToJointId(event.oldKeys);
+                    const jointId_4 = this.#keysToJointId([normalizedEvent.oldKeys]);
                     if (!this.#localRecords.has(jointId_4)) {
                         continue e;
                     }
                     this.#localDelete(jointId_2);
-                    this.#fanout({ kind: 'delete', oldJointId: jointId_4 });
+                    this.#fanout({ type: 'delete', oldJointId: jointId_4 });
                     break;
             }
         }
@@ -442,10 +456,10 @@ export class QueryWindow extends SimpleEmitter {
     }
 
     async #handleEvents_MultiTable_Incremental(normalizedEventsMap, jointIdCreateCallback) {
-        const composeDiffingPredicate = (alias, keyNames, keyValues, nullTest = 0) => {
+        const composeDiffingPredicate = (alias, keyColumns, keyValues, nullTest = 0) => {
             // Handle multi-key PKs
-            if (keyNames.length > 1) {
-                const operands = keyNames.map((keyName, i) => composeDiffingPredicate(alias, [keyName], [keyValues[i]], nullTest));
+            if (keyColumns.length > 1) {
+                const operands = keyColumns.map((keyColumn, i) => composeDiffingPredicate(alias, [keyColumn], [keyValues[i]], nullTest));
                 return operands.reduce((left, right) => ({
                     nodeName: 'BINARY_EXPR',
                     left,
@@ -454,8 +468,8 @@ export class QueryWindow extends SimpleEmitter {
                 }), operands.shift());
             }
             // Compose...
-            const columnRef = { nodeName: 'COLUMN_REF1', value: keyNames[0], qualifier: { nodeName: 'TABLE_REF1', value: alias } };
-            // Compose: <keyName> IS NULL
+            const columnRef = { nodeName: 'COLUMN_REF1', value: keyColumns[0], qualifier: { nodeName: 'TABLE_REF1', value: alias } };
+            // Compose: <keyColumn> IS NULL
             const nullLiteral = { nodeName: 'NULL_LITERAL', value: null };
             const isNullExpr = {
                 nodeName: 'BINARY_EXPR',
@@ -466,7 +480,7 @@ export class QueryWindow extends SimpleEmitter {
             if (nullTest === 1) {
                 return isNullExpr;
             }
-            // Compose: <keyName> = <keyValue>
+            // Compose: <keyColumn> = <keyValue>
             const valueLiteral = { nodeName: typeof keyValues[0] === 'number' ? 'NUMBER_LITERAL' : 'STRING_LITERAL', value: keyValues[0] };
             const eqExpr = {
                 nodeName: 'BINARY_EXPR',
@@ -474,7 +488,7 @@ export class QueryWindow extends SimpleEmitter {
                 operator: '=',
                 right: valueLiteral
             };
-            // Compose?: (<keyName> IS NULL OR <keyName> = <keyValue>)
+            // Compose?: (<keyColumn> IS NULL OR <keyColumn> = <keyValue>)
             if (nullTest === 2) {
                 const orExpr = {
                     nodeName: 'BINARY_EXPR',
@@ -488,27 +502,28 @@ export class QueryWindow extends SimpleEmitter {
         };
         // Do partial diffing!
         const localRecords = new Map;
-        for (const event of normalizedEventsMap.values()) {
+        for (const normalizedEvent of normalizedEventsMap.values()) {
             let diffingFilters = [];
-            if (event.tag === 'insert') {
-                // keyName === null // keyName IN [null, newKey]
+            const affectedAliases = normalizedEvent.affectedAliases;
+            if (normalizedEvent.type === 'insert') {
+                // keyColumn === null // keyColumn IN [null, newKey]
                 diffingFilters = [
-                    aliases.map((alias) => composeDiffingPredicate(alias, event.keyNames, event.newKeys, 1)),
-                    aliases.map((alias) => composeDiffingPredicate(alias, event.keyNames, event.newKeys, 2)),
+                    affectedAliases.map((alias) => composeDiffingPredicate(alias, normalizedEvent.keyColumns, normalizedEvent.newKeys, 1)),
+                    affectedAliases.map((alias) => composeDiffingPredicate(alias, normalizedEvent.keyColumns, normalizedEvent.newKeys, 2)),
                 ];
             }
-            if (event.tag === 'update') {
-                // keyName IN [null, oldKey] // keyName IN [null, newKey]
+            if (normalizedEvent.type === 'update') {
+                // keyColumn IN [null, oldKey] // keyColumn IN [null, newKey]
                 diffingFilters = [
-                    aliases.map((alias) => composeDiffingPredicate(alias, event.keyNames, event.oldKeys, 2)),
-                    aliases.map((alias) => composeDiffingPredicate(alias, event.keyNames, event.newKeys, 2)),
+                    affectedAliases.map((alias) => composeDiffingPredicate(alias, normalizedEvent.keyColumns, normalizedEvent.oldKeys, 2)),
+                    affectedAliases.map((alias) => composeDiffingPredicate(alias, normalizedEvent.keyColumns, normalizedEvent.newKeys, 2)),
                 ];
             }
-            if (event.tag === 'delete') {
-                // keyName = oldKey // keyName === null
+            if (normalizedEvent.type === 'delete') {
+                // keyColumn = oldKey // keyColumn === null
                 diffingFilters = [
-                    aliases.map((alias) => composeDiffingPredicate(alias, event.keyNames, event.oldKeys, 0)),
-                    aliases.map((alias) => composeDiffingPredicate(alias, event.keyNames, event.newKeys, 1)),
+                    affectedAliases.map((alias) => composeDiffingPredicate(alias, normalizedEvent.keyColumns, normalizedEvent.oldKeys, 0)),
+                    affectedAliases.map((alias) => composeDiffingPredicate(alias, normalizedEvent.keyColumns, normalizedEvent.newKeys, 1)),
                 ];
             }
             row: for (const [jointId, jointRecord] of this.#localRecords.entries()) {
@@ -536,7 +551,7 @@ export class QueryWindow extends SimpleEmitter {
             ...localJointIds,
             ...remoteJointIds
         ]);
-        const aliasesLength = this.aliasOrder.length;
+        const aliasesLength = this.#fromEngine.aliasesToTable.size;
         // Utils:
         const findPartialMatch = (oldJId) => {
             const oldJId_split = this.#keysFromJointId(oldJId);
@@ -546,11 +561,11 @@ export class QueryWindow extends SimpleEmitter {
                 let nullMatched_o = false;
                 let nullMatched_n = false;
                 for (let i = 0; i < aliasesLength; i++) {
-                    if (oldJId_split[i] === '') {
+                    if (oldJId_split[i] === null) {
                         if (nullMatched_o) return; // Multiple slots in old
                         nullMatched_o = true;
                     }
-                    if (newJId_split[i] === '') {
+                    if (newJId_split[i] === null) {
                         if (nullMatched_n) continue top; // Multiple slots in new
                         nullMatched_n = true;
                     }
@@ -567,50 +582,50 @@ export class QueryWindow extends SimpleEmitter {
                 // Exact match
                 if (remoteJointIds.has(jId)) {
                     this.#localSet(jId, remoteRecords.get(jId)); // Replacing any existing
-                    remoteJointIds.delete(jId); // IMPORTANT subsequent iterations should not see this anymore
-                    this.#fanout({ kind: 'update', oldJointId: jId, newJointId: remoteRecords.get(jId)[Symbol.for('newJointId')] || jId, jointRecord: remoteRecords.get(jId) });
+                    remoteJointIds.delete(jId); // IMPORTANT subsequent iterations should not see this anymore; especially when findPartialMatch()
+                    this.#fanout({ type: 'update', oldJointId: jId, newJointId: remoteRecords.get(jId)[Symbol.for('newJointId')] || jId, jointRecord: remoteRecords.get(jId) });
                     continue;
                 }
                 const newJId = findPartialMatch(jId);
                 if (newJId && !enittedPartials.has(newJId)/* IMPORTANT */) {
-                    // Exact match
+                    // Partial match
                     this.#localSet(jId, remoteRecords.get(jId)); // Replacing any existing
-                    remoteJointIds.delete(newJId); // IMPORTANT: subsequent iterations should not see this anymore
+                    remoteJointIds.delete(newJId); // IMPORTANT: subsequent iterations should not see this anymore; especially when findPartialMatch()
                     idChanges.set(jId, newJId);
                     enittedPartials.add(newJId);
-                    this.#fanout({ kind: 'update', oldJointId: jId, newJointId: remoteRecords.get(jId)[Symbol.for('newJointId')] || jId, jointRecord: remoteRecords.get(newJId) });
+                    this.#fanout({ type: 'update', oldJointId: jId, newJointId: remoteRecords.get(jId)[Symbol.for('newJointId')] || jId, jointRecord: remoteRecords.get(newJId) });
                 } else {
                     // Obsolete
                     this.#localDelete(jId);
-                    this.#fanout({ kind: 'delete', oldJointId: jId });
+                    this.#fanout({ type: 'delete', oldJointId: jId });
                 }
             } else if (remoteJointIds.has(jId)) {
                 // All new
                 this.#localSet(jId, remoteRecords.get(jId)); // Push new
-                this.#fanout({ kind: 'insert', newJointId: jId, jointRecord: remoteRecords.get(jId) });
+                this.#fanout({ type: 'insert', newJointId: jId, jointRecord: remoteRecords.get(jId) });
             }
         }
         this.#localReindex(idChanges);
     }
 
-    #fanout(event) {
-        this.emit('data', event);
+    #fanout(outputEvent) {
+        this.emit('data', outputEvent);
         // Handle deletions
-        if (event.kind === 'delete') {
+        if (outputEvent.type === 'delete') {
             this.emit('mutation', {
-                kind: event.kind,
-                oldId: event.oldJointId,
+                type: outputEvent.type,
+                oldId: outputEvent.oldJointId,
             });
             return;
         }
         // Run projection
-        const projection = this.#renderJointRecord(event.jointRecord);
+        const projection = this.#renderJointRecord(outputEvent.jointRecord);
         // Emit events
         this.emit('mutation', {
-            kind: event.kind,
-            ...(event.kind === 'update' ? { oldId: event.oldJointId } : {}),
-            newId: event.newJointId,
-            data: projection,
+            type: outputEvent.type,
+            ...(outputEvent.type === 'update' ? { oldId: outputEvent.oldJointId } : {}),
+            newId: outputEvent.newJointId,
+            new: projection,
         });
     }
 }

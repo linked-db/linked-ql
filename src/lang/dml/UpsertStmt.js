@@ -13,7 +13,7 @@ export class UpsertStmt extends SugarMixin(InsertStmt) {
 
 	/* DESUGARING API */
 
-	finalizePayloadJSON(resultJson, transformer, linkedDb, options) {
+	finalizePayloadJSON(resultJson, transformer, dbContext, options) {
 		if (resultJson.conflict_handling_clause) {
 			throw new Error(`An explicit conflict handling clause is forbidden on the UPSERT statement.`);
 		}
@@ -72,6 +72,6 @@ export class UpsertStmt extends SugarMixin(InsertStmt) {
 			...resultJson,
 			nodeName: InsertStmt.NODE_NAME,
 			conflict_handling_clause: conflictHandlingClause
-		}, transformer, linkedDb, options);
+		}, transformer, dbContext, options);
 	}
 }

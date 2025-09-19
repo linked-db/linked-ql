@@ -1,6 +1,6 @@
 import '../src/lang/index.js';
 import { registry } from '../src/lang/registry.js';
-import { LinkedDB } from '../src/db/LinkedDB.js';
+import { DBContext } from '../src/db/DBContext.js';
 
 let sql;
 
@@ -274,7 +274,7 @@ console.log(resultNode?.stringify());
 
 console.log('\n\n\n\nresultClassicJson:\n');
 const { catalog } = await import('./01.catalog.parser.js');
-const linkedDb = new LinkedDB({ catalog });
-console.log(resultNode?.clone?.({ deSugar: 2 }, null, linkedDb).stringify({ prettyPrint: true }));
+const dbContext = new DBContext({ catalog });
+console.log(resultNode?.clone?.({ deSugar: 2 }, null, dbContext).stringify({ prettyPrint: true }));
 
 process.emit();

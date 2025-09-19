@@ -29,8 +29,8 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 
 	canReferenceInlineTables() { return true; }
 
-	lookup(deepMatchCallback = null, transformer = null, linkedDb = null) {
-		if (!transformer && !linkedDb) return [];
+	lookup(deepMatchCallback = null, transformer = null, dbContext = null) {
+		if (!transformer && !dbContext) return [];
 
 		const name = this._get('value');
 		const inGrepMode = (!name || name === '*') && !deepMatchCallback;
@@ -109,7 +109,7 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 
 				},
 				transformer,
-				linkedDb,
+				dbContext,
 			));
 		}
 
@@ -125,19 +125,19 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 		return resultSet;
 	}
 
-	jsonfy(options = {}, transformer = null, linkedDb = null) {
+	jsonfy(options = {}, transformer = null, dbContext = null) {
 		let resultJson;
 
 		if (options.deSugar
 			&& ((!this.qualifier() && Number(options.deSugar) > 1)
 				|| !this.resultSchema())
-			&& (transformer || linkedDb)) {
-			resultJson = this.resolve(transformer, linkedDb).jsonfy(/* IMPORTANT */);
+			&& (transformer || dbContext)) {
+			resultJson = this.resolve(transformer, dbContext).jsonfy(/* IMPORTANT */);
 			if (Number(options.deSugar) < 2 && !this.qualifier()) {
 				resultJson = { ...resultJson, qualifier: undefined };
 			}
 		} else {
-			resultJson = super.jsonfy(options, transformer, linkedDb);
+			resultJson = super.jsonfy(options, transformer, dbContext);
 		}
 
 		if (options.deSugar && resultJson.version_spec) {

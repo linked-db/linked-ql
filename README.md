@@ -25,15 +25,17 @@ _**Next-generation SQL (Postgres & MySQL)** for modern apps._
 [👉 Follow](https://x.com/LinkedQL) • [💖 Sponsor](https://github.com/sponsors/ox-harris)
 
 
-LinkedQL is next-generation SQL (Postgres and MySQL) for modern apps — with syntax niceties, built-in reactivity, self-versioning, and workflow automation — all without leaving SQL.
+**LinkedQL is a classic Postgres/MySQL client — like `node-postgres` and `mysql2` — but reimagined for modern apps!** _Handy syntax shorthands_ • _Out-of-the-box reactivity_ • _Automatic database versioning & painless migrations_ • _Smart workflow automation_ 
 
-LinkedQL is JS-based and works both in Nodejs and in the browser (coming soon)
+**Actually...** it's less a DB client revolution, more an SQL upgrade — that brings the best of modern database tooling into SQL itself.
+
+LinkedQL is JS-based and works cross-environment: Nodejs and the browser.
 
 </div>
 
 > [!IMPORTANT]  
 > This is **@linked-db/linked-ql@next** — our upcoming iteration.  
-> See [@linked-db/linked-ql@0.3.*](https://github.com/linked-db/linked-ql) for the current version (covered in the [wiki](https://github.com/linked-db/linked-ql/wiki)).
+> See [@linked-db/linked-ql@0.3.*](https://github.com/linked-db/linked-ql) for the current version (being also the version covered in the [docs](https://github.com/linked-db/linked-ql/wiki)).
 
 
 ## 🚀 Quick-start
@@ -102,7 +104,8 @@ const users = await client.query(
 ```js
 // Pass { live: true } to get live results
 const users = await client.query(
-  `SELECT title, content, author ~> name AS author_name FROM books`,
+  `SELECT title, content, users.name AS author FROM books
+  LEFT JOIN users ON books.author = users.id`,
   { live: true }
 );
 ```

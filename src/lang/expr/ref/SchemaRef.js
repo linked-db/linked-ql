@@ -21,8 +21,8 @@ export class SchemaRef extends AbstractClassicRef {
 
     /* API */
 
-    lookup(deepMatchCallback = null, transformer = null, linkedDb = null) {
-        if (!linkedDb) return [];
+    lookup(deepMatchCallback = null, transformer = null, dbContext = null) {
+        if (!dbContext) return [];
 
         const name = this._get('value');
         const inGrepMode = !name && !deepMatchCallback;
@@ -44,7 +44,7 @@ export class SchemaRef extends AbstractClassicRef {
             return resolvedSchemaRef1;
         };
 
-        for (const schemaSchema of linkedDb.catalog) {
+        for (const schemaSchema of dbContext.catalog) {
             resultSet = resultSet.concat(resolve(schemaSchema) || []);
             if (!inGrepMode && resultSet.length) break; // Matching current instance only
         }
@@ -52,15 +52,15 @@ export class SchemaRef extends AbstractClassicRef {
         return resultSet;
     }
 
-    jsonfy(options = {}, transformer = null, linkedDb = null) {
+    jsonfy(options = {}, transformer = null, dbContext = null) {
         let resultJson;
 
         if (options.deSugar
             && !this.resultSchema()
-            && linkedDb) {
-            resultJson = this.resolve(transformer, linkedDb).jsonfy(/* IMPORTANT */);
+            && dbContext) {
+            resultJson = this.resolve(transformer, dbContext).jsonfy(/* IMPORTANT */);
         } else {
-            resultJson = super.jsonfy(options, transformer, linkedDb);
+            resultJson = super.jsonfy(options, transformer, dbContext);
         }
 
         if (options.deSugar && resultJson.version_spec) {

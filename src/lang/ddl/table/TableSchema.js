@@ -111,7 +111,7 @@ export class TableSchema extends AbstractSchema {
         return result;
     }
 
-    jsonfy({ normalized = false, ...options } = {}, transformer = null, linkedDb = null) {
+    jsonfy({ normalized = false, ...options } = {}, transformer = null, dbContext = null) {
         const columnLockedConstraints = [];
 
         const consMap = {
@@ -135,7 +135,7 @@ export class TableSchema extends AbstractSchema {
             }, transformer);
         }
 
-        let resultJson = super.jsonfy(options, transformer, linkedDb);
+        let resultJson = super.jsonfy(options, transformer, dbContext);
 
         if (normalized) {
             resultJson = {

@@ -42,8 +42,8 @@ export class RowConstructor extends DDLSchemaMixin(TypeSysMixin(AbstractNodeList
 
     /* JSON API */
 
-    jsonfy(options = {}, transformer = null, linkedDb = null) {
-        let resultJson = super.jsonfy(options, transformer, linkedDb);
+    jsonfy(options = {}, transformer = null, dbContext = null) {
+        let resultJson = super.jsonfy(options, transformer, dbContext);
         if (Number(options.deSugar || 0) > 5 || options.forceDeSugar) {
 
             const entriesNode = this.entries() || [];

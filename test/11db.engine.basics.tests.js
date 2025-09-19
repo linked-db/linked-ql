@@ -7,7 +7,7 @@ import { matchSelector, normalizeSelectorArg } from '../src/db/abstracts/util.js
 import { StorageEngine } from '../src/db/local/StorageEngine.js';
 import { LocalDriver } from '../src/db/local/LocalDriver.js';
 import { PGDriver } from '../src/db/driver/PGDriver.js';
-import { LinkedDB } from '../src/lang/LinkedDB.js';
+import { DBContext } from '../src/lang/DBContext.js';
 
 describe('Util', () => {
 
@@ -215,16 +215,16 @@ describe('LocalDriver - showCreate()', () => {
         expect(c[2].name().value()).to.eq('tbl2');
     });
 
-    describe('- LinkedDB', () => {
+    describe('- DBContext', () => {
 
-        let linkedDb;
+        let dbContext;
         before(() => {
-            linkedDb = new LinkedDB({ dbAdapter: driver });
+            dbContext = new DBContext({ dbAdapter: driver });
         });
 
         it('should provide() the specified schema', async () => {
-            const resultCode = await linkedDb.provide([{ schema: 'lq_test_%', tables: ['tbl1'] }]);
-            const catalog = [...linkedDb.catalog];
+            const resultCode = await dbContext.provide([{ schema: 'lq_test_%', tables: ['tbl1'] }]);
+            const catalog = [...dbContext.catalog];
 
             expect(resultCode).to.eq(1);
             expect(catalog).to.have.lengthOf(2);
@@ -237,20 +237,20 @@ describe('LocalDriver - showCreate()', () => {
 
             // ----------------- Test heuristic-based caching
 
-            const resultCode2 = await linkedDb.provide([{ schema: 'lq_test_%', tables: ['tbl1'] }]);
+            const resultCode2 = await dbContext.provide([{ schema: 'lq_test_%', tables: ['tbl1'] }]);
             expect(resultCode2).to.eq(0);
-            const resultCode3 = await linkedDb.provide([{ schema: 'lq_test_private', tables: ['tbl1'] }]);
+            const resultCode3 = await dbContext.provide([{ schema: 'lq_test_private', tables: ['tbl1'] }]);
             expect(resultCode3).to.eq(0);
-            const resultCode4 = await linkedDb.provide([{ schema: 'lq_test_foo', tables: ['tbl1'] }]);
+            const resultCode4 = await dbContext.provide([{ schema: 'lq_test_foo', tables: ['tbl1'] }]);
             expect(resultCode4).to.eq(0);
             // Intersection found? "2"
-            const resultCode5 = await linkedDb.provide([{ schema: 'lq_test_%', tables: ['tbl1', 'tbl_1'] }]);
+            const resultCode5 = await dbContext.provide([{ schema: 'lq_test_%', tables: ['tbl1', 'tbl_1'] }]);
             expect(resultCode5).to.eq(2);
         });
 
         it('should incrementally provide() the specified schema', async () => {
-            const resultCode = await linkedDb.provide([{ schema: 'lq_test_%', tables: ['tbl2'] }]);
-            const catalog = [...linkedDb.catalog];
+            const resultCode = await dbContext.provide([{ schema: 'lq_test_%', tables: ['tbl2'] }]);
+            const catalog = [...dbContext.catalog];
 
             expect(resultCode).to.eq(1);
             expect(catalog).to.have.lengthOf(2);
@@ -350,16 +350,16 @@ describe('PGDriver - showCreate()', () => {
         expect(c.map((s) => s.name().value())).to.have.members(['tbl1', 'tbl1', 'tbl2']);
     });
 
-    describe('- LinkedDB', () => {
+    describe('- DBContext', () => {
 
-        let linkedDb;
+        let dbContext;
         before(() => {
-            linkedDb = new LinkedDB({ dbAdapter: driver });
+            dbContext = new DBContext({ dbAdapter: driver });
         });
 
         it('should provide() the specified schema', async () => {
-            const resultCode = await linkedDb.provide([{ schema: 'lq_test_%', tables: ['tbl1'] }]);
-            const catalog = [...linkedDb.catalog];
+            const resultCode = await dbContext.provide([{ schema: 'lq_test_%', tables: ['tbl1'] }]);
+            const catalog = [...dbContext.catalog];
 
             expect(resultCode).to.eq(1);
             expect(catalog).to.have.lengthOf(2);
@@ -372,20 +372,20 @@ describe('PGDriver - showCreate()', () => {
 
             // ----------------- Test heuristic-based caching
 
-            const resultCode2 = await linkedDb.provide([{ schema: 'lq_test_%', tables: ['tbl1'] }]);
+            const resultCode2 = await dbContext.provide([{ schema: 'lq_test_%', tables: ['tbl1'] }]);
             expect(resultCode2).to.eq(0);
-            const resultCode3 = await linkedDb.provide([{ schema: 'lq_test_private', tables: ['tbl1'] }]);
+            const resultCode3 = await dbContext.provide([{ schema: 'lq_test_private', tables: ['tbl1'] }]);
             expect(resultCode3).to.eq(0);
-            const resultCode4 = await linkedDb.provide([{ schema: 'lq_test_foo', tables: ['tbl1'] }]);
+            const resultCode4 = await dbContext.provide([{ schema: 'lq_test_foo', tables: ['tbl1'] }]);
             expect(resultCode4).to.eq(0);
             // Intersection found? "2"
-            const resultCode5 = await linkedDb.provide([{ schema: 'lq_test_%', tables: ['tbl1', 'tbl_1'] }]);
+            const resultCode5 = await dbContext.provide([{ schema: 'lq_test_%', tables: ['tbl1', 'tbl_1'] }]);
             expect(resultCode5).to.eq(2);
         });
 
         it('should incrementally provide() the specified schema', async () => {
-            const resultCode = await linkedDb.provide([{ schema: 'lq_test_%', tables: ['tbl2'] }]);
-            const catalog = [...linkedDb.catalog];
+            const resultCode = await dbContext.provide([{ schema: 'lq_test_%', tables: ['tbl2'] }]);
+            const catalog = [...dbContext.catalog];
 
             expect(resultCode).to.eq(1);
             expect(catalog).to.have.lengthOf(2);

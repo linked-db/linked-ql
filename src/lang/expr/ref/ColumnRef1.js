@@ -36,8 +36,8 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
         });
     }
 
-    lookup(deepMatchCallback = null, transformer = null, linkedDb = null) {
-        if (!transformer && !linkedDb) return [];
+    lookup(deepMatchCallback = null, transformer = null, dbContext = null) {
+        if (!transformer && !dbContext) return [];
 
         const name = this._get('value');
         const inGrepMode = (!name || name === '*') && !deepMatchCallback;
@@ -109,7 +109,7 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
 
                 },
                 transformer,
-                linkedDb,
+                dbContext,
             ));
         }
 
@@ -125,18 +125,18 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
         return resultSet;
     }
 
-    jsonfy({ toKind = 1, ...options } = {}, transformer = null, linkedDb = null) {
+    jsonfy({ toKind = 1, ...options } = {}, transformer = null, dbContext = null) {
         if (options.deSugar
             && ((!this.qualifier() && Number(options.deSugar) > 1)
                 || !this.resultSchema())
-            && (transformer || linkedDb)) {
-            const resolvedJson = this.resolve(transformer, linkedDb).jsonfy(/* IMPORTANT */);
+            && (transformer || dbContext)) {
+            const resolvedJson = this.resolve(transformer, dbContext).jsonfy(/* IMPORTANT */);
             if (Number(options.deSugar) < 2 && !this.qualifier()) {
                 return { ...resolvedJson, qualifier: undefined };
             }
             return resolvedJson;
         }
-        let resultJson = super.jsonfy(options, transformer, linkedDb);
+        let resultJson = super.jsonfy(options, transformer, dbContext);
         if (toKind === 2) {
             resultJson = {
                 ...resultJson,

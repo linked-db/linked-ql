@@ -38,8 +38,8 @@ export class CTE extends AbstractNonDDLStmt {
 
     /* JSON API */
 
-    jsonfy(options = {}, transformer = null, linkedDb = null) {
-        if (!options.deSugar) return super.jsonfy(options, transformer, linkedDb);
+    jsonfy(options = {}, transformer = null, dbContext = null) {
+        if (!options.deSugar) return super.jsonfy(options, transformer, dbContext);
 
         let outerResultSchema;
 
@@ -57,7 +57,7 @@ export class CTE extends AbstractNonDDLStmt {
         }, transformer, this);
 
         // Run transform
-        const resultJson = super.jsonfy(options, transformer, linkedDb);
+        const resultJson = super.jsonfy(options, transformer, dbContext);
         return {
             ...resultJson,
             result_schema: outerResultSchema,

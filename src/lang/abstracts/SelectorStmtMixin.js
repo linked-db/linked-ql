@@ -8,8 +8,8 @@ export const SelectorStmtMixin = (Class) => class extends Class {
 
     /* DESUGARING API */
 
-    jsonfy(options = {}, transformer = null, linkedDb = null) {
-        if (!options.deSugar) return super.jsonfy(options, transformer, linkedDb);
+    jsonfy(options = {}, transformer = null, dbContext = null) {
+        if (!options.deSugar) return super.jsonfy(options, transformer, dbContext);
 
         const {
             ColumnRef1,
@@ -53,7 +53,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
 
             // 2. DeSugar deep refs to bare column refs
             if (node instanceof LQDeepRef1) {
-                let { select, detail } = this.createSelectorDimension(node, transformer, linkedDb, { ...$options, asAggr });
+                let { select, detail } = this.createSelectorDimension(node, transformer, dbContext, { ...$options, asAggr });
                 const detailJson = asAggr
                     ? toAggr(detail.jsonfy())
                     : detail.jsonfy();
@@ -65,7 +65,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
                 if (node instanceof LQBackRefAbstraction) {
                     node = node.expr();
                 }
-                const { alias } = this.createSelectorDimension(node, transformer, linkedDb, $options);
+                const { alias } = this.createSelectorDimension(node, transformer, dbContext, $options);
                 return alias();
             }
 
@@ -73,11 +73,11 @@ export const SelectorStmtMixin = (Class) => class extends Class {
             return defaultTransform();
         }, transformer, this/* IMPORTANT */);
 
-        return super.jsonfy(options, transformer, linkedDb);
+        return super.jsonfy(options, transformer, dbContext);
     }
 
-    createSelectorDimension(LQRef, transformer, linkedDb, { asAggr = false, ...$options } = {}) {
-        const { lhsOperand, rhsOperand, rhsTable, detail } = LQRef.resolve(transformer, linkedDb);
+    createSelectorDimension(LQRef, transformer, dbContext, { asAggr = false, ...$options } = {}) {
+        const { lhsOperand, rhsOperand, rhsTable, detail } = LQRef.resolve(transformer, dbContext);
         const selectorDimensions = transformer.statementContext.artifacts.get('selectorDimensions');
 
         const {
@@ -149,7 +149,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
                 expr: {
                     nodeName: BinaryExpr.NODE_NAME,
                     operator: '=',
-                    left: lhsOperand.jsonfy({ ...$options, deSugar: 0 }, transformer, linkedDb),
+                    left: lhsOperand.jsonfy({ ...$options, deSugar: 0 }, transformer, dbContext),
                     right: {
                         nodeName: ColumnRef1.NODE_NAME,
                         qualifier: { nodeName: TableRef1.NODE_NAME, value: dimensionID },
@@ -188,12 +188,12 @@ export const SelectorStmtMixin = (Class) => class extends Class {
         return selectorDimension;
     }
 
-    finalizeSelectorJSON(resultJson, transformer, linkedDb, options) {
+    finalizeSelectorJSON(resultJson, transformer, dbContext, options) {
         let rewrittenJoinEntries;
         [
             resultJson,
             rewrittenJoinEntries,
-        ] = this.preprocessSelectorDimensions(resultJson, transformer, linkedDb, options);
+        ] = this.preprocessSelectorDimensions(resultJson, transformer, dbContext, options);
         
         resultJson = {
             ...resultJson,
@@ -205,7 +205,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
             this._adoptNodes(joinNode);
 
             const joinJson2 = transformer.transform(joinNode, ($options = options, childTransformer = transformer) => {
-                return joinNode.jsonfy({ ...$options, deSugar: 2 }, childTransformer, linkedDb);
+                return joinNode.jsonfy({ ...$options, deSugar: 2 }, childTransformer, dbContext);
             }, null, options);
 
             resultJson.join_clauses.push(joinJson2);
@@ -214,7 +214,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
         return resultJson;
     }
 
-    preprocessSelectorDimensions(resultJson, transformer, linkedDb, options) {
+    preprocessSelectorDimensions(resultJson, transformer, dbContext, options) {
 
         const selectorDimensions = transformer.statementContext.artifacts.get('selectorDimensions');
         if (!selectorDimensions.size) {
@@ -386,7 +386,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
                     [fromClause]: {
                         nodeName: registry[fromClauseClass].NODE_NAME,
                         entries: (resultJson[fromClause]?.entries || []).concat(
-                            fromItemNode.jsonfy(options, transformer, linkedDb)
+                            fromItemNode.jsonfy(options, transformer, dbContext)
                         ),
                     },
                     where_clause: !resultJson.where_clause ? pgGeneratedWhereClause : {

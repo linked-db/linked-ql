@@ -76,14 +76,14 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
 
     /* JSON API */
 
-    jsonfy(options = {}, transformer = null, linkedDb = null) {
-        if (!options.deSugar) return super.jsonfy(options, transformer, linkedDb);
+    jsonfy(options = {}, transformer = null, dbContext = null) {
+        if (!options.deSugar) return super.jsonfy(options, transformer, dbContext);
 
         transformer = new Transformer((node, defaultTransform) => {
             return defaultTransform();
         }, transformer, this/* IMPORTANT */);
 
-        let resultJson = super.jsonfy(options, transformer, linkedDb);
+        let resultJson = super.jsonfy(options, transformer, dbContext);
 
         // Order ouput JSON
         if ((options.toDialect || this.options.dialect) === 'mysql') {
@@ -131,11 +131,11 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
         }
 
         // 1. Finalize output JSON
-		resultJson = this.finalizeOutputJSON(resultJson, transformer, linkedDb, options);
+		resultJson = this.finalizeOutputJSON(resultJson, transformer, dbContext, options);
         // 2. Finalize generated JOINS. Must come first
-        resultJson = this.finalizeSelectorJSON(resultJson, transformer, linkedDb, options);
+        resultJson = this.finalizeSelectorJSON(resultJson, transformer, dbContext, options);
         // 3. Finalize entire query rewrite - returning a CTE
-        resultJson = this.finalizePayloadJSON(resultJson, transformer, linkedDb, options);
+        resultJson = this.finalizePayloadJSON(resultJson, transformer, dbContext, options);
 
         return resultJson;
     }

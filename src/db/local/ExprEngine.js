@@ -96,6 +96,27 @@ export class ExprEngine {
             case 'UPPER': return String(args[0] ?? '').toUpperCase();
             case 'LENGTH': return args[0] == null ? null : String(args[0]).length;
             case 'ABS': return Math.abs(Number(args[0]));
+            // JSON functions (Postgres & MySQL variants)
+            case 'JSON_OBJECT': {// MySQL: JSON_OBJECT(key1, val1, key2, val2, ...)
+                if (args.length % 2 !== 0) throw new Error('JSON_OBJECT requires an even number of arguments');
+                const obj = {};
+                for (let i = 0; i < args.length; i += 2) {
+                    obj[args[i]] = args[i + 1];
+                }
+                return obj;
+            }
+            case 'JSON_ARRAY': // MySQL: JSON_ARRAY(val1, val2, ...)
+                return args;
+            case 'JSON_BUILD_OBJECT': {// Postgres: JSON_BUILD_OBJECT(key1, val1, ...)
+                if (args.length % 2 !== 0) throw new Error('JSON_BUILD_OBJECT requires an even number of arguments');
+                const buildObj = {};
+                for (let i = 0; i < args.length; i += 2) {
+                    buildObj[args[i]] = args[i + 1];
+                }
+                return buildObj;
+            }
+            case 'JSON_BUILD_ARRAY': // Postgres: JSON_BUILD_ARRAY(val1, ...)
+                return args;
             default: throw new Error(`ExprEngine: Unsupported function ${node.name}`);
         }
     }
@@ -148,6 +169,29 @@ export class ExprEngine {
                     }
                 }
                 return result;
+            }
+            // JSON aggregation functions (Postgres & MySQL variants)
+            case 'JSON_AGG':
+            case 'JSON_ARRAYAGG': {
+                if (!expr) return [];
+                const arr = [];
+                for (const member of group) {
+                    arr.push(this.evaluate(expr, member, entireWindow));
+                }
+                return arr;
+            }
+            case 'JSON_OBJECT_AGG':
+            case 'JSON_OBJECTAGG': {
+                // Postgres: JSON_OBJECT_AGG(key, value)
+                const keyExpr = args[0], valExpr = args[1];
+                if (!keyExpr || !valExpr) return {};
+                const obj = {};
+                for (const member of group) {
+                    const k = this.evaluate(keyExpr, member, entireWindow);
+                    const v = this.evaluate(valExpr, member, entireWindow);
+                    obj[k] = v;
+                }
+                return obj;
             }
         }
 

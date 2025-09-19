@@ -6,10 +6,10 @@ import { Identifier } from '../Identifier.js';
 
 export class AbstractClassicRef extends DDLSchemaMixin(TypeSysMixin(Identifier)) {
 
-    lookup(transformer, linkedDb) { return []; }
+    lookup(transformer, dbContext) { return []; }
 
-    resolve(transformer, linkedDb) {
-        const resultSet = this.lookup(null, transformer, linkedDb) || [];
+    resolve(transformer, dbContext) {
+        const resultSet = this.lookup(null, transformer, dbContext) || [];
         const objectType = this.constructor.name.match(/schema/i) ? 'Schema' : (this.constructor.name.match(/table/i) ? 'Table' : 'Column');
         if (resultSet.length > 1) {
             throw new ErrorRefAmbiguous(`[${this.parentNode?.parentNode || this.parentNode || this}] ${objectType} ${this} is ambiguous. (Is it ${resultSet.join(' or ')}?)`);

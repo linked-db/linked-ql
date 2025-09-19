@@ -32,7 +32,7 @@ export class LQBackBackRef extends AbstractMagicRef {
 
 	/* JSON API */
 
-	jsonfy({ reverseRef = false, toKind = 1, ...options } = {}, transformer = null, linkedDb = null) {
+	jsonfy({ reverseRef = false, toKind = 1, ...options } = {}, transformer = null, dbContext = null) {
 		if (reverseRef) {
 			return {
 				nodeName: toKind === 2 
@@ -44,6 +44,6 @@ export class LQBackBackRef extends AbstractMagicRef {
 					: this.left().jsonfy({ reverseRef: Infinity, toKind, ...options }),
 			};
 		}
-		return super.jsonfy(options, transformer, linkedDb);
+		return super.jsonfy(options, transformer, dbContext);
 	}
 }

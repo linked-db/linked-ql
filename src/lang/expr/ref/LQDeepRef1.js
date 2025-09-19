@@ -27,14 +27,14 @@ export class LQDeepRef1 extends LQDeepDeepRef1 {
 
 	/* API */
 
-	rhsTable(transformer, linkedDb) {
+	rhsTable(transformer, dbContext) {
 		if (this.left()?.qualifier?.() instanceof registry.LQBackRefAbstraction) {
-			return this._normalize().rhsTable(transformer, linkedDb);
+			return this._normalize().rhsTable(transformer, dbContext);
 		}
 		if (this.left() instanceof registry.LQBackRefAbstraction) {
-			return this.left().expr()/* LQBackRef */.rhsTable(transformer, linkedDb);
+			return this.left().expr()/* LQBackRef */.rhsTable(transformer, dbContext);
 		}
-		return super.rhsTable(transformer, linkedDb);
+		return super.rhsTable(transformer, dbContext);
 	}
 
 	_normalize() {
@@ -50,10 +50,10 @@ export class LQDeepRef1 extends LQDeepDeepRef1 {
 		return deepRef;
 	}
 
-	resolve(transformer, linkedDb, toKind = 1) {
-		if (!transformer || !linkedDb) return;
+	resolve(transformer, dbContext, toKind = 1) {
+		if (!transformer || !dbContext) return;
 		if (this.left()?.qualifier?.() instanceof registry.LQBackRefAbstraction) {
-			return this._normalize().resolve(transformer, linkedDb, toKind);
+			return this._normalize().resolve(transformer, dbContext, toKind);
 		}
 
 		let detail;
@@ -66,15 +66,15 @@ export class LQDeepRef1 extends LQDeepDeepRef1 {
 		}
 
 		if (this.left() instanceof registry.LQBackRefAbstraction) {
-			const resolution = this.left().expr().resolve(transformer, linkedDb, toKind);
+			const resolution = this.left().expr().resolve(transformer, dbContext, toKind);
 			return { ...resolution, detail };
 		}
 
-		const qualifiedLeftOperand = this.left().resolve(transformer, linkedDb);
+		const qualifiedLeftOperand = this.left().resolve(transformer, dbContext);
 
-		const qualifiedRightTable = this.rhsTable(transformer, linkedDb);
+		const qualifiedRightTable = this.rhsTable(transformer, dbContext);
 
-		const unqualifiedRightOperand = qualifiedRightTable.resultSchema().pkConstraint(true)?.columns()[0]?.resolve(transformer, linkedDb);
+		const unqualifiedRightOperand = qualifiedRightTable.resultSchema().pkConstraint(true)?.columns()[0]?.resolve(transformer, dbContext);
 		if (!unqualifiedRightOperand) throw new Error(`[${this.parentNode || this}] The referenced RHS table ${qualifiedRightTable} does not have a primary key.`);
 
 		return {

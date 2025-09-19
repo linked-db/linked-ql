@@ -27,8 +27,8 @@ export class SRFExpr2 extends DDLSchemaMixin(AbstractNode) {
 
     /* JSON API */
 
-    jsonfy(options = {}, transformer = null, linkedDb = null) {
-        let resultJson = super.jsonfy(options, transformer, linkedDb);
+    jsonfy(options = {}, transformer = null, dbContext = null) {
+        let resultJson = super.jsonfy(options, transformer, dbContext);
         if (options.deSugar) {
 
             let resultSchema;

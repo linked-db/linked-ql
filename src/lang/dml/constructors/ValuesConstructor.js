@@ -28,8 +28,8 @@ export class ValuesConstructor extends DDLSchemaMixin(AbstractNodeList) {
 
     /* JSON API */
 
-    jsonfy(options = {}, transformer = null, linkedDb = null) {
-        let resultJson = super.jsonfy({ ...options, forceDeSugar: options.deSugar }, transformer, linkedDb);
+    jsonfy(options = {}, transformer = null, dbContext = null) {
+        let resultJson = super.jsonfy({ ...options, forceDeSugar: options.deSugar }, transformer, dbContext);
         if (options.deSugar) {
             const row1_resultSchema = resultJson.entries?.[0]?.result_schema;
             resultJson = {

@@ -87,14 +87,14 @@ export class DeleteStmt extends SelectorStmtMixin(DMLStmt) {
 
     /* JSON API */
 
-    jsonfy(options = {}, transformer = null, linkedDb = null) {
-        if (!options.deSugar) return super.jsonfy(options, transformer, linkedDb);
+    jsonfy(options = {}, transformer = null, dbContext = null) {
+        if (!options.deSugar) return super.jsonfy(options, transformer, dbContext);
 
         transformer = new Transformer((node, defaultTransform) => {
             return defaultTransform();
         }, transformer, this/* IMPORTANT */);
 
-        let resultJson = super.jsonfy(options, transformer, linkedDb);
+        let resultJson = super.jsonfy(options, transformer, dbContext);
 
         // Order ouput JSON
         if ((options.toDialect || this.options.dialect) === 'mysql') {
@@ -126,9 +126,9 @@ export class DeleteStmt extends SelectorStmtMixin(DMLStmt) {
         }
 
         // 1. Finalize output JSON
-		resultJson = this.finalizeOutputJSON(resultJson, transformer, linkedDb, options);
+		resultJson = this.finalizeOutputJSON(resultJson, transformer, dbContext, options);
         // 2. Finalize generated JOINS
-        resultJson = this.finalizeSelectorJSON(resultJson, transformer, linkedDb, options);
+        resultJson = this.finalizeSelectorJSON(resultJson, transformer, dbContext, options);
         
         return resultJson;
     }

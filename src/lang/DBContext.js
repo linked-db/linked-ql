@@ -1,7 +1,7 @@
 import { SchemaSchema } from './ddl/schema/SchemaSchema.js';
 import { matchSelector, normalizeSelectorArg } from '../db/abstracts/util.js';
 
-export class LinkedDB {
+export class DBContext {
 
     #searchPath = ['public'];
     get searchPath() { return this.#searchPath; }

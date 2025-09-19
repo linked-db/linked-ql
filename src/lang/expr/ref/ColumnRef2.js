@@ -15,8 +15,8 @@ export class ColumnRef2 extends AbstractClassicRef {
 
     dataType() { return this.resultSchema()?.dataType() || super.dataType(); }
 
-    lookup(deepMatchCallback, transformer = null, linkedDb = null) {
-        if (!transformer && !linkedDb) return [];
+    lookup(deepMatchCallback, transformer = null, dbContext = null) {
+        if (!transformer && !dbContext) return [];
 
         const name = this._get('value');
         const inGrepMode = !name && !deepMatchCallback;
@@ -44,9 +44,9 @@ export class ColumnRef2 extends AbstractClassicRef {
         let tableSchemasInScope;
         if (this.parentNode instanceof AbstractMagicRef) {
             if (this === this.parentNode.operand()) {
-                tableSchemasInScope = [this.parentNode.parentNode.rhsSchema(transformer, linkedDb)];
+                tableSchemasInScope = [this.parentNode.parentNode.rhsSchema(transformer, dbContext)];
             } else {
-                tableSchemasInScope = [this.parentNode.rhsSchema(transformer, linkedDb)];
+                tableSchemasInScope = [this.parentNode.rhsSchema(transformer, dbContext)];
             }
         } else {
             tableSchemasInScope = this.climbTree((superParentNode, up) => {
@@ -75,13 +75,13 @@ export class ColumnRef2 extends AbstractClassicRef {
         return resultSet;
     }
 
-    jsonfy({ toKind = 2, ...options } = {}, transformer = null, linkedDb = null) {
+    jsonfy({ toKind = 2, ...options } = {}, transformer = null, dbContext = null) {
         if (options.deSugar
             && !this.resultSchema()
-            && (transformer || linkedDb)) {
-            return this.resolve(transformer, linkedDb).jsonfy(/* IMPORTANT */);
+            && (transformer || dbContext)) {
+            return this.resolve(transformer, dbContext).jsonfy(/* IMPORTANT */);
         }
-        let resultJson = super.jsonfy(options, transformer, linkedDb);
+        let resultJson = super.jsonfy(options, transformer, dbContext);
         if (toKind === 1) {
             resultJson = {
                 ...resultJson,

@@ -20,17 +20,17 @@ export class LQBackRef extends LQBackBackRef {
 
 	/* SCHEMA API */
 
-	rhsTable(transformer, linkedDb) {
-		if (!linkedDb) return;
-		const tableRefs = this.right()?.lookup(null, null/*transformer*/, linkedDb) || [];
+	rhsTable(transformer, dbContext) {
+		if (!dbContext) return;
+		const tableRefs = this.right()?.lookup(null, null/*transformer*/, dbContext) || [];
 		if (!tableRefs.length) {
 			throw new ErrorRefUnknown(`[${this.parentNode || this}] Implied RHS table ${this.right()} does not exist.`);
 		}
 		return tableRefs[0];
 	}
 
-	resolve(transformer, linkedDb, toKind = 1) {
-		if (!transformer || !linkedDb) return;
+	resolve(transformer, dbContext, toKind = 1) {
+		if (!transformer || !dbContext) return;
 		const left = this.left();
 
 		const qualifiedLeftEndpoint = left instanceof LQBackBackRef
@@ -43,7 +43,7 @@ export class LQBackRef extends LQBackBackRef {
 			qualifier: undefined
 		});
 
-		const resolvedLeftEndpoint = qualifiedLeftEndpoint/* original */.resolve(transformer, linkedDb);
+		const resolvedLeftEndpoint = qualifiedLeftEndpoint/* original */.resolve(transformer, dbContext);
 
 		const leftFk = resolvedLeftEndpoint.resultSchema()/* ColumnSchema */.fkConstraint(true);
 		if (!leftFk) throw new ErrorFKInvalid(`[${this.parentNode || this}] Endpoint column ${unqualifiedLeftEndpoint} is not a foreign key.`);
@@ -51,7 +51,7 @@ export class LQBackRef extends LQBackBackRef {
 
 		let qualifiedLeftOperand;
 		const resolve = (ddlName, tableSchema) => {
-			const pkColumnRef2 = tableSchema.pkConstraint(true)?.columns()[0]?.resolve(transformer, linkedDb);
+			const pkColumnRef2 = tableSchema.pkConstraint(true)?.columns()[0]?.resolve(transformer, dbContext);
 			if (!pkColumnRef2) throw new ErrorFKInvalid(`[${this.parentNode || this}] The referenced LHS table ${ddlName} does not have a primary key.`);
 
 			const $qualifiedLeftOperand = registry.ColumnRef1.fromJSON({
@@ -87,7 +87,7 @@ export class LQBackRef extends LQBackBackRef {
 			throw new ErrorRefUnknown(`[${this.parentNode || this}] Ref does not correlate with current query.`);
 		}
 
-		const qualifiedRightTable = this.rhsTable(transformer, linkedDb);
+		const qualifiedRightTable = this.rhsTable(transformer, dbContext);
 		const unqualifiedRightOperand = left instanceof LQBackBackRef
 			? left.clone({ reverseRef: true, toKind })
 			: unqualifiedLeftEndpoint.constructor.fromJSON({

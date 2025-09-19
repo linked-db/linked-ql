@@ -208,21 +208,21 @@ export class AbstractNode {
 
 	static morphsTo() { return this; }
 
-	clone(options = {}, transformer = null, linkedDb = null) {
-		const resultJson = this.jsonfy(options, transformer, linkedDb);
+	clone(options = {}, transformer = null, dbContext = null) {
+		const resultJson = this.jsonfy(options, transformer, dbContext);
 		const Classes = [this.constructor].concat(this.constructor.morphsTo());
 		const instance = Classes.reduce((prev, C) => prev || C.fromJSON(resultJson, { dialect: options.toDialect || this.options.dialect }), undefined);
 		return instance;
 	}
 
-	deSugar(toLevl = 1, options = {}, transformer = null, linkedDb = null) {
+	deSugar(toLevl = 1, options = {}, transformer = null, dbContext = null) {
 		options = { ...options, deSugar: toLevl/* overrridingly */ };
-		return this.clone(options, transformer, linkedDb);
+		return this.clone(options, transformer, dbContext);
 	}
 
-	toDialect(dialect, options = {}, transformer = null, linkedDb = null) {
+	toDialect(dialect, options = {}, transformer = null, dbContext = null) {
 		options = { ...options, toDialect: dialect/* overrridingly */ };
-		return this.clone(options, transformer, linkedDb);
+		return this.clone(options, transformer, dbContext);
 	}
 
 	/**
@@ -581,7 +581,7 @@ export class AbstractNode {
 
 	toJSON() { return this.jsonfy(); }
 
-	jsonfy(options = {}, transformer = null, linkedDb = null) {
+	jsonfy(options = {}, transformer = null, dbContext = null) {
 
 		const jsonfy = (key, value, relevantTransformer) => {
 
@@ -594,7 +594,7 @@ export class AbstractNode {
 					}, []);
 				}
 				if (value instanceof AbstractNode) {
-					return value.jsonfy(options1, childTransformer, linkedDb);
+					return value.jsonfy(options1, childTransformer, dbContext);
 				}
 				return value;
 			};

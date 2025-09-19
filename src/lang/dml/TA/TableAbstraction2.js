@@ -43,8 +43,8 @@ export class TableAbstraction2 extends DDLSchemaMixin(AbstractNode) {
         return derivedAlias;
     }
 
-    jsonfy(options = {}, transformer = null, linkedDb = null) {
-        let resultJson = super.jsonfy(options, transformer, linkedDb);
+    jsonfy(options = {}, transformer = null, dbContext = null) {
+        let resultJson = super.jsonfy(options, transformer, dbContext);
         if (options.deSugar) {
 
             const derivedAliasJson = resultJson.alias || this.deriveAlias().jsonfy();
