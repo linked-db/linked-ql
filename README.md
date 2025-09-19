@@ -62,7 +62,7 @@ await client.connect();
 const result = await client.query(`SELECT 10`);
 ```
 
-3) Try fun things... like:
+3) Do powerful things... like:
 
 ```js
 const users = await client.query(
@@ -89,10 +89,10 @@ const users = await client.query(
 |:---|:---|
 | _Reactivity_ | [Live queries](#11--live-queries) |
 | _Syntax Niceties_ | [DeepRefs](#21--deeprefs) • [JSON shorthands](#22--json-shorthands) • [The UPSERT statement](#23--the-upsert-statement) |
-| _Schema Niceties_ | [Automatic versioning](#31--automatic-versioning) • [Version binding](#32--version-binding) • [Diff-based migrations](#33--diff-based-migrations) |
+| _Schema Niceties_ | [Automatic database versioning](#31--automatic-database-versioning) • [Version binding](#32--version-binding) • [Diff-based migrations](#33--diff-based-migrations) |
 | _IDE Tooling_ | [Static error checking](#41--static-error-checking) • [Type safety](#42--type-safety) • [Autocompletion](#43--autocompletion) |
 
-### `1 |` Reactivity
+### ` 1 |` Reactivity
 
 #### `2.1 |` Live queries
 
@@ -106,7 +106,7 @@ const users = await client.query(
 );
 ```
 
-### `2 |` Syntax Niceties
+### ` 2 |` Syntax Niceties
 
 #### `2.1 |` DeepRefs
 
@@ -161,14 +161,14 @@ const users = await client.query(
 );
 ```
 
-### `3 |` Schema Niceties
+### ` 3 |` Schema Niceties
 
-#### `3.1 |` Automatic versioning
+#### `3.1 |` Automatic database versioning
 
-⏱ _Alter schemas and get automatic database versioning_
+⏱ _Enjoy automatic database versioning on every DDL operation_
 
 ```js
-// Optionally use the RETURNING SAVEPOINT to obtain the automatic savepoint created for you
+// A savepoint is automatically created for you on every DDL operation
 const savepoint = await client.query(
   `CREATE TABLE public.users (
     id int,
@@ -208,7 +208,7 @@ await client.query(
 
 > coming soon - with a screencast
 
-### `4 |` IDE Tooling
+### ` 4 |` IDE Tooling
 
 #### `4.1 |` Static error checking
 
