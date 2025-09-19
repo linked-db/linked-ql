@@ -97,7 +97,7 @@ const users = await client.query(
 
 #### `1.1 |` Live queries
 
-⚡ _Run reactive SQL with `{ live: true }`
+⚡ _Run reactive SQL with `{ live: true }`_
 
 ```js
 // Pass { live: true } to get live results
