@@ -217,8 +217,16 @@ await savepoint.rollback({ desc: 'Users table no more necessary' });
 ```js
 // Make this query version-safe
 await client.query(
-  `SELECT * FROM users@3
-  LEFT JOIN books@2_1 ON users.id = books.author
+  `SELECT users.first_name, books.title FROM users@3
+  LEFT JOIN books@2_1 ON users.id = books.author`
+);
+```
+
+```js
+// Alter your database without breaking your queries
+await client.query(
+  `ALTER TABLE users
+  RENAME COLUMN first_name TO fname`
 );
 ```
 
