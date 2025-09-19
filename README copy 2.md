@@ -36,15 +36,15 @@ Linked QL is JS-based and works both in Nodejs and in the browser (coming soon)
 > This is **@linked-db/linked-ql@next** — our upcoming iteration.  
 > See [@linked-db/linked-ql@0.3.*](https://github.com/linked-db/linked-ql) for the current version (covered in the [wiki](https://github.com/linked-db/linked-ql/wiki)).
 
-## 🚀 Quick-start
+## 💡 Here's your quick-start
 
-1) Install
+1) _Install_
 
 ```bash
 npm i @linked-db/linked-ql@next
 ```
 
-2) Use as your regular PG or MySQL client
+2) _Use as your regular PG or MySQL client_
 
 ```js
 import { PGClient } from '@linked-db/linked-ql/pg';
@@ -62,7 +62,7 @@ await client.connect();
 const result = await client.query(`SELECT 10`);
 ```
 
-3) Try fun things... like:
+3) _Try fun things... like:_
 
 ```js
 const users = await client.query(
@@ -72,7 +72,9 @@ const users = await client.query(
 );
 ```
 
+---
 <!--
+
 ## ⚓ Motivation?
 
 - **SQL can be painful**
@@ -81,36 +83,15 @@ const users = await client.query(
 
 - **Plus, need reactivity?**—extra tooling & extra infra → additional moving parts → more overheads
   <!-- Even as _realtime-first_ increasingly becomes base-line expectation for modern apps- ->
+
+---
 -->
 
-## 💡 Features
+## 🚀 Features
 
-|  |  |
-|:---|:---|
-| _Reactivity_ | [Live queries](#11--live-queries) |
-| _Syntax Niceties_ | [DeepRefs](#21--deeprefs) • [JSON shorthands](#22--json-shorthands) • [The UPSERT statement](#23--the-upsert-statement) |
-| _Schema Niceties_ | [Automatic versioning](#31--automatic-versioning) • [Version binding](#32--version-binding) • [Diff-based migrations](#33--diff-based-migrations) |
-| _IDE Tooling_ | [Static error checking](#41--static-error-checking) • [Type safety](#42--type-safety) • [Autocompletion](#43--autocompletion) |
+1) Syntax Niceties**
 
-### `1 |` Reactivity
-
-#### `2.1 |` Live queries
-
-⚡ _Run reactive SQL with `{ live: true }`
-
-```js
-// Pass { live: true } to get live results
-const users = await client.query(
-  `SELECT title, content, author ~> name AS author_name FROM books`,
-  { live: true }
-);
-```
-
-### `2 |` Syntax Niceties
-
-#### `2.1 |` DeepRefs
-
-⮑  _Follow relationships using simple arrow notation: `a ~> c ~> d`_
+<details><summary>DeepRefs<br>⮑ Follow relationships using simple arrow notation: a ~> c ~> d</summary>
 
 ```js
 // DeepRefs let you access deeply nested columns
@@ -132,12 +113,12 @@ const users = await client.query(
 );
 ```
 
-#### `2.2 |` JSON shorthands
+</details>
 
-🧩 _Use JSON notation directly_: `{}`, `[]`
+<details><summary>JSON notation<br>🧩 Use JSON notation directly</summary>
 
 ```js
-// Shape your output data visually
+// Use object and array literals directly in SELECT
 const users = await client.query(
   `SELECT
     { first: first_name, last: last_phone } AS name,
@@ -146,9 +127,9 @@ const users = await client.query(
 );
 ```
 
-#### `2.3 |` The UPSERT statement
+</details>
 
-📦 _Do upserts without conditional clauses_
+<details><summary>The UPSERT statement<br>📦 Do upserts without the extra syntax</summary>
 
 ```js
 // Forget ON CONFLICT / ON DUPLICATE KEY
@@ -161,14 +142,28 @@ const users = await client.query(
 );
 ```
 
-### `3 |` Schema Niceties
+</details>
 
-#### `3.1 |` Automatic versioning
+2) **Reactivity**
 
-⏱ _Alter schemas and get automatic database versioning_
+<details><summary>Live queries<br>⚡ Run reactive SQL</summary>
 
 ```js
-// Optionally use the RETURNING SAVEPOINT to obtain the automatic savepoint created for you
+// Pass { live: true } to get live results
+const users = await client.query(
+  `SELECT title, content, author ~> name AS author_name FROM books`,
+  { live: true }
+);
+```
+
+</details>
+
+3. **Schema Evolution**
+
+<details><summary>Automatic versioning<br>⏱ Run self-versioned schema changes</summary>
+
+```js
+// Alter your DB away; schemas are auto-versioned
 const savepoint = await client.query(
   `CREATE TABLE public.users (
     id int,
@@ -180,55 +175,45 @@ const savepoint = await client.query(
 ```
 
 ```js
-// Inspect savepoint details
+// Some important details about the referenced point in time
 console.log(savepoint.versionTag()); // 1
 console.log(savepoint.commitDesc()); // Create users table
 console.log(savepoint.commitDate()); // 2024-07-17T22:40:56.786Z
 ```
 
 ```js
-// Rollback at any time (drops the table above)
-await savepoint.rollback({ desc: 'Users table no more necessary' });
+// Your rollback magic wand button
+await savepoint.rollback({
+    desc: 'Users table no more necessary'
+});
 ```
 
-#### `3.2 |` Version binding
+</details>
 
-🧷 _Bind queries to specific database or table versions_: `tbl@3`
+<details><summary>Version binding<br>🧷 Bind query to specific db/table versions</summary>
 
 ```js
-// Make this query version-safe
+// Run a query against a specific table version
 await client.query(
-  `SELECT * FROM users@3`
+  `SELECT * FROM users@v3`
 );
 ```
 
-#### `3.3 |` Diff-based migrations
+</details>
 
-🤖 _Define and evolve schemas declaratively; put migration on autopilot_
+<details><summary>Diff-based migrations<br>🤖 Put your workflow on autopilot</summary>
+</details>
 
-> coming soon - with a screencast
+4. **IDE Tooling***
 
-### `4 |` IDE Tooling
+<details><summary>Static error checking<br>🔍 Catch mistakes before they hit production</summary>
+</details>
 
-#### `4.1 |` Static error checking
+<details><summary>Type safety<br>🛡️ Strong types, no guessing</summary>
+</details>
 
-🔍 _Catch mistakes before they hit production_
-
-> coming soon - with a screencast
-
-#### `4.2 |` Type safety
-
-🛡️ _Strong types, no guessing_
-
-> coming soon - with a screencast
-
-#### `4.3 |` Autocompletion
-
-💡 _Smarter autocompletion in your editor_
-
-> coming soon - with a screencast
-
----
+<details><summary>Autocompletion<br>💡 Smarter queries in your editor</summary>
+</details>
 
 ## ✍️ Documentation
 
