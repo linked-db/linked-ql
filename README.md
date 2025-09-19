@@ -144,10 +144,22 @@ const users = await client.query(
 // Shape your output data visually
 const users = await client.query(
   `SELECT
-    { first: first_name, last: last_phone } AS name,
-    [ email, phone ] AS contact
-  FROM users`
+    id, u.first_name, u.last_name,
+    { first: u.first_name, last: u.last_name } AS name,
+    [ u.email, u.phone ] AS contact
+  FROM users AS u`
 );
+console.log(users[0]);
+```
+
+```js
+{
+  id: 2,
+  first_name: 'John',
+  last_name: 'Doe',
+  name: { first: 'John', last: 'Doe' },
+  contact: ['x@x.com', '012345678'],
+}
 ```
 
 #### `2.3 |` The UPSERT statement
@@ -155,7 +167,7 @@ const users = await client.query(
 📦 _Do upserts with a literal UPSERT statement_
 
 ```js
-// Forget ON CONFLICT / ON DUPLICATE KEY
+// Skip the ON CONFLICT / ON DUPLICATE KEY step
 const users = await client.query(
   `UPSERT INTO public.users 
     (name, email, role)
