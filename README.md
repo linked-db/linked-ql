@@ -1,6 +1,6 @@
 <div align="center">
     
-# Linked QL
+# LinkedQL
 
 _**Next-generation SQL (Postgres & MySQL)** for modern apps._
 
@@ -15,7 +15,7 @@ _**Next-generation SQL (Postgres & MySQL)** for modern apps._
 <picture>
   <source media="(max-width: 799px)" srcset="https://github.com/linked-db/linked-ql/blob/next/resources/linked-ql-mobile2.png?raw=true">
   <source media="(min-width: 800px)" srcset="https://github.com/linked-db/linked-ql/blob/next/resources/linked-ql-main2.png?raw=true">
-  <img src="https://github.com/linked-db/linked-ql/blob/next/resources/linked-ql-main2.png?raw=true" alt="Linked QL Banner" width="100%">
+  <img src="https://github.com/linked-db/linked-ql/blob/next/resources/linked-ql-main2.png?raw=true" alt="LinkedQL Banner" width="100%">
 </picture>
 
 <br>
@@ -27,7 +27,7 @@ _**Next-generation SQL (Postgres & MySQL)** for modern apps._
 
 LinkedQL is next-generation SQL (Postgres and MySQL) for modern apps — with syntax niceties, built-in reactivity, self-versioning, and workflow automation — all without leaving SQL.
 
-Linked QL is JS-based and works both in Nodejs and in the browser (coming soon)
+LinkedQL is JS-based and works both in Nodejs and in the browser (coming soon)
 
 </div>
 
@@ -237,7 +237,7 @@ await client.query(
 
 ## ⏳ Our progress on this iteration of LinkedQL
 
-| Component              | Progress      | Notes                     |
+| Component              | Status      | Notes                       |
 |:-----------------------|:--------------|:--------------------------|
 | Core Parser/Compiler   | 🟩🟩🟩🟩 `100%` | Done 🏆                   |
 | Core Transform Engine  | 🟩🟩🟩🟩 `100%` | Done 🏆                   |
@@ -276,13 +276,13 @@ npm test
 ### 📝 Tips
 
 - Development happens on the `next` branch — be sure to switch to it as above after cloning.
-- Consider creating your feature branch from next before making changes (e.g. `git checkout -b feature/my-idea`).
-- Remember to npm test before submitting a PR.
+- Consider creating your feature branch from `next` before making changes (e.g. `git checkout -b feature/my-idea`).
+- Remember to `npm test` before submitting a PR.
 - Check the [Progress](#-our-progress-on-this-iteration-of-linkedql) section above to see where help is most needed.
 
 ## 🔑 License
 
-MIT. (See [LICENSE](https://github.com/linked-db/linked-ql?tab=MIT-1-ov-file))
+MIT — see [LICENSE](https://github.com/linked-db/linked-ql?tab=MIT-1-ov-file)
 
 [npm-version-src]: https://img.shields.io/npm/v/@linked-db/linked-ql?style=flat&colorA=18181B&colorB=F0DB4F
 [npm-version-href]: https://npmjs.com/package/@linked-db/linked-ql
