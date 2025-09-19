@@ -24,7 +24,6 @@ _**Next-generation SQL (Postgres & MySQL)** for modern apps._
 
 [👉 Follow](https://x.com/LinkedQL) • [💖 Sponsor](https://github.com/sponsors/ox-harris)
 
----
 
 LinkedQL is next-generation SQL (Postgres and MySQL) for modern apps — with syntax niceties, built-in reactivity, self-versioning, and workflow automation — all without leaving SQL.
 
@@ -35,6 +34,7 @@ Linked QL is JS-based and works both in Nodejs and in the browser (coming soon)
 > [!IMPORTANT]  
 > This is **@linked-db/linked-ql@next** — our upcoming iteration.  
 > See [@linked-db/linked-ql@0.3.*](https://github.com/linked-db/linked-ql) for the current version (covered in the [wiki](https://github.com/linked-db/linked-ql/wiki)).
+
 
 ## 🚀 Quick-start
 
@@ -83,6 +83,7 @@ const users = await client.query(
   <!-- Even as _realtime-first_ increasingly becomes base-line expectation for modern apps- ->
 -->
 
+
 ## 💡 Features
 
 |  |  |
@@ -94,7 +95,7 @@ const users = await client.query(
 
 ### ` 1 |` Reactivity
 
-#### `2.1 |` Live queries
+#### `1.1 |` Live queries
 
 ⚡ _Run reactive SQL with `{ live: true }`
 
@@ -228,53 +229,59 @@ await client.query(
 
 > coming soon - with a screencast
 
----
 
 ## ✍️ Documentation
 
+> coming soon
+
 ## ⏳ Our progress on this iteration of LinkedQL
 
-Things are moving really fast; and I'm keeping the progress bars here live
+| Component              | Progress      | Notes                     |
+|:-----------------------|:--------------|:--------------------------|
+| Core Parser/Compiler   | 🟩🟩🟩🟩 `100%` | Done 🏆                   |
+| Core Transform Engine  | 🟩🟩🟩🟩 `100%` | Done 🏆                   |
+| InMemory DB Engine     | 🟩🟩🟩⬜ `80%`  | Stable but expanding     |
+| DB Drivers (PG/MySQL)  | 🟩🟩🟩🟨 `90%`  | MySQL catching up        |
+| Realtime Engine        | 🟩🟩🟩⬜ `80%`  | Core live queries working|
+| Version Binding        | 🟩⬜⬜⬜ `20%`  | Early prototype          |
+| Auto-Versioning Engine | 🟩⬜⬜⬜ `10%`  | Deferring to v0.3.*      |
+| Migration Wizard       | 🟩⬜⬜⬜ `10%`  | Deferring to v0.3.*      |
+| IDE Tooling            | 🟩⬜⬜⬜ `10%`  | Initial hooks only       |
+| Revamped Docs          | ⬜⬜⬜⬜ `0%`   | Not started              |
 
-**Core Parser/Compiler**  
-> `████████████████████` 100%  
+_Things are moving really fast; and I'm keeping the progress bars here live_
 
-**Core Transform Engine**  
-> `████████████████████` 100%  
+## 🤝 Contributing
 
-**InMemory DB Engine**  
-> `████████████████░░░░` 80%  
+LinkedQL is in active development — and contributions are welcome!  
 
-**DB Drivers - PG, MySQL, InMem (MySQL catching up)**  
-> `██████████████████░░` 90%
+Here’s how you can jump in:  
+- **Issues** → Spot a bug or have a feature idea? Open an [issue](https://github.com/linked-db/linked-ql/issues).  
+- **Pull requests** → PRs are welcome for fixes, docs, or new ideas.  
+- **Discussions** → Not sure where your idea fits? Start a [discussion](https://github.com/linked-db/linked-ql/discussions).  
 
-**Realtime Engine**  
-> `████████████████░░░░` 80%
+### 🛠️ Local Setup
 
-**Version Binding**  
-> `████░░░░░░░░░░░░░░░░` 20%
+👉 clone → install → test
 
-**Revamped Auto-Versioning Engine (_defer to @linked-db/linked-ql@0.3.\*_)**  
-> `██░░░░░░░░░░░░░░░░░░` 10%
+```bash
+git clone https://github.com/linked-db/linked-ql.git
+cd linked-ql
+git checkout next
+npm install
+npm test
+```
 
-**Revamped Migration Wizard (_defer to @linked-db/linked-ql@0.3.\*_)**  
-> `██░░░░░░░░░░░░░░░░░░` 10%
+### 📝 Tips
 
-**IDE Tooling**  
-> `██░░░░░░░░░░░░░░░░░░` 10%  
-
-**Revamped Docs**  
-> `░░░░░░░░░░░░░░░░░░░░` 0%  
-
-## 🐛 Issues
-
-Report bugs or request features via [issues](https://github.com/linked-db/linked-ql/issues).
+- Development happens on the `next` branch — be sure to switch to it as above after cloning.
+- Consider creating your feature branch from next before making changes (e.g. `git checkout -b feature/my-idea`).
+- Remember to npm test before submitting a PR.
+- Check the [Progress](#-our-progress-on-this-iteration-of-linkedql) section above to see where help is most needed.
 
 ## 🔑 License
 
 MIT. (See [LICENSE](https://github.com/linked-db/linked-ql?tab=MIT-1-ov-file))
-
----
 
 [npm-version-src]: https://img.shields.io/npm/v/@linked-db/linked-ql?style=flat&colorA=18181B&colorB=F0DB4F
 [npm-version-href]: https://npmjs.com/package/@linked-db/linked-ql
