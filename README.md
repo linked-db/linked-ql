@@ -94,7 +94,7 @@ const users = await client.query(
 | _Reactivity_ | [Live queries](#11--live-queries) |
 | _Syntax Niceties_ | [DeepRefs](#21--deeprefs) • [JSON shorthands](#22--json-shorthands) • [The UPSERT statement](#23--the-upsert-statement) |
 | _Schema Niceties_ | [Automatic database versioning](#31--automatic-database-versioning) • [Version binding](#32--version-binding) • [Diff-based migrations](#33--diff-based-migrations) |
-| _IDE Tooling_ | [Static error checking](#41--static-error-checking) • [Type safety](#42--type-safety) • [Autocompletion](#43--autocompletion) |
+| _IDE Niceties_ | [Static error checking](#41--static-error-checking) • [Type safety](#42--type-safety) • [Autocompletion](#43--autocompletion) |
 
 ### ` 1 |` Reactivity
 
