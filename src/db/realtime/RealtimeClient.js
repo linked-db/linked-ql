@@ -6,14 +6,14 @@ import { QueryWindow } from './QueryWindow.js';
 export class RealtimeClient extends AbstractClient {
 
     #windows = new Set;
-    #dbAdapter;
+    #driver;
 
-    constructor(dbAdapter) {
+    constructor(driver) {
         super();
-        if (!(dbAdapter instanceof AbstractDriver)) {
-            throw new TypeError('dbAdapter must be an instance of AbstractDriver');
+        if (!(driver instanceof AbstractDriver)) {
+            throw new TypeError('driver must be an instance of AbstractDriver');
         }
-        this.#dbAdapter = dbAdapter;
+        this.#driver = driver;
     }
 
     async query(...args) {
@@ -42,7 +42,7 @@ export class RealtimeClient extends AbstractClient {
                     // Exact filters match and exact projection match
                     return window;
                 }
-                const newWindow = new QueryWindow(this.#dbAdapter, query, [..._filters]);
+                const newWindow = new QueryWindow(this.#driver, query, [..._filters]);
                 newWindow.inherit(window);
                 return newWindow;
             }
@@ -50,7 +50,7 @@ export class RealtimeClient extends AbstractClient {
         }
         // 2. Create afresh since no parent window
         const options = {};
-        const newWindow = new QueryWindow(this.#dbAdapter, query, filterArray, options);
+        const newWindow = new QueryWindow(this.#driver, query, filterArray, options);
         // 3. Find a bind a child window...
         for (const window of windowsByShortestFilters) {
             if (_filters = newWindow.matchFilters(window.filters)) {

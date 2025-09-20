@@ -6,7 +6,7 @@ export class DBContext {
     #searchPath = ['public'];
     get searchPath() { return this.#searchPath; }
 
-    #dbAdapter;
+    #driver;
     #queryHistory = new Map;
 
     #catalog;
@@ -15,8 +15,8 @@ export class DBContext {
     #options;
     get options() { return this.#options; }
 
-    constructor({ dbAdapter, catalog = [] } = {}, options = {}) {
-        this.#dbAdapter = dbAdapter;
+    constructor({ driver, catalog = [] } = {}, options = {}) {
+        this.#driver = driver;
         this.#catalog = new Set(catalog);
         this.#options = options;
     }
@@ -85,7 +85,7 @@ export class DBContext {
         let currentFulfilment,
             totalFulfilment = Promise.resolve(0);
         if (Object.keys(diffedSelectors).length) {
-            currentFulfilment = this.#dbAdapter?.showCreate(diffedSelectors, true);
+            currentFulfilment = this.#driver?.showCreate(diffedSelectors, true);
             pendingFulfilments.push(currentFulfilment);
             for (const newRecord of newRecords) {
                 newRecord.fulfilment = currentFulfilment;
@@ -105,7 +105,7 @@ export class DBContext {
         if (resultSchemas?.length) {
             for (const resultSchema of resultSchemas) {
                 // Instantiate...
-                const newSchemaSchema = SchemaSchema.fromJSON(resultSchema, { dialect: this.#dbAdapter.dialect });
+                const newSchemaSchema = SchemaSchema.fromJSON(resultSchema, { dialect: this.#driver.dialect });
                 for (const existingSchemaSchema of this.#catalog) {
                     if (existingSchemaSchema.name().identifiesAs(newSchemaSchema.name())) {
                         // Inherit existing tables from existingSchemaSchema

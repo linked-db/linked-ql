@@ -8,16 +8,16 @@ import { normalizeQueryArgs } from './abstracts/util.js';
 
 export class Client extends AbstractClient {
 
-    #dbAdapter;
+    #driver;
     #realtime;
 
-    constructor(dbAdapter = { dialect: 'postgres' }) {
+    constructor(driver = { dialect: 'postgres' }) {
         super();
-        if (!(dbAdapter instanceof AbstractDriver)) {
-            throw new TypeError('dbAdapter must be an instance of AbstractDriver');
+        if (!(driver instanceof AbstractDriver)) {
+            throw new TypeError('driver must be an instance of AbstractDriver');
         }
-        this.#dbAdapter = dbAdapter;
-        this.#realtime = new RealtimeClient(this.#dbAdapter);
+        this.#driver = driver;
+        this.#realtime = new RealtimeClient(this.#driver);
     }
 
     async query(...args) {
@@ -25,7 +25,7 @@ export class Client extends AbstractClient {
         if (options.live) {
             return this.#realtime.query(query, options);
         }
-        return this.#dbAdapter.query(query, options);
+        return this.#driver.query(query, options);
     }
 
     // ------------
@@ -40,8 +40,8 @@ export class Client extends AbstractClient {
 if (process.send && process.argv.includes('--linked-ql-client-autorun')) {
     const DB_PARAMS = process.env.DB_PARAMS;
 
-    const dbAdapter = new ProxyDriver(DB_PARAMS);
-    const instance = new Client(dbAdapter);
+    const driver = new ProxyDriver(DB_PARAMS);
+    const instance = new Client(driver);
 
     process.on('message', () => {
 
