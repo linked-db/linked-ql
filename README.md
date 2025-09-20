@@ -153,7 +153,7 @@ const users = await client.query(
 ```
 
 ```js
-console.log(users[0]);
+console.log(users.rows[0]);
 /*
 {
   id: 2,
@@ -212,10 +212,10 @@ await savepoint.rollback({ desc: 'Users table no more necessary' });
 
 #### `3.2 |` Version binding
 
-🧷 _Bind queries to specific database or table versions_: `tbl@3`
+🧷 _Bind queries to specific schema or table versions_: `<table_ref | schema_ref>@<version_number>`
 
 ```js
-// Make this query version-safe
+// ...makes this query version-safe
 await client.query(
   `SELECT users.first_name, books.title FROM users@3
   LEFT JOIN books@2_1 ON users.id = books.author`
