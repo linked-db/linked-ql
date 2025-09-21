@@ -51,6 +51,10 @@ export class ExprEngine {
 
     // --- EXPRESSIONS ---
 
+    SCALAR_SUBQUERY(node, compositeRow, entireWindow = null) {
+        throw new Error(`SCALAR_SUBQUERY unimplemented`);
+    }
+
     BINARY_EXPR(node, compositeRow, entireWindow = null) {
         const L = this.evaluate(node.left, compositeRow, entireWindow);
         const R = this.evaluate(node.right, compositeRow, entireWindow);

@@ -1,5 +1,5 @@
 import { SchemaSchema } from './ddl/schema/SchemaSchema.js';
-import { matchSelector, normalizeSelectorArg } from '../db/abstracts/util.js';
+import { matchSchemaSelector, normalizeSchemaSelectorArg } from '../db/abstracts/util.js';
 
 export class DBContext {
 
@@ -33,7 +33,7 @@ export class DBContext {
             // If incoming is a pattern... no matching
             if (/^!|^%|%$|^\*$/.test(a)) return false;
             // If a IN b
-            return matchSelector(a, b);
+            return matchSchemaSelector(a, b);
         };
         const order = (x, a, b) => {
             // Exact match should come first
@@ -76,7 +76,7 @@ export class DBContext {
         };
         // -----------------------------
         // Pre-process selector
-        selector = normalizeSelectorArg(selector);
+        selector = normalizeSchemaSelectorArg(selector);
         for (const [schemaName, objectNames] of Object.entries(selector)) {
             diff(schemaName, objectNames);
         }
@@ -85,6 +85,7 @@ export class DBContext {
         let currentFulfilment,
             totalFulfilment = Promise.resolve(0);
         if (Object.keys(diffedSelectors).length) {
+            console.log('___________________', this.#driver);
             currentFulfilment = this.#driver?.showCreate(diffedSelectors, true);
             pendingFulfilments.push(currentFulfilment);
             for (const newRecord of newRecords) {

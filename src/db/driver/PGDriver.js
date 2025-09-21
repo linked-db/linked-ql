@@ -1,9 +1,9 @@
 import pg from 'pg';
 import { LogicalReplicationService, PgoutputPlugin } from 'pg-logical-replication';
-import { AbstractDriver } from '../abstracts/AbstractDriver.js';
 import { Expr, Identifier, StringLiteral } from '../../lang/expr/index.js';
 import { ReferentialAction, SchemaSchema, TableSchema } from '../../lang/ddl/index.js';
-import { normalizeSelectorArg, parseSchemaSelectors } from '../abstracts/util.js';
+import { normalizeSchemaSelectorArg, parseSchemaSelectors } from '../abstracts/util.js';
+import { AbstractDriver } from '../abstracts/AbstractDriver.js';
 
 export class PGDriver extends AbstractDriver {
 
@@ -180,7 +180,7 @@ export class PGDriver extends AbstractDriver {
     }
 
     async showCreate(selector, schemaWrapped = false) {
-        selector = normalizeSelectorArg(selector);
+        selector = normalizeSchemaSelectorArg(selector);
         const sql = this._composeShowCreateSQL(selector);
         const result = await this.#nativeClient.query(sql);
         return await this._formatShowCreateResult(result.rows || result, schemaWrapped);
@@ -200,7 +200,7 @@ export class PGDriver extends AbstractDriver {
             callback = selector;
             selector = '*';
         }
-        selector = normalizeSelectorArg(selector, true);
+        selector = normalizeSchemaSelectorArg(selector, true);
         this.#subscribers.set(callback, selector);
         return () => this.#subscribers.delete(callback);
     }
@@ -237,7 +237,7 @@ export class PGDriver extends AbstractDriver {
         };
         const schemaNames = Object.keys(selector).filter((s) => s !== '*');
         if (schemaNames.length) {
-            $parts.dbWhere = `\nWHERE ${utils.matchSelector('db.schema_name', schemaNames)}`;
+            $parts.dbWhere = `\nWHERE ${utils.matchSchemaSelector('db.schema_name', schemaNames)}`;
         }
         const $tblWhere = Object.entries(selector).reduce((cases, [schemaName, objectNames]) => {
             const tbls = objectNames.filter((s) => s !== '*');
@@ -246,8 +246,8 @@ export class PGDriver extends AbstractDriver {
                 return cases.concat(`tbl.table_name IN '${tbls.join("', '")}'`);
             }
             return cases.concat(`CASE
-                WHEN ${utils.matchSelector('db.schema_name', [schemaName]) || 'TRUE'
-                } THEN ${utils.matchSelector('tbl.table_name', tbls) || 'TRUE'
+                WHEN ${utils.matchSchemaSelector('db.schema_name', [schemaName]) || 'TRUE'
+                } THEN ${utils.matchSchemaSelector('tbl.table_name', tbls) || 'TRUE'
                 } END`);
         }, []);
         $parts.tblWhere = $tblWhere.length ? ` AND (${$tblWhere.join(' OR ')})` : '';
@@ -374,7 +374,7 @@ export class PGDriver extends AbstractDriver {
             jsonBuildObject: (exprs) => this.dialect === 'mysql' ? `JSON_OBJECT(${exprs.join(', ')})` : `JSON_BUILD_OBJECT(${exprs.join(', ')})`,
             jsonAgg: (expr) => this.dialect === 'mysql' ? `JSON_ARRAYAGG(${expr})` : `JSON_AGG(${expr})`,
             anyValue: (col) => this.dialect === 'mysql' ? col : `MAX(${col})`,
-            matchSelector: (ident, enums) => {
+            matchSchemaSelector: (ident, enums) => {
                 const [names, _names, patterns, _patterns] = parseSchemaSelectors(enums);
                 const $names = names.length && !(names.length === 1 && names[0] === '*') ? `${ident} IN (${names.map(utils.str).join(', ')})` : null;
                 const $_names = _names.length ? `${ident} NOT IN (${_names.map(utils.str).join(', ')})` : null;
@@ -521,7 +521,6 @@ export class PGDriver extends AbstractDriver {
                         tableSchemaJson.entries.push({
                             nodeName: 'TABLE_FK_CONSTRAINT',
                             name: { value: cons.constraint_name },
-                            value: 'KEY',
                             columns: formatConstraintColumn(cons.column_name),
                             ...(await formatRelation(cons, true)),
                         });

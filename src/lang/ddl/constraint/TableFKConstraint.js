@@ -8,7 +8,7 @@ export class TableFKConstraint extends ConstraintSchema {
         const itemSeparator = { type: 'punctuation', value: ',' };
         return this.buildSyntaxRules([
             { type: 'keyword', value: 'FOREIGN' },
-            { type: 'keyword', as: '.', value: 'KEY', assert: true },
+            { type: 'keyword', value: 'KEY', assert: true },
             {
                 type: 'paren_block',
                 syntax: { type: 'ColumnRef2', as: 'columns', arity: { min: 1 }, itemSeparator, assert: true, singletons: 'BY_KEY' },

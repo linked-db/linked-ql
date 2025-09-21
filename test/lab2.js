@@ -1,6 +1,6 @@
 import '../src/lang/index.js';
 import { registry } from '../src/lang/registry.js';
-import { DBContext } from '../src/db/DBContext.js';
+import { DBContext } from '../src/lang/DBContext.js';
 
 let sql;
 

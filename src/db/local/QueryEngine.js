@@ -14,6 +14,9 @@ export class QueryEngine {
 
     // ---------------- top-level query (async generator) ----------------
     async *query(ast) {
+        if (!['BASIC_SELECT_STMT', 'COMPLETE_SELECT_STMT'].includes(ast?.nodeName)) {
+            throw new Error('Only SELECT statements are supported in QueryEngine');
+        }
         // 1. FROM -> composites
         let stream = this.evaluateFromClause(ast.from_clause, ast.join_clauses);
 

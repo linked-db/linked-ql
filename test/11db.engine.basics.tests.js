@@ -3,7 +3,7 @@ import chaiAsPromised from 'chai-as-promised';
 use(chaiAsPromised);
 
 import '../src/lang/index.js';
-import { matchSelector, normalizeSelectorArg } from '../src/db/abstracts/util.js';
+import { matchSchemaSelector, normalizeSchemaSelectorArg } from '../src/db/abstracts/util.js';
 import { StorageEngine } from '../src/db/local/StorageEngine.js';
 import { LocalDriver } from '../src/db/local/LocalDriver.js';
 import { PGDriver } from '../src/db/driver/PGDriver.js';
@@ -12,49 +12,49 @@ import { DBContext } from '../src/lang/DBContext.js';
 describe('Util', () => {
 
     it('should normalize selector forms', () => {
-        expect(() => normalizeSelectorArg()).to.throw(/Given selector .* invalid/);
-        expect(() => normalizeSelectorArg(null)).to.throw(/Given selector .* invalid/);
-        expect(() => normalizeSelectorArg({})).to.throw(/Given selector .* invalid/);
+        expect(() => normalizeSchemaSelectorArg()).to.throw(/Given selector .* invalid/);
+        expect(() => normalizeSchemaSelectorArg(null)).to.throw(/Given selector .* invalid/);
+        expect(() => normalizeSchemaSelectorArg({})).to.throw(/Given selector .* invalid/);
 
-        expect(() => normalizeSelectorArg([{ schema: 'b' }, { a: 'b' }])).to.throw(/Given selector .* invalid at index 1/);
+        expect(() => normalizeSchemaSelectorArg([{ schema: 'b' }, { a: 'b' }])).to.throw(/Given selector .* invalid at index 1/);
 
-        const a = normalizeSelectorArg('*');
+        const a = normalizeSchemaSelectorArg('*');
         expect(a).to.deep.eq({ ['*']: [ '*' ] });
-        const b = normalizeSelectorArg({ a: 'b' });
+        const b = normalizeSchemaSelectorArg({ a: 'b' });
         expect(b).to.deep.eq({ a: ['b'] });
-        const c = normalizeSelectorArg([{ schema: 'b' }]);
+        const c = normalizeSchemaSelectorArg([{ schema: 'b' }]);
         expect(c).to.deep.eq({ b: [ '*' ] });
     });
 
     it('should match plain db selector', () => {
-        const a = matchSelector('lq_test_public', ['lq_test_public', 'lq_test_private']);
-        const b = matchSelector('lq_test_public', ['lq_test_public2', 'lq_test_private']);
+        const a = matchSchemaSelector('lq_test_public', ['lq_test_public', 'lq_test_private']);
+        const b = matchSchemaSelector('lq_test_public', ['lq_test_public2', 'lq_test_private']);
         expect(a).to.be.true;
         expect(b).to.be.false;
     });
 
     it('should match negated plain db selector', () => {
-        const a = matchSelector('lq_test_public', ['!lq_test_public', 'lq_test_private']);
-        const b = matchSelector('lq_test_public', ['!lq_test_public2', 'lq_test_public']);
-        const c = matchSelector('lq_test_public', ['!lq_test_public2', '!lq_test_private']);
+        const a = matchSchemaSelector('lq_test_public', ['!lq_test_public', 'lq_test_private']);
+        const b = matchSchemaSelector('lq_test_public', ['!lq_test_public2', 'lq_test_public']);
+        const c = matchSchemaSelector('lq_test_public', ['!lq_test_public2', '!lq_test_private']);
         expect(a).to.be.false;
         expect(b).to.be.true;
         expect(c).to.be.true;
     });
 
     it('should match wildcard db selector', () => {
-        const a = matchSelector('lq_test_public', ['%ublic', 'lq_test_private']);
-        const b = matchSelector('lq_test_public', ['publi%']);
-        const c = matchSelector('lq_test_public', ['publo%']);
+        const a = matchSchemaSelector('lq_test_public', ['%ublic', 'lq_test_private']);
+        const b = matchSchemaSelector('lq_test_public', ['publi%']);
+        const c = matchSchemaSelector('lq_test_public', ['publo%']);
         expect(a).to.be.true;
         expect(b).to.be.true;
         expect(c).to.be.false;
     });
 
     it('should match negated wildcard db selector', () => {
-        const a = matchSelector('lq_test_public', ['!%ublic', 'lq_test_private']);
-        const b = matchSelector('lq_test_public', ['!publi%']);
-        const c = matchSelector('lq_test_public', ['!publo%']);
+        const a = matchSchemaSelector('lq_test_public', ['!%ublic', 'lq_test_private']);
+        const b = matchSchemaSelector('lq_test_public', ['!publi%']);
+        const c = matchSchemaSelector('lq_test_public', ['!publo%']);
         expect(a).to.be.false;
         expect(b).to.be.false;
         expect(c).to.be.true;
@@ -219,7 +219,7 @@ describe('LocalDriver - showCreate()', () => {
 
         let dbContext;
         before(() => {
-            dbContext = new DBContext({ dbAdapter: driver });
+            dbContext = new DBContext({ driver });
         });
 
         it('should provide() the specified schema', async () => {
@@ -354,7 +354,7 @@ describe('PGDriver - showCreate()', () => {
 
         let dbContext;
         before(() => {
-            dbContext = new DBContext({ dbAdapter: driver });
+            dbContext = new DBContext({ driver });
         });
 
         it('should provide() the specified schema', async () => {

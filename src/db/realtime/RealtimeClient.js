@@ -1,6 +1,6 @@
 import { AbstractClient } from '../abstracts/AbstractClient.js';
 import { AbstractDriver } from '../abstracts/AbstractDriver.js';
-import { normalizeQueryArgs } from '../abstracts/util.js';
+import { normalizeQueryArgs, splitLogicalExpr } from '../abstracts/util.js';
 import { QueryWindow } from './QueryWindow.js';
 
 export class RealtimeClient extends AbstractClient {
@@ -17,17 +17,21 @@ export class RealtimeClient extends AbstractClient {
     }
 
     async query(...args) {
-        const [query, options] = normalizeQueryArgs(...args);
+        const [query, callback, options] = normalizeQueryArgs(true, ...args);
+        if (!['BASIC_SELECT_STMT', 'COMPLETE_SELECT_STMT'].includes(query?.nodeName)) {
+            throw new Error('Only SELECT statements are supported in RealtimeClient');
+        }
+        if (!callback) {
+            throw new Error('A callback function must be provided for realtime queries');
+        }
         const queryWindow = this.createWindow(query);
         const initialResult = await queryWindow.initialResult();
-        const abortLine = queryWindow.on('mutation', (event) => {
-            this.emit('message', { messageType: 'mutation', messageId: msg.messageId, event });
-        });
+        const abortLine = queryWindow.on('mutation', callback);
         return initialResult;
     }
 
     createWindow(query) {
-        const filterArray = QueryWindow.splitLogic(query.where_clause?.expr);
+        const filterArray = splitLogicalExpr(query.where_clause?.expr);
         const windowsByLongestFilters = [...this.#windows].sort((a, b) => a.filters.length > b.filters.length ? 1 : -1);
         const windowsByShortestFilters = [];
         // 1. Find a parent window...

@@ -184,7 +184,7 @@ const users = await client.query(
 
 #### `3.1 |` Automatic database versioning
 
-⏱ _Enjoy automatic database versioning on every DDL operation_
+⏱ _Get automatic database versioning on every DDL operation_
 
 ```js
 // A savepoint is automatically created for you on every DDL operation

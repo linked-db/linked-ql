@@ -1,5 +1,6 @@
-import { SimpleEmitter } from '../abstracts/SimpleEmitter.js';
 import { ExprEngine } from "../local/ExprEngine.js";
+import { SimpleEmitter } from '../abstracts/SimpleEmitter.js';
+import { splitLogicalExpr, matchLogicalExprs, matchExpr, scanQuery } from '../abstracts/util.js';
 import { _eq } from "../../lang/util.js";
 
 export class QueryWindow extends SimpleEmitter {
@@ -20,10 +21,11 @@ export class QueryWindow extends SimpleEmitter {
 
     #query;
     #options;
-    #fromEngine;
     #exprEngine;
 
-    #isSingleTable;
+    #aliases = [];
+    #aliasSchemas = new Map;
+    #isSingleTable = true;
     #isWindowedQuery;
 
     #localRecords;
@@ -35,16 +37,25 @@ export class QueryWindow extends SimpleEmitter {
         this.resetFilters(filters);
         this.#options = options;
 
-        this.#isSingleTable = this.#fromEngine.aliasesToTable.size === 1;
-        this.#isWindowedQuery = false;
-
         this.#exprEngine = new ExprEngine(this.#options);
 
         // Dissect query
-        const [byAlias, bySchema] = this.constructor.extractTableNames(this.#query);
+        const [fromItemsByAlias, fromItemsBySchema, meta] = scanQuery(this.#query, true);
+        for (const alias in fromItemsByAlias) {
+            this.#aliases.push(alias);
+            this.#aliasSchemas.set(alias, {
+                hashSet: fromItemsByAlias[alias],
+                keyColumns: [],
+                columns: [],
+            });
+        }
+        this.#isSingleTable = this.#aliasSchemas.size === 1;
+        this.#isWindowedQuery = meta.hasScalarSubquery || meta.hasAggrFunctions || meta.hasOffset || meta.hasLimit;
+        this.#generatorDisconnect = this.#driver.subscribe(fromItemsBySchema, (events) => this.#handleEvents(events));
+
         // Pre-compute the "headles query"'s head
-        this.#headlessSelectItems = aliases.map((alias) => {
-            const aliasSchema = this.#fromEngine.aliasesToTable.get(alias);
+        this.#headlessSelectItems = this.#aliases.map((alias) => {
+            const aliasSchema = this.#aliasSchemas.get(alias);
             const fnName = this.#driver.dialect === 'mysql' ? 'JSON_OBJECT' : 'JSON_BUILD_OBJECT';
             const fnArgs = aliasSchema.columns.reduce((build, columnName) => ([
                 ...build,
@@ -53,13 +64,10 @@ export class QueryWindow extends SimpleEmitter {
             ]), []);
             return {
                 nodeName: 'SELECT_ITEM',
-                alias: { nodeName: 'BASIC_ALIAS', value: alias },
+                alias: { nodeName: 'SELECT_ITEM_ALIAS', value: alias },
                 expr: { nodeName: 'CALL_EXPR', name: fnName, arguments: fnArgs },
             };
         });
-
-        // Subscribe tables
-        this.#generatorDisconnect = this.#driver.subscribe(bySchema, (events) => this.#handleEvents(events));
     }
 
     inherit(parentWindow) {
@@ -114,9 +122,9 @@ export class QueryWindow extends SimpleEmitter {
                 continue;
             }
             if (clauseName === 'having_clause') {
-                const filters_a = QueryWindow.splitLogic(this.#query[clauseName].expr);
-                const filters_b = QueryWindow.splitLogic(query[clauseName].expr);
-                if (matchFilters(filters_a, filters_b)?.size !== 0) {
+                const filters_a = splitLogicalExpr(this.#query[clauseName].expr);
+                const filters_b = splitLogicalExpr(query[clauseName].expr);
+                if (matchLogicalExprs(filters_a, filters_b)?.size !== 0) {
                     // Clauses mismatch
                     return false;
                 }
@@ -139,7 +147,7 @@ export class QueryWindow extends SimpleEmitter {
         }
         for (let i = 0; i < selectItems_a.length; i++) {
             if (!_eq(selectItems_a[1].alias, selectItems_b[1].alias)
-                || !matchExprs(selectItems_a[1].expr, selectItems_b[1].expr)) {
+                || !matchExpr(selectItems_a[1].expr, selectItems_b[1].expr)) {
                 // Projection mismatch
                 return false;
             }
@@ -148,14 +156,15 @@ export class QueryWindow extends SimpleEmitter {
     }
 
     matchFilters(filters) {
-        return matchFilters(this.#filters, filters);
+        return matchLogicalExprs(this.#filters, filters);
     }
 
     resetFilters(newFilters) {
         this.#filters = newFilters;
-        this.#headlessWhereExpr = newFilters.reduce((left, right) => {
+        const _newFilters = newFilters.slice(0);
+        this.#headlessWhereExpr = _newFilters.reduce((left, right) => {
             return { nodeName: 'BINARY_EXPR', left, operator: 'AND', right };
-        }, newFilters.shift());
+        }, _newFilters.shift());
     }
 
     #satisfiesFilters(jointRecord) {
@@ -216,13 +225,11 @@ export class QueryWindow extends SimpleEmitter {
     }
 
     async #queryHeadless(extraFilters = [], jointIdCreateCallback = null) {
-        const aliases = [...this.#fromEngine.aliasesToTable.keys()];
-
         // Record ID create util
         if (!jointIdCreateCallback) {
             jointIdCreateCallback = (jointRecord) => {
-                const newKeysList = aliases.map((alias) => {
-                    const aliasSchema = this.#fromEngine.aliasesToTable.get(alias);
+                const newKeysList = this.#aliases.map((alias) => {
+                    const aliasSchema = this.#aliasSchemas.get(alias);
                     const _newKeys = aliasSchema.keyColumns.map((k) => jointRecord[alias][k]);
                     if (_newKeys.every((s) => s === null)) {
                         return null; // IMPORTANT
@@ -293,8 +300,8 @@ export class QueryWindow extends SimpleEmitter {
         const mode = this.#options.mode;
         return mode === 2
             ? jointRecord
-            : Object.fromEntries(Object.keys(jointRecord).map((alias) => {
-                const aliasSchema = this.#fromEngine.aliasesToTable.get(alias);
+            : Object.fromEntries(this.#aliases.map((alias) => {
+                const aliasSchema = this.#aliasSchemas.get(alias);
                 const rowObj = Object.fromEntries(aliasSchema.keyColumns.map((k) => [k, jointRecord[alias][k]]));
                 return [alias, rowObj];
             }));
@@ -318,7 +325,7 @@ export class QueryWindow extends SimpleEmitter {
         // Normalize oldKeys stuff
         const normalizedEvents = events.filter((e) => e.type === 'insert' || e.type === 'update' || e.type === 'delete').map((e) => {
             const relationHash = JSON.stringify([e.relation.schema, e.relation.name]);
-            const affectedAliases = [...this.#fromEngine.aliasesToTable.values()].map((aliasSchema) => aliasSchema.hash === relationHash);
+            const affectedAliases = [...this.#aliasSchemas.values()].map((aliasSchema) => aliasSchema.hashSet.has(relationHash));
             const keyColumns = e.relation.keyColumns;
             const oldKeys = e.key
                 ? Object.values(e.key)
@@ -381,11 +388,12 @@ export class QueryWindow extends SimpleEmitter {
         // we'll need to derive oldJointIds from keyHistoryMap
         let jointIdCreateCallback = null;
         if (keyHistoryMap.size) {
-            const aliases = [...this.#fromEngine.aliasesToTable.keys()];
             jointIdCreateCallback = (jointRecord) => {
-                const [oldKeysList, newKeysList] = aliases.reduce(([o, n], alias) => {
-                    const aliasSchema = this.#fromEngine.aliasesToTable.get(alias);
-                    const relationHash = aliasSchema.hash;
+                const [oldKeysList, newKeysList] = this.#aliases.reduce(([o, n], alias) => {
+                    const aliasSchema = this.#aliasSchemas.get(alias);
+                    const relationHash = aliasSchema.hashSet.size === 1
+                        ? [...aliasSchema.hashSet][0]
+                        : null;
                     const keyColumns = aliasSchema.keyColumns;
                     let _newKeys = keyColumns.map((k) => jointRecord[alias][k]);
                     if (_newKeys.every((s) => s === null)) {
@@ -557,8 +565,8 @@ export class QueryWindow extends SimpleEmitter {
             ...localJointIds,
             ...remoteJointIds
         ]);
-        const aliasesLength = this.#fromEngine.aliasesToTable.size;
         // Utils:
+        const aliasesLength = this.#aliasSchemas.size;
         const findPartialMatch = (oldJId) => {
             const oldJId_split = this.#keysFromJointId(oldJId);
             top: for (const newJId of remoteJointIds) {
@@ -634,78 +642,5 @@ export class QueryWindow extends SimpleEmitter {
             new: projection,
         });
     }
-
-    // ------------
-
-    static splitLogic(expr) {
-        if (expr.nodeName === 'BINARY_EXPR') {
-            if (expr.operator === 'OR') return null;
-            if (expr.operator === 'AND') {
-                const right = this.splitLogic(expr.right);
-                if (!right) return null;
-                return [expr.left].concat(right);
-            }
-        }
-        return [expr];
-    }
-
-    static extractTableNames(query) {
-        const [byAlias, bySchema] = [{}, {}];
-        for (const fromItem of query.from_clause.entries.concat(query.join_clauses || [])) {
-            // Aliases are expected - except for a FROM (subquery) scenario, where it's optional
-            const alias = fromItem.alias?.delim ? fromItem.alias.value : (fromItem.alias?.value.toLowerCase() || '');
-            if (fromItem.expr.nodeName === 'TABLE_REF1') {
-                // Both name and qualifier are expected
-                const tableName = fromItem.expr.delim ? fromItem.expr.value : fromItem.expr.value.toLowerCase();
-                const schemaName = fromItem.expr.qualifier.delim ? fromItem.expr.qualifier.value : fromItem.expr.qualifier.value.toLowerCase();
-                // Map those...
-                byAlias[alias] = new Set([JSON.stringify([schemaName, tableName])]);
-                bySchema[schemaName] = [].concat(bySchema[schemaName] || []).concat(tableName);
-            } else if (fromItem.expr.nodeName === 'DERIVED_QUERY') {
-                const [_byAlias, _bySchema] = this.extractTableNames(fromItem.expr.expr);
-                // Flatten, dedupe and map those...
-                const _byAlias_flat = Object.values(_byAlias).reduce((all, entries) => ([...all, ...entries]), []);
-                byAlias[alias] = new Set(_byAlias_flat);
-                for (const [schemaName, tableNames] of Object.entries(_bySchema)) {
-                    const tableNames_total = [].concat(bySchema[schemaName] || []).concat(tableNames);
-                    bySchema[schemaName] = [...new Set(tableNames_total)];
-                }
-            } else {
-                byAlias[alias] = new Set;
-            }
-        }
-        return [byAlias, bySchema];
-    }
 }
 
-const matchExprs = (a, b) => {
-    if (a.nodeName !== b.nodeName) return false;
-    if (a.nodeName === 'BINARY_EXPR') {
-        if (a.operator === b.operator
-            && ['=', '==', '!=', '<>', 'IS', 'IS NOT', 'DISTINCT FROM'].includes(a.operator)) {
-            return _eq(a.left, b.left) && _eq(a.right, b.right)
-                || _eq(a.right, b.left) && _eq(a.left, b.right);
-        }
-        if (a.operator === '<' && b.operator === '>'
-            || a.operator === '<=' && b.operator === '>='
-            || a.operator === '>' && b.operator === '<'
-            || a.operator === '>=' && b.operator === '<=') {
-            return _eq(a.right, b.left) && _eq(a.left, b.right);
-        }
-    }
-    return _eq(a, b);
-};
-
-const matchFilters = (a, b) => {
-    const _filters = new Set(b);
-    top: for (const _a of a) {
-        for (const _b of b) {
-            if (matchExprs(_a, _b)) {
-                _filters.delete(_b);
-                continue top;
-            }
-        }
-        return null;
-    }
-    return _filters;
-};

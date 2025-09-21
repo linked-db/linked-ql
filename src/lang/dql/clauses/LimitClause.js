@@ -24,7 +24,7 @@ export class LimitClause extends AbstractNode {
                 dialect: 'postgres',
                 syntaxes: [
                     { type: 'keyword', as: 'pg_all_kw', value: 'ALL' },
-                    { type: 'Expr', as: 'expr', assert: true, },
+                    { type: 'Expr', as: 'expr', assert: true },
                 ],
             },
         ];

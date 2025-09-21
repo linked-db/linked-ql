@@ -1,7 +1,7 @@
 import { TableSchema } from '../../lang/ddl/index.js';
 import { SchemaSchema } from '../../lang/ddl/schema/SchemaSchema.js';
 import { AbstractDriver } from '../abstracts/AbstractDriver.js';
-import { matchSelector, normalizeSelectorArg } from '../abstracts/util.js';
+import { matchSchemaSelector, normalizeSchemaSelectorArg } from '../abstracts/util.js';
 import { StorageEngine } from './StorageEngine.js';
 import { QueryEngine } from './QueryEngine.js';
 
@@ -41,11 +41,11 @@ export class LocalDriver extends AbstractDriver {
     }
 
     async showCreate(selector, schemaWrapped = false) {
-        selector = normalizeSelectorArg(selector);
+        selector = normalizeSchemaSelectorArg(selector);
         const schemas = [];
         for (const [schemaName, storage] of this.#storageEngines.entries()) {
             const objectNames = Object.entries(selector).reduce((arr, [_schemaName, objectNames]) => {
-                return matchSelector(schemaName, [_schemaName])
+                return matchSchemaSelector(schemaName, [_schemaName])
                     ? arr.concat(objectNames)
                     : arr;
             }, []);
@@ -60,7 +60,7 @@ export class LocalDriver extends AbstractDriver {
 
             // Schema tables:
             for (const tbl of await storage.tableNames()) {
-                if (!matchSelector(tbl, objectNames)) continue;
+                if (!matchSchemaSelector(tbl, objectNames)) continue;
                 const tableSchemaJson = (await storage.tableSchema(tbl)).jsonfy();
                 tableSchemaJson.name.qualifier = { nodeName: 'SCHEMA_REF', value: schemaName };
                 (schemaWrapped
@@ -89,7 +89,7 @@ export class LocalDriver extends AbstractDriver {
             callback = selector;
             selector = '*';
         }
-        selector = normalizeSelectorArg(selector);
+        selector = normalizeSchemaSelectorArg(selector);
         const abortLines = [...this.#storageEngines.entries()].map(([schemaName, storage]) => {
             const tables = [].concat(selector['*'] || []).concat(selector[schemaName] || []);
             if (!tables.length) return;

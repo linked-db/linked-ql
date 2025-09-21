@@ -1,3 +1,3 @@
-import { SimpleEmitter } from '../../db/SimpleEmitter.js';
+import { SimpleEmitter } from './SimpleEmitter.js';
 
 export class AbstractDriver extends SimpleEmitter {}
