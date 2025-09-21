@@ -1,10 +1,10 @@
 import { ErrorRefUnknown } from './ErrorRefUnknown.js';
 import { ErrorRefAmbiguous } from './ErrorRefAmbiguous.js';
-import { DDLSchemaMixin } from '../../../abstracts/DDLSchemaMixin.js';
+import { ResultSchemaMixin } from '../../../abstracts/ResultSchemaMixin.js';
 import { TypeSysMixin } from '../../../abstracts/TypeSysMixin.js';
 import { Identifier } from '../Identifier.js';
 
-export class AbstractClassicRef extends DDLSchemaMixin(TypeSysMixin(Identifier)) {
+export class AbstractClassicRef extends ResultSchemaMixin(TypeSysMixin(Identifier)) {
 
     lookup(transformer, dbContext) { return []; }
 

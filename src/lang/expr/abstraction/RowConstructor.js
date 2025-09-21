@@ -1,9 +1,9 @@
 import { TypeSysMixin } from '../../abstracts/TypeSysMixin.js';
-import { DDLSchemaMixin } from '../../abstracts/DDLSchemaMixin.js';
+import { ResultSchemaMixin } from '../../abstracts/ResultSchemaMixin.js';
 import { AbstractNodeList } from '../../abstracts/AbstractNodeList.js';
 import { registry } from '../../registry.js';
 
-export class RowConstructor extends DDLSchemaMixin(TypeSysMixin(AbstractNodeList)) {
+export class RowConstructor extends ResultSchemaMixin(TypeSysMixin(AbstractNodeList)) {
 
     /* SYNTAX RULES */
 

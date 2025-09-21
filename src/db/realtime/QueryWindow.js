@@ -1,7 +1,7 @@
 import { ExprEngine } from "../local/ExprEngine.js";
 import { SimpleEmitter } from '../abstracts/SimpleEmitter.js';
 import { splitLogicalExpr, matchLogicalExprs, matchExpr, scanQuery } from '../abstracts/util.js';
-import { _eq } from "../../lang/util.js";
+import { _eq } from "../../lang/abstracts/util.js";
 
 export class QueryWindow extends SimpleEmitter {
 

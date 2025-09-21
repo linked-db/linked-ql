@@ -1,5 +1,5 @@
 import { AbstractNode } from '../../abstracts/AbstractNode.js';
-import { _eq } from '../../util.js';
+import { _eq } from '../../abstracts/util.js';
 
 export class Identifier extends AbstractNode {
 

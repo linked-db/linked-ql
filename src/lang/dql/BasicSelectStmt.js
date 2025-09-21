@@ -111,6 +111,7 @@ export class BasicSelectStmt extends SelectorStmtMixin(
             ...resultJson,
             select_list: selectListJson,
             result_schema: selectListJson.result_schema,
+            origin_schemas: this.getOriginSchemas(transformer),
         };
 
         // --------------

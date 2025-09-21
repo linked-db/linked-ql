@@ -134,6 +134,10 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
 		resultJson = this.finalizeOutputJSON(resultJson, transformer, dbContext, options);
         // 2. Finalize generated JOINS. Must come first
         resultJson = this.finalizeSelectorJSON(resultJson, transformer, dbContext, options);
+        resultJson = {
+			...resultJson,
+			origin_schemas: this.getOriginSchemas(transformer),
+		};
         // 3. Finalize entire query rewrite - returning a CTE
         resultJson = this.finalizePayloadJSON(resultJson, transformer, dbContext, options);
 

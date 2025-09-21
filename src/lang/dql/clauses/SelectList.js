@@ -1,9 +1,9 @@
-import { DDLSchemaMixin } from '../../abstracts/DDLSchemaMixin.js';
+import { ResultSchemaMixin } from '../../abstracts/ResultSchemaMixin.js';
 import { AbstractNodeList } from '../../abstracts/AbstractNodeList.js';
 import { registry } from '../../registry.js';
-import { _eq } from '../../util.js';
+import { _eq } from '../../abstracts/util.js';
 
-export class SelectList extends DDLSchemaMixin(AbstractNodeList) {
+export class SelectList extends ResultSchemaMixin(AbstractNodeList) {
 
     /* SYNTAX RULES */
 

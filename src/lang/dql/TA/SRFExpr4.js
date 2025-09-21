@@ -1,8 +1,8 @@
-import { DDLSchemaMixin } from '../../abstracts/DDLSchemaMixin.js';
+import { ResultSchemaMixin } from '../../abstracts/ResultSchemaMixin.js';
 import { AbstractNodeList } from '../../abstracts/AbstractNodeList.js';
 import { registry } from '../../registry.js';
 
-export class SRFExpr4 extends DDLSchemaMixin(AbstractNodeList) {
+export class SRFExpr4 extends ResultSchemaMixin(AbstractNodeList) {
 
     /* SYNTAX RULES */
 

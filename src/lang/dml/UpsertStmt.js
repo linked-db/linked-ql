@@ -1,7 +1,7 @@
 import { SugarMixin } from '../abstracts/SugarMixin.js';
 import { InsertStmt } from './InsertStmt.js';
 import { registry } from '../registry.js';
-import { _eq } from '../util.js';
+import { _eq } from '../abstracts/util.js';
 
 export class UpsertStmt extends SugarMixin(InsertStmt) {
 

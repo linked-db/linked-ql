@@ -1,7 +1,7 @@
-import { DDLSchemaMixin } from '../../abstracts/DDLSchemaMixin.js';
+import { ResultSchemaMixin } from '../../abstracts/ResultSchemaMixin.js';
 import { AbstractClassicExpr } from '../AbstractClassicExpr.js';
 
-export class CallExpr extends DDLSchemaMixin(AbstractClassicExpr) {
+export class CallExpr extends ResultSchemaMixin(AbstractClassicExpr) {
 
     /* SYNTAX RULES */
 

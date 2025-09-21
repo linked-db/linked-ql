@@ -1,5 +1,5 @@
 import { _isObject } from '@webqit/util/js/index.js';
-import { _eq, _toCapsSnake } from '../util.js';
+import { _eq, _toCapsSnake } from './util.js';
 import { TokenStream } from '../TokenStream.js';
 import { TOK_TYPES } from '../toktypes.js';
 import { registry } from '../registry.js';

@@ -1,6 +1,6 @@
 import { Transformer } from '../Transformer.js';
 import { registry } from '../registry.js';
-import { _eq } from '../util.js';
+import { _eq } from './util.js';
 
 export const SelectorStmtMixin = (Class) => class extends Class {
 

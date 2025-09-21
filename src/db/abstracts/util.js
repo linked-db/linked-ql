@@ -1,4 +1,4 @@
-import { _eq } from '../../lang/util.js';
+import { _eq } from '../../lang/abstracts/util.js';
 
 export function normalizeSchemaSelectorArg(selector, flatten = false) {
     if (selector === '*') {

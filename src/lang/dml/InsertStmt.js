@@ -202,9 +202,13 @@ export class InsertStmt extends PayloadStmtMixin(DMLStmt) {
 
 		// 1. Finalize output JSON
 		resultJson = this.finalizeOutputJSON(resultJson, transformer, dbContext, options);
+		resultJson = {
+			...resultJson,
+			origin_schemas: this.getOriginSchemas(transformer),
+		};
 		// 2. Finalize generated JOINS. Must come last
 		resultJson = this.finalizePayloadJSON(resultJson, transformer, dbContext, options);
-
+		
 		return resultJson;
 	}
 }

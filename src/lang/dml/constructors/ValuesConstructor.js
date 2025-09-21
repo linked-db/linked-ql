@@ -1,7 +1,7 @@
-import { DDLSchemaMixin } from '../../abstracts/DDLSchemaMixin.js';
+import { ResultSchemaMixin } from '../../abstracts/ResultSchemaMixin.js';
 import { AbstractNodeList } from '../../abstracts/AbstractNodeList.js';
 
-export class ValuesConstructor extends DDLSchemaMixin(AbstractNodeList) {
+export class ValuesConstructor extends ResultSchemaMixin(AbstractNodeList) {
 
     /* SYNTAX RULES */
 

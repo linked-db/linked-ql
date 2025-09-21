@@ -1,6 +1,6 @@
 import { AbstractLQJsonLiteral } from './AbstractLQJsonLiteral.js';
 import { registry } from '../../registry.js';
-import { _eq } from '../../util.js';
+import { _eq } from '../../abstracts/util.js';
 
 export class LQObjectLiteral extends AbstractLQJsonLiteral {
 

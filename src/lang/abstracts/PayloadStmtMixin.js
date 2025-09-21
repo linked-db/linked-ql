@@ -1,6 +1,6 @@
 import { Transformer } from '../Transformer.js';
 import { registry } from '../registry.js';
-import { _eq } from '../util.js';
+import { _eq } from './util.js';
 
 export const PayloadStmtMixin = (Class) => class extends Class {
 
@@ -1019,7 +1019,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			cte.body = instance.jsonfy(options, $transformer, dbContext);
 		}
 
-		return { ...cte, result_schema: cte.body.result_schema };
+		return { ...cte, result_schema: cte.body.result_schema, origin_schemas: cte.body.origin_schemas };
 	}
 }
 

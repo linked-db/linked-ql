@@ -1,7 +1,7 @@
-import { DDLSchemaMixin } from '../../abstracts/DDLSchemaMixin.js';
+import { ResultSchemaMixin } from '../../abstracts/ResultSchemaMixin.js';
 import { ParenExpr } from '../../expr/abstraction/ParenExpr.js';
 
-export class DerivedQuery extends DDLSchemaMixin(ParenExpr) {
+export class DerivedQuery extends ResultSchemaMixin(ParenExpr) {
 
     /* SYNTAX RULES */
 

@@ -130,6 +130,11 @@ export class DeleteStmt extends SelectorStmtMixin(DMLStmt) {
         // 2. Finalize generated JOINS
         resultJson = this.finalizeSelectorJSON(resultJson, transformer, dbContext, options);
         
+        resultJson = {
+			...resultJson,
+			origin_schemas: this.getOriginSchemas(transformer),
+		};
+        
         return resultJson;
     }
 }

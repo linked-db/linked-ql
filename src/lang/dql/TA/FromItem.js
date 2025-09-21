@@ -1,9 +1,9 @@
-import { DDLSchemaMixin } from '../../abstracts/DDLSchemaMixin.js';
+import { ResultSchemaMixin } from '../../abstracts/ResultSchemaMixin.js';
 import { AbstractNode } from '../../abstracts/AbstractNode.js';
 import { Transformer } from '../../Transformer.js';
 import { registry } from '../../registry.js';
 
-export class FromItem extends DDLSchemaMixin(AbstractNode) {
+export class FromItem extends ResultSchemaMixin(AbstractNode) {
 
     /* SYNTAX RULES */
 
