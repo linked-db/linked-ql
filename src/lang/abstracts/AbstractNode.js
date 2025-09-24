@@ -64,6 +64,8 @@ export class AbstractNode {
 	 * -----------
 	 */
 
+	_keys() { return Object.keys(this.#ast).filter((k) => this.#ast[k] !== undefined); }
+
 	_has(fieldName, index = undefined, cs = undefined) {
 		if (!(fieldName in this.#ast)) return false;
 		if (typeof index === 'number') {
@@ -215,8 +217,8 @@ export class AbstractNode {
 		return instance;
 	}
 
-	deSugar(toLevl = 1, options = {}, transformer = null, dbContext = null) {
-		options = { ...options, deSugar: toLevl/* overrridingly */ };
+	deSugar(transformSpec, options = {}, transformer = null, dbContext = null) {
+		options = { ...options, deSugar: transformSpec/* overrridingly */ };
 		return this.clone(options, transformer, dbContext);
 	}
 

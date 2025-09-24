@@ -27,6 +27,8 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 
 	dataType() { return registry.DataType.fromJSON({ value: 'SET' }); }
 
+	// ----------------
+
 	canReferenceInlineTables() { return true; }
 
 	lookup(deepMatchCallback = null, transformer = null, dbContext = null) {
@@ -34,25 +36,37 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 
 		const name = this._get('value');
 		const inGrepMode = (!name || name === '*') && !deepMatchCallback;
+
+		const isFromItemRef = this.parentNode instanceof registry.FromItem;
+		const enclosingDerivedQuery = this.statementNode?.parentNode instanceof registry.DerivedQuery
+			? this.statementNode?.parentNode
+			: null;
+		const canTraverseUp = isFromItemRef // Can reference CTE
+			|| !enclosingDerivedQuery 
+			|| !(enclosingDerivedQuery.parentNode instanceof registry.FromItem)
+			|| !(enclosingDerivedQuery.parentNode/* FromItem */.parentNode/* FromClause */?.parentNode/* SelectStmt */ instanceof registry.SelectStmt)
+			|| enclosingDerivedQuery.parentNode.lateralKW();
+
 		let resultSet = [];
 
-		const resolve = (tableSchema, qualifierJson = undefined) => {
+		const resolve = (tableSchema, qualifierJson = undefined, resolution = 'default') => {
 			if (tableSchema instanceof registry.JSONSchema && (!name || name === '*') && deepMatchCallback) {
 				// We're trying to resolve a column,
 				// and this is an "unaliased" derived query coming from statementContext.artifacts.get('tableSchemas')
-				return deepMatchCallback(tableSchema, qualifierJson);
+				return deepMatchCallback(tableSchema, qualifierJson, resolution);
 			}
 			if (!(tableSchema instanceof registry.TableSchema)) return false;
 			if (name && name !== '*' && !tableSchema.identifiesAs(this)) return false;
-			
+
 			let result;
-			if (deepMatchCallback && !(result = deepMatchCallback(tableSchema, qualifierJson))) return false;
+			if (deepMatchCallback && !(result = deepMatchCallback(tableSchema, qualifierJson, resolution))) return false;
 			if (result instanceof AbstractNode || Array.isArray(result)) return result;
 
 			const resolvedTableRef = this.constructor.fromJSON({
 				...tableSchema.name().jsonfy({ nodeNames: false }),
-				result_schema: tableSchema,
+				resolution,
 				qualifier: qualifierJson,
+				result_schema: tableSchema,
 			});
 			this.parentNode?._adoptNodes(resolvedTableRef);
 
@@ -61,41 +75,60 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 
 		// 1. Resolve system refs statically
 		const systemTableRefs = (this.options.dialect || 'postgres') === 'postgres'
-            ? ['EXCLUDED']
-            : [];
-        if (systemTableRefs.includes(name?.toUpperCase()) && transformer) {
-            const tableSchema = [...transformer.statementContext.artifacts.get('tableSchemas')][0].resultSchema.clone({
+			? ['EXCLUDED']
+			: [];
+		if (systemTableRefs.includes(name?.toUpperCase()) && transformer) {
+			const tableSchema = [...transformer.statementContext.artifacts.get('tableSchemas')][0].resultSchema.clone({
 				renameTo: { nodeName: registry.Identifier.NODE_NAME, value: name },
 			});
-            return [].concat(resolve(tableSchema) || []);
-        }
+			return [].concat(resolve(tableSchema, undefined, 'system') || []);
+		}
 
 		// 2. Resolve from InlineTables first?
 		if (this.canReferenceInlineTables() && transformer) {
 			let statementContext = transformer.statementContext;
-			let originalType;
+			let originalType, inSuperScopeNow, queryScopes = new Set;
 			do {
-				for (const { type, resultSchema: tableSchema } of statementContext.artifacts.get('tableSchemas')) {
-					if (originalType && originalType !== 'dml' && type === 'dml') {
-						// The nested SELECT in an "INSERT ... SELECT" shouldn't see the INSERT
-						continue;
-					}
-					if (!originalType) {
-						originalType = type;
-					}
-					if (type === 'CTEItem' && deepMatchCallback) {
-						// columns can't directly reference CTE output columns
-						continue;
-					}
-					resultSet = resultSet.concat(resolve(tableSchema) || []);
-					if (!inGrepMode && resultSet.length) break; // Matching current instance only
+				inSuperScopeNow = statementContext !== transformer.statementContext;
+				if (!isFromItemRef) {
+					queryScopes.add(statementContext);
 				}
-			} while ((inGrepMode || !resultSet.length) && (statementContext = statementContext.parentTransformer?.statementContext))
+				for (const { type, resultSchema: tableSchema } of statementContext.artifacts.get('tableSchemas')) {
+					if (isFromItemRef) {
+						if (type !== 'CTEItem') continue;
+					} else {
+						if (type === 'CTEItem') continue;
+						if (originalType && originalType !== 'dml' && type === 'dml') {
+							// The nested SELECT in an "INSERT ... SELECT" shouldn't see the INSERT
+							continue;
+						}
+						if (!originalType) {
+							originalType = type;
+						}
+					}
+					resultSet = resultSet.concat(resolve(
+						tableSchema,
+						undefined,
+						type === 'CTEItem'
+							? 'cte'
+							: (inSuperScopeNow ? 'scope' : 'default')
+					) || []);
+					if (resultSet.length && !inGrepMode) {
+						for (const queryScope of queryScopes) {
+							if (!queryScope.artifacts.has('derivedQueryCorrelationFlag')) continue;
+							queryScope.artifacts.set('derivedQueryCorrelationFlag', true);
+						}
+						break;
+					}
+				}
+			} while (canTraverseUp && (inGrepMode || !resultSet.length) && (statementContext = statementContext.parentTransformer?.statementContext))
 		}
 
 		// 3. Resolve normally
 		if (!deepMatchCallback/* we're not trying to qualify a column */ && (inGrepMode || !resultSet.length)) {
-			resultSet = resultSet.concat((new registry.SchemaRef(this.qualifier()?.jsonfy() || {})).lookup(
+			const tempSchemaRef = new registry.SchemaRef(this.qualifier()?.jsonfy() || {});
+            this._adoptNodes(tempSchemaRef);
+			resultSet = resultSet.concat(tempSchemaRef.lookup(
 				(schemaSchema) => {
 
 					return schemaSchema._get('entries').reduce((prev, tableSchema) => {
@@ -114,36 +147,40 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 		}
 
 		if (name === '*') {
-            const compositeResult = registry.TableRef0.fromJSON({
-                value: this.value(),
-                result_schema: registry.JSONSchema.fromJSON({ entries: resultSet.map((s) => s.clone()) }, { assert: true }),
-            });
-            this.parentNode._adoptNodes(compositeResult);
-            resultSet = [compositeResult];
-        }
+			const compositeResult = registry.TableRef0.fromJSON({
+				value: this.value(),
+				result_schema: registry.JSONSchema.fromJSON({ entries: resultSet.map((s) => s.clone()) }, { assert: true }),
+			});
+			this.parentNode._adoptNodes(compositeResult);
+			resultSet = [compositeResult];
+		}
 
 		return resultSet;
 	}
 
 	jsonfy(options = {}, transformer = null, dbContext = null) {
 		let resultJson;
-
-		if (options.deSugar
-			&& ((!this.qualifier() && Number(options.deSugar) > 1)
-				|| !this.resultSchema())
-			&& (transformer || dbContext)) {
+		if (options.deSugar && (
+			((options.deSugar === true || options.deSugar.tableQualifiers) && !this.qualifier())
+			|| !this.resultSchema()
+		) && (transformer || dbContext)) {
+			// Table qualification or schema resolution...
 			resultJson = this.resolve(transformer, dbContext).jsonfy(/* IMPORTANT */);
-			if (Number(options.deSugar) < 2 && !this.qualifier()) {
+			// Case normalization...
+			if ((options.deSugar === true || options.deSugar.normalizeCasing) && !resultJson.delim) {
+				resultJson = { ...resultJson, value: resultJson.resolution === 'system' ? resultJson.value.toUpperCase() : resultJson.value.toLowerCase() };
+			}
+			// Drop qualifier...
+			if (!(options.deSugar === true || options.deSugar.tableQualifiers) && !this.qualifier()) {
 				resultJson = { ...resultJson, qualifier: undefined };
 			}
 		} else {
 			resultJson = super.jsonfy(options, transformer, dbContext);
 		}
-
-		if (options.deSugar && resultJson.version_spec) {
+		// Drop version specs...
+		if ((options.deSugar === true || options.deSugar?.dropVersionSpecs) && resultJson.version_spec) {
 			resultJson = { ...resultJson, version_spec: undefined };
 		}
-
 		return resultJson;
 	}
 }

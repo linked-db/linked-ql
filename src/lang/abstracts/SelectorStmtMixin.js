@@ -132,7 +132,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
                     // FROM <rhsTable>
                     from_clause: {
                         nodeName: FromClause.NODE_NAME,
-                        entries: [{ nodeName: FromItem.NODE_NAME, expr: rhsTable.jsonfy({ ...$options, deSugar: 0 }) }]
+                        entries: [{ nodeName: FromItem.NODE_NAME, expr: rhsTable.jsonfy({ ...$options, deSugar: null }) }]
                     },
                     // GROUP BY <rhsOperandMask>
                     group_by_clause: asAggr ? {
@@ -149,7 +149,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
                 expr: {
                     nodeName: BinaryExpr.NODE_NAME,
                     operator: '=',
-                    left: lhsOperand.jsonfy({ ...$options, deSugar: 0 }, transformer, dbContext),
+                    left: lhsOperand.jsonfy({ ...$options, deSugar: null }, transformer, dbContext),
                     right: {
                         nodeName: ColumnRef1.NODE_NAME,
                         qualifier: { nodeName: TableRef1.NODE_NAME, value: dimensionID },
@@ -205,7 +205,7 @@ export const SelectorStmtMixin = (Class) => class extends Class {
             this._adoptNodes(joinNode);
 
             const joinJson2 = transformer.transform(joinNode, ($options = options, childTransformer = transformer) => {
-                return joinNode.jsonfy({ ...$options, deSugar: 2 }, childTransformer, dbContext);
+                return joinNode.jsonfy($options, childTransformer, dbContext);
             }, null, options);
 
             resultJson.join_clauses.push(joinJson2);

@@ -18,9 +18,6 @@ export class RealtimeClient extends AbstractClient {
 
     async query(...args) {
         const [query, callback, options] = normalizeQueryArgs(true, ...args);
-        if (!['BASIC_SELECT_STMT', 'COMPLETE_SELECT_STMT'].includes(query?.nodeName)) {
-            throw new Error('Only SELECT statements are supported in RealtimeClient');
-        }
         if (!callback) {
             throw new Error('A callback function must be provided for realtime queries');
         }

@@ -34,7 +34,7 @@ export class Pool extends AbstractClient {
             stdio: 'inherit'
         });
         this.#serverProcess.on('exit', (code, signal) => {
-            this.emit('error', `Proxy Server process exited (code=${code}, signal=${signal}), terminating...`);
+            this.emit('error', new Error(`Proxy Server process exited (code=${code}, signal=${signal}), terminating...`));
             this.terminateAll();
             process.exit(1);
         });
@@ -100,7 +100,7 @@ export class Pool extends AbstractClient {
             }
         });
         workerProcess.on('exit', (code, signal) => {
-            this.emit('error', `Worker process exited (code=${code}, signal=${signal}), respawning...`);
+            this.emit('error', new Error(`Worker process exited (code=${code}, signal=${signal}), respawning...`));
             this.#reassignSubscriptions(workerProcess);
             this.#spawnWorker();
             this.#removeWorker(workerProcess);

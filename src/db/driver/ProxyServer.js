@@ -28,7 +28,7 @@ export class ProxyServer extends SimpleEmitter {
                 for (const line of lines) {
                     let msg;
                     try { msg = JSON.parse(line); } catch (err) {
-                        this.emit('error', `Incoming message error: ${err.message}`);
+                        this.emit('error', new Error(`Incoming message error: ${err.message}`));
                     }
                     await this.handle(clientSocket, msg);
                 }
@@ -36,7 +36,7 @@ export class ProxyServer extends SimpleEmitter {
             // Handle lifecycle events
             clientSocket.on('error', (err) => {
                 this.handleUnsubscribe(clientSocket);
-                this.emit('error', `Worker error ${err}`);
+                this.emit('error', new Error(`Worker error ${err}`));
             });
             clientSocket.on('close', () => {
                 this.handleUnsubscribe(clientSocket);
@@ -49,7 +49,7 @@ export class ProxyServer extends SimpleEmitter {
             clientSocket.write(JSON.stringify(data) + '\n');
             if (autoClose) clientSocket.close();
         } catch (e) {
-            this.emit('error', `Outgoing message error; ${e.message}`);
+            this.emit('error', new Error(`Outgoing message error; ${e.message}`));
         }
     }
 
@@ -65,13 +65,13 @@ export class ProxyServer extends SimpleEmitter {
 
     async handleQuery(clientSocket, msg) {
         if (!Array.isArray(msg.args)) {
-            this.emit('error', `Incoming message invalid: ${JSON.stringify(msg)}`);
+            this.emit('error', new Error(`Incoming message invalid: ${JSON.stringify(msg)}`));
         }
         try {
             const result = await this.#dbClient.query(...msg.args);
             this._send(clientSocket, { type: 'result', data: result });
         } catch (e) {
-            this._send(clientSocket, { type: 'error', message: e.message }, true);
+            this._send(clientSocket, { type: 'error', message: e }, true);
         }
     }
 

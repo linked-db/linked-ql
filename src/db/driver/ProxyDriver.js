@@ -28,7 +28,7 @@ export class ProxyDriver extends AbstractDriver {
                 if (!line) continue;
                 let change;
                 try { change = JSON.parse(line); } catch (err) {
-                    this.emit('error', `Incoming message error: ${err.message}`);
+                    this.emit('error', new Error(`Incoming message error: ${err.message}`));
                 }
                 if (change.type === 'batch') {
                     for (const event of change.entries) {
@@ -37,15 +37,15 @@ export class ProxyDriver extends AbstractDriver {
                 }
             }
         });
-        this.#serverSocket.on('error', (err) => this.emit('error', `Socket error: ${err}`));
-        this.#serverSocket.on('close', () => this.emit('error', `Socket closed`));
+        this.#serverSocket.on('error', (err) => this.emit('error', new Error(`Socket error: ${err}`)));
+        this.#serverSocket.on('close', () => this.emit('error', new Error(`Socket closed`)));
     }
 
     async query(...args) {
         const [query, options] = normalizeQueryArgs(...args);
         if (!this.#serverSocket) throw new Error(`No connection to remote host.`);
         const result = await this.#serverSocket.write(JSON.stringify({ type: 'query', query, options }) + '\n');
-        if (result.type === 'error') throw new Error(result.message);
+        if (result.type === 'error') throw result.message;
         return result.data;
     }
 

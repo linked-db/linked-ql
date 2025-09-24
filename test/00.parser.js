@@ -59,9 +59,25 @@ export async function testParseAndStringify(entryPoint, sql, options = {}, dbCon
 
     // ------------------------- deSugaring
 
+    const deSugarSpec = {
+        tableQualifiers: true,
+        tableAliases: -1,
+        columnQualifiers: true,
+        selectAliases: -1,
+        normalizeCasing: true,
+        // ---- expansions
+        expandStarRefs: true,
+        flattenUnaliasedRootObjects: false,
+        // ---- exclusions
+        dropVersionSpecs: true,
+        // ---- edges
+        rowConstructorSchemas: false,
+        resultSchemas: true,
+    };
+
     let desugaredResultNode = resultNode;
     if (options.deSugar) {
-        desugaredResultNode = resultNode.deSugar(options.deSugar, { dialect: options.dialect }, null, dbContext);
+        desugaredResultNode = resultNode.deSugar(deSugarSpec, { dialect: options.dialect }, null, dbContext);
     } else if (options.deSugar || options.toDialect) {
         desugaredResultNode = resultNode.toDialect(options.toDialect, { dialect: options.dialect }, null, dbContext);
     }
@@ -80,7 +96,7 @@ export async function testParseAndStringify(entryPoint, sql, options = {}, dbCon
 
     let desugaredResultClone = resultClone;
     if (options.deSugar) {
-        desugaredResultClone = desugaredResultClone.deSugar(options.deSugar, { dialect: options.dialect }, null, dbContext);
+        desugaredResultClone = desugaredResultClone.deSugar(deSugarSpec, { dialect: options.dialect }, null, dbContext);
     } else if (options.deSugar || options.toDialect) {
         desugaredResultClone = desugaredResultClone.toDialect(options.toDialect, { dialect: options.dialect }, null, dbContext);
     }

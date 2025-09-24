@@ -26,8 +26,8 @@ export class SimpleEmitter {
         const s = this.#listeners.get(event);
         if (!s) return;
         for (const fn of s) {
+            fn(payload);
             try {
-                fn(payload);
             } catch (err) {
                 // eslint-disable-next-line no-console
                 console.error('emitter handler error', err);

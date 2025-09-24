@@ -55,19 +55,25 @@ export class ExprEngine {
         throw new Error(`SCALAR_SUBQUERY unimplemented`);
     }
 
+    ROW_CONSTRUCTOR(node, compositeRow, entireWindow = null) {
+        const entries = node.entries.map((e) => this.evaluate(e, compositeRow, entireWindow));
+        return entries.length > 1 ? entries : entries[0];
+    }
+
     BINARY_EXPR(node, compositeRow, entireWindow = null) {
+        const op = node.operator.toUpperCase();
         const L = this.evaluate(node.left, compositeRow, entireWindow);
         const R = this.evaluate(node.right, compositeRow, entireWindow);
-        const op = node.operator.toUpperCase();
-
         if (L == null || R == null) {
             if (op === 'IS') return L === R;
             if (op === 'IS NOT') return L !== R;
         }
 
         switch (op) {
-            case '=': case '==': return _eq(L, R);
-            case '<>': case '!=': return !_eq(L, R);
+            case '=':
+            case '==': return _eq(L, R);
+            case '<>':
+            case '!=': return !_eq(L, R);
             case '<': return L < R;
             case '<=': return L <= R;
             case '>': return L > R;
@@ -75,7 +81,9 @@ export class ExprEngine {
             case 'AND': return Boolean(L) && Boolean(R);
             case 'OR': return Boolean(L) || Boolean(R);
             case 'LIKE': return likeCompare(String(L), String(R));
-            case 'IN': return Array.isArray(R) && R.some((v) => _eq(L, v));
+            case 'IN': return [].concat(R).some((v) => _eq(L, v));
+
+            case '||': return (L ?? '') + (R ?? '');
             default:
                 throw new Error(`ExprEngine: Unsupported binary operator ${op}`);
         }
@@ -266,7 +274,7 @@ export class ExprEngine {
         }
     }
 
-    COLUMN_REF(node, compositeRow) {
+    COLUMN_REF1(node, compositeRow) {
         if (!node) return undefined;
         const colName = node.delim ? node.value : node.value.toLowerCase();
         const qualifier = node.qualifier || {};

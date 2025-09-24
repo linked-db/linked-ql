@@ -20,7 +20,7 @@ export class SelectList extends ResultSchemaMixin(AbstractNodeList) {
 
         let resolvedOutputList = [];
 
-        const shouldFlattenUnaliasedRootObjects = Number(options.deSugar) > 2;
+        const shouldFlattenUnaliasedRootObjects = (options.deSugar === true || options.deSugar?.flattenUnaliasedRootObjects);
         const shouldDedupe = false;
 
         const addOutputItem = (itemJson) => {
@@ -80,7 +80,7 @@ export class SelectList extends ResultSchemaMixin(AbstractNodeList) {
     }
 
     finalizeJSON(resultJson, transformer, dbContext, options) {
-        const shouldDeSugarStars = Number(options.deSugar) > 1;
+        const shouldDeSugarStars = (options.deSugar === true || options.deSugar?.expandStarRefs);
         let starsFound;
 
         const [

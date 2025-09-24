@@ -115,8 +115,8 @@ export class SelectItem extends ResultSchemaMixin(AbstractNode) {
                 exprNode._adoptNodes(resultSchema);
             }
 
-            const applicableAliasJson = (asAggr || Number(options.deSugar) > 2 || (
-                Number(options.deSugar) > 1 && (this.parentNode?.entries().length || 0) > 1
+            const applicableAliasJson = (asAggr || options.deSugar === true || Number(options.deSugar?.selectAliases) === 1 || (
+                options.deSugar?.selectAliases === -1 && (this.parentNode?.entries().length || 0) > 1
             )) && derivedAliasJson || this.alias()?.jsonfy();
 
             return {

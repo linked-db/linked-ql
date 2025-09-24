@@ -85,7 +85,6 @@ export class DBContext {
         let currentFulfilment,
             totalFulfilment = Promise.resolve(0);
         if (Object.keys(diffedSelectors).length) {
-            console.log('___________________', this.#driver);
             currentFulfilment = this.#driver?.showCreate(diffedSelectors, true);
             pendingFulfilments.push(currentFulfilment);
             for (const newRecord of newRecords) {

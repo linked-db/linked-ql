@@ -1,4 +1,5 @@
 import { _eq } from '../../lang/abstracts/util.js';
+import { registry } from '../../lang/registry.js';
 
 export function normalizeSchemaSelectorArg(selector, flatten = false) {
     if (selector === '*') {
@@ -54,11 +55,11 @@ export function normalizeQueryArgs(...args) {
     if (typeof args[0] === 'boolean') {
         withCallback = args.shift();
     }
-    if (typeof args[0] === 'object' && args[0] && args[0].query) {
+    if (typeof args[0] === 'object' && args[0] && args[0].text) {
         if (withCallback) {
-            ({ query, callback, ...options } = args[0]);
+            ({ text: query, callback, ...options } = args[0]);
         } else {
-            ({ query, ...options } = args[0]);
+            ({ text: query, ...options } = args[0]);
         }
     } else {
         query = args.shift();
@@ -78,65 +79,13 @@ export function normalizeQueryArgs(...args) {
     return [query, options];
 }
 
-export function scanQuery(query, withMeta = false) {
-    const [fromItemsByAlias, fromItemsBySchema, meta] = [{}, {}, {}];
-    for (const fromItem of query.from_clause.entries.concat(query.join_clauses || [])) {
-        // Aliases are expected - except for a FROM (subquery) scenario, where it's optional
-        const alias = fromItem.alias?.delim ? fromItem.alias.value : (fromItem.alias?.value.toLowerCase() || '');
-        if (fromItem.expr.nodeName === 'TABLE_REF1') {
-            // Both name and qualifier are expected
-            const tableName = fromItem.expr.delim ? fromItem.expr.value : fromItem.expr.value.toLowerCase();
-            const schemaName = fromItem.expr.qualifier.delim ? fromItem.expr.qualifier.value : fromItem.expr.qualifier.value.toLowerCase();
-            // Map those...
-            fromItemsByAlias[alias] = new Set([JSON.stringify([schemaName, tableName])]);
-            fromItemsBySchema[schemaName] = [].concat(fromItemsBySchema[schemaName] || []).concat(tableName);
-        } else if (fromItem.expr.nodeName === 'DERIVED_QUERY') {
-            const [_fromItemsByAlias, _fromItemsBySchema] = scanQuery(fromItem.expr.expr);
-            // Flatten, dedupe and map those...
-            const _fromItemsByAlias_flat = Object.values(_fromItemsByAlias).reduce((all, entries) => ([...all, ...entries]), []);
-            fromItemsByAlias[alias] = new Set(_fromItemsByAlias_flat);
-            for (const [schemaName, tableNames] of Object.entries(_fromItemsBySchema)) {
-                const tableNames_total = [].concat(fromItemsBySchema[schemaName] || []).concat(tableNames);
-                fromItemsBySchema[schemaName] = [...new Set(tableNames_total)];
-            }
-        } else {
-            // Other FROM ITEM types
-            fromItemsByAlias[alias] = new Set;
-        }
-    }
-    if (!withMeta) return [fromItemsByAlias, fromItemsBySchema];
-    for (const clause of ['select_list', 'where_clause', 'order_by_clause']) {
-        if (query[clause] && scanExpr(query[clause], 'SCALAR_SUBQUERY')) {
-            meta.hasScalarSubquery = true;
-            break;
-        }
-    }
-    if (query.group_by_clause?.entries.length) {
-        meta.hasAggrFunctions = true;
-    } else {
-        for (const clause of ['select_list', 'where_clause', 'order_by_clause']) {
-            if (query[clause] && scanExpr(query[clause], 'AGGR_CALL_EXPR')) {
-                meta.hasAggrFunctions = true;
-                break;
-            }
-        }
-    }
-    if (query.offset_clause?.expr) {
-        meta.hasOffset = true;
-    }
-    if (query.limit_clause?.expr) {
-        meta.hasLimit = true;
-    }
-    return [fromItemsByAlias, fromItemsBySchema, meta];
-}
-
 export function splitLogicalExpr(expr) {
-    if (expr.nodeName === 'BINARY_EXPR') {
-        if (expr.operator === 'OR') return null;
-        if (expr.operator === 'AND') {
-            const right = splitLogicalExpr(expr.right);
+    if (expr instanceof registry.BinaryExpr) {
+        if (expr.operator() === 'OR') return null;
+        if (expr.operator() === 'AND') {
+            const right = splitLogicalExpr(expr.right());
             if (!right) return null;
-            return [expr.left].concat(right);
+            return [expr.left()].concat(right);
         }
     }
     return [expr];
@@ -157,30 +106,22 @@ export function matchLogicalExprs(a, b) {
 }
 
 export function matchExpr(a, b) {
-    if (a.nodeName !== b.nodeName) return false;
-    if (a.nodeName === 'BINARY_EXPR') {
-        if (a.operator === b.operator
-            && ['=', '==', '!=', '<>', 'IS', 'IS NOT', 'DISTINCT FROM'].includes(a.operator)) {
-            return _eq(a.left, b.left) && _eq(a.right, b.right)
-                || _eq(a.right, b.left) && _eq(a.left, b.right);
+    if (!(a instanceof b.constructor)
+        && !(b instanceof a.constructor)) return false;
+    if (a instanceof registry.BinaryExpr) {
+        const matchOperators = (ops) => [a, b].every((x) => ops.includes(x.operator()));
+        if (matchOperators(['=', '=='])
+            || matchOperators(['!=', '<>'])
+            || (a.operator() === b.operator() && ['IS', 'IS NOT', 'DISTINCT FROM'].includes(a.operator()))) {
+            return matchExpr(a.left(), b.left()) && matchExpr(a.right(), b.right())
+                || matchExpr(a.right(), b.left()) && matchExpr(a.left(), b.right());
         }
-        if (a.operator === '<' && b.operator === '>'
-            || a.operator === '<=' && b.operator === '>='
-            || a.operator === '>' && b.operator === '<'
-            || a.operator === '>=' && b.operator === '<=') {
-            return _eq(a.right, b.left) && _eq(a.left, b.right);
-        }
-    }
-    return _eq(a, b);
-}
-
-export function scanExpr(nodeJson, search) {
-    for (const k of Object.keys(nodeJson)) {
-        if (!Array.isArray(nodeJson[k])
-            && !(typeof nodeJson[k] === 'object' && nodeJson[k])) continue;
-        if (nodeJson[k].nodeName === search
-            || scanExpr(nodeJson[k], 'AGGR_CALL_EXPR')) {
-            return true;
+        if (a.operator() === '<' && b.operator() === '>'
+            || a.operator() === '<=' && b.operator() === '>='
+            || a.operator() === '>' && b.operator() === '<'
+            || a.operator() === '>=' && b.operator() === '<=') {
+            return matchExpr(a.right(), b.left()) && matchExpr(a.left(), b.right());
         }
     }
+    return _eq(a.jsonfy(), b.jsonfy());
 }

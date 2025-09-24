@@ -35,7 +35,7 @@ export class ValuesConstructor extends ResultSchemaMixin(AbstractNodeList) {
             resultJson = {
                 ...resultJson,
                 result_schema: row1_resultSchema?.clone()
-            }
+            };
         }
         return resultJson;
     }

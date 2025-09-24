@@ -1,6 +1,8 @@
 import { ExprEngine } from "../local/ExprEngine.js";
 import { SimpleEmitter } from '../abstracts/SimpleEmitter.js';
-import { splitLogicalExpr, matchLogicalExprs, matchExpr, scanQuery } from '../abstracts/util.js';
+import { BasicSelectStmt } from '../../lang/dql/BasicSelectStmt.js';
+import { splitLogicalExpr, matchLogicalExprs, matchExpr } from '../abstracts/util.js';
+import { registry } from "../../lang/registry.js";
 import { _eq } from "../../lang/abstracts/util.js";
 
 export class QueryWindow extends SimpleEmitter {
@@ -13,76 +15,137 @@ export class QueryWindow extends SimpleEmitter {
 
     #generatorDisconnect;
 
-    #filters;
+    #filters = [];
     get filters() { return this.#filters; }
 
-    #headlessSelectItems;
-    #headlessWhereExpr;
-
     #query;
+    #queryJson;
+    #logicalQueryJson;
     #options;
     #exprEngine;
 
     #aliases = [];
-    #aliasSchemas = new Map;
+    #originSchemasLite = new Map;
     #isSingleTable = true;
-    #isWindowedQuery;
+    #isWindowedQuery = false;
+    #specifiedLimit = 0;
 
-    #localRecords;
+    #localRecords = new Map;
+    #firstRun = false;
 
-    constructor(driver, query, filters, options = {}) {
+    constructor(driver, query, filters = [], options = {}) {
         super();
         this.#driver = driver;
-        this.#query = query;
-        this.resetFilters(filters);
-        this.#options = options;
+        if (!(query instanceof BasicSelectStmt)) {
+            throw new Error('Only SELECT statements are supported in RealtimeClient');
+        }
+        if (!Array.isArray(query.originSchemas())) {
+            throw new Error('Expected a pre-resolved query object with originSchemas() returning an array');
+        }
 
+        this.#query = query;
+        this.#queryJson = this.#query.jsonfy({ resultSchemas: false, originSchemas: false });
+
+        this.#options = options;
         this.#exprEngine = new ExprEngine(this.#options);
 
-        // Dissect query
-        const [fromItemsByAlias, fromItemsBySchema, meta] = scanQuery(this.#query, true);
-        for (const alias in fromItemsByAlias) {
-            this.#aliases.push(alias);
-            this.#aliasSchemas.set(alias, {
-                hashSet: fromItemsByAlias[alias],
-                keyColumns: [],
-                columns: [],
-            });
+        // Scan query...
+        const [fromItemsByAlias, fromItemsBySchema, meta] = scanQuery(this.#queryJson, true);
+        if (meta.hasSubquery) {
+            throw new Error(`Subqueries are not yet supported for realtime queries`);
         }
-        this.#isSingleTable = this.#aliasSchemas.size === 1;
-        this.#isWindowedQuery = meta.hasScalarSubquery || meta.hasAggrFunctions || meta.hasOffset || meta.hasLimit;
-        this.#generatorDisconnect = this.#driver.subscribe(fromItemsBySchema, (events) => this.#handleEvents(events));
+
+        // Derive schemas...
+        const getJson = (node) => {
+            const value = node.value();
+            const delim = node._get('delim');
+            return { value: delim ? value : value.toLowerCase(), delim };
+        };
+        for (const alias in fromItemsByAlias) {
+            const originSchema = this.#query.originSchemas().find((os) => {
+                if (os instanceof registry.JSONSchema) return alias === '';
+                return os.identifiesAs(alias);
+            });
+            let $columns,
+                $keyColumns,
+                usingAllColumnsForKeyColumns = false;
+            if (originSchema instanceof registry.JSONSchema) {
+                $columns = originSchema.entries().map((e) => getJson(e.name()));
+                if (fromItemsByAlias[alias].size > 1 || !($keyColumns = originSchema.entries().filter((e) => e.pkConstraint()).map(getJson)).length) {
+                    $keyColumns = structuredClone($columns);
+                    usingAllColumnsForKeyColumns = true;
+                }
+            } else {
+                $columns = originSchema.columns().map((e) => getJson(e.name()));
+                if (fromItemsByAlias[alias].size > 1 || !($keyColumns = originSchema.pkConstraint(true)?.columns().map(getJson))) {
+                    $keyColumns = structuredClone($columns);
+                    usingAllColumnsForKeyColumns = true;
+                }
+            }
+            this.#originSchemasLite.set(alias, {
+                hashSet: fromItemsByAlias[alias],
+                columns: $columns.map((c) => c.value),
+                keyColumns: $keyColumns.map((c) => c.value),
+                usingAllColumnsForKeyColumns,
+                $columns,
+                $keyColumns,
+            });
+            const delim = alias !== alias.toLowerCase()
+                || /^\d/.test(alias)
+                || !/^(\*|[\w]+)$/.test(alias);
+            this.#aliases.push({ value: alias, delim });
+        }
+
+        // Quick flags
+        this.#isWindowedQuery = meta.hasAggrFunctions;
+        this.#isSingleTable = this.#aliases.length === 1 && ((k) => k.length === 1 && fromItemsBySchema[k[0]].length === 1)(Object.keys(fromItemsBySchema));
+        this.#specifiedLimit = this.#queryJson.limit_clause?.expr ? this.#exprEngine.evaluate(this.#queryJson.limit_clause?.expr) : 0;
+
+        // Subscribe to WAL events...
+        this.#generatorDisconnect = this.#driver.subscribe(fromItemsBySchema, (events) => {
+            this.#handleEvents(events).catch((e) => this.emit('error', e));
+        });
 
         // Pre-compute the "headles query"'s head
-        this.#headlessSelectItems = this.#aliases.map((alias) => {
-            const aliasSchema = this.#aliasSchemas.get(alias);
+        const logicalSelectItems = this.#aliases.map((aliasJson) => {
+            const originSchema = this.#originSchemasLite.get(aliasJson.value);
             const fnName = this.#driver.dialect === 'mysql' ? 'JSON_OBJECT' : 'JSON_BUILD_OBJECT';
-            const fnArgs = aliasSchema.columns.reduce((build, columnName) => ([
+            const fnArgs = originSchema.$columns.reduce((build, colJson) => ([
                 ...build,
-                { nodeName: 'STRING_LITERAL', value: columnName },
-                { nodeName: 'COLUMN_REF1', value: columnName, qualifier: { nodeName: 'TABLE_REF1', value: alias } },
+                { nodeName: 'STRING_LITERAL', ...colJson },
+                { nodeName: 'COLUMN_REF1', ...colJson, qualifier: { nodeName: 'TABLE_REF1', ...aliasJson } },
             ]), []);
             return {
                 nodeName: 'SELECT_ITEM',
-                alias: { nodeName: 'SELECT_ITEM_ALIAS', value: alias },
+                alias: { nodeName: 'SELECT_ITEM_ALIAS', ...aliasJson },
                 expr: { nodeName: 'CALL_EXPR', name: fnName, arguments: fnArgs },
             };
         });
+
+        // Declare this.#logicalQueryJson
+        this.#logicalQueryJson = { ...this.#queryJson, select_list: { entries: logicalSelectItems } };
+
+        // Apply filters to this.#logicalQueryJson
+        if (filters.length) {
+            this.resetFilters(filters);
+        }
     }
 
+    async disconnect() { this.#generatorDisconnect?.(); }
+
+    // --------------------------
+
     inherit(parentWindow) {
-        this.#parentWindow = parentWindow;
-        if (this.#generatorDisconnect) {
-            this.#generatorDisconnect();
-        }
+        this.#generatorDisconnect?.();
         if (!parentWindow) return;
+        this.#parentWindow = parentWindow;
         this.#generatorDisconnect = parentWindow.on('data', (outputEvent) => {
             if (outputEvent.type === 'delete') {
                 if (this.#localRecords.has(outputEvent.oldHash)) {
                     this.#localDelete(outputEvent.oldHash);
                 } else return; // A delete event that mismatches
             } else {
-                if (!this.#satisfiesFilters(outputEvent.jointRecord)) {
+                if (!this.#satisfiesFilters(outputEvent.logicalRecord)) {
                     // Handle mismatch...
                     if (outputEvent.type === 'update' && this.#localRecords.has(outputEvent.oldHash)) {
                         // An update that translates to delete
@@ -92,7 +155,7 @@ export class QueryWindow extends SimpleEmitter {
                 }
                 if (outputEvent.type === 'update' && !this.#localRecords.has(outputEvent.oldHash)) {
                     // An update that translates to insert
-                    this.#localSet(outputEvent.newHash, outputEvent.jointRecord);
+                    this.#localSet(outputEvent.newHash, outputEvent.logicalRecord);
                     outputEvent = { ...outputEvent, type: 'insert' };
                 }
             }
@@ -103,8 +166,8 @@ export class QueryWindow extends SimpleEmitter {
     // --------------------------
 
     matchBase(query) {
-        const clauses_a = new Set(Object.keys(this.#query));
-        const clauses_b = new Set(Object.keys(query));
+        const clauses_a = new Set(this.#query._keys());
+        const clauses_b = new Set(query._keys());
         clauses_a.delete('where_clause');
         clauses_b.delete('where_clause');
         if (clauses_a.size !== clauses_b.size) {
@@ -122,14 +185,14 @@ export class QueryWindow extends SimpleEmitter {
                 continue;
             }
             if (clauseName === 'having_clause') {
-                const filters_a = splitLogicalExpr(this.#query[clauseName].expr);
-                const filters_b = splitLogicalExpr(query[clauseName].expr);
+                const filters_a = splitLogicalExpr(this.#query._get(clauseName).expr());
+                const filters_b = splitLogicalExpr(query._get(clauseName).expr());
                 if (matchLogicalExprs(filters_a, filters_b)?.size !== 0) {
                     // Clauses mismatch
                     return false;
                 }
             } else {
-                if (!_eq(this.#query[clauseName], query[clauseName])) {
+                if (!matchExpr(this.#query._get(clauseName), query._get(clauseName))) {
                     // Clauses mismatch
                     return false;
                 }
@@ -139,15 +202,15 @@ export class QueryWindow extends SimpleEmitter {
     }
 
     matchProjection(selectList) {
-        const selectItems_a = this.#query.select_list?.entries || [];
-        const selectItems_b = selectList?.entries || [];
+        const selectItems_a = this.#query.selectList().entries();
+        const selectItems_b = selectList.entries();
         if (selectItems_b.length !== selectItems_a.length) {
             // Projection mismatch
             return false;
         }
         for (let i = 0; i < selectItems_a.length; i++) {
-            if (!_eq(selectItems_a[1].alias, selectItems_b[1].alias)
-                || !matchExpr(selectItems_a[1].expr, selectItems_b[1].expr)) {
+            if (!matchExpr(selectItems_a[1].alias(), selectItems_b[1].alias())
+                || !matchExpr(selectItems_a[1].expr(), selectItems_b[1].expr())) {
                 // Projection mismatch
                 return false;
             }
@@ -162,35 +225,32 @@ export class QueryWindow extends SimpleEmitter {
     resetFilters(newFilters) {
         this.#filters = newFilters;
         const _newFilters = newFilters.slice(0);
-        this.#headlessWhereExpr = _newFilters.reduce((left, right) => {
-            return { nodeName: 'BINARY_EXPR', left, operator: 'AND', right };
+        const headlessWhereExpr = _newFilters.reduce((left, right) => {
+            return { nodeName: 'BINARY_EXPR', left: left.jsonfy(), operator: 'AND', right: right.jsonfy() };
         }, _newFilters.shift());
+        this.#logicalQueryJson = {
+            ...this.#logicalQueryJson,
+            where_clause: headlessWhereExpr ? {
+                nodeName: 'WHERE_CLAUSE',
+                expr: headlessWhereExpr,
+            } : undefined,
+        };
     }
 
-    #satisfiesFilters(jointRecord) {
-        for (const expr of this.#filters) {
-            if (!this.#exprEngine.evaluate(expr, jointRecord)) return false;
-        }
-        return true;
+    #satisfiesFilters(logicalRecord) {
+        if (!this.#logicalQueryJson.where_clause) return true;
+        return this.#exprEngine.evaluate(this.#logicalQueryJson.where_clause.expr, logicalRecord);
     }
 
     // --------------------------
 
     async initialResult() {
-        const format = 2, hashes = [];
         const currentRecords = await this.currentRecords();
-        const records = format === 2 ? {} : [];
-        for (const [hash, jointRecord] of currentRecords.entries()) {
-            const projection = this.#renderJointRecord(jointRecord);
-            if (format === 2) {
-                records[hash] = projection;
-            } else {
-                records.push(projection);
-                hashes.push(hash);
-            }
-        }
-        if (format === 2) {
-            return records
+        const records = [], hashes = [];
+        for (const [logicalHash, logicalRecord] of currentRecords.entries()) {
+            const projection = this.#renderLogicalRecord(logicalRecord);
+            records.push(projection);
+            hashes.push(logicalHash);
         }
         return [records, hashes];
     }
@@ -198,123 +258,111 @@ export class QueryWindow extends SimpleEmitter {
     async currentRecords() {
         const mode = this.#options.mode;
         // Try reuse...
-        if (this.#localRecords && mode === 2) {
+        if (mode === 2 && this.#firstRun) {
             return new Map(this.#localRecords);
         }
-        let resultJointRecords;
+        let resultRecords;
         // Inherit or run fresh...
         if (this.#parentWindow) {
-            resultJointRecords = await this.#parentWindow.currentRecords();
-            for (const [jointId, jointRecord] of resultJointRecords.entries()) {
-                if (!this.#satisfiesFilters(jointRecord)) {
-                    resultJointRecords.delete(jointId);
+            resultRecords = await this.#parentWindow.currentRecords();
+            for (const [logicalHash, logicalRecord] of resultRecords.entries()) {
+                if (!this.#satisfiesFilters(logicalRecord)) {
+                    resultRecords.delete(logicalHash);
                     continue;
                 }
             }
         } else {
-            resultJointRecords = await this.#queryHeadless();
+            resultRecords = await this.#queryHeadless();
         }
         // renderProjection? This is first time call
-        if (!this.#localRecords) {
-            this.#localRecords = new Map;
-            for (const [jointId, jointRecord] of resultJointRecords) {
-                this.#localSet(jointId, jointRecord);
+        if (!this.#firstRun) {
+            this.#firstRun = true;
+            for (const [logicalHash, logicalRecord] of resultRecords) {
+                this.#localSet(logicalHash, logicalRecord);
             }
         }
-        return resultJointRecords;
+        return resultRecords;
     }
 
-    async #queryHeadless(extraFilters = [], jointIdCreateCallback = null) {
+    async #queryHeadless(extraWhereJson = null, logicalHashCreateCallback = null) {
         // Record ID create util
-        if (!jointIdCreateCallback) {
-            jointIdCreateCallback = (jointRecord) => {
-                const newKeysList = this.#aliases.map((alias) => {
-                    const aliasSchema = this.#aliasSchemas.get(alias);
-                    const _newKeys = aliasSchema.keyColumns.map((k) => jointRecord[alias][k]);
+        if (!logicalHashCreateCallback) {
+            logicalHashCreateCallback = (logicalRecord) => {
+                const newKeysList = [...this.#originSchemasLite.entries()].map(([alias, originSchema]) => {
+                    const _newKeys = originSchema.keyColumns.map((k) => logicalRecord[alias][k]);
                     if (_newKeys.every((s) => s === null)) {
                         return null; // IMPORTANT
                     }
                     return _newKeys;
                 });
-                const jointId = this.#keysToJointId(newKeysList);
-                return [jointId/* oldKeys */, null];
+                const logicalHash = this.#keysToLogicalHash(newKeysList);
+                return [logicalHash/* oldKeys */, logicalHash/* newKeys */];
             };
         }
-
-        // Compose WHERE
-        const _extraFilters = extraFilters.slice(0);
-        const whereExpr = _extraFilters.reduce((left, right) => {
-            return { nodeName: 'BINARY_EXPR', left, operator: 'AND', right };
-        }, this.#headlessWhereExpr || _extraFilters.shift());
-        // Final headless query
-        const query = {
-            ...this.#query,
-            select_list: { entries: this.#headlessSelectItems },
-            where_clause: whereExpr ? {
-                nodeName: 'WHERE_CLAUSE',
-                expr: whereExpr,
-            } : undefined,
-        };
-
+        // Finalize logicalQueryJson
+        let logicalQueryJson = this.#logicalQueryJson;
+        if (extraWhereJson) {
+            const finalWhereJson = logicalQueryJson.where_clause?.expr
+                ? { nodeName: 'BINARY_EXPR', left: extraWhereJson, operator: 'AND', right: logicalQueryJson.where_clause.expr }
+                : extraWhereJson;
+            logicalQueryJson = {
+                ...logicalQueryJson,
+                where_clause: { nodeName: 'WHERE_CLAUSE', expr: finalWhereJson },
+            };
+        }
         // The fetch
-        const result = await this.#driver.query(query);
-
+        const logicalQuery = this.#query.constructor.fromJSON(logicalQueryJson, { dialect: this.#driver.dialect });
+        const result = await this.#driver.query(logicalQuery);
         // Map to joint IDs
         const resultMap = new Map;
-        for (const jointRecord of result) {
-            const [oldHash, newHash] = jointIdCreateCallback(jointRecord);
-            resultMap.set(oldHash, jointRecord);
-            if (newHash) {
-                jointRecord[Symbol.for('newHash')] = newHash;
-            }
+        for (const logicalRecord of result.rows) {
+            const [oldHash, newHash] = logicalHashCreateCallback(logicalRecord);
+            logicalRecord[Symbol.for('newHash')] = newHash;
+            resultMap.set(oldHash, logicalRecord);
         }
-
         return resultMap;
     }
 
-    #keysToJointId(keyValues) {
+    #keysToLogicalHash(keyValues) {
         return JSON.stringify(keyValues);
     }
 
-    #keysFromJointId(jointId) {
-        return JSON.parse(jointId);
+    #keysFromLogicalHash(logicalHash) {
+        return JSON.parse(logicalHash);
     }
 
-    #localSet(jointId, jointRecord) {
-        this.#localRecords.set(jointId, this.#deriveLocalCopy(jointRecord));
+    #localSet(logicalHash, logicalRecord) {
+        this.#localRecords.set(logicalHash, this.#deriveLocalCopy(logicalRecord));
     }
 
-    #localDelete(jointId) {
-        this.#localRecords.delete(jointId);
+    #localDelete(logicalHash) {
+        this.#localRecords.delete(logicalHash);
     }
 
     #localReindex(idChanges) {
         if (!idChanges.size) return;
-        this.#localRecords = new Map([...this.#localRecords.entries()].map(([id, jointRecord]) => {
+        this.#localRecords = new Map([...this.#localRecords.entries()].map(([id, logicalRecord]) => {
             if (idChanges.has(id)) id = idChanges.get(id);
-            return [id, jointRecord];
+            return [id, logicalRecord];
         }));
     }
 
-    #deriveLocalCopy(jointRecord) {
+    #deriveLocalCopy(logicalRecord) {
         const mode = this.#options.mode;
         return mode === 2
-            ? jointRecord
-            : Object.fromEntries(this.#aliases.map((alias) => {
-                const aliasSchema = this.#aliasSchemas.get(alias);
-                const rowObj = Object.fromEntries(aliasSchema.keyColumns.map((k) => [k, jointRecord[alias][k]]));
+            ? logicalRecord
+            : Object.fromEntries([...this.#originSchemasLite.entries()].map(([alias, originSchema]) => {
+                const rowObj = Object.fromEntries(originSchema.keyColumns.map((k) => [k, logicalRecord[alias][k]]));
                 return [alias, rowObj];
             }));
     }
 
-    #renderJointRecord(jointRecord) {
+    #renderLogicalRecord(logicalRecord) {
         const projection = {};
-        for (const selectItem of this.#query.select_list.entries) {
-            const alias_cs = selectItem.alias.delim
-                ? selectItem.alias.value
-                : selectItem.alias.value.toLowerCase();
-            const value = this.#exprEngine.evaluate(selectItem.expr, jointRecord);
-            projection[alias_cs] = value;
+        for (const selectItemJson of this.#queryJson.select_list.entries) {
+            const alias = selectItemJson.alias?.value || '?column?';
+            const value = this.#exprEngine.evaluate(selectItemJson.expr, logicalRecord);
+            projection[alias] = value;
         }
         return projection;
     }
@@ -323,9 +371,16 @@ export class QueryWindow extends SimpleEmitter {
 
     #normalizeEvents(events) {
         // Normalize oldKeys stuff
+        let usingAllColumnsForKeyColumns_found;
         const normalizedEvents = events.filter((e) => e.type === 'insert' || e.type === 'update' || e.type === 'delete').map((e) => {
             const relationHash = JSON.stringify([e.relation.schema, e.relation.name]);
-            const affectedAliases = [...this.#aliasSchemas.values()].map((aliasSchema) => aliasSchema.hashSet.has(relationHash));
+
+            const affectedAliasesEntries = [...this.#originSchemasLite.entries()].filter(([, originSchema]) => originSchema.hashSet.has(relationHash));
+            const affectedAliases = affectedAliasesEntries.map(([alias]) => alias);
+            if (affectedAliasesEntries.find(([, originSchema]) => originSchema.usingAllColumnsForKeyColumns)) {
+                usingAllColumnsForKeyColumns_found = true;
+            }
+
             const keyColumns = e.relation.keyColumns;
             const oldKeys = e.key
                 ? Object.values(e.key)
@@ -335,11 +390,12 @@ export class QueryWindow extends SimpleEmitter {
                 : oldKeys.slice(0);
             return { ...e, keyColumns, oldKeys, newKeys, relationHash, affectedAliases };
         });
+
         // 2. Normalize sequences and gather some intelligence stuff
         const normalizedEventsMap = new Map;
         const keyHistoryMap = new Map;
         for (const normalizedEvent of normalizedEvents) {
-            const keyHash_old = this.#keysToJointId(normalizedEvent.oldKeys);
+            const keyHash_old = this.#keysToLogicalHash(normalizedEvent.oldKeys);
             let previous, keyHash_new;
             if (previous = normalizedEventsMap.get(keyHash_old)) {
                 if (previous.type === 'insert' && normalizedEvent.type === 'delete') {
@@ -367,7 +423,7 @@ export class QueryWindow extends SimpleEmitter {
                 normalizedEventsMap.delete(keyHash_old); // Don't retain old slot; must come first
                 normalizedEventsMap.set(keyHash_old, _normalizedEvent);
                 // Do history stuff
-                if ((keyHash_new = this.#keysToJointId(_normalizedEvent.newKeys)) !== keyHash_old) {
+                if ((keyHash_new = this.#keysToLogicalHash(_normalizedEvent.newKeys)) !== keyHash_old) {
                     if (!keyHistoryMap.has(normalizedEvent.relationHash)) {
                         keyHistoryMap.set(normalizedEvent.relationHash, new Map);
                     }
@@ -375,7 +431,7 @@ export class QueryWindow extends SimpleEmitter {
                     keyHistoryMap.get(normalizedEvent.relationHash).delete(keyHash_old); // Forget previous history; must come only after
                 }
                 continue;
-            } else if (normalizedEvent.type === 'update' && (keyHash_new = this.#keysToJointId(normalizedEvent.newKeys)) !== keyHash_old) {
+            } else if (normalizedEvent.type === 'update' && (keyHash_new = this.#keysToLogicalHash(normalizedEvent.newKeys)) !== keyHash_old) {
                 if (!keyHistoryMap.has(normalizedEvent.relationHash)) {
                     keyHistoryMap.set(normalizedEvent.relationHash, new Map);
                 }
@@ -385,21 +441,20 @@ export class QueryWindow extends SimpleEmitter {
             normalizedEventsMap.set(keyHash_old, normalizedEvent);
         }
         // 3. For updates that include primary changes
-        // we'll need to derive oldJointIds from keyHistoryMap
-        let jointIdCreateCallback = null;
+        // we'll need to derive oldLogicalHashs from keyHistoryMap
+        let logicalHashCreateCallback = null;
         if (keyHistoryMap.size) {
-            jointIdCreateCallback = (jointRecord) => {
-                const [oldKeysList, newKeysList] = this.#aliases.reduce(([o, n], alias) => {
-                    const aliasSchema = this.#aliasSchemas.get(alias);
-                    const relationHash = aliasSchema.hashSet.size === 1
-                        ? [...aliasSchema.hashSet][0]
+            logicalHashCreateCallback = (logicalRecord) => {
+                const [oldKeysList, newKeysList] = [...this.#originSchemasLite.entries()].reduce(([o, n], [alias, originSchema]) => {
+                    const relationHash = originSchema.hashSet.size === 1
+                        ? [...originSchema.hashSet][0]
                         : null;
-                    const keyColumns = aliasSchema.keyColumns;
-                    let _newKeys = keyColumns.map((k) => jointRecord[alias][k]);
+                    const keyColumns = originSchema.keyColumns;
+                    let _newKeys = keyColumns.map((k) => logicalRecord[alias][k]);
                     if (_newKeys.every((s) => s === null)) {
                         _newKeys = null; // null: IMPORTANT
                     }
-                    const _newKeys_str = this.#keysToJointId(_newKeys);
+                    const _newKeys_str = this.#keysToLogicalHash(_newKeys);
                     let _oldKeys;
                     if (_newKeys && keyHistoryMap.get(relationHash)?.has(_newKeys_str)) {
                         _oldKeys = keyHistoryMap.get(relationHash).get(_newKeys_str).normalizedEvent.oldKeys;
@@ -408,68 +463,81 @@ export class QueryWindow extends SimpleEmitter {
                     }
                     return [[...o, _oldKeys], [...n, _newKeys]];
                 }, [[], []]);
-                const oldHash = this.#keysToJointId(oldKeysList);
-                const newHash = this.#keysToJointId(newKeysList);
+                const oldHash = this.#keysToLogicalHash(oldKeysList);
+                const newHash = this.#keysToLogicalHash(newKeysList);
                 return [oldHash, newHash];
             };
         }
-        return [normalizedEventsMap, jointIdCreateCallback];
+        return [normalizedEventsMap, logicalHashCreateCallback, usingAllColumnsForKeyColumns_found];
     }
 
     async #handleEvents(events) {
         const [
             normalizedEventsMap,
-            jointIdCreateCallback,
+            logicalHashCreateCallback,
+            usingAllColumnsForKeyColumns_found,
         ] = this.#normalizeEvents(events);
-        if (this.#isSingleTable) {
-            this.#handleEvents_SingleTable(normalizedEventsMap);
-        } else if (!this.#isWindowedQuery) {
-            this.#handleEvents_MultiTable_Incremental(normalizedEventsMap, jointIdCreateCallback);
+        if (this.#isSingleTable && !this.#isWindowedQuery) {
+            // Only windowing NOT supported; offsets / limit supported
+            await this.#handleEvents_SingleTable(normalizedEventsMap);
+        } else if (!this.#isWindowedQuery && !usingAllColumnsForKeyColumns_found && !this.#queryJson.limit_clause && !this.#queryJson.offset_clause) {
+            // NONE of windowing / offsets / limit supported; plus usingAllColumnsForKeyColumns_found NOT supported
+            await this.#handleEvents_MultiTable_Incremental(normalizedEventsMap, logicalHashCreateCallback);
         } else {
-            this.#handleEvents_MultiTable_Wholistic(jointIdCreateCallback);
+            await this.#handleEvents_Wholistic(logicalHashCreateCallback);
         }
     }
 
     async #handleEvents_SingleTable(normalizedEventsMap) {
         const idChanges = new Map;
+        const deferredInserts = new Set;
         e: for (const normalizedEvent of normalizedEventsMap.values()) {
             switch (normalizedEvent.type) {
                 case 'insert':
-                    const jointId_1 = this.#keysToJointId([normalizedEvent.newKeys]);
+                    if (this.#specifiedLimit && this.#localRecords.size === this.#specifiedLimit) {
+                        // Defere INSERTs
+                        deferredInserts.add(normalizedEvent);
+                        continue e;
+                    }
+                    const logicalHash_1 = this.#keysToLogicalHash([normalizedEvent.newKeys]);
                     const jointRecord_1 = { [normalizedEvent.affectedAliases[0]]: normalizedEvent.new };
                     if (!this.#satisfiesFilters(jointRecord_1)) {
                         continue e;
                     }
-                    this.#localSet(jointId_1, jointRecord_1);
-                    this.#fanout({ type: 'insert', newHash: jointId_1, jointRecord: jointRecord_1 });
+                    this.#localSet(logicalHash_1, jointRecord_1);
+                    this.#fanout({ type: 'insert', newHash: logicalHash_1, logicalRecord: jointRecord_1 });
                     break;
                 case 'update':
-                    const jointId_2 = this.#keysToJointId([normalizedEvent.oldKeys]);
-                    if (!this.#localRecords.has(jointId_2)) {
+                    const logicalHash_2 = this.#keysToLogicalHash([normalizedEvent.oldKeys]);
+                    if (!this.#localRecords.has(logicalHash_2)) {
                         continue e;
                     }
                     const jointRecord_2 = { [normalizedEvent.affectedAliases[0]]: normalizedEvent.new };
-                    this.#localSet(jointId_2, jointRecord_2);
-                    const jointId_3 = this.#keysToJointId([normalizedEvent.newKeys]);
-                    if (jointId_3 !== jointId_2) {
-                        idChanges.set(jointId_2, jointId_3);
+                    this.#localSet(logicalHash_2, jointRecord_2);
+                    const logicalHash_3 = this.#keysToLogicalHash([normalizedEvent.newKeys]);
+                    if (logicalHash_3 !== logicalHash_2) {
+                        idChanges.set(logicalHash_2, logicalHash_3);
                     }
-                    this.#fanout({ type: 'update', oldHash: jointId_2, newHash: jointId_3, jointRecord: jointRecord_2 });
+                    this.#fanout({ type: 'update', oldHash: logicalHash_2, newHash: logicalHash_3, logicalRecord: jointRecord_2 });
                     break;
                 case 'delete':
-                    const jointId_4 = this.#keysToJointId([normalizedEvent.oldKeys]);
-                    if (!this.#localRecords.has(jointId_4)) {
+                    const logicalHash_4 = this.#keysToLogicalHash([normalizedEvent.oldKeys]);
+                    if (!this.#localRecords.has(logicalHash_4)) {
                         continue e;
                     }
-                    this.#localDelete(jointId_2);
-                    this.#fanout({ type: 'delete', oldHash: jointId_4 });
+                    this.#localDelete(logicalHash_2);
+                    this.#fanout({ type: 'delete', oldHash: logicalHash_4 });
                     break;
             }
         }
         this.#localReindex(idChanges);
+        // Re-attempt INSERTs
+        if (deferredInserts.size && this.#localRecords.size < this.#specifiedLimit) {
+            this.#handleEvents_SingleTable(deferredInserts);
+        }
     }
 
-    async #handleEvents_MultiTable_Incremental(normalizedEventsMap, jointIdCreateCallback) {
+    async #handleEvents_MultiTable_Incremental(normalizedEventsMap, logicalHashCreateCallback) {
         const composeDiffingPredicate = (alias, keyColumns, keyValues, nullTest = 0) => {
             // Handle multi-key PKs
             if (keyColumns.length > 1) {
@@ -484,14 +552,14 @@ export class QueryWindow extends SimpleEmitter {
             // Compose...
             const columnRef = { nodeName: 'COLUMN_REF1', value: keyColumns[0], qualifier: { nodeName: 'TABLE_REF1', value: alias } };
             // Compose: <keyColumn> IS NULL
-            const nullLiteral = { nodeName: 'NULL_LITERAL', value: null };
+            const nullLiteral = { nodeName: 'NULL_LITERAL', value: 'NULL' };
             const isNullExpr = {
                 nodeName: 'BINARY_EXPR',
                 left: columnRef,
                 operator: 'IS',
                 right: nullLiteral,
             };
-            if (nullTest === 1) {
+            if (nullTest === 0) {
                 return isNullExpr;
             }
             // Compose: <keyColumn> = <keyValue>
@@ -516,14 +584,15 @@ export class QueryWindow extends SimpleEmitter {
         };
         // Do partial diffing!
         const localRecords = new Map;
+        const remoteDiffingFilters = [];
         for (const normalizedEvent of normalizedEventsMap.values()) {
             let diffingFilters = [];
             const affectedAliases = normalizedEvent.affectedAliases;
             if (normalizedEvent.type === 'insert') {
-                // keyColumn === null // keyColumn IN [null, newKey]
+                // keyColumn === null // keyColumn = newKey
                 diffingFilters = [
+                    affectedAliases.map((alias) => composeDiffingPredicate(alias, normalizedEvent.keyColumns, normalizedEvent.oldKeys, 0)),
                     affectedAliases.map((alias) => composeDiffingPredicate(alias, normalizedEvent.keyColumns, normalizedEvent.newKeys, 1)),
-                    affectedAliases.map((alias) => composeDiffingPredicate(alias, normalizedEvent.keyColumns, normalizedEvent.newKeys, 2)),
                 ];
             }
             if (normalizedEvent.type === 'update') {
@@ -536,41 +605,60 @@ export class QueryWindow extends SimpleEmitter {
             if (normalizedEvent.type === 'delete') {
                 // keyColumn = oldKey // keyColumn === null
                 diffingFilters = [
-                    affectedAliases.map((alias) => composeDiffingPredicate(alias, normalizedEvent.keyColumns, normalizedEvent.oldKeys, 0)),
-                    affectedAliases.map((alias) => composeDiffingPredicate(alias, normalizedEvent.keyColumns, normalizedEvent.newKeys, 1)),
+                    affectedAliases.map((alias) => composeDiffingPredicate(alias, normalizedEvent.keyColumns, normalizedEvent.oldKeys, 1)),
+                    affectedAliases.map((alias) => composeDiffingPredicate(alias, normalizedEvent.keyColumns, normalizedEvent.newKeys, 0)),
                 ];
             }
-            row: for (const [jointId, jointRecord] of this.#localRecords.entries()) {
+            row: for (const [logicalHash, logicalRecord] of this.#localRecords.entries()) {
                 for (const expr of diffingFilters[0]) {
-                    if (!this.#exprEngine.evaluate(expr, jointRecord)) {
+                    if (!this.#exprEngine.evaluate(expr, logicalRecord)) {
                         continue row;
                     }
                 }
-                localRecords.set(jointId, jointRecord);
+                // All of diffingFilters[0] matched - AND
+                localRecords.set(logicalHash, logicalRecord);
             }
+            // Build this event's diffingFilters
+            const diffingFilters_currentEvent = diffingFilters[1].reduce((left, right) => {
+                return { nodeName: 'BINARY_EXPR', left, operator: 'AND', right };
+            }, diffingFilters[1].shift());
+            remoteDiffingFilters.push(diffingFilters_currentEvent);
         }
-        const remoteRecords = await this.#queryHeadless(diffingFilters[1], jointIdCreateCallback);
+        // Build all event's diffingFilters
+        let diffingFilters_allEvents;
+        if (remoteDiffingFilters.length > 1) {
+            const _diffingFilters_allEvents = remoteDiffingFilters.reduce((left, right) => {
+                return { nodeName: 'BINARY_EXPR', left, operator: 'OR', right };
+            }, remoteDiffingFilters.shift());
+            diffingFilters_allEvents = {
+                nodeName: 'ROW_CONSTRUCTOR',
+                entries: [_diffingFilters_allEvents],
+            };
+        } else {
+            diffingFilters_allEvents = remoteDiffingFilters[0];
+        }
+        const remoteRecords = await this.#queryHeadless(diffingFilters_allEvents, logicalHashCreateCallback);
         this.#diffRecords(localRecords, remoteRecords);
     }
 
-    async #handleEvents_MultiTable_Wholistic(jointIdCreateCallback) {
-        const remoteRecords = await this.#queryHeadless([], jointIdCreateCallback);
+    async #handleEvents_Wholistic(logicalHashCreateCallback) {
+        const remoteRecords = await this.#queryHeadless(null, logicalHashCreateCallback);
         this.#diffRecords(this.#localRecords, remoteRecords);
     }
 
     #diffRecords(localRecords, remoteRecords) {
-        const localJointIds = new Set(localRecords.keys());
-        const remoteJointIds = new Set(remoteRecords.keys());
-        const allJointIds = new Set([
-            ...localJointIds,
-            ...remoteJointIds
+        const localLogicalHashs = new Set(localRecords.keys());
+        const remoteLogicalHashs = new Set(remoteRecords.keys());
+        const allLogicalHashs = new Set([
+            ...localLogicalHashs,
+            ...remoteLogicalHashs
         ]);
         // Utils:
-        const aliasesLength = this.#aliasSchemas.size;
+        const aliasesLength = this.#originSchemasLite.size;
         const findPartialMatch = (oldJId) => {
-            const oldJId_split = this.#keysFromJointId(oldJId);
-            top: for (const newJId of remoteJointIds) {
-                const newJId_split = this.#keysFromJointId(newJId);
+            const oldJId_split = this.#keysFromLogicalHash(oldJId);
+            top: for (const remoteJid of remoteLogicalHashs) {
+                const remoteJid_split = this.#keysFromLogicalHash(remoteJid);
                 let matched = true;
                 let nullMatched_o = false;
                 let nullMatched_n = false;
@@ -579,44 +667,45 @@ export class QueryWindow extends SimpleEmitter {
                         if (nullMatched_o) return; // Multiple slots in old
                         nullMatched_o = true;
                     }
-                    if (newJId_split[i] === null) {
+                    if (remoteJid_split[i] === null) {
                         if (nullMatched_n) continue top; // Multiple slots in new
                         nullMatched_n = true;
                     }
-                    matched = matched && (oldJId_split[i] === newJId_split[i] || nullMatched_o || nullMatched_n);
+                    matched = matched && (_eq(oldJId_split[i], remoteJid_split[i]) || nullMatched_o || nullMatched_n);
                 }
-                if (matched) return newJId;
+                if (matched) return remoteJid;
             }
         };
         // The diffing...
         const idChanges = new Map;
         const enittedPartials = new Set;
-        for (const jId of allJointIds) {
-            if (localJointIds.has(jId)) {
+        for (const jId of allLogicalHashs) {
+            if (localLogicalHashs.has(jId)) {
                 // Exact match
-                if (remoteJointIds.has(jId)) {
+                if (remoteLogicalHashs.has(jId)) {
                     this.#localSet(jId, remoteRecords.get(jId)); // Replacing any existing
-                    remoteJointIds.delete(jId); // IMPORTANT subsequent iterations should not see this anymore; especially when findPartialMatch()
-                    this.#fanout({ type: 'update', oldHash: jId, newHash: remoteRecords.get(jId)[Symbol.for('newHash')] || jId, jointRecord: remoteRecords.get(jId) });
+                    remoteLogicalHashs.delete(jId); // IMPORTANT subsequent iterations should not see this anymore; especially when findPartialMatch()
+                    this.#fanout({ type: 'update', oldHash: jId, newHash: remoteRecords.get(jId)[Symbol.for('newHash')] || jId, logicalRecord: remoteRecords.get(jId) });
                     continue;
                 }
-                const newJId = findPartialMatch(jId);
-                if (newJId && !enittedPartials.has(newJId)/* IMPORTANT */) {
+                const remoteJid = findPartialMatch(jId);
+                if (remoteJid && !enittedPartials.has(remoteJid)/* IMPORTANT */) {
                     // Partial match
-                    this.#localSet(jId, remoteRecords.get(jId)); // Replacing any existing
-                    remoteJointIds.delete(newJId); // IMPORTANT: subsequent iterations should not see this anymore; especially when findPartialMatch()
-                    idChanges.set(jId, newJId);
-                    enittedPartials.add(newJId);
-                    this.#fanout({ type: 'update', oldHash: jId, newHash: remoteRecords.get(jId)[Symbol.for('newHash')] || jId, jointRecord: remoteRecords.get(newJId) });
+                    this.#localSet(jId, remoteRecords.get(remoteJid)); // Replacing any existing
+                    remoteLogicalHashs.delete(remoteJid); // IMPORTANT: subsequent iterations should not see this anymore; especially when findPartialMatch()
+                    enittedPartials.add(remoteJid);
+                    const remoteNewJId = remoteRecords.get(remoteJid)[Symbol.for('newHash')] || remoteJid;
+                    idChanges.set(jId, remoteNewJId);
+                    this.#fanout({ type: 'update', oldHash: jId, newHash: remoteNewJId, logicalRecord: remoteRecords.get(remoteJid) });
                 } else {
                     // Obsolete
                     this.#localDelete(jId);
                     this.#fanout({ type: 'delete', oldHash: jId });
                 }
-            } else if (remoteJointIds.has(jId)) {
+            } else if (remoteLogicalHashs.has(jId)) {
                 // All new
                 this.#localSet(jId, remoteRecords.get(jId)); // Push new
-                this.#fanout({ type: 'insert', newHash: jId, jointRecord: remoteRecords.get(jId) });
+                this.#fanout({ type: 'insert', newHash: jId, logicalRecord: remoteRecords.get(jId) });
             }
         }
         this.#localReindex(idChanges);
@@ -626,21 +715,86 @@ export class QueryWindow extends SimpleEmitter {
         this.emit('data', outputEvent);
         // Handle deletions
         if (outputEvent.type === 'delete') {
-            this.emit('mutation', {
+            const mutationEvent = {
                 type: outputEvent.type,
                 oldHash: outputEvent.oldHash,
-            });
+                old: outputEvent.old,
+            };
+            this.emit('mutation', mutationEvent);
             return;
         }
         // Run projection
-        const projection = this.#renderJointRecord(outputEvent.jointRecord);
+        const projection = this.#renderLogicalRecord(outputEvent.logicalRecord);
         // Emit events
-        this.emit('mutation', {
+        const mutationEvent = {
             type: outputEvent.type,
-            ...(outputEvent.type === 'update' ? { oldHash: outputEvent.oldHash } : {}),
+            ...(outputEvent.type === 'update' ? { oldHash: outputEvent.oldHash, old: outputEvent.old } : {}),
             newHash: outputEvent.newHash,
             new: projection,
-        });
+        };
+        this.emit('mutation', mutationEvent);
     }
 }
 
+export function scanQuery(queryJson, withMeta = false) {
+    const [fromItemsByAlias, fromItemsBySchema, meta] = [{}, {}, {}];
+    for (const fromItem of queryJson.from_clause.entries.concat(queryJson.join_clauses || [])) {
+        // Aliases are expected - except for a FROM (subquery) scenario, where it's optional
+        const alias = fromItem.alias?.delim ? fromItem.alias.value : (fromItem.alias?.value.toLowerCase() || '');
+        if (fromItem.expr.nodeName === 'TABLE_REF1' && fromItem.expr.resolution === 'default') {
+            // Both name and qualifier are expected
+            const tableName = fromItem.expr.delim ? fromItem.expr.value : fromItem.expr.value.toLowerCase();
+            const schemaName = fromItem.expr.qualifier.delim ? fromItem.expr.qualifier.value : fromItem.expr.qualifier.value.toLowerCase();
+            // Map those...
+            fromItemsByAlias[alias] = new Set([JSON.stringify([schemaName, tableName])]);
+            fromItemsBySchema[schemaName] = [].concat(fromItemsBySchema[schemaName] || []).concat(tableName);
+        } else if (fromItem.expr.nodeName === 'DERIVED_QUERY') {
+            const [_fromItemsByAlias, _fromItemsBySchema] = scanQuery(fromItem.expr.expr);
+            // Flatten, dedupe and map those...
+            const _fromItemsByAlias_flat = Object.values(_fromItemsByAlias).reduce((all, entries) => ([...all, ...entries]), []);
+            fromItemsByAlias[alias] = new Set(_fromItemsByAlias_flat);
+            for (const [schemaName, tableNames] of Object.entries(_fromItemsBySchema)) {
+                const tableNames_total = [].concat(fromItemsBySchema[schemaName] || []).concat(tableNames);
+                fromItemsBySchema[schemaName] = [...new Set(tableNames_total)];
+            }
+        } else {
+            // Other FROM ITEM types
+            fromItemsByAlias[alias] = new Set;
+        }
+    }
+
+    // Done?
+    if (!withMeta) return [fromItemsByAlias, fromItemsBySchema];
+
+    // Detect AGGR_CALL_EXPR ...first in Select List
+    if (scanExpr(queryJson['select_list'], ['AGGR_CALL_EXPR'])) {
+        meta.hasAggrFunctionsInSelect = true;
+        meta.hasAggrFunctions = true;
+    } else if (queryJson.group_by_clause?.entries.length) {
+        meta.hasAggrFunctions = true;
+    } else if (queryJson['order_by_clause'] && scanExpr(queryJson['order_by_clause'], ['AGGR_CALL_EXPR'])) {
+        meta.hasAggrFunctions = true;
+    }
+
+    // Detect SCALAR_SUBQUERY / DERIVED_QUERY
+    for (const clause of ['select_list', 'where_clause', 'order_by_clause', 'offset_clause', 'limit_clause']) {
+        if (queryJson[clause] && scanExpr(queryJson[clause], ['SCALAR_SUBQUERY', 'DERIVED_QUERY'])) {
+            meta.hasSubquery = true;
+            break;
+        }
+    }
+
+    // Done!
+    return [fromItemsByAlias, fromItemsBySchema, meta];
+}
+
+export function scanExpr(nodeJson, search) {
+    for (const k of Object.keys(nodeJson)) {
+        if (!Array.isArray(nodeJson[k])
+            && !(typeof nodeJson[k] === 'object' && nodeJson[k])) continue;
+        if (search.includes(nodeJson[k].nodeName)
+            || scanExpr(nodeJson[k], search)) {
+            return true;
+        }
+    }
+}

@@ -175,7 +175,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		} = registry;
 
 		const jsonfy = (node, _deSugar = deSugar) => {
-			return node.jsonfy({ deSugar: _deSugar, ...$options }, transformer, dbContext);
+			return node.jsonfy({ ...$options, deSugar: _deSugar }, transformer, dbContext);
 		};
 
 		// (1): Columns
@@ -1019,7 +1019,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			cte.body = instance.jsonfy(options, $transformer, dbContext);
 		}
 
-		return { ...cte, result_schema: cte.body.result_schema, origin_schemas: cte.body.origin_schemas };
+		return { ...cte, origin_schemas: cte.body.origin_schemas, result_schema: cte.body.result_schema };
 	}
 }
 

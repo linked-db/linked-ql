@@ -31,4 +31,14 @@ export class FromItemAlias extends Identifier {
     asKW() { return this._get('as_kw'); }
 
     columns() { return this._get('columns'); }
+
+    // --------------
+
+    jsonfy(options = {}, transformer = null, dbContext = null) {
+        let resultJson = super.jsonfy(options, transformer, dbContext);
+        if ((options.deSugar === true || options.deSugar?.normalizeCasing) && !resultJson.delim) {
+            resultJson = { ...resultJson, value: resultJson.value.toLowerCase() };
+        }
+        return resultJson;
+    }
 }

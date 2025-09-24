@@ -1,7 +1,6 @@
 import { ResultSchemaMixin } from './ResultSchemaMixin.js';
 import { OriginSchemasMixin } from '../abstracts/OriginSchemasMixin.js';
 import { AbstractStmt } from './AbstractStmt.js';
-import { registry } from '../registry.js';
 
 export class AbstractNonDDLStmt extends ResultSchemaMixin(OriginSchemasMixin(AbstractStmt)) {
 
@@ -30,25 +29,5 @@ export class AbstractNonDDLStmt extends ResultSchemaMixin(OriginSchemasMixin(Abs
 			} else b.offset(redundants.get(b.offset())).withDetail('redundant', true);
 		}
 		return queryBindings.filter(b => !b.getDetail('redundant'));
-	}
-
-	getOriginSchemas(transformer) {
-		const originSchemas = new Map;
-		for (const { resultSchema } of transformer.statementContext.artifacts.get('tableSchemas')) {
-			if (resultSchema instanceof registry.TableSchema) {
-				const tableNameJson = resultSchema.name().jsonfy();
-				const nameCS = tableNameJson.delim 
-					? tableNameJson.value 
-					: tableNameJson.value.toLowerCase();
-				originSchemas.set(nameCS, resultSchema);
-			} else {
-				if (originSchemas.has('')) {
-					// Not expect; not valid SQL; but however
-					throw new Error(`Multiple anonymous origin schemas detected`);
-				}
-				originSchemas.set('', resultSchema);
-			}
-		}
-		return originSchemas;
 	}
 }

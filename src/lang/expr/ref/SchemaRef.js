@@ -33,8 +33,8 @@ export class SchemaRef extends AbstractClassicRef {
             if (name && !schemaSchema.identifiesAs(this)) return false;
             let result;
             if (deepMatchCallback && !(result = deepMatchCallback(schemaSchema))) return false;
-			if (result instanceof AbstractNode || Array.isArray(result)) return result;
-            
+            if (result instanceof AbstractNode || Array.isArray(result)) return result;
+
             const resolvedSchemaRef1 = ColumnRef2.fromJSON({
                 ...schemaSchema.name().jsonfy({ nodeNames: false }),
                 ddl_schema: schemaSchema
@@ -54,18 +54,22 @@ export class SchemaRef extends AbstractClassicRef {
 
     jsonfy(options = {}, transformer = null, dbContext = null) {
         let resultJson;
-
         if (options.deSugar
             && !this.resultSchema()
             && dbContext) {
+            // Schema resolution...
             resultJson = this.resolve(transformer, dbContext).jsonfy(/* IMPORTANT */);
         } else {
             resultJson = super.jsonfy(options, transformer, dbContext);
         }
-
-        if (options.deSugar && resultJson.version_spec) {
-			resultJson = { ...resultJson, version_spec: undefined };
-		}
+        // Case normalization...
+        if ((options.deSugar === true || options.deSugar?.normalizeCasing) && !resultJson.delim) {
+            resultJson = { ...resultJson, value: resultJson.value.toLowerCase() };
+        }
+        // Drop version specs...
+        if ((options.deSugar === true || options.deSugar?.dropVersionSpecs) && resultJson.version_spec) {
+            resultJson = { ...resultJson, version_spec: undefined };
+        }
         return resultJson;
     }
 }

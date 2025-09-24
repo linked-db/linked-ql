@@ -7,11 +7,10 @@ export const ResultSchemaMixin = (Class) => class extends Class {
 	resultSchema() { return this.#result_schema; }
 
 	static fromJSON(inputJson, options = {}, callback = null) {
-		if (inputJson instanceof AbstractNode) {
+		if (!inputJson || inputJson instanceof AbstractNode) {
 			return super.fromJSON(inputJson, options, callback);
 		}
 		const { result_schema, ...restJson } = inputJson;
-
 		const instance = super.fromJSON(restJson, options, callback);
 		if (instance && result_schema) {
 			if (!(result_schema instanceof AbstractNode)) {
@@ -24,7 +23,7 @@ export const ResultSchemaMixin = (Class) => class extends Class {
 
 	jsonfy(options = {}, transformer = null, dbContext = null) {
 		let resultJson = super.jsonfy(options, transformer, dbContext);
-		if (this.#result_schema) {
+		if (this.#result_schema && options.resultSchemas !== false) {
 			resultJson = {
 				...resultJson,
 				result_schema: this.#result_schema,

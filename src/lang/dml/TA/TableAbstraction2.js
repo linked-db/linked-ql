@@ -62,7 +62,7 @@ export class TableAbstraction2 extends ResultSchemaMixin(AbstractNode) {
 
             transformer.statementContext.artifacts.get('tableSchemas').add({ resultSchema });
 
-            const applicableAliasJson = Number(options.deSugar) > 1
+            const applicableAliasJson = (options.deSugar === true || options.deSugar?.tableAliases)
                 && derivedAliasJson
                 || resultJson.alias;
             resultJson = {

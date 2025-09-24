@@ -44,7 +44,7 @@ export class RowConstructor extends ResultSchemaMixin(TypeSysMixin(AbstractNodeL
 
     jsonfy(options = {}, transformer = null, dbContext = null) {
         let resultJson = super.jsonfy(options, transformer, dbContext);
-        if (Number(options.deSugar || 0) > 5 || options.forceDeSugar) {
+        if (options.deSugar?.rowConstructorSchemas || options.forceDeSugar) {
 
             const entriesNode = this.entries() || [];
             const entriesJson = resultJson.entries || [];

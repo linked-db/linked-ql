@@ -281,7 +281,8 @@ const dbContext = new DBContext({ catalog });
 const deSugared = resultNode?.clone?.({ deSugar: 2 }, null, dbContext);
 console.log(deSugared.stringify({ prettyPrint: true }));
 
-console.log(JSON.stringify(deSugared.originSchemas?.()));
+console.log(JSON.stringify(deSugared, null, 3), '\n\n\n');
+console.log(JSON.stringify(deSugared.originSchemas?.(), null, 3), '\n\n\n');
 console.log(deSugared.resultSchema?.());
 
 process.emit();

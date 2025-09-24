@@ -189,7 +189,7 @@ export class InsertStmt extends PayloadStmtMixin(DMLStmt) {
 
 		if (toDialect === 'postgres'
 			&& !resultJson.pg_table_alias
-			&& Number(options.deSugar) > 2) {
+			&& (options.deSugar === true || Number(options.deSugar?.tableAliases) === 1)) {
 			resultJson = {
 				...resultJson,
 				pg_table_alias: {

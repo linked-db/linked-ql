@@ -98,7 +98,7 @@ export class BasicSelectStmt extends SelectorStmtMixin(
 
         // 2. Finalize generated JOINS
         // Generated JOINs are injected into the query
-        resultJson = this.finalizeSelectorJSON(resultJson, transformer, dbContext, options);
+        const { select_list: _, ..._resultJson } = this.finalizeSelectorJSON(resultJson, transformer, dbContext, options);
 
         // 3. Re-resolve output list for cases of just-added deep refs in selectList
         // wherein schemas wouldn't have been resolvable at the time
@@ -108,8 +108,8 @@ export class BasicSelectStmt extends SelectorStmtMixin(
 
         // Apply now
         resultJson = {
-            ...resultJson,
             select_list: selectListJson,
+            ..._resultJson,
             result_schema: selectListJson.result_schema,
             origin_schemas: this.getOriginSchemas(transformer),
         };

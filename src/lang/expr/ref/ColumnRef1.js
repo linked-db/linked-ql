@@ -25,6 +25,8 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
     /* API */
 
     dataType() { return this.resultSchema()?.dataType() || super.dataType(); }
+    
+    // ----------------
 
     canReferenceOutputColumns() {
         return this.climbTree((parentNode, up) => {
@@ -43,13 +45,13 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
         const inGrepMode = (!name || name === '*') && !deepMatchCallback;
         let resultSet = [];
 
-        const resolve = (columnSchema, qualifierJson = undefined) => {
+        const resolve = (columnSchema, qualifierJson = undefined, resolution = 'default') => {
 
             if (!(columnSchema instanceof registry.ColumnSchema)) return false;
             if (name && name !== '*' && !columnSchema.identifiesAs(this)) return false;
 
             let result;
-            if (deepMatchCallback && !(result = deepMatchCallback(columnSchema, qualifierJson))) return false;
+            if (deepMatchCallback && !(result = deepMatchCallback(columnSchema, qualifierJson, resolution))) return false;
             if (result instanceof AbstractNode || Array.isArray(result)) return result;
 
             const resultSchema = columnSchema.clone({ normalized: true });
@@ -57,8 +59,9 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
 
             const resolvedColumnRef1 = ColumnRef1.fromJSON({
                 ...columnSchema.name().jsonfy({ nodeNames: false }),
+                resolution,
+                qualifier: qualifierJson,
                 result_schema: resultSchema,
-                qualifier: qualifierJson
             });
 
             this.parentNode._adoptNodes(resolvedColumnRef1);
@@ -75,7 +78,7 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
                 name: { nodeName: registry.Identifier.NODE_NAME, value: name },
                 data_type: { nodeName: registry.DataType.NODE_NAME, value: 'INT' },
             }, { assert: true });
-            return [].concat(resolve(columnSchema) || []);
+            return [].concat(resolve(columnSchema, undefined, 'system') || []);
         }
 
         // 2. Resolve from outputSchemas first?
@@ -83,7 +86,7 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
             // Resolve from outputSchemas first
             let statementContext = transformer.statementContext
             for (const columnSchema of statementContext.artifacts.get('outputSchemas')) {
-                resultSet = resultSet.concat(resolve(columnSchema) || []);
+                resultSet = resultSet.concat(resolve(columnSchema, undefined, 'scope') || []);
                 if (!inGrepMode && resultSet.length) break; // Matching current instance only
             }
         }
@@ -91,8 +94,10 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
         // 3. Resolve normally
         if (inGrepMode || !resultSet.length) {
             // Resolve normally
-            resultSet = resultSet.concat((new registry.TableRef1(this.qualifier()?.jsonfy() || {})).lookup(
-                (tableSchema, qualifierJson = undefined) => {
+            const tempTableRef = new registry.TableRef1(this.qualifier()?.jsonfy() || {});
+            this._adoptNodes(tempTableRef);
+            resultSet = resultSet.concat(tempTableRef.lookup(
+                (tableSchema, qualifierJson = undefined, resolution = undefined) => {
 
                     return tableSchema._get('entries').reduce((prev, columnSchema) => {
                         if (tableSchema instanceof registry.JSONSchema) {
@@ -101,8 +106,9 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
                         }
                         const newQualifierJson = {
                             ...tableSchema.name().jsonfy({ nodeNames: false }),
+                            resolution,
+                            qualifier: qualifierJson,
                             result_schema: tableSchema,
-                            qualifier: qualifierJson
                         };
                         return prev.concat(resolve(columnSchema, newQualifierJson) || []);
                     }, []);
@@ -126,23 +132,30 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
     }
 
     jsonfy({ toKind = 1, ...options } = {}, transformer = null, dbContext = null) {
-        if (options.deSugar
-            && ((!this.qualifier() && Number(options.deSugar) > 1)
-                || !this.resultSchema())
-            && (transformer || dbContext)) {
-            const resolvedJson = this.resolve(transformer, dbContext).jsonfy(/* IMPORTANT */);
-            if (Number(options.deSugar) < 2 && !this.qualifier()) {
-                return { ...resolvedJson, qualifier: undefined };
+        let resultJson;
+        if (options.deSugar && (
+            ((options.deSugar === true || options.deSugar.columnQualifiers) && !this.qualifier())
+            || !this.resultSchema()
+        ) && (transformer || dbContext)) {
+            // Column qualification or schema resolution...
+            resultJson = this.resolve(transformer, dbContext).jsonfy(/* IMPORTANT */);
+            // Case normalization...
+            if ((options.deSugar === true || options.deSugar.normalizeCasing) && !resultJson.delim) {
+                resultJson = { ...resultJson, value: resultJson.resolution === 'system' ? resultJson.value.toUpperCase() : resultJson.value.toLowerCase() };
             }
-            return resolvedJson;
-        }
-        let resultJson = super.jsonfy(options, transformer, dbContext);
-        if (toKind === 2) {
-            resultJson = {
-                ...resultJson,
-                nodeName: registry.ColumnRef2.NODE_NAME,
-            };
-            delete resultJson.qualifier;
+            // Drop qualifier...
+            if (!(options.deSugar === true || options.deSugar.columnQualifiers) && !this.qualifier()) {
+                resultJson = { ...resultJson, qualifier: undefined };
+            }
+        } else {
+            resultJson = super.jsonfy(options, transformer, dbContext);
+            if (toKind === 2) {
+                resultJson = {
+                    ...resultJson,
+                    nodeName: registry.ColumnRef2.NODE_NAME,
+                };
+                delete resultJson.qualifier;
+            }
         }
         return resultJson;
     }

@@ -21,4 +21,14 @@ export class SelectItemAlias extends Identifier {
     asKW() { return this._get('as_kw'); }
 
     isAggr() { return this._get('is_aggr'); }
+
+    // --------------
+
+    jsonfy(options = {}, transformer = null, dbContext = null) {
+        let resultJson = super.jsonfy(options, transformer, dbContext);
+        if ((options.deSugar === true || options.deSugar?.normalizeCasing) && !resultJson.delim) {
+            resultJson = { ...resultJson, value: resultJson.value.toLowerCase(), };
+        }
+        return resultJson;
+    }
 }

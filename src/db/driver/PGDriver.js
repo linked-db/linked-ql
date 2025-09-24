@@ -2,7 +2,7 @@ import pg from 'pg';
 import { LogicalReplicationService, PgoutputPlugin } from 'pg-logical-replication';
 import { Expr, Identifier, StringLiteral } from '../../lang/expr/index.js';
 import { ReferentialAction, SchemaSchema, TableSchema } from '../../lang/ddl/index.js';
-import { normalizeSchemaSelectorArg, parseSchemaSelectors } from '../abstracts/util.js';
+import { normalizeQueryArgs, normalizeSchemaSelectorArg, parseSchemaSelectors } from '../abstracts/util.js';
 import { AbstractDriver } from '../abstracts/AbstractDriver.js';
 
 export class PGDriver extends AbstractDriver {
@@ -39,7 +39,7 @@ export class PGDriver extends AbstractDriver {
         // Setup clients
         this.#nativeClient = new pg.Pool(this.#connectionParams);
         this.#nativeClient.on('error', (err) => {
-            this.emit('error', `Native Client error: ${err}`);
+            this.emit('error', new Error(`Native Client error: ${err}`));
         });
 
         if (this.#realtime) {
@@ -48,7 +48,7 @@ export class PGDriver extends AbstractDriver {
             this.#walClient = new LogicalReplicationService(this.#connectionParams);
 
             this.#walClient.on('error', (err) => {
-                this.emit('error', `WAL Client error: ${err}`);
+                this.emit('error', new Error(`WAL Client error: ${err}`));
             });
 
             // Handle "data" messages
@@ -164,7 +164,7 @@ export class PGDriver extends AbstractDriver {
     async schemaNames() {
         const sql = `SELECT schema_name FROM information_schema.schemata ORDER BY array_position(current_schemas(false), schema_name)`;
         const result = await this.#nativeClient.query(sql);
-        return result.rows || result;
+        return result.rows;
     }
 
     async createSchema(schemaName) {
@@ -189,8 +189,9 @@ export class PGDriver extends AbstractDriver {
     // ---------Query
 
     async query(...args) {
-        const result = await this.#nativeClient.query(...args);
-        return result.rows || result;
+        const [ query, options ] = normalizeQueryArgs(...args);
+        const result = await this.#nativeClient.query(query+'', options.values);
+        return { rows: result.rows };
     }
 
     // ---------Subscriptions
