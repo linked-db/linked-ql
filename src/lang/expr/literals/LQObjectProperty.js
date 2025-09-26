@@ -38,7 +38,7 @@ export class LQObjectProperty extends AbstractNode {
 
     /* DESUGARING API */
 
-    jsonfy(options = {}, transformer = null, dbContext = null) {
+    jsonfy(options = {}, transformer = null, schemaInference = null) {
         if (options.deSugar && !this.starRef()) {
 
             const keyNode = this.key();
@@ -60,12 +60,12 @@ export class LQObjectProperty extends AbstractNode {
                 defaultTransform = ($options = options, childTransformer = transformer) => ({
                     nodeName: registry.AggrCallExpr.NODE_NAME,
                     name: (options.toDialect || this.options.dialect) === 'mysql' ? 'JSON_ARRAYAGG' : 'JSON_AGG',
-                    arguments: [valueNode.jsonfy($options, childTransformer, dbContext)],
+                    arguments: [valueNode.jsonfy($options, childTransformer, schemaInference)],
                 });
             } else {
                 // Note the below where we derive value, if not specified, from key
                 defaultTransform = ($options = options, childTransformer = transformer) => {
-                    return valueNode.jsonfy($options, childTransformer, dbContext);
+                    return valueNode.jsonfy($options, childTransformer, schemaInference);
                 };
             }
 
@@ -80,6 +80,6 @@ export class LQObjectProperty extends AbstractNode {
                 value: valueJson
             };
         }
-        return super.jsonfy(options, transformer, dbContext);
+        return super.jsonfy(options, transformer, schemaInference);
     }
 }

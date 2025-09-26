@@ -50,8 +50,8 @@ export class CompositeSelectStmt extends SelectStmt {
 
     /* JSON API */
 
-    jsonfy(options = {}, transformer = null, dbContext = null) {
-        const resultJson = super.jsonfy(options, transformer, dbContext);
+    jsonfy(options = {}, transformer = null, schemaInference = null) {
+        const resultJson = super.jsonfy(options, transformer, schemaInference);
         return { ...resultJson, result_schema: resultJson.left?.result_schema };
     }
 }

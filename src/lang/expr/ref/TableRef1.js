@@ -31,8 +31,8 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 
 	canReferenceInlineTables() { return true; }
 
-	lookup(deepMatchCallback = null, transformer = null, dbContext = null) {
-		if (!transformer && !dbContext) return [];
+	lookup(deepMatchCallback = null, transformer = null, schemaInference = null) {
+		if (!transformer && !schemaInference) return [];
 
 		const name = this._get('value');
 		const inGrepMode = (!name || name === '*') && !deepMatchCallback;
@@ -142,7 +142,7 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 
 				},
 				transformer,
-				dbContext,
+				schemaInference,
 			));
 		}
 
@@ -158,14 +158,14 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 		return resultSet;
 	}
 
-	jsonfy(options = {}, transformer = null, dbContext = null) {
+	jsonfy(options = {}, transformer = null, schemaInference = null) {
 		let resultJson;
 		if (options.deSugar && (
 			((options.deSugar === true || options.deSugar.tableQualifiers) && !this.qualifier())
 			|| !this.resultSchema()
-		) && (transformer || dbContext)) {
+		) && (transformer || schemaInference)) {
 			// Table qualification or schema resolution...
-			resultJson = this.resolve(transformer, dbContext).jsonfy(/* IMPORTANT */);
+			resultJson = this.resolve(transformer, schemaInference).jsonfy(/* IMPORTANT */);
 			// Case normalization...
 			if ((options.deSugar === true || options.deSugar.normalizeCasing) && !resultJson.delim) {
 				resultJson = { ...resultJson, value: resultJson.resolution === 'system' ? resultJson.value.toUpperCase() : resultJson.value.toLowerCase() };
@@ -175,7 +175,7 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 				resultJson = { ...resultJson, qualifier: undefined };
 			}
 		} else {
-			resultJson = super.jsonfy(options, transformer, dbContext);
+			resultJson = super.jsonfy(options, transformer, schemaInference);
 		}
 		// Drop version specs...
 		if ((options.deSugar === true || options.deSugar?.dropVersionSpecs) && resultJson.version_spec) {

@@ -39,9 +39,9 @@ export class ColumnIdentityConstraint extends ConstraintSchema {
 
 	/* JSON API */
 
-	jsonfy(options = {}, transformer = null, dbContext = null) {
+	jsonfy(options = {}, transformer = null, schemaInference = null) {
 		return (options.toDialect || this.options.dialect) === 'mysql'
-			? (new MYColumnAutoIncrementModifier).jsonfy(options, transformer, dbContext)
-			: super.jsonfy(options, transformer, dbContext);
+			? (new MYColumnAutoIncrementModifier).jsonfy(options, transformer, schemaInference)
+			: super.jsonfy(options, transformer, schemaInference);
 	}
 }

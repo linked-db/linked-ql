@@ -34,6 +34,7 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                             { type: 'WhereClause', as: 'where_clause', optional: true, autoSpacing: '\n' },
                             { type: 'OrderByClause', as: 'my_order_by_clause', optional: true, autoSpacing: '\n' },
                             { type: 'LimitClause', as: 'my_limit_clause', optional: true, autoSpacing: '\n' },
+                            { type: 'ReturningClause', as: 'returning_clause', optional: true, autoSpacing: '\n' },
                         ],
                     },
                     {
@@ -43,6 +44,7 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                             { type: 'JoinClause', as: 'join_clauses', arity: Infinity, optional: true, autoSpacing: '\n' },
                             { type: 'SetClause', as: 'set_clause', autoSpacing: '\n' },
                             { type: 'WhereClause', as: 'where_clause', optional: true, autoSpacing: '\n' },
+                            { type: 'ReturningClause', as: 'returning_clause', optional: true, autoSpacing: '\n' },
                         ],
                     },
                 ]
@@ -60,11 +62,11 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
 
     whereClause() { return this._get('where_clause'); }
 
+    returningClause() { return this._get('returning_clause'); }
+
     // Postgres
 
     pgFromClause() { return this._get('pg_from_clause'); }
-
-    returningClause() { return this._get('returning_clause'); }
 
     // MySQL
 
@@ -76,14 +78,14 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
 
     /* JSON API */
 
-    jsonfy(options = {}, transformer = null, dbContext = null) {
-        if (!options.deSugar) return super.jsonfy(options, transformer, dbContext);
+    jsonfy(options = {}, transformer = null, schemaInference = null) {
+        if (!options.deSugar) return super.jsonfy(options, transformer, schemaInference);
 
         transformer = new Transformer((node, defaultTransform) => {
             return defaultTransform();
         }, transformer, this/* IMPORTANT */);
 
-        let resultJson = super.jsonfy(options, transformer, dbContext);
+        let resultJson = super.jsonfy(options, transformer, schemaInference);
 
         // Order ouput JSON
         if ((options.toDialect || this.options.dialect) === 'mysql') {
@@ -97,6 +99,8 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
                 where_clause: resultJson.where_clause,
                 my_order_by_clause: resultJson.my_order_by_clause,
                 my_limit_clause: resultJson.my_limit_clause,
+                returning_clause: resultJson.returning_clause,
+                result_schema: resultJson.result_schema,
             };
         } else {
             resultJson = {
@@ -131,15 +135,15 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
         }
 
         // 1. Finalize output JSON
-		resultJson = this.finalizeOutputJSON(resultJson, transformer, dbContext, options);
+		resultJson = this.finalizeOutputJSON(resultJson, transformer, schemaInference, options);
         // 2. Finalize generated JOINS. Must come first
-        resultJson = this.finalizeSelectorJSON(resultJson, transformer, dbContext, options);
+        resultJson = this.finalizeSelectorJSON(resultJson, transformer, schemaInference, options);
         resultJson = {
 			...resultJson,
 			origin_schemas: this.getOriginSchemas(transformer),
 		};
         // 3. Finalize entire query rewrite - returning a CTE
-        resultJson = this.finalizePayloadJSON(resultJson, transformer, dbContext, options);
+        resultJson = this.finalizePayloadJSON(resultJson, transformer, schemaInference, options);
 
         return resultJson;
     }

@@ -21,8 +21,8 @@ export class LQArrayLiteral extends AbstractLQJsonLiteral {
 
     /* JSON API */
 
-    jsonfy(options = {}, transformer = null, dbContext = null) {
-        let resultJson = super.jsonfy(options, transformer, dbContext);
+    jsonfy(options = {}, transformer = null, schemaInference = null) {
+        let resultJson = super.jsonfy(options, transformer, schemaInference);
         if (options.deSugar) {
             const resultSchemas = [];
 

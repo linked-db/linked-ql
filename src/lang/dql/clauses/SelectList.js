@@ -14,8 +14,8 @@ export class SelectList extends ResultSchemaMixin(AbstractNodeList) {
 
     /* JSON API */
 
-    jsonfy(options = {}, transformer = null, dbContext = null) {
-        let resultJson = super.jsonfy(options, transformer, dbContext);
+    jsonfy(options = {}, transformer = null, schemaInference = null) {
+        let resultJson = super.jsonfy(options, transformer, schemaInference);
         if (!options.deSugar) return resultJson;
 
         let resolvedOutputList = [];
@@ -79,7 +79,7 @@ export class SelectList extends ResultSchemaMixin(AbstractNodeList) {
         };
     }
 
-    finalizeJSON(resultJson, transformer, dbContext, options) {
+    finalizeJSON(resultJson, transformer, schemaInference, options) {
         const shouldDeSugarStars = (options.deSugar === true || options.deSugar?.expandStarRefs);
         let starsFound;
 
@@ -106,7 +106,7 @@ export class SelectList extends ResultSchemaMixin(AbstractNodeList) {
             if (!fieldJson.result_schema) {
                 const fieldNode = registry.SelectItem.fromJSON(fieldJson, this.options);
                 this._adoptNodes(fieldNode);
-                fieldJson = fieldNode.jsonfy(options, transformer, dbContext);
+                fieldJson = fieldNode.jsonfy(options, transformer, schemaInference);
             }
 
             return [

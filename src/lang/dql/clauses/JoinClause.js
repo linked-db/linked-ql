@@ -46,7 +46,7 @@ export class JoinClause extends FromItem {
 
     /* JSON API */
 
-    jsonfy(options = {}, transformer = null, dbContext = null) {
+    jsonfy(options = {}, transformer = null, schemaInference = null) {
         let conditionClauseTransform;
 
         if (options.deSugar) {
@@ -57,7 +57,7 @@ export class JoinClause extends FromItem {
             }, transformer, this.statementNode/* IMPORTANT */);
         }
 
-        let resultJson = super.jsonfy(options, transformer, dbContext);
+        let resultJson = super.jsonfy(options, transformer, schemaInference);
 
         if (conditionClauseTransform) {
             resultJson = {

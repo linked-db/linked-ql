@@ -210,21 +210,21 @@ export class AbstractNode {
 
 	static morphsTo() { return this; }
 
-	clone(options = {}, transformer = null, dbContext = null) {
-		const resultJson = this.jsonfy(options, transformer, dbContext);
+	clone(options = {}, transformer = null, schemaInference = null) {
+		const resultJson = this.jsonfy(options, transformer, schemaInference);
 		const Classes = [this.constructor].concat(this.constructor.morphsTo());
 		const instance = Classes.reduce((prev, C) => prev || C.fromJSON(resultJson, { dialect: options.toDialect || this.options.dialect }), undefined);
 		return instance;
 	}
 
-	deSugar(transformSpec, options = {}, transformer = null, dbContext = null) {
+	deSugar(transformSpec, options = {}, transformer = null, schemaInference = null) {
 		options = { ...options, deSugar: transformSpec/* overrridingly */ };
-		return this.clone(options, transformer, dbContext);
+		return this.clone(options, transformer, schemaInference);
 	}
 
-	toDialect(dialect, options = {}, transformer = null, dbContext = null) {
+	toDialect(dialect, options = {}, transformer = null, schemaInference = null) {
 		options = { ...options, toDialect: dialect/* overrridingly */ };
-		return this.clone(options, transformer, dbContext);
+		return this.clone(options, transformer, schemaInference);
 	}
 
 	/**
@@ -583,7 +583,7 @@ export class AbstractNode {
 
 	toJSON() { return this.jsonfy(); }
 
-	jsonfy(options = {}, transformer = null, dbContext = null) {
+	jsonfy(options = {}, transformer = null, schemaInference = null) {
 
 		const jsonfy = (key, value, relevantTransformer) => {
 
@@ -596,7 +596,7 @@ export class AbstractNode {
 					}, []);
 				}
 				if (value instanceof AbstractNode) {
-					return value.jsonfy(options1, childTransformer, dbContext);
+					return value.jsonfy(options1, childTransformer, schemaInference);
 				}
 				return value;
 			};

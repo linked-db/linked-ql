@@ -22,8 +22,8 @@ export const OriginSchemasMixin = (Class) => class extends Class {
 		return instance;
 	}
 
-	jsonfy(options = {}, transformer = null, dbContext = null) {
-		let resultJson = super.jsonfy(options, transformer, dbContext);
+	jsonfy(options = {}, transformer = null, schemaInference = null) {
+		let resultJson = super.jsonfy(options, transformer, schemaInference);
 		if (this.#origin_schemas && options.originSchemas !== false) {
 			resultJson = {
 				...resultJson,

@@ -4,14 +4,14 @@ import { BinaryExpr } from '../../op/BinaryExpr.js';
 
 export class AbstractMagicRef extends SugarMixin(BinaryExpr) {
 
-    rhsTable(transformer, dbContext) {
-        const resolveOperand = this.operand()?.resolve(transformer, dbContext);
+    rhsTable(transformer, schemaInference) {
+        const resolveOperand = this.operand()?.resolve(transformer, schemaInference);
         const fk = resolveOperand.resultSchema()/* ColumnSchema */?.fkConstraint(true);
         if (!fk) {
             throw new ErrorFKInvalid(`[${this.parentNode || this}] Column ${this.operand()} is not a foreign key.`);
         }
-        return fk.targetTable()?.resolve(null/*transformer*/, dbContext);
+        return fk.targetTable()?.resolve(null/*transformer*/, schemaInference);
     }
 
-	rhsSchema(transformer, dbContext) { return this.rhsTable(transformer, dbContext)?.resultSchema(); }
+	rhsSchema(transformer, schemaInference) { return this.rhsTable(transformer, schemaInference)?.resultSchema(); }
 }

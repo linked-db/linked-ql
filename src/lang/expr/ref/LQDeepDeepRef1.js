@@ -27,7 +27,7 @@ export class LQDeepDeepRef1 extends AbstractMagicRef {
 
 	/* JSON API */
 
-	jsonfy({ toDeepRef = false, toKind = 1, ...options } = {}, transformer = null, dbContext = null) {
+	jsonfy({ toDeepRef = false, toKind = 1, ...options } = {}, transformer = null, schemaInference = null) {
 		if (toDeepRef || toKind === 1 || toKind === 2) {
 			const altsMap = [
 				registry.LQDeepRef1.NODE_NAME, registry.LQDeepRef2.NODE_NAME,
@@ -52,6 +52,6 @@ export class LQDeepDeepRef1 extends AbstractMagicRef {
 			};
 		}
 
-		return super.jsonfy(options, transformer, dbContext);
+		return super.jsonfy(options, transformer, schemaInference);
 	}
 }

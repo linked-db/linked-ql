@@ -130,8 +130,8 @@ export class ColumnSchema extends AbstractSchema {
         }
     }
 
-    jsonfy({ normalized = false, ...options } = {}, transformer = null, dbContext = null) {
-        let resultJson = super.jsonfy(options, transformer, dbContext);
+    jsonfy({ normalized = false, ...options } = {}, transformer = null, schemaInference = null) {
+        let resultJson = super.jsonfy(options, transformer, schemaInference);
         if (normalized) {
             let tableLevelConstraints = [];
             for (const x of ['pk', 'fk', 'uk', 'ck']) {

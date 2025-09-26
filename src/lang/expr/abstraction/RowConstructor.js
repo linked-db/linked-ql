@@ -42,8 +42,8 @@ export class RowConstructor extends ResultSchemaMixin(TypeSysMixin(AbstractNodeL
 
     /* JSON API */
 
-    jsonfy(options = {}, transformer = null, dbContext = null) {
-        let resultJson = super.jsonfy(options, transformer, dbContext);
+    jsonfy(options = {}, transformer = null, schemaInference = null) {
+        let resultJson = super.jsonfy(options, transformer, schemaInference);
         if (options.deSugar?.rowConstructorSchemas || options.forceDeSugar) {
 
             const entriesNode = this.entries() || [];

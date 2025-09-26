@@ -12,35 +12,327 @@ export class QueryEngine {
         this.#exprEngine = new ExprEngine(this.#options);
     }
 
-    // ---------------- top-level query (async generator) ----------------
-    async *query(ast) {
-        if (!['BASIC_SELECT_STMT', 'COMPLETE_SELECT_STMT'].includes(ast?.nodeName)) {
-            throw new Error('Only SELECT statements are supported in QueryEngine');
+    // ---------------- top-level query/dispatcher (async generator) ----------------
+    async *query(scriptJson) {
+        let returnValue;
+        for (const stmtJson of (scriptJson.nodeName === 'SCRIPT' && scriptJson.entries || [scriptJson])) {
+            switch (stmtJson.nodeName) {
+                case 'BASIC_SELECT_STMT':
+                case 'COMPLETE_SELECT_STMT':
+                    returnValue = await this.SELECT(stmtJson);
+                    break;
+                case 'TABLE_STMT':
+                    returnValue = await this.TABLE(stmtJson);
+                    break;
+                case 'INSERT_STMT':
+                    returnValue = await this.INSERT(stmtJson);
+                    break;
+                case 'UPDATE_STMT':
+                    returnValue = await this.UPDATE(stmtJson);
+                    break;
+                case 'DELETE_STMT':
+                    returnValue = await this.DELETE(stmtJson);
+                    break;
+                default:
+                    throw new Error(`Unknown statement type: ${stmtJson.nodeName}`);
+            }
+        }
+        return returnValue;
+    }
+
+    // ---------------- top-level INSERT ----------------
+    async INSERT(stmtJson) {
+        if (stmtJson?.nodeName !== 'INSERT_STMT') {
+            throw new Error('Only INSERT_STMT statements are supported here');
+        }
+
+        // Resolve schema/table spec
+        const schemaName = stmtJson.table_ref.qualifier?.value;
+        const tableName = stmtJson.table_ref.value;
+        const tableAlias = stmtJson.pg_table_alias?.value || '';
+        const tableSchema = await this.#storageEngine.tableSchema(tableName, schemaName);
+
+        // Resolve column names
+        const definedColumns = Object.fromEntries(tableSchema.columns().map((col) => [col.name().value(), col]));
+        const columnNames = stmtJson.column_list?.entries.map((col) => col.value)
+            || Object.keys(definedColumns);
+
+        // Resolve defaults and constraints
+        const defaultRecord = Object.create(null);
+        for (const [colName, colSchema] of Object.entries(definedColumns)) {
+            defaultRecord[colName] = null;
+            let _cons;
+            if (_cons = colSchema.defaultConstraint()) {
+                defaultRecord[colName] = this.#exprEngine.evaluate(_cons.expr().jsonfy());
+            }
+        }
+
+        // Build records
+        const records = [];
+        // ----------- a. values_clause
+        if (stmtJson.values_clause?.entries.length) {
+            for (const row_constructor of stmtJson.values_clause.entries) {
+                const record = { ...defaultRecord };
+                records.push(record);
+                for (const [i, valueExpr] of row_constructor.entries.entries()) {
+                    const colName = columnNames[i];
+                    const colValue = this.#exprEngine.evaluate(valueExpr);
+                    this.#acquireValue(record, colName, colValue, definedColumns);
+                }
+            }
+        }
+        // ----------- b. select_clause | my_table_clause
+        else if (stmtJson.select_clause || stmtJson.my_table_clause) {
+            const result = stmtJson.my_table_clause
+                ? this.TABLE(stmtJson.my_table_clause)
+                : this.SELECT(stmtJson.select_clause);
+            for await (const _record of result) {
+                const record = { ...defaultRecord };
+                records.push(record);
+                for (const [colName, colValue] of Object.entries(_record)) {
+                    this.#acquireValue(record, colName, colValue, definedColumns);
+                }
+            }
+        }
+        // ----------- c. pg_default_values_clause
+        else if (stmtJson.pg_default_values_clause) {
+            const record = { ...defaultRecord };
+            records.push(record);
+        }
+        // ----------- d. my_set_clause
+        else if (stmtJson.my_set_clause) {
+            const record = this.#renderSetClause({ [tableAlias]: defaultRecord }, stmtJson.my_set_clause);
+            records.push(record);
+        }
+
+        // Dispatch to DB
+        let rowCount = 0;
+        const returnList = [];
+        for (const record of records) {
+            // Exec insert / update
+            let finalizedRecord;
+            try {
+                finalizedRecord = await this.#storageEngine.insert(tableName, record, schemaName);
+            } catch (e) {
+                if (e instanceof ConflictError && stmtJson.conflict_handling_clause) {
+                    const newLogicalRecord = this.#renderSetClause({ [tableAlias]: e.existing }, stmtJson.conflict_handling_clause);
+                    finalizedRecord = await this.#storageEngine.update(tableName, newLogicalRecord[tableAlias], schemaName);
+                } else throw e;
+            }
+            // Process RETURNING clause
+            if (stmtJson.returning_clause?.entries) {
+                const _record = Object.create(null);
+                for (const selectItem of stmtJson.returning_clause.entries) {
+                    const { alias, value } = this.#exprEngine.evaluate(selectItem, { [tableAlias]: finalizedRecord });
+                    _record[alias] = value;
+                }
+                returnList.push(_record);
+            } else rowCount++;
+        }
+
+        // Number | array
+        if (!stmtJson.returning_clause?.entries) return rowCount;
+        return (async function* () { yield* returnList; })();
+    }
+
+    // ---------------- top-level UPDATE ----------------
+    async UPDATE(stmtJson) {
+        if (stmtJson?.nodeName !== 'UPDATE_STMT') {
+            throw new Error('Only UPDATE_STMT statements are supported here');
+        }
+
+        // Derive FromItems and JoinClauses
+        let fromItems, joinClauses, updateTargets;
+        if (stmtJson.my_update_list?.length) {
+            // Derive FromItems and JoinClauses
+            fromItems = stmtJson.my_update_list.map((item) => ({ alias: item.alias, expr: item.table_ref }));
+            joinClauses = stmtJson.join_clauses || [];
+            // Derive update targets
+            updateTargets = fromItems.concat(joinClauses).map((item) => {
+                return [item.alias?.value || item.expr.value, item.expr.value, item.expr.qualifier?.value];
+            });
+        } else {
+            const tableExpr = stmtJson.table_expr;
+            // Derive FromItems and JoinClauses
+            fromItems = [{ alias: null, expr: tableExpr.table_ref }];
+            joinClauses = (stmtJson.pg_from_clause?.entries || []).concat(stmtJson.join_clauses || []);
+            // Derive update targets
+            const schemaName = tableExpr.table_ref.qualifier?.value;
+            const tableName = tableExpr.table_ref.value;
+            const tableAlias = tableExpr.alias?.value || '';
+            updateTargets = [
+                [tableAlias, tableName, schemaName],
+            ];
+        }
+
+        // FROM -> composites
+        let stream = await this.evaluateFromItems(fromItems, joinClauses);
+        if (stmtJson.where_clause) {
+            stream = this.evaluateWhereClause(stmtJson.where_clause, stream);
+        }
+
+        // 3. Exec updates
+        let rowCount = 0;
+        const returnList = [];
+        for await (const logicalRecord of stream) {
+            // Exec update
+            const newLogicalRecord = this.#renderSetClause(logicalRecord, stmtJson.set_clause);
+            for (const [tableAlias, tableName, schemaName] of updateTargets) {
+                if (newLogicalRecord[tableAlias] === logicalRecord[tableAlias]) continue;
+                await this.#storageEngine.update(tableName, newLogicalRecord[tableAlias], schemaName);
+            }
+            // Process RETURNING clause
+            if (stmtJson.returning_clause?.entries) {
+                const _record = Object.create(null);
+                for (const selectItem of stmtJson.returning_clause.entries) {
+                    const { alias, value } = this.#exprEngine.evaluate(selectItem, newLogicalRecord);
+                    _record[alias] = value;
+                }
+                returnList.push(_record);
+            } else rowCount++;
+        }
+
+        // Number | array
+        if (!stmtJson.returning_clause?.entries) return rowCount;
+        return (async function* () { yield* returnList; })();
+    }
+
+    // ---------------- top-level DELETE ----------------
+    async DELETE(stmtJson) {
+        if (stmtJson?.nodeName !== 'DELETE_STMT') {
+            throw new Error('Only DELETE_STMT statements are supported here');
+        }
+
+        // Derive FromItems and JoinClauses
+        let fromItems, joinClauses, deleteTargets;
+        if (stmtJson.my_delete_list?.length) {
+            // Derive FromItems and JoinClauses
+            fromItems = stmtJson.my_delete_list.map((item) => ({ alias: null, expr: item.table_ref }));
+            joinClauses = []
+                .concat((stmtJson.my_from_clause || stmtJson.using_clause)?.entries || [])
+                .concat(stmtJson.join_clauses || []);
+            // Derive update targets
+            deleteTargets = fromItems.map((item) => {
+                return [item.expr.value, item.expr.value, item.expr.qualifier?.value];
+            });
+        } else {
+            const tableExpr = stmtJson.table_expr;
+            // Derive FromItems and JoinClauses
+            fromItems = [{ alias: null, expr: tableExpr.table_ref }];
+            joinClauses = (stmtJson.pg_using_clause?.entries || []).concat(stmtJson.join_clauses || []);
+            // Derive update targets
+            const schemaName = tableExpr.table_ref.qualifier?.value;
+            const tableName = tableExpr.table_ref.value;
+            const tableAlias = tableExpr.alias?.value || '';
+            deleteTargets = [
+                [tableAlias, tableName, schemaName],
+            ];
+        }
+
+        // FROM -> composites
+        let stream = await this.evaluateFromItems(fromItems, joinClauses);
+        if (stmtJson.where_clause) {
+            stream = this.evaluateWhereClause(stmtJson.where_clause, stream);
+        }
+
+        // 3. Exec updates
+        let rowCount = 0;
+        const returnList = [];
+        for await (const logicalRecord of stream) {
+            for (const [tableAlias, tableName, schemaName] of deleteTargets) {
+                await this.#storageEngine.delete(tableName, logicalRecord[tableAlias], schemaName);
+            }
+            // Process RETURNING clause
+            if (stmtJson.returning_clause?.entries) {
+                const _record = Object.create(null);
+                for (const selectItem of stmtJson.returning_clause.entries) {
+                    const { alias, value } = this.#exprEngine.evaluate(selectItem, logicalRecord);
+                    _record[alias] = value;
+                }
+                returnList.push(_record);
+            } else rowCount++;
+        }
+
+        // Number | array
+        if (!stmtJson.returning_clause?.entries) return rowCount;
+        return (async function* () { yield* returnList; })();
+    }
+
+    #renderSetClause(logicalRecord, setClauseJson) {
+        const newLogicalRecord = { ...logicalRecord };
+        const baseAlias = Object.keys(logicalRecord)[0];
+        for (const assignmentExpr of setClauseJson.entries) {
+            if (assignmentExpr.left.nodeName === 'COLUMN_CONSTRUCTOR') {
+                if (assignmentExpr.right.nodeName !== 'ROW_CONSTRUCTOR') {
+                    throw new Error(`A RHS of ROW_CONSTRUCTOR is expected for a LHS of COLUMN_CONSTRUCTOR, but got ${assignmentExpr.right.nodeName}`);
+                }
+                for (const [i, { value: colName }] of assignmentExpr.left.entries.entries()) {
+                    const colValue = this.#exprEngine.evaluate(assignmentExpr.left.entries[i], logicalRecord);
+                    newLogicalRecord[baseAlias] = { ...newLogicalRecord[baseAlias], [colName]: colValue };
+                }
+            } else {
+                const colName = assignmentExpr.left.value;
+                const qualif = assignmentExpr.left.qualifier?.value || baseAlias;
+                const colValue = this.#exprEngine.evaluate(assignmentExpr.right, logicalRecord);
+                newLogicalRecord[qualif] = { ...newLogicalRecord[qualif], [colName]: colValue };
+            }
+        }
+        return newLogicalRecord;
+    }
+
+    #acquireValue(record, colName, colValue, definedColumns) {
+        record[colName] = colValue;
+        return record;
+        // TODO
+        const colSchema = definedColumns[colName];
+        if ((!colSchema.identityConstraint() && !colSchema.autoIncrementConstraint())
+            && ((_cons = colSchema.nullConstraint()) && _cons.value() === 'NOT')) {
+            requireds.add(colName);
+        }
+        return inputValue;
+    }
+
+    // ---------------- top-level TABLE (async generator) ----------------
+    async *TABLE(stmtJson) {
+        if (stmtJson?.nodeName !== 'TABLE_STMT') {
+            throw new Error('Only TABLE_STMT statements are supported here');
+        }
+        // Resolve schema/table spec
+        const schemaName = stmtJson.table_ref.qualifier?.value;
+        const tableName = stmtJson.table_ref.value;
+
+        yield* this.#storageEngine.getCursor(tableName, schemaName);
+    }
+
+    // ---------------- top-level SELECT (async generator) ----------------
+    async *SELECT(stmtJson) {
+        if (!['BASIC_SELECT_STMT', 'COMPLETE_SELECT_STMT'].includes(stmtJson?.nodeName)) {
+            throw new Error('Only BASIC_SELECT_STMT | COMPLETE_SELECT_STMT statements are supported here');
         }
         // 1. FROM -> composites
-        let stream = this.evaluateFromClause(ast.from_clause, ast.join_clauses);
+        let stream = this.evaluateFromClause(stmtJson.from_clause, stmtJson.join_clauses);
 
         // 2. WHERE
-        if (ast.where_clause) stream = this.evaluateWhereClause(ast.where_clause, stream);
+        if (stmtJson.where_clause) stream = this.evaluateWhereClause(stmtJson.where_clause, stream);
 
         // 3. GROUPING / aggregates
-        const hasGroup = !!(ast.group_clause?.entries?.length);
-        const hasAggInSelect = this._selectHasAggregate(ast.select_clause);
+        const hasGroup = !!(stmtJson.group_by_clause?.entries?.length);
+        const hasAggInSelect = this._selectHasAggregate(stmtJson.select_clause);
 
         if (hasGroup) {
             // evaluateGroupByClause returns composites (representatives) already filtered by HAVING if provided
-            stream = this.evaluateGroupByClause(ast.group_clause, stream, ast.having_clause);
+            stream = this.evaluateGroupByClause(stmtJson.group_by_clause, stream, stmtJson.having_clause);
         } else if (!hasGroup && hasAggInSelect) {
             // global-group: aggregate without GROUP BY -> single representative composite with GROUP_SYMBOL
             stream = this.evaluateGlobalGroup(stream);
         }
 
         // 4. SELECT (projection) -- always works on compositeRecords
-        stream = this.evaluateSelectClause(ast.select_clause, stream);
+        stream = this.evaluateSelectClause(stmtJson.select_clause, stream);
 
         // 5. ORDER BY (materialize) then LIMIT
-        if (ast.order_clause?.length) stream = this.evaluateOrderByClause(ast.order_clause, stream);
-        if (ast.limit_clause) stream = this.evaluateLimitClause(ast.limit_clause, stream);
+        if (stmtJson.order_by_clause?.length) stream = this.evaluateOrderByClause(stmtJson.order_by_clause, stream);
+        if (stmtJson.limit_clause) stream = this.evaluateLimitClause(stmtJson.limit_clause, stream);
 
         yield* stream;
     }
@@ -54,7 +346,7 @@ export class QueryEngine {
     async *evaluateFromItem(fromItem) {
         // Derived query
         if (fromItem.expr?.nodeName === 'DERIVED_QUERY') {
-            const alias = fromItem.alias?.value || '(subquery)';
+            const alias = fromItem.alias?.value || '';
             for await (const subRow of this.query(fromItem.expr.expr)) {
                 yield { [alias]: subRow };
             }
@@ -62,9 +354,10 @@ export class QueryEngine {
         }
 
         // Table scan
+        const schemaName = fromItem.expr.qualifier?.value;
         const tableName = fromItem.expr.value;
         const alias = fromItem.alias?.value || tableName;
-        for await (const row of this.#storageEngine.scan(tableName)) {
+        for await (const row of this.#storageEngine.getCursor(tableName, schemaName)) {
             yield { [alias]: row }; // composite, no GROUP_SYMBOL
         }
     }
@@ -215,12 +508,11 @@ export class QueryEngine {
         }
 
         for await (const comp of upstream) {
-            const projected = {};
+            const projected = Object.create(null);
             for (let i = 0; i < selectClause.entries.length; i++) {
                 const item = selectClause.entries[i];
-                const alias = item.alias?.value || this._exprToAlias(item.expr);
-                // ExprEngine.evaluate should check comp[GROUP_SYMBOL] when encountering aggregates
-                projected[alias] = this.#exprEngine.evaluate(item.expr, comp);
+                const { alias, value } = this.#exprEngine.evaluate(item, comp);
+                projected[alias] = value;
             }
             yield projected;
         }
@@ -255,11 +547,6 @@ export class QueryEngine {
             if (yielded++ >= limit) break;
             yield r;
         }
-    }
-
-    // ---------------- helpers ----------------
-    _exprToAlias(expr) {
-        return expr.alias?.value || expr.expr?.value || expr.value || JSON.stringify(expr).slice(0, 32);
     }
 
     _selectHasAggregate(selectClause) {

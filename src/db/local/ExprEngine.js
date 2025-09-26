@@ -55,6 +55,12 @@ export class ExprEngine {
         throw new Error(`SCALAR_SUBQUERY unimplemented`);
     }
 
+    SELECT_ITEM(node, compositeRow, entireWindow = null) {
+        const alias = node.alias?.value || (this.#options.dialect === 'mysql' ? '?column?'/* TODO */ : '?column?');
+        const value = this.evaluate(node.expr, compositeRow, entireWindow);
+        return { alias, value };
+    }
+
     ROW_CONSTRUCTOR(node, compositeRow, entireWindow = null) {
         const entries = node.entries.map((e) => this.evaluate(e, compositeRow, entireWindow));
         return entries.length > 1 ? entries : entries[0];
@@ -111,7 +117,7 @@ export class ExprEngine {
             // JSON functions (Postgres & MySQL variants)
             case 'JSON_OBJECT': {// MySQL: JSON_OBJECT(key1, val1, key2, val2, ...)
                 if (args.length % 2 !== 0) throw new Error('JSON_OBJECT requires an even number of arguments');
-                const obj = {};
+                const obj = Object.create(null);
                 for (let i = 0; i < args.length; i += 2) {
                     obj[args[i]] = args[i + 1];
                 }
@@ -121,7 +127,7 @@ export class ExprEngine {
                 return args;
             case 'JSON_BUILD_OBJECT': {// Postgres: JSON_BUILD_OBJECT(key1, val1, ...)
                 if (args.length % 2 !== 0) throw new Error('JSON_BUILD_OBJECT requires an even number of arguments');
-                const buildObj = {};
+                const buildObj = Object.create(null);
                 for (let i = 0; i < args.length; i += 2) {
                     buildObj[args[i]] = args[i + 1];
                 }
@@ -197,7 +203,7 @@ export class ExprEngine {
                 // Postgres: JSON_OBJECT_AGG(key, value)
                 const keyExpr = args[0], valExpr = args[1];
                 if (!keyExpr || !valExpr) return {};
-                const obj = {};
+                const obj = Object.create(null);
                 for (const member of group) {
                     const k = this.evaluate(keyExpr, member, entireWindow);
                     const v = this.evaluate(valExpr, member, entireWindow);

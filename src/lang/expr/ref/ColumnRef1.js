@@ -38,8 +38,8 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
         });
     }
 
-    lookup(deepMatchCallback = null, transformer = null, dbContext = null) {
-        if (!transformer && !dbContext) return [];
+    lookup(deepMatchCallback = null, transformer = null, schemaInference = null) {
+        if (!transformer && !schemaInference) return [];
 
         const name = this._get('value');
         const inGrepMode = (!name || name === '*') && !deepMatchCallback;
@@ -115,7 +115,7 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
 
                 },
                 transformer,
-                dbContext,
+                schemaInference,
             ));
         }
 
@@ -131,14 +131,14 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
         return resultSet;
     }
 
-    jsonfy({ toKind = 1, ...options } = {}, transformer = null, dbContext = null) {
+    jsonfy({ toKind = 1, ...options } = {}, transformer = null, schemaInference = null) {
         let resultJson;
         if (options.deSugar && (
             ((options.deSugar === true || options.deSugar.columnQualifiers) && !this.qualifier())
             || !this.resultSchema()
-        ) && (transformer || dbContext)) {
+        ) && (transformer || schemaInference)) {
             // Column qualification or schema resolution...
-            resultJson = this.resolve(transformer, dbContext).jsonfy(/* IMPORTANT */);
+            resultJson = this.resolve(transformer, schemaInference).jsonfy(/* IMPORTANT */);
             // Case normalization...
             if ((options.deSugar === true || options.deSugar.normalizeCasing) && !resultJson.delim) {
                 resultJson = { ...resultJson, value: resultJson.resolution === 'system' ? resultJson.value.toUpperCase() : resultJson.value.toLowerCase() };
@@ -148,7 +148,7 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
                 resultJson = { ...resultJson, qualifier: undefined };
             }
         } else {
-            resultJson = super.jsonfy(options, transformer, dbContext);
+            resultJson = super.jsonfy(options, transformer, schemaInference);
             if (toKind === 2) {
                 resultJson = {
                     ...resultJson,

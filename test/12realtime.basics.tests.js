@@ -2,8 +2,8 @@ import { expect } from 'chai';
 
 import '../src/lang/index.js';
 import { LocalDriver } from '../src/db/local/LocalDriver.js';
-import { PGDriver } from '../src/db/driver/PGDriver.js';
-import { DBContext } from '../src/lang/DBContext.js';
+import { PGDriver } from '../src/db/postgres/PGDriver.js';
+import { SchemaInference } from '../src/lang/SchemaInference.js';
 import { QueryWindow } from '../src/db/realtime/QueryWindow.js';
 import { registry } from '../src/lang/registry.js';
 
@@ -359,12 +359,12 @@ describe('Classic - Subscriptions', () => {
 
             it('should do basic reactivity for a basic single-table query', async () => {
 
-                const dbContext = new DBContext({ driver });
-                await dbContext.provide([{ schema: 'lq_test_public', tables: ['tbl1'] }]);
+                const schemaInference = new SchemaInference({ driver });
+                await schemaInference.provide([{ schema: 'lq_test_public', tables: ['tbl1'] }]);
 
                 const sql = `SELECT fname || ':----:' || email FROM lq_test_public.tbl1 WHERE id > 0`;
                 const _query = await registry.SelectStmt.parse(sql);
-                const query = _query.deSugar(true, {}, null, dbContext);
+                const query = _query.deSugar(true, {}, null, schemaInference);
 
                 const qw = new QueryWindow(driver, query);
                 qw.on('error', (e) => console.error(e));
@@ -374,8 +374,8 @@ describe('Classic - Subscriptions', () => {
 
                 const initialResult = await qw.initialResult();
 
-                expect(initialResult[0]).to.have.lengthOf(2);
-                expect(initialResult[0]).to.deep.eq([
+                expect(initialResult.rows).to.have.lengthOf(2);
+                expect(initialResult.rows).to.deep.eq([
                     { '?column?': 'John1:----:x1@x.com' },
                     { '?column?': 'John2:----:x2@x.com' }
                 ]);
@@ -408,18 +408,18 @@ describe('Classic - Subscriptions', () => {
                 await qw.disconnect();
             });
 
-            let dbContext;
+            let schemaInference;
             it('should do basic reactivity for a basic two-table query', async () => {
 
-                dbContext = new DBContext({ driver });
-                await dbContext.provide([{ schema: 'lq_test_private', tables: ['tbl1', 'tbl2'] }]);
+                schemaInference = new SchemaInference({ driver });
+                await schemaInference.provide([{ schema: 'lq_test_private', tables: ['tbl1', 'tbl2'] }]);
 
                 const sql = `
                 SELECT fname || ':----:' || email || ':----:' || tbl2.email FROM lq_test_private.tbl1
                 LEFT JOIN lq_test_private.tbl2 ON tbl1.id = tbl2.id
                 WHERE tbl1.id > 0`;
                 const _query = await registry.SelectStmt.parse(sql);
-                const query = _query.deSugar(true, {}, null, dbContext);
+                const query = _query.deSugar(true, {}, null, schemaInference);
 
                 await driver.query(`
                     INSERT INTO lq_test_private.tbl1 (fname, email)
@@ -438,8 +438,8 @@ describe('Classic - Subscriptions', () => {
 
                 const initialResult = await qw.initialResult();
 
-                expect(initialResult[0]).to.have.lengthOf(2);
-                expect(initialResult[0]).to.deep.eq([
+                expect(initialResult.rows).to.have.lengthOf(2);
+                expect(initialResult.rows).to.deep.eq([
                     { '?column?': 'John1:----:ja-1@xx.com:----:jb-1@xx.com' },
                     { '?column?': 'John2:----:ja-2@xx.com:----:' }
                 ]);
@@ -479,7 +479,7 @@ describe('Classic - Subscriptions', () => {
                 WHERE tbl1.id > 0`;
 
                 const _query = await registry.SelectStmt.parse(sql);
-                const query = _query.deSugar(true, {}, null, dbContext);
+                const query = _query.deSugar(true, {}, null, schemaInference);
 
                 const qw = new QueryWindow(driver, query);
                 qw.on('error', (e) => console.error(e));
@@ -489,8 +489,8 @@ describe('Classic - Subscriptions', () => {
 
                 const initialResult = await qw.initialResult();
 
-                expect(initialResult[0]).to.have.lengthOf(1);
-                expect(initialResult[0]).to.deep.eq([
+                expect(initialResult.rows).to.have.lengthOf(1);
+                expect(initialResult.rows).to.deep.eq([
                     { '?column?': 'John1:----:ja-1@xx.com:----:jb-1@xx.com' },
                 ]);
 

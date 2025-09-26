@@ -1,14 +1,13 @@
 import { ExprEngine } from "../local/ExprEngine.js";
 import { SimpleEmitter } from '../abstracts/SimpleEmitter.js';
-import { BasicSelectStmt } from '../../lang/dql/BasicSelectStmt.js';
 import { splitLogicalExpr, matchLogicalExprs, matchExpr } from '../abstracts/util.js';
 import { registry } from "../../lang/registry.js";
 import { _eq } from "../../lang/abstracts/util.js";
 
 export class QueryWindow extends SimpleEmitter {
 
-    #driver;
-    get driver() { return this.#driver; }
+    #dbDriver;
+    get driver() { return this.#dbDriver; }
 
     #parentWindow;
     get generator() { return this.#parentWindow; }
@@ -33,11 +32,11 @@ export class QueryWindow extends SimpleEmitter {
     #localRecords = new Map;
     #firstRun = false;
 
-    constructor(driver, query, filters = [], options = {}) {
+    constructor(dbDriver, query, filters = [], options = {}) {
         super();
-        this.#driver = driver;
-        if (!(query instanceof BasicSelectStmt)) {
-            throw new Error('Only SELECT statements are supported in RealtimeClient');
+        this.#dbDriver = dbDriver;
+        if (!(query instanceof registry.BasicSelectStmt)) {
+            throw new Error('Only SELECT statements are supported in live mode');
         }
         if (!Array.isArray(query.originSchemas())) {
             throw new Error('Expected a pre-resolved query object with originSchemas() returning an array');
@@ -102,14 +101,14 @@ export class QueryWindow extends SimpleEmitter {
         this.#specifiedLimit = this.#queryJson.limit_clause?.expr ? this.#exprEngine.evaluate(this.#queryJson.limit_clause?.expr) : 0;
 
         // Subscribe to WAL events...
-        this.#generatorDisconnect = this.#driver.subscribe(fromItemsBySchema, (events) => {
+        this.#generatorDisconnect = this.#dbDriver.subscribe(fromItemsBySchema, (events) => {
             this.#handleEvents(events).catch((e) => this.emit('error', e));
         });
 
         // Pre-compute the "headles query"'s head
         const logicalSelectItems = this.#aliases.map((aliasJson) => {
             const originSchema = this.#originSchemasLite.get(aliasJson.value);
-            const fnName = this.#driver.dialect === 'mysql' ? 'JSON_OBJECT' : 'JSON_BUILD_OBJECT';
+            const fnName = this.#dbDriver.dialect === 'mysql' ? 'JSON_OBJECT' : 'JSON_BUILD_OBJECT';
             const fnArgs = originSchema.$columns.reduce((build, colJson) => ([
                 ...build,
                 { nodeName: 'STRING_LITERAL', ...colJson },
@@ -246,13 +245,13 @@ export class QueryWindow extends SimpleEmitter {
 
     async initialResult() {
         const currentRecords = await this.currentRecords();
-        const records = [], hashes = [];
+        const rows = [], hashes = [];
         for (const [logicalHash, logicalRecord] of currentRecords.entries()) {
             const projection = this.#renderLogicalRecord(logicalRecord);
-            records.push(projection);
+            rows.push(projection);
             hashes.push(logicalHash);
         }
-        return [records, hashes];
+        return { rows, hashes };
     }
 
     async currentRecords() {
@@ -311,8 +310,8 @@ export class QueryWindow extends SimpleEmitter {
             };
         }
         // The fetch
-        const logicalQuery = this.#query.constructor.fromJSON(logicalQueryJson, { dialect: this.#driver.dialect });
-        const result = await this.#driver.query(logicalQuery);
+        const logicalQuery = this.#query.constructor.fromJSON(logicalQueryJson, { dialect: this.#dbDriver.dialect });
+        const result = await this.#dbDriver.query(logicalQuery);
         // Map to joint IDs
         const resultMap = new Map;
         for (const logicalRecord of result.rows) {
@@ -358,10 +357,9 @@ export class QueryWindow extends SimpleEmitter {
     }
 
     #renderLogicalRecord(logicalRecord) {
-        const projection = {};
+        const projection = Object.create(null);
         for (const selectItemJson of this.#queryJson.select_list.entries) {
-            const alias = selectItemJson.alias?.value || '?column?';
-            const value = this.#exprEngine.evaluate(selectItemJson.expr, logicalRecord);
+            const { alias, value } = this.#exprEngine.evaluate(selectItemJson, logicalRecord);
             projection[alias] = value;
         }
         return projection;

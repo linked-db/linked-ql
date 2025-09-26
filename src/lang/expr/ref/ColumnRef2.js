@@ -15,8 +15,8 @@ export class ColumnRef2 extends AbstractClassicRef {
 
     dataType() { return this.resultSchema()?.dataType() || super.dataType(); }
 
-    lookup(deepMatchCallback, transformer = null, dbContext = null) {
-        if (!transformer && !dbContext) return [];
+    lookup(deepMatchCallback, transformer = null, schemaInference = null) {
+        if (!transformer && !schemaInference) return [];
 
         const name = this._get('value');
         const inGrepMode = !name && !deepMatchCallback;
@@ -44,9 +44,9 @@ export class ColumnRef2 extends AbstractClassicRef {
         let tableSchemasInScope;
         if (this.parentNode instanceof AbstractMagicRef) {
             if (this === this.parentNode.operand()) {
-                tableSchemasInScope = [this.parentNode.parentNode.rhsSchema(transformer, dbContext)];
+                tableSchemasInScope = [this.parentNode.parentNode.rhsSchema(transformer, schemaInference)];
             } else {
-                tableSchemasInScope = [this.parentNode.rhsSchema(transformer, dbContext)];
+                tableSchemasInScope = [this.parentNode.rhsSchema(transformer, schemaInference)];
             }
         } else {
             tableSchemasInScope = this.climbTree((superParentNode, up) => {
@@ -75,13 +75,13 @@ export class ColumnRef2 extends AbstractClassicRef {
         return resultSet;
     }
 
-    jsonfy({ toKind = 2, ...options } = {}, transformer = null, dbContext = null) {
+    jsonfy({ toKind = 2, ...options } = {}, transformer = null, schemaInference = null) {
         if (options.deSugar
             && !this.resultSchema()
-            && (transformer || dbContext)) {
-            return this.resolve(transformer, dbContext).jsonfy(/* IMPORTANT */);
+            && (transformer || schemaInference)) {
+            return this.resolve(transformer, schemaInference).jsonfy(/* IMPORTANT */);
         }
-        let resultJson = super.jsonfy(options, transformer, dbContext);
+        let resultJson = super.jsonfy(options, transformer, schemaInference);
         if (toKind === 1) {
             resultJson = {
                 ...resultJson,

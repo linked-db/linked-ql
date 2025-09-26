@@ -1,7 +1,7 @@
 import { SchemaSchema } from './ddl/schema/SchemaSchema.js';
 import { matchSchemaSelector, normalizeSchemaSelectorArg } from '../db/abstracts/util.js';
 
-export class DBContext {
+export class SchemaInference {
 
     #searchPath = ['public'];
     get searchPath() { return this.#searchPath; }

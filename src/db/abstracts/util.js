@@ -51,30 +51,20 @@ export function matchSchemaSelector(ident, enums) {
 // ------------------------
 
 export function normalizeQueryArgs(...args) {
-    let withCallback, query, callback, options = {};
-    if (typeof args[0] === 'boolean') {
-        withCallback = args.shift();
-    }
+    let query, options = {};
     if (typeof args[0] === 'object' && args[0] && args[0].text) {
-        if (withCallback) {
-            ({ text: query, callback, ...options } = args[0]);
-        } else {
-            ({ text: query, ...options } = args[0]);
-        }
+        ({ text: query, ...options } = args[0]);
     } else {
         query = args.shift();
         if (Array.isArray(args[0])) {
             options.values = args.shift();
         }
-        if (withCallback && typeof args[0] === 'function') {
-            callback = args.shift();
+        if (typeof args[0] === 'function') {
+            options.callback = args.shift();
         }
         if (typeof args[0] === 'object' && args[0]) {
             options = { ...options, ...args.shift() };
         }
-    }
-    if (withCallback) {
-        return [query, callback, options];
     }
     return [query, options];
 }

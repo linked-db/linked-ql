@@ -21,8 +21,8 @@ export class SchemaRef extends AbstractClassicRef {
 
     /* API */
 
-    lookup(deepMatchCallback = null, transformer = null, dbContext = null) {
-        if (!dbContext) return [];
+    lookup(deepMatchCallback = null, transformer = null, schemaInference = null) {
+        if (!schemaInference) return [];
 
         const name = this._get('value');
         const inGrepMode = !name && !deepMatchCallback;
@@ -44,7 +44,7 @@ export class SchemaRef extends AbstractClassicRef {
             return resolvedSchemaRef1;
         };
 
-        for (const schemaSchema of dbContext.catalog) {
+        for (const schemaSchema of schemaInference.catalog) {
             resultSet = resultSet.concat(resolve(schemaSchema) || []);
             if (!inGrepMode && resultSet.length) break; // Matching current instance only
         }
@@ -52,15 +52,15 @@ export class SchemaRef extends AbstractClassicRef {
         return resultSet;
     }
 
-    jsonfy(options = {}, transformer = null, dbContext = null) {
+    jsonfy(options = {}, transformer = null, schemaInference = null) {
         let resultJson;
         if (options.deSugar
             && !this.resultSchema()
-            && dbContext) {
+            && schemaInference) {
             // Schema resolution...
-            resultJson = this.resolve(transformer, dbContext).jsonfy(/* IMPORTANT */);
+            resultJson = this.resolve(transformer, schemaInference).jsonfy(/* IMPORTANT */);
         } else {
-            resultJson = super.jsonfy(options, transformer, dbContext);
+            resultJson = super.jsonfy(options, transformer, schemaInference);
         }
         // Case normalization...
         if ((options.deSugar === true || options.deSugar?.normalizeCasing) && !resultJson.delim) {

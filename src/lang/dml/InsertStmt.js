@@ -75,6 +75,7 @@ export class InsertStmt extends PayloadStmtMixin(DMLStmt) {
 							},
 							{ ...optional_alias_mysql },
 							...(this._clause === 'INSERT' ? [{ type: 'MYOnDuplicateKeyUpdateClause', as: 'conflict_handling_clause', optional: true, autoSpacing: '\n' }] : []),
+							{ type: 'ReturningClause', as: 'returning_clause', optional: true, autoSpacing: '\n' },
 						],
 					},
 				],
@@ -94,13 +95,13 @@ export class InsertStmt extends PayloadStmtMixin(DMLStmt) {
 
 	conflictHandlingClause() { return this._get('conflict_handling_clause'); }
 
+	returningClause() { return this._get('returning_clause'); }
+
 	// -- Postgres
 
 	pgTableAlias() { return this._get('pg_table_alias'); }
 
 	pgDefaultValuesClause() { return this._get('pg_default_values_clause'); }
-
-	returningClause() { return this._get('returning_clause'); }
 
 	// -- MySQL
 
@@ -114,8 +115,8 @@ export class InsertStmt extends PayloadStmtMixin(DMLStmt) {
 
 	/* JSON API */
 
-	jsonfy(options = {}, transformer = null, dbContext = null) {
-		if (!options.deSugar) return super.jsonfy(options, transformer, dbContext);
+	jsonfy(options = {}, transformer = null, schemaInference = null) {
+		if (!options.deSugar) return super.jsonfy(options, transformer, schemaInference);
 
 		transformer = new Transformer((node, defaultTransform) => {
 			// Process table abstraction nodes
@@ -134,7 +135,7 @@ export class InsertStmt extends PayloadStmtMixin(DMLStmt) {
 			return defaultTransform();
 		}, transformer, this/* IMPORTANT */);
 
-		let resultJson = super.jsonfy(options, transformer, dbContext);
+		let resultJson = super.jsonfy(options, transformer, schemaInference);
 		const toDialect = options.toDialect || this.options.dialect;
 
 		// Order ouput JSON
@@ -151,6 +152,8 @@ export class InsertStmt extends PayloadStmtMixin(DMLStmt) {
 				my_set_clause: resultJson.my_set_clause,
 				my_row_alias: resultJson.my_row_alias,
 				conflict_handling_clause: resultJson.conflict_handling_clause,
+				returning_clause: resultJson.returning_clause,
+				result_schema: resultJson.result_schema,
 			};
 		} else {
 			resultJson = {
@@ -201,13 +204,13 @@ export class InsertStmt extends PayloadStmtMixin(DMLStmt) {
 		}
 
 		// 1. Finalize output JSON
-		resultJson = this.finalizeOutputJSON(resultJson, transformer, dbContext, options);
+		resultJson = this.finalizeOutputJSON(resultJson, transformer, schemaInference, options);
 		resultJson = {
 			...resultJson,
 			origin_schemas: this.getOriginSchemas(transformer),
 		};
 		// 2. Finalize generated JOINS. Must come last
-		resultJson = this.finalizePayloadJSON(resultJson, transformer, dbContext, options);
+		resultJson = this.finalizePayloadJSON(resultJson, transformer, schemaInference, options);
 		
 		return resultJson;
 	}

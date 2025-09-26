@@ -1,16 +1,16 @@
+import { AbstractStmt } from '../../lang/abstracts/AbstractStmt.js';
 import { TableSchema } from '../../lang/ddl/index.js';
 import { SchemaSchema } from '../../lang/ddl/schema/SchemaSchema.js';
 import { AbstractDriver } from '../abstracts/AbstractDriver.js';
-import { matchSchemaSelector, normalizeSchemaSelectorArg } from '../abstracts/util.js';
+import { matchSchemaSelector, normalizeQueryArgs, normalizeSchemaSelectorArg } from '../abstracts/util.js';
 import { StorageEngine } from './StorageEngine.js';
 import { QueryEngine } from './QueryEngine.js';
 
 export class LocalDriver extends AbstractDriver {
 
     #options;
-
-    #storageEngines = new Map;
-    #queryEngines = new Map;
+    #storageEngine;
+    #queryEngine;
 
     get dialect() { return 'postgres'; }
 
@@ -19,31 +19,10 @@ export class LocalDriver extends AbstractDriver {
         this.#options = options;
     }
 
-    // ---------Schema
-
-    async schemaNames() { return [...this.#storageEngines.keys()]; }
-
-    async createSchema(schemaName = 'public', storageEngine = null) {
-        if (this.#storageEngines.has(schemaName)) {
-            throw new Error(`Schema "${schemaName}" already exists.`);
-        }
-        this.#storageEngines.set(schemaName, storageEngine || new StorageEngine(this.#options));
-        this.#queryEngines.set(schemaName, new QueryEngine(this.#storageEngines.get(schemaName), this.#options));
-        return this.#storageEngines.get(schemaName);
-    }
-
-    async dropSchema(schemaName) {
-        if (!this.#storageEngines.has(schemaName)) {
-            throw new Error(`Schema "${schemaName}" does not exists.`);
-        }
-        this.#storageEngines.delete(schemaName);
-        this.#queryEngines.delete(schemaName);
-    }
-
     async showCreate(selector, schemaWrapped = false) {
         selector = normalizeSchemaSelectorArg(selector);
         const schemas = [];
-        for (const [schemaName, storage] of this.#storageEngines.entries()) {
+        for (const schemaName of await this.#storageEngine.schemaNames()) {
             const objectNames = Object.entries(selector).reduce((arr, [_schemaName, objectNames]) => {
                 return matchSchemaSelector(schemaName, [_schemaName])
                     ? arr.concat(objectNames)
@@ -59,9 +38,9 @@ export class LocalDriver extends AbstractDriver {
             };
 
             // Schema tables:
-            for (const tbl of await storage.tableNames()) {
+            for (const tbl of await this.#storageEngine.tableNames(schemaName)) {
                 if (!matchSchemaSelector(tbl, objectNames)) continue;
-                const tableSchemaJson = (await storage.tableSchema(tbl)).jsonfy();
+                const tableSchemaJson = (await this.#storageEngine.tableSchema(tbl, schemaName)).jsonfy();
                 tableSchemaJson.name.qualifier = { nodeName: 'SCHEMA_REF', value: schemaName };
                 (schemaWrapped
                     ? schemaSchemaJson.entries
@@ -79,7 +58,8 @@ export class LocalDriver extends AbstractDriver {
     // ---------Query
 
     async query(ast, schemaName = 'public') {
-        return await this.#queryEngines.get(schemaName).query(ast);
+        const [query, options] = normalizeQueryArgs(true, ...args);
+        return await this.#queryEngine.query(query);
     }
 
     // ---------Subscriptions
@@ -90,7 +70,7 @@ export class LocalDriver extends AbstractDriver {
             selector = '*';
         }
         selector = normalizeSchemaSelectorArg(selector);
-        const abortLines = [...this.#storageEngines.entries()].map(([schemaName, storage]) => {
+        const abortLines = [...this.#storageEngine.entries()].map(([schemaName, storage]) => {
             const tables = [].concat(selector['*'] || []).concat(selector[schemaName] || []);
             if (!tables.length) return;
             storage.on('mutation', (event) => {

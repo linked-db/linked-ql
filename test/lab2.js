@@ -1,6 +1,6 @@
 import '../src/lang/index.js';
 import { registry } from '../src/lang/registry.js';
-import { DBContext } from '../src/lang/DBContext.js';
+import { SchemaInference } from '../src/lang/SchemaInference.js';
 
 let sql;
 
@@ -276,9 +276,9 @@ console.log(resultNode?.stringify());
 
 console.log('\n\n\n\nresultClassicJson:\n');
 const { catalog } = await import('./01.catalog.parser.js');
-const dbContext = new DBContext({ catalog });
+const schemaInference = new SchemaInference({ catalog });
 
-const deSugared = resultNode?.clone?.({ deSugar: 2 }, null, dbContext);
+const deSugared = resultNode?.clone?.({ deSugar: 2 }, null, schemaInference);
 console.log(deSugared.stringify({ prettyPrint: true }));
 
 console.log(JSON.stringify(deSugared, null, 3), '\n\n\n');

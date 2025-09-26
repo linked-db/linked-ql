@@ -34,8 +34,8 @@ export class FromItemAlias extends Identifier {
 
     // --------------
 
-    jsonfy(options = {}, transformer = null, dbContext = null) {
-        let resultJson = super.jsonfy(options, transformer, dbContext);
+    jsonfy(options = {}, transformer = null, schemaInference = null) {
+        let resultJson = super.jsonfy(options, transformer, schemaInference);
         if ((options.deSugar === true || options.deSugar?.normalizeCasing) && !resultJson.delim) {
             resultJson = { ...resultJson, value: resultJson.value.toLowerCase() };
         }

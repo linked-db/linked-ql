@@ -27,14 +27,14 @@ export class LQDeepRef1 extends LQDeepDeepRef1 {
 
 	/* API */
 
-	rhsTable(transformer, dbContext) {
+	rhsTable(transformer, schemaInference) {
 		if (this.left()?.qualifier?.() instanceof registry.LQBackRefAbstraction) {
-			return this._normalize().rhsTable(transformer, dbContext);
+			return this._normalize().rhsTable(transformer, schemaInference);
 		}
 		if (this.left() instanceof registry.LQBackRefAbstraction) {
-			return this.left().expr()/* LQBackRef */.rhsTable(transformer, dbContext);
+			return this.left().expr()/* LQBackRef */.rhsTable(transformer, schemaInference);
 		}
-		return super.rhsTable(transformer, dbContext);
+		return super.rhsTable(transformer, schemaInference);
 	}
 
 	_normalize() {
@@ -50,10 +50,10 @@ export class LQDeepRef1 extends LQDeepDeepRef1 {
 		return deepRef;
 	}
 
-	resolve(transformer, dbContext, toKind = 1) {
-		if (!transformer || !dbContext) return;
+	resolve(transformer, schemaInference, toKind = 1) {
+		if (!transformer || !schemaInference) return;
 		if (this.left()?.qualifier?.() instanceof registry.LQBackRefAbstraction) {
-			return this._normalize().resolve(transformer, dbContext, toKind);
+			return this._normalize().resolve(transformer, schemaInference, toKind);
 		}
 
 		let detail;
@@ -66,15 +66,15 @@ export class LQDeepRef1 extends LQDeepDeepRef1 {
 		}
 
 		if (this.left() instanceof registry.LQBackRefAbstraction) {
-			const resolution = this.left().expr().resolve(transformer, dbContext, toKind);
+			const resolution = this.left().expr().resolve(transformer, schemaInference, toKind);
 			return { ...resolution, detail };
 		}
 
-		const qualifiedLeftOperand = this.left().resolve(transformer, dbContext);
+		const qualifiedLeftOperand = this.left().resolve(transformer, schemaInference);
 
-		const qualifiedRightTable = this.rhsTable(transformer, dbContext);
+		const qualifiedRightTable = this.rhsTable(transformer, schemaInference);
 
-		const unqualifiedRightOperand = qualifiedRightTable.resultSchema().pkConstraint(true)?.columns()[0]?.resolve(transformer, dbContext);
+		const unqualifiedRightOperand = qualifiedRightTable.resultSchema().pkConstraint(true)?.columns()[0]?.resolve(transformer, schemaInference);
 		if (!unqualifiedRightOperand) throw new Error(`[${this.parentNode || this}] The referenced RHS table ${qualifiedRightTable} does not have a primary key.`);
 
 		return {

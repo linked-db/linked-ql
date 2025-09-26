@@ -10,11 +10,11 @@ export class LQDeepRef2 extends LQDeepRef1 {
 
 	/* JSON API */
 
-	resolve(transformer, dbContext, toKind = 2) {
-		return super.resolve(transformer, dbContext, toKind);
+	resolve(transformer, schemaInference, toKind = 2) {
+		return super.resolve(transformer, schemaInference, toKind);
 	}
 
-	jsonfy({ toDeepRef = false, toKind = 2, ...options } = {}, transformer = null, dbContext = null) {
-		return super.jsonfy({ toDeepRef, toKind, ...options }, transformer, dbContext);
+	jsonfy({ toDeepRef = false, toKind = 2, ...options } = {}, transformer = null, schemaInference = null) {
+		return super.jsonfy({ toDeepRef, toKind, ...options }, transformer, schemaInference);
 	}
 }

@@ -1,34 +1,46 @@
-import { AbstractClient } from '../abstracts/AbstractClient.js';
 import { AbstractDriver } from '../abstracts/AbstractDriver.js';
 import { normalizeQueryArgs, splitLogicalExpr } from '../abstracts/util.js';
+import { registry } from '../../lang/registry.js';
+import { RealtimeResult } from './RealtimeResult.js';
 import { QueryWindow } from './QueryWindow.js';
 
-export class RealtimeClient extends AbstractClient {
+export class RealtimeDriver extends AbstractDriver {
 
     #windows = new Set;
-    #driver;
+    #dbDriver;
 
-    constructor(driver) {
+    constructor(dbDriver) {
         super();
-        if (!(driver instanceof AbstractDriver)) {
+        if (!(dbDriver instanceof AbstractDriver)) {
             throw new TypeError('driver must be an instance of AbstractDriver');
         }
-        this.#driver = driver;
+        if (dbDriver instanceof RealtimeDriver) {
+            throw new Error(`driver cannot be an instance of RealtimeDriver`);
+        }
+        this.#dbDriver = dbDriver;
     }
 
     async query(...args) {
-        const [query, callback, options] = normalizeQueryArgs(true, ...args);
-        if (!callback) {
-            throw new Error('A callback function must be provided for realtime queries');
+        const [query, options] = normalizeQueryArgs(true, ...args);
+        if (!(query instanceof registry.BasicSelectStmt)) {
+            throw new Error('Only SELECT statements are supported in live mode');
         }
         const queryWindow = this.createWindow(query);
-        const initialResult = await queryWindow.initialResult();
-        const abortLine = queryWindow.on('mutation', callback);
-        return initialResult;
+        const resultJson = await queryWindow.initialResult();
+        if (options.callback) {
+            resultJson.abort = queryWindow.on('mutation', options.callback);
+        } else {
+            resultJson.abort = queryWindow.on('mutation', (event) => {
+                realtimeResult._render(event);
+            });
+        }
+        resultJson.signal = options.signal;
+        const realtimeResult = new RealtimeResult(resultJson);
+        return realtimeResult;
     }
 
     createWindow(query) {
-        const filterArray = splitLogicalExpr(query.where_clause?.expr);
+        const filterArray = splitLogicalExpr(query.whereClause()?.expr());
         const windowsByLongestFilters = [...this.#windows].sort((a, b) => a.filters.length > b.filters.length ? 1 : -1);
         const windowsByShortestFilters = [];
         // 1. Find a parent window...
@@ -39,11 +51,11 @@ export class RealtimeClient extends AbstractClient {
             }
             let _filters;
             if (_filters = window.matchFilters(filterArray)) {
-                if (!_filters.size && window.matchProjection(query.select_list)) {
+                if (!_filters.size && window.matchProjection(query.selectList())) {
                     // Exact filters match and exact projection match
                     return window;
                 }
-                const newWindow = new QueryWindow(this.#driver, query, [..._filters]);
+                const newWindow = new QueryWindow(this.#dbDriver, query, [..._filters]);
                 newWindow.inherit(window);
                 return newWindow;
             }
@@ -51,7 +63,7 @@ export class RealtimeClient extends AbstractClient {
         }
         // 2. Create afresh since no parent window
         const options = {};
-        const newWindow = new QueryWindow(this.#driver, query, filterArray, options);
+        const newWindow = new QueryWindow(this.#dbDriver, query, filterArray, options);
         // 3. Find a bind a child window...
         for (const window of windowsByShortestFilters) {
             if (_filters = newWindow.matchFilters(window.filters)) {
@@ -61,7 +73,10 @@ export class RealtimeClient extends AbstractClient {
         }
         // Register
         this.#windows.add(newWindow);
-        newWindow.onClose(() => this.#windows.delete(newWindow))
+        newWindow.onClose(() => {
+            this.#windows.delete(newWindow);
+            newWindow.disconnect();
+        });
         return newWindow;
     }
 }

@@ -56,7 +56,7 @@ export class SelectItem extends ResultSchemaMixin(AbstractNode) {
         return registry.SelectItemAlias.fromJSON(derivedAliasJson);
     }
 
-    jsonfy(options = {}, transformer = null, dbContext = null) {
+    jsonfy(options = {}, transformer = null, schemaInference = null) {
         if (options.deSugar) {
 
             const derivedAliasNode = this.deriveAlias();
@@ -76,12 +76,12 @@ export class SelectItem extends ResultSchemaMixin(AbstractNode) {
                 defaultExprTransform = ($options = options, childTransformer = transformer) => ({
                     nodeName: registry.AggrCallExpr.NODE_NAME,
                     name: (options.toDialect || this.options.dialect) === 'mysql' ? 'JSON_ARRAYAGG' : 'JSON_AGG',
-                    arguments: [exprNode.jsonfy($options, childTransformer, dbContext)],
+                    arguments: [exprNode.jsonfy($options, childTransformer, schemaInference)],
                 });
             } else {
                 // Note the below where we derive value, if not specified, from key
                 defaultExprTransform = ($options = options, childTransformer = transformer) => {
-                    return exprNode.jsonfy($options, childTransformer, dbContext);
+                    return exprNode.jsonfy($options, childTransformer, schemaInference);
                 };
             }
 
@@ -126,6 +126,6 @@ export class SelectItem extends ResultSchemaMixin(AbstractNode) {
                 result_schema: resultSchema,
             };
         }
-        return super.jsonfy(options, transformer, dbContext);
+        return super.jsonfy(options, transformer, schemaInference);
     }
 }

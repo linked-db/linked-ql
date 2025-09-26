@@ -263,10 +263,10 @@ await client.query(
 
 ## ⏳ Our progress on this iteration of LinkedQL
 
-| Component              | Status      | Notes                       |
-|:-----------------------|:--------------|:--------------------------|
-| Core Parser/Compiler   | 🟩🟩🟩🟩 `100%` | Done 🏆                   |
-| Core Transform Engine  | 🟩🟩🟩🟩 `100%` | Done 🏆                   |
+| Component              | Status      | Notes                      |
+|:-----------------------|:--------------|:-------------------------|
+| Core Parser/Compiler   | 🟩🟩🟩🟩 `100%` | Done 🏆                  |
+| Core Transform Engine  | 🟩🟩🟩🟩 `100%` | Done 🏆                  |
 | InMemory DB Engine     | 🟩🟩🟩⬜ `80%`  | Stable but expanding     |
 | DB Drivers (PG/MySQL)  | 🟩🟩🟩🟨 `90%`  | MySQL catching up        |
 | Realtime Engine        | 🟩🟩🟩⬜ `85%`  | Core live queries working|

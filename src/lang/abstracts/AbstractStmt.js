@@ -27,8 +27,8 @@ export class AbstractStmt extends AbstractNode {
 		return instance;
 	}
 
-	jsonfy(options = {}, transformer = null, dbContext = null) {
-		let resultJson = super.jsonfy(options, transformer, dbContext);
+	jsonfy(options = {}, transformer = null, schemaInference = null) {
+		let resultJson = super.jsonfy(options, transformer, schemaInference);
 		if (this.#uuid) {
 			resultJson = {
 				uuid: this.#uuid,

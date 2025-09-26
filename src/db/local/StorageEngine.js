@@ -1,92 +1,184 @@
 import { SimpleEmitter } from '../abstracts/SimpleEmitter.js';
-import { SchemaSchema } from '../../lang/ddl/schema/SchemaSchema.js';
-import { TableSchema } from '../../lang/ddl/table/TableSchema.js';
+import { registry } from '../../lang/registry.js';
+import { ConflictError } from './ConflictError.js';
 
 export class StorageEngine extends SimpleEmitter {
 
-    #tables = new Map();
-    #schemas = new SchemaSchema({ entries: [] });
+    #dialect;
+    #defaultSchemaName;
+    #defaultPrimaryKey;
+    #defaultAutoIncr;
     #options;
-    #counters = new Map();
 
-    constructor(options = {}) {
+    #catalog = new Map;
+
+    constructor({
+        dialect = 'postgres',
+        defaultSchemaName = 'public',
+        defaultPrimaryKey = 'id',
+        defaultAutoIncr = true,
+        ...options
+    } = {}) {
         super();
-        this.#options = {
-            defaultPrimaryKey: options.defaultPrimaryKey || 'id',
-            defaultAutoIncr: !!(options.defaultAutoIncr ?? true),
-            ...options
-        };
+        this.#dialect = dialect;
+        this.#defaultSchemaName = defaultSchemaName;
+        this.#defaultPrimaryKey = defaultPrimaryKey;
+        this.#defaultAutoIncr = defaultAutoIncr;
+        this.#options = options;
     }
 
-    async createTable(tableSchemaJson) {
-        if (typeof tableSchemaJson === 'string') {
-            tableSchemaJson = {
-                name: { value: tableSchemaJson },
+    async schemaNames() { return [...(await this.#catalog.keys())]; }
+
+    async createSchema(schemaName, unconditionally = true) {
+        if (await this.#catalog.has(schemaName)) {
+            if (unconditionally) throw new Error(`Schema ${schemaName} already exists`);
+            return;
+        }
+        await this.#catalog.set(schemaName, {
+            schemas: new registry.SchemaSchema({ entries: [] }),
+            storage: new Map,
+            counters: new Map,
+        });
+    }
+
+    async dropSchema(schemaName, unconditionally = true) {
+        if (!await this.#catalog.has(schemaName)) {
+            if (unconditionally) throw new Error(`Schema ${schemaName} does not exist`);
+            return;
+        }
+        await this.#catalog.delete(schemaName);
+    }
+
+    async getSchema(schemaName, unconditionally = true) {
+        const schemaObject = await this.#catalog.get(schemaName);
+        if (!schemaObject) {
+            if (unconditionally) throw new Error(`Schema ${tableSchema.name()} does not exist`);
+            return;
+        }
+        return schemaObject;
+    }
+
+    async tableNames(schemaName = this.#defaultSchemaName) {
+        const schemaObject = await this.getSchema(schemaName, unconditionally);
+        return [...(await schemaObject.storage.keys())];
+    }
+
+    async createTable(tableSchema, schemaName = this.#defaultSchemaName, unconditionally = true) {
+        // Normalize
+        if (typeof tableSchema === 'string') {
+            tableSchema = {
+                name: { value: tableSchema },
                 entries: [],
             };
-            if (this.#options.defaultPrimaryKey) {
-                const pkCol = {
+            if (this.#defaultPrimaryKey) {
+                const keyCol = {
                     nodeName: 'COLUMN_SCHEMA',
-                    name: { value: this.#options.defaultPrimaryKey },
+                    name: { value: this.#defaultPrimaryKey },
                     data_type: { value: 'INT' },
                     entries: [{ nodeName: 'COLUMN_PK_CONSTRAINT', value: 'KEY' }],
                 };
-                if (this.#options.defaultPrimaryKey) {
-                    pkCol.entries.push({
-                        nodeName: 'COLUMN_IDENTITY_CONSTRAINT',
-                        by_default_kw: true,
-                        as_identity_kw: true,
-                    });
+                if (this.#defaultAutoIncr) {
+                    if (this.#dialect === 'mysql') {
+                        keyCol.entries.push({
+                            nodeName: 'MY_COLUMN_AUTO_INCREMENT_MODIFIER',
+                            value: 'AUTO_INCREMENT',
+                        });
+                    } else {
+                        keyCol.entries.push({
+                            nodeName: 'COLUMN_IDENTITY_CONSTRAINT',
+                            by_default_kw: true,
+                            as_identity_kw: true,
+                        });
+                    }
                 }
-                tableSchemaJson.entries.push(pkCol);
+                tableSchema.entries.push(keyCol);
             }
+            tableSchema = registry.TableSchema.fromJSON(tableSchema, { dialect: this.#dialect });
+        } else if (!(tableSchema = registry.TableSchema)) {
+            throw new Error(`tableSchema must be an instance of TableSchema`);
         }
-        const tableSchema = TableSchema.fromJSON(tableSchemaJson, { dialect: 'postgres' });
-        if (this.#schemas.has(tableSchema.name())) {
-            throw new Error(`Table ${tableSchema.name()} already exists`);
+        // Validate...
+        const schemaObject = await this.getSchema(schemaName, unconditionally);
+        if (!schemaObject) return;
+        if (await schemaObject.schemas.has(tableSchema.name().value())) {
+            if (unconditionally) throw new Error(`Table ${tableSchema.name()} already exists`);
+            return false;
         }
-        this.#schemas.add(tableSchema);
-        this.#tables.set(tableSchema.name().value(), new Map);
+        // Create
+        await schemaObject.schemas.set(tableSchema.name().value(), tableSchema);
+        await schemaObject.storage.set(tableSchema.name().value(), new Map);
         return true;
     }
 
-    async tableNames() { return this.#schemas.tables().map((t) => t.name().value()); }
+    async dropTable(schemaName = this.#defaultSchemaName, unconditionally = true) {
+        const schemaObject = await this.getSchema(schemaName, unconditionally);
+        if (!schemaObject) return;
+        if (!await schemaObject.storage.has(tableName)) {
+            if (unconditionally) throw new Error(`Table ${tableName} does not exist`);
+            return false;
+        }
+        await schemaObject.counters.delete(tableName);
+        await schemaObject.schemas.delete(tableName);
+        await schemaObject.storage.delete(tableName);
+    }
 
-    async tableSchema(table) { return this.#schemas.get(table); }
+    async tableStorage(tableName, schemaName = this.#defaultSchemaName, unconditionally = true) {
+        const schemaObject = await this.getSchema(schemaName, unconditionally);
+        if (!schemaObject) return;
+        const tableStorage = await schemaObject.storage.get(tableName);
+        if (!tableStorage) {
+            if (unconditionally) throw new Error(`Table ${tableName} does not exist`);
+            return false;
+        }
+        return tableStorage;
+    }
 
-    async tablePK(table) {
-        const tableSchema = await this.tableSchema(table);
+    async tableSchema(tableName, schemaName = this.#defaultSchemaName, unconditionally = true) {
+        const schemaObject = await this.getSchema(schemaName, unconditionally);
+        if (!schemaObject) return;
+        const tableSchema = await schemaObject.schemas.get(tableName);
+        if (!tableSchema) {
+            if (unconditionally) throw new Error(`Table ${tableName} does not exist`);
+            return false;
+        }
+        return tableSchema;
+    }
+
+    async tableKeyColumns(tableName, schemaName = this.#defaultSchemaName) {
+        const tableSchema = await this.tableSchema(tableName, schemaName);
         let pkRefs;
         if ((pkRefs = tableSchema?.pkConstraint(true)?.columns())?.length) {
             return pkRefs.map((pkRef) => tableSchema.get(pkRef));
         }
+        return [];
     }
 
-    #nextCounter(table, field) {
-        const key = `${table}:${field}`;
-        if (!this.#counters.has(key)) {
-            this.#counters.set(key, 1);
+    async #nextCounter(schemaName, tableName, field) {
+        const schemaObject = await this.getSchema(schemaName);
+        const key = `${tableName}:${field}`;
+        if (!await schemaObject.counters.has(key)) {
+            await schemaObject.counters.set(key, 1);
         }
-        const v = this.#counters.get(key);
-        this.#counters.set(key, v + 1);
+        const v = await schemaObject.counters.get(key);
+        await schemaObject.counters.set(key, v + 1);
         return v;
     }
 
-    async #computeKey(table, record, forInsert = false) {
-        let pkCols;
-        if (pkCols = await this.tablePK(table)) {
-            const autoIncr = pkCols.some((pkCol) => (pkCol.identityConstraint() || pkCol.autoIncrementConstraint()));
+    async #computeKey(schemaName, tableName, record, forInsert = false) {
+        let keyColumns;
+        if (keyColumns = await this.tableKeyColumns(tableName, schemaName)) {
+            const autoIncr = keyColumns.some((keyCol) => (keyCol.identityConstraint() || keyCol.autoIncrementConstraint()));
 
             const values = [];
-            for (const pkCol of pkCols) {
-                const colName = pkCol.name().value();
+            for (const keyCol of keyColumns) {
+                const colName = keyCol.name().value();
                 let v = record[colName];
                 if (v == null) {
-                    if (forInsert && autoIncr && pkCols.length === 1) {
-                        v = this.#nextCounter(table, colName);
+                    if (forInsert && autoIncr) {
+                        v = await this.#nextCounter(schemaName, tableName, colName);
                         record[colName] = v; // fill back into row
                     } else {
-                        throw new Error(`Missing value for primary key field ${pkCol.name()} in table "${table}"`);
+                        throw new Error(`Missing value for primary key field ${keyCol.name()} in table "${tableName}"`);
                     }
                 }
                 values.push(v);
@@ -98,51 +190,45 @@ export class StorageEngine extends SimpleEmitter {
         return JSON.stringify(Object.values(record));
     }
 
-    async insert(table, record) {
-        if (!this.#schemas.get(table)) {
-            throw new Error(`Table "${table}" does not exist`);
-        }
-        const t = this.#tables.get(table) || new Map();
-        this.#tables.set(table, t);
+    async insert(tableName, record, schemaName = this.#defaultSchemaName) {
+        const tableStorage = await this.tableStorage(tableName, schemaName);
         const stored = { ...record };
-        const key = await this.#computeKey(table, stored, true);
-        if (t.has(key)) throw new Error(`Duplicate key for "${table}": ${key}`);
-        t.set(key, stored);
-        const keyColumns = (await this.tablePK(table)).map((k) => k.name().value());
-        this.emit('mutation', { type: 'insert', relation: { name: table, keyColumns }, new: { ...stored } });
-        return key;
+        const key = await this.#computeKey(schemaName, tableName, stored, true);
+        const existing = await tableStorage.get(key);
+        if (existing) throw new ConflictError(`Duplicate key for "${tableName}": ${key}`, existing);
+        await tableStorage.set(key, stored);
+        const keyColumns = (await this.tableKeyColumns(schemaName, tableName)).map((k) => k.name().value());
+        this.emit('mutation', { type: 'insert', relation: { schema: schemaName, name: tableName, keyColumns }, new: { ...stored } });
+        return stored;
     }
 
-    async update(table, record) {
-        const t = this.#tables.get(table);
-        if (!t) throw new Error(`Table "${table}" does not exist`);
+    async update(tableName, record, schemaName = this.#defaultSchemaName) {
+        const tableStorage = await this.tableStorage(tableName, schemaName);
         const stored = { ...record };
-        const key = await this.#computeKey(table, stored, false);
-        const old = t.get(key);
-        if (!old) throw new Error(`Record not found in "${table}" for key ${key}`);
-        t.set(key, stored);
-        const keyColumns = (await this.tablePK(table)).map((k) => k.name().value());
+        const key = await this.#computeKey(schemaName, tableName, stored, false);
+        const old = await tableStorage.get(key);
+        if (!old) throw new Error(`Record not found in "${tableName}" for key ${key}`);
+        await tableStorage.set(key, stored);
+        const keyColumns = (await this.tableKeyColumns(schemaName, tableName)).map((k) => k.name().value());
         const _key = Object.fromEntries(keyColumns.map((k) => [k, old[k]]));
-        this.emit('mutation', { type: 'update', relation: { name: table, keyColumns }, key: _key, old, new: { ...stored } });
-        return key;
+        this.emit('mutation', { type: 'update', relation: { schema: schemaName, name: tableName, keyColumns }, key: _key, old, new: { ...stored } });
+        return stored;
     }
 
-    async delete(table, record) {
-        const t = this.#tables.get(table);
-        if (!t) throw new Error(`Table "${table}" does not exist`);
-        const key = await this.#computeKey(table, { ...record }, false);
-        const old = t.get(key);
-        if (!old) throw new Error(`Record not found in "${table}" for key ${key}`);
-        t.delete(key);
-        const keyColumns = (await this.tablePK(table)).map((k) => k.name().value());
+    async delete(tableName, keyOrRecord, schemaName = this.#defaultSchemaName) {
+        const tableStorage = await this.tableStorage(tableName, schemaName);
+        const key = await this.#computeKey(schemaName, tableName, { ...keyOrRecord }, false);
+        const old = await tableStorage.get(key);
+        if (!old) throw new Error(`Record not found in "${tableName}" for key ${key}`);
+        await tableStorage.delete(key);
+        const keyColumns = (await this.tableKeyColumns(tableName)).map((k) => k.name().value());
         const _key = Object.fromEntries(keyColumns.map((k) => [k, old[k]]));
-        this.emit('mutation', { type: 'delete', relation: { name: table, keyColumns }, key: _key, old });
-        return key;
+        this.emit('mutation', { type: 'delete', relation: { schema: schemaName, name: tableName, keyColumns }, key: _key, old });
+        return old;
     }
 
-    async get(table, keyOrRecord) {
-        const t = this.#tables.get(table);
-        if (!t) throw new Error(`Table "${table}" does not exist`);
+    async fetch(tableName, keyOrRecord, schemaName = this.#defaultSchemaName) {
+        const tableStorage = await this.tableStorage(tableName, schemaName);
 
         let key;
         if (typeof keyOrRecord === 'string') {
@@ -150,20 +236,19 @@ export class StorageEngine extends SimpleEmitter {
             key = keyOrRecord;
         } else if (typeof keyOrRecord === 'object' && keyOrRecord !== null) {
             // compute key from record-like object
-            key = await this.#computeKey(table, { ...keyOrRecord }, false);
+            key = await this.#computeKey(schemaName, tableName, { ...keyOrRecord }, false);
         } else {
-            throw new Error(`Invalid keyOrRecord type for get(): ${typeof keyOrRecord}`);
+            throw new Error(`Invalid keyOrRecord type for fetch(): ${typeof keyOrRecord}`);
         }
 
-        const row = t.get(key);
-        return row ? { ...row } : undefined; // defensive copy
+        const record = await tableStorage.get(key);
+        return record ? { ...record } : undefined; // defensive copy
     }
 
-    async *scan(table) {
-        const t = this.#tables.get(table);
-        if (!t) return;
-        for (const row of t.values()) {
-            yield { ...row }; // defensive copy
+    async *getCursor(tableName, schemaName = this.#defaultSchemaName) {
+        const tableStorage = await this.tableStorage(tableName, schemaName);
+        for await (const record of tableStorage.values()) {
+            yield { ...record }; // defensive copy
         }
     }
 }

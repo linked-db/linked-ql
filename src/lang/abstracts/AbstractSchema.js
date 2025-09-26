@@ -32,8 +32,8 @@ export class AbstractSchema extends AbstractNodeList {
         return node;
     }
 
-    jsonfy({ renameTo, ...options } = {}, transformer = null, dbContext = null) {
-        let resultJson = super.jsonfy(options, transformer, dbContext);
+    jsonfy({ renameTo, ...options } = {}, transformer = null, schemaInference = null) {
+        let resultJson = super.jsonfy(options, transformer, schemaInference);
         if (renameTo) {
             if (renameTo instanceof AbstractNode) {
                 throw new Error(`options.renameTo must be a JSON value.`);

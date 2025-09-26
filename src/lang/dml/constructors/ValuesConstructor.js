@@ -28,8 +28,8 @@ export class ValuesConstructor extends ResultSchemaMixin(AbstractNodeList) {
 
     /* JSON API */
 
-    jsonfy(options = {}, transformer = null, dbContext = null) {
-        let resultJson = super.jsonfy({ ...options, forceDeSugar: options.deSugar }, transformer, dbContext);
+    jsonfy(options = {}, transformer = null, schemaInference = null) {
+        let resultJson = super.jsonfy({ ...options, forceDeSugar: options.deSugar }, transformer, schemaInference);
         if (options.deSugar) {
             const row1_resultSchema = resultJson.entries?.[0]?.result_schema;
             resultJson = {

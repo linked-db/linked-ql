@@ -1,7 +1,7 @@
-import { AbstractClient } from './abstracts/AbstractClient.js';
-import { AbstractDriver } from './abstracts/AbstractDriver.js';
+import { AbstractClient } from '../abstracts/AbstractClient.js';
+import { AbstractDriver } from '../abstracts/AbstractDriver.js';
 import { ProxyServer } from './classic/ProxyServer.js';
-import { Client } from './Client.js';
+import { Client } from '../Client.js';
 
 export class Pool extends AbstractClient {
 

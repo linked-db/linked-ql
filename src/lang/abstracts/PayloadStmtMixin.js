@@ -10,8 +10,8 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 
 	/* DESUGARING API */
 
-	jsonfy(options = {}, transformer = null, dbContext = null) {
-		if (!options.deSugar) return super.jsonfy(options, transformer, dbContext);
+	jsonfy(options = {}, transformer = null, schemaInference = null) {
+		if (!options.deSugar) return super.jsonfy(options, transformer, schemaInference);
 
 		const {
 			LQDeepRef2,
@@ -56,7 +56,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 					ColumnsConstructor.fromJSON({ entries: [node.left().jsonfy()] }),
 					[[node.right()]],
 					transformer,
-					dbContext,
+					schemaInference,
 					$$options,
 				);
 				if (!deSugaredLhs) return; // Exclude in output
@@ -81,7 +81,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 						columnList,
 						[node.right().entries()],
 						transformer,
-						dbContext,
+						schemaInference,
 						$$options,
 					);
 					deSugaredRhs = { nodeName: TypedRowConstructor.NODE_NAME/* To be really formal */, entries: deSugaredRhs };
@@ -90,7 +90,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 						columnList,
 						node.right().expr(),
 						transformer,
-						dbContext,
+						schemaInference,
 						$$options,
 					);
 					deSugaredRhs = { nodeName: DerivedQuery.NODE_NAME, expr: deSugaredRhs };
@@ -99,7 +99,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 						columnList,
 						[[node.right()]],
 						transformer,
-						dbContext,
+						schemaInference,
 						$$options,
 					);
 				}
@@ -117,7 +117,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		}, transformer, this/* IMPORTANT */);
 
 		// Base JSON
-		let resultJson = super.jsonfy(options, transformer, dbContext);
+		let resultJson = super.jsonfy(options, transformer, schemaInference);
 
 		// --- TOP-LEVEL COLUMNS:VALUES/SELECT ---------------
 
@@ -127,7 +127,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				columnList,
 				pgDefaultValuesClause || valuesClause?.entries().map((rowSet) => rowSet.entries()) || selectClause,
 				transformer,
-				dbContext,
+				schemaInference,
 				options,
 			);
 
@@ -152,7 +152,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		return resultJson;
 	}
 
-	deSugarPayload(columns, values, transformer, dbContext, { conflictHandlingClauseContext = false, deSugar, ...$options } = {}) {
+	deSugarPayload(columns, values, transformer, schemaInference, { conflictHandlingClauseContext = false, deSugar, ...$options } = {}) {
 		const payloadDimensions = transformer.statementContext.artifacts.get('payloadDimensions');
 
 		const {
@@ -175,7 +175,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		} = registry;
 
 		const jsonfy = (node, _deSugar = deSugar) => {
-			return node.jsonfy({ ...$options, deSugar: _deSugar }, transformer, dbContext);
+			return node.jsonfy({ ...$options, deSugar: _deSugar }, transformer, schemaInference);
 		};
 
 		// (1): Columns
@@ -183,7 +183,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 			return columnList.entries().reduce((columnList, columnRef, columnOffset) => {
 				if (columnRef instanceof LQDeepRef2) {
 
-					const dimension = this.createPayloadDimension(columnRef, transformer, dbContext, { conflictHandlingClauseContext, ...$options });
+					const dimension = this.createPayloadDimension(columnRef, transformer, schemaInference, { conflictHandlingClauseContext, ...$options });
 					dimensionsMap.set(columnOffset, dimension);
 
 					if (dimension.refMode === 'dependency' && dimension.lhsOperandJson) {
@@ -371,8 +371,8 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		return [deSugaredLhs, deSugaredRhs];
 	}
 
-	createPayloadDimension(LQRefColumn, transformer, dbContext, { conflictHandlingClauseContext = false, ...$options } = {}) {
-		const { lhsOperand, rhsOperand, rhsTable, detail } = LQRefColumn.resolve(transformer, dbContext, 2);
+	createPayloadDimension(LQRefColumn, transformer, schemaInference, { conflictHandlingClauseContext = false, ...$options } = {}) {
+		const { lhsOperand, rhsOperand, rhsTable, detail } = LQRefColumn.resolve(transformer, schemaInference, 2);
 		const payloadDimensions = transformer.statementContext.artifacts.get('payloadDimensions');
 
 		const {
@@ -410,7 +410,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 
 		const baseUUID = transformer.rootContext.hash(this, 'main');
 		const jsonfy = (node) => {
-			return node.jsonfy($options, transformer, dbContext);
+			return node.jsonfy($options, transformer, schemaInference);
 		};
 
 		const lhsOperandJson = jsonfy(lhsOperand);
@@ -830,7 +830,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 		return payloadDimension;
 	}
 
-	finalizePayloadJSON(resultJson, transformer, dbContext, options) {
+	finalizePayloadJSON(resultJson, transformer, schemaInference, options) {
 
 		const payloadDimensions = transformer.statementContext.artifacts.get('payloadDimensions');
 		if (!payloadDimensions.size) {
@@ -868,7 +868,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				nodeName: CTEItem.NODE_NAME,
 				alias: { nodeName: CTEItemAlias.NODE_NAME, value: dimensionID },
 				expr: queryJson,
-			}, this.options).jsonfy(options, transformer, dbContext);
+			}, this.options).jsonfy(options, transformer, schemaInference);
 
 			// Desugar query and flatten if itself a CTE
 			if (cteItemJson.expr?.nodeName === CTE.NODE_NAME) {
@@ -895,7 +895,7 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				nodeName: CTEItem.NODE_NAME,
 				alias: { nodeName: CTEItemAlias.NODE_NAME, value: `${dimensionID}~indices` },
 				expr: flipSelectFromWithRowNumbers(indices, dimensionID),
-			}, this.options).jsonfy(options, transformer, dbContext));
+			}, this.options).jsonfy(options, transformer, schemaInference));
 		};
 
 		// Process entries in stringent order
@@ -1011,12 +1011,12 @@ export const PayloadStmtMixin = (Class) => class extends Class {
 				nodeName: CompleteSelectStmt.NODE_NAME,
 				select_list: { nodeName: SelectList.NODE_NAME, entries: selectItems },
 				from_clause: { nodeName: FromClause.NODE_NAME, entries: [tableSpec] },
-			}, this.options).jsonfy(options, $transformer, dbContext);
+			}, this.options).jsonfy(options, $transformer, schemaInference);
 		} else {
 			// Use resultJson as-is
 			const Classes = [this.constructor].concat(this.constructor.morphsTo()); // InsertStmt/UpsertStmt
 			const instance = Classes.reduce((prev, C) => prev || C.fromJSON(resultJson, this.options), undefined);
-			cte.body = instance.jsonfy(options, $transformer, dbContext);
+			cte.body = instance.jsonfy(options, $transformer, schemaInference);
 		}
 
 		return { ...cte, origin_schemas: cte.body.origin_schemas, result_schema: cte.body.result_schema };

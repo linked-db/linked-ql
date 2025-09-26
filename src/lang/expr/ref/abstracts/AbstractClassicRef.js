@@ -11,10 +11,10 @@ export class AbstractClassicRef extends ResultSchemaMixin(TypeSysMixin(Identifie
 
     resolution() { return this.#resolution; }
 
-    lookup(transformer, dbContext) { return []; }
+    lookup(transformer, schemaInference) { return []; }
 
-    resolve(transformer, dbContext) {
-        const resultSet = this.lookup(null, transformer, dbContext) || [];
+    resolve(transformer, schemaInference) {
+        const resultSet = this.lookup(null, transformer, schemaInference) || [];
         const objectType = this.constructor.name.match(/schema/i) ? 'Schema' : (this.constructor.name.match(/table/i) ? 'Table' : 'Column');
         if (resultSet.length > 1) {
             throw new ErrorRefAmbiguous(`[${this.parentNode?.parentNode || this.parentNode || this}] ${objectType} ${this} is ambiguous. (Is it ${resultSet.join(' or ')}?)`);
@@ -39,8 +39,8 @@ export class AbstractClassicRef extends ResultSchemaMixin(TypeSysMixin(Identifie
 		return instance;
 	}
 
-	jsonfy(options = {}, transformer = null, dbContext = null) {
-		let resultJson = super.jsonfy(options, transformer, dbContext);
+	jsonfy(options = {}, transformer = null, schemaInference = null) {
+		let resultJson = super.jsonfy(options, transformer, schemaInference);
 		if (this.#resolution) {
 			resultJson = {
 				...resultJson,

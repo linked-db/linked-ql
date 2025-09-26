@@ -21,8 +21,8 @@ export const ResultSchemaMixin = (Class) => class extends Class {
 		return instance;
 	}
 
-	jsonfy(options = {}, transformer = null, dbContext = null) {
-		let resultJson = super.jsonfy(options, transformer, dbContext);
+	jsonfy(options = {}, transformer = null, schemaInference = null) {
+		let resultJson = super.jsonfy(options, transformer, schemaInference);
 		if (this.#result_schema && options.resultSchemas !== false) {
 			resultJson = {
 				...resultJson,

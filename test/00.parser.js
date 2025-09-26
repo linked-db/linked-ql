@@ -44,7 +44,7 @@ export function $it(text, callback) {
     });
 }
 
-export async function testParseAndStringify(entryPoint, sql, options = {}, dbContext = null, transformTarget = null) {
+export async function testParseAndStringify(entryPoint, sql, options = {}, schemaInference = null, transformTarget = null) {
     let nodeName = entryPoint;
     if (Array.isArray(entryPoint)) {
         [entryPoint, nodeName] = entryPoint;
@@ -77,9 +77,9 @@ export async function testParseAndStringify(entryPoint, sql, options = {}, dbCon
 
     let desugaredResultNode = resultNode;
     if (options.deSugar) {
-        desugaredResultNode = resultNode.deSugar(deSugarSpec, { dialect: options.dialect }, null, dbContext);
+        desugaredResultNode = resultNode.deSugar(deSugarSpec, { dialect: options.dialect }, null, schemaInference);
     } else if (options.deSugar || options.toDialect) {
-        desugaredResultNode = resultNode.toDialect(options.toDialect, { dialect: options.dialect }, null, dbContext);
+        desugaredResultNode = resultNode.toDialect(options.toDialect, { dialect: options.dialect }, null, schemaInference);
     }
 
     log?.add({ entryPoint, nodeName, sql, options, resultNode, desugaredResultNode });
@@ -96,9 +96,9 @@ export async function testParseAndStringify(entryPoint, sql, options = {}, dbCon
 
     let desugaredResultClone = resultClone;
     if (options.deSugar) {
-        desugaredResultClone = desugaredResultClone.deSugar(deSugarSpec, { dialect: options.dialect }, null, dbContext);
+        desugaredResultClone = desugaredResultClone.deSugar(deSugarSpec, { dialect: options.dialect }, null, schemaInference);
     } else if (options.deSugar || options.toDialect) {
-        desugaredResultClone = desugaredResultClone.toDialect(options.toDialect, { dialect: options.dialect }, null, dbContext);
+        desugaredResultClone = desugaredResultClone.toDialect(options.toDialect, { dialect: options.dialect }, null, schemaInference);
     }
 
     expect(

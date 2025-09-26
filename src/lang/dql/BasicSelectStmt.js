@@ -44,8 +44,8 @@ export class BasicSelectStmt extends SelectorStmtMixin(
 
     /* JSON API */
 
-    jsonfy(options = {}, transformer = null, dbContext = null) {
-        if (!options.deSugar) return super.jsonfy(options, transformer, dbContext);
+    jsonfy(options = {}, transformer = null, schemaInference = null) {
+        if (!options.deSugar) return super.jsonfy(options, transformer, schemaInference);
 
         const deferedTransforms = {
             select_list: null,
@@ -91,20 +91,20 @@ export class BasicSelectStmt extends SelectorStmtMixin(
         // --------------
 
         // 0. Run transform
-        let resultJson = super.jsonfy(options, transformer, dbContext);
+        let resultJson = super.jsonfy(options, transformer, schemaInference);
 
         // 1. Transform the defered selectList
         let selectListJson = deferedTransforms.select_list();
 
         // 2. Finalize generated JOINS
         // Generated JOINs are injected into the query
-        const { select_list: _, ..._resultJson } = this.finalizeSelectorJSON(resultJson, transformer, dbContext, options);
+        const { select_list: _, ..._resultJson } = this.finalizeSelectorJSON(resultJson, transformer, schemaInference, options);
 
         // 3. Re-resolve output list for cases of just-added deep refs in selectList
         // wherein schemas wouldn't have been resolvable at the time
         // 4. Finalize output list for the last time, honouring given deSugaring level with regards to star selects "*"
         // and ofcos finalize output schemas
-        selectListJson = this.selectList().finalizeJSON(selectListJson, transformer, dbContext, options);
+        selectListJson = this.selectList().finalizeJSON(selectListJson, transformer, schemaInference, options);
 
         // Apply now
         resultJson = {

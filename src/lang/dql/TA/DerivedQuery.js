@@ -41,11 +41,11 @@ export class DerivedQuery extends ResultSchemaMixin(ParenExpr) {
         return instance;
     }
 
-    jsonfy(options = {}, transformer = null, dbContext = null) {
+    jsonfy(options = {}, transformer = null, schemaInference = null) {
         const statementContextArtifacts = transformer?.statementContext?.artifacts || new Map;
         statementContextArtifacts.set('derivedQueryCorrelationFlag', null);
 
-        let resultJson = super.jsonfy(options, transformer, dbContext);
+        let resultJson = super.jsonfy(options, transformer, schemaInference);
 
         const correlationFlag = statementContextArtifacts.get('derivedQueryCorrelationFlag');
         statementContextArtifacts.delete('derivedQueryCorrelationFlag');
