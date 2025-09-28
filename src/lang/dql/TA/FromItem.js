@@ -40,7 +40,7 @@ export class FromItem extends ResultSchemaMixin(AbstractNode) {
 
         return {
             syntaxes: [
-                // SRFTableDef1, SRFTableDef2, SRFTableDef3
+                // SRFTableDef1, SRFTableDef2, SRFTableDef3, SRFTableDef4
                 [
                     { type: 'keyword', as: 'lateral_kw', value: 'LATERAL', booleanfy: true, optional: true },
                     { type: 'SRFExpr1', as: 'expr' },

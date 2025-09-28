@@ -14,6 +14,16 @@ function likeCompare(str, pattern) {
     }
 }
 
+async function name(params) {
+
+    // Invoke function to get async iterator
+    const funcImpl = this.options.functionResolver?.(callExpr.name());
+    if (typeof funcImpl !== 'function') {
+        throw new Error(`No implementation found for function ${callExpr.name()}`);
+    }
+    const funcResult = funcImpl(...(callExpr.arguments().map((arg) => this.exprEngine.evaluate(arg))));
+}
+
 export class ExprEngine {
     #options;
 

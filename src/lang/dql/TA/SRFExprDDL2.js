@@ -25,6 +25,8 @@ export class SRFExprDDL2 extends AbstractNode {
 
     /* AST API */
 
+    asKW() { return this._get('as_kw'); }
+
     alias() { return this._get('alias'); }
 
     columnDefs() { return this._get('column_defs'); }

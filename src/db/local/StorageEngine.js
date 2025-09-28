@@ -64,12 +64,9 @@ export class StorageEngine extends SimpleEmitter {
     }
 
     async createTable(tableSchema, schemaName = this.#defaultSchemaName, unconditionally = true) {
-        // Normalize
+        // Normalize input
         if (typeof tableSchema === 'string') {
-            tableSchema = {
-                name: { value: tableSchema },
-                entries: [],
-            };
+            tableSchema = { name: { value: tableSchema }, entries: [] };
             if (this.#defaultPrimaryKey) {
                 const keyCol = {
                     nodeName: 'COLUMN_SCHEMA',
@@ -93,9 +90,14 @@ export class StorageEngine extends SimpleEmitter {
                 }
                 tableSchema.entries.push(keyCol);
             }
+            // Instantiate
             tableSchema = registry.TableSchema.fromJSON(tableSchema, { dialect: this.#dialect });
         } else if (!(tableSchema = registry.TableSchema)) {
             throw new Error(`tableSchema must be an instance of TableSchema`);
+        }
+        // Normalize schema name
+        if (tableSchema.name().qualifier()) {
+            schemaName = tableSchema.name().qualifier().value();
         }
         // Validate...
         const schemaObject = await this.getSchema(schemaName, unconditionally);
@@ -110,7 +112,7 @@ export class StorageEngine extends SimpleEmitter {
         return true;
     }
 
-    async dropTable(schemaName = this.#defaultSchemaName, unconditionally = true) {
+    async dropTable(tableName, schemaName = this.#defaultSchemaName, unconditionally = true) {
         const schemaObject = await this.getSchema(schemaName, unconditionally);
         if (!schemaObject) return;
         if (!await schemaObject.storage.has(tableName)) {
