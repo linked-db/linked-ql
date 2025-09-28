@@ -1,8 +1,11 @@
+import { SimpleEmitter } from '../abstracts/SimpleEmitter.js';
 import { registry } from '../../lang/registry.js';
 import { ExprEngine } from './ExprEngine.js';
+
 export const GROUP_SYMBOL = Symbol.for('group');
 
-export class QueryEngine {
+export class QueryEngine extends SimpleEmitter {
+
     #storageEngine;
     #exprEngine;
     #options;
@@ -10,37 +13,58 @@ export class QueryEngine {
     constructor(storageEngine, options = {}) {
         this.#storageEngine = storageEngine;
         this.#options = options;
-        this.#exprEngine = new ExprEngine(this.#options);
+        this.#exprEngine = new ExprEngine(
+            this.#options,
+            async (derivedQuery, lateralCtx, cteRegistry, txId) => {
+                return this.#evaluate(
+                    derivedQuery.expr(),
+                    lateralCtx,
+                    cteRegistry,
+                    txId
+                );
+            }
+        );
     }
 
     // -------- ENTRY
 
-    async query(scriptNode) { return await this.#evaluate(scriptNode); }
+    async query(scriptNode) {
+        const events = [];
+        const txId = 4;
+        const eventsAbortLine = this.#storageEngine.on('mutation', (event) => {
+            if (event.txId !== txId) return;
+            events.push(event);
+        });
+        const returnValue = await this.#evaluate(scriptNode);
+        if (events.length) this.emit('mutation', events);
+        eventsAbortLine();
+        return returnValue;
+    }
 
     // -------- DISPATCHER
 
-    async #evaluate(scriptNode, superLateralCtx = null, superCteRegistry = null) {
+    async #evaluate(scriptNode, superLateralCtx = null, superCteRegistry = null, txId = null) {
         let returnValue;
         for (const stmtNode of (scriptNode instanceof registry.Script && scriptNode || [scriptNode])) {
             if (!Array.isArray(stmtNode.originSchemas())) throw new Error('Expected a pre-resolved query object with originSchemas() returning an array');
             switch (stmtNode.NODE_NAME) {
                 // DDL
-                case 'CREATE_SCHEMA_STMT': returnValue = await this.#evaluateCREATE_SCHEMA(stmtNode); break;
-                case 'ALTER_SCHEMA_STMT': returnValue = await this.#evaluateALTER_SCHEMA(stmtNode); break;
-                case 'DROP_SCHEMA_STMT': returnValue = await this.#evaluateDROP_SCHEMA(stmtNode); break;
-                case 'CREATE_TABLE_STMT': returnValue = await this.#evaluateCREATE_TABLE(stmtNode); break;
-                case 'ALTER_TABLE_STMT': returnValue = await this.#evaluateALTER_TABLE(stmtNode); break;
-                case 'DROP_TABLE_STMT': returnValue = await this.#evaluateDROP_TABLE(stmtNode); break;
+                case 'CREATE_SCHEMA_STMT': returnValue = await this.#evaluateCREATE_SCHEMA_STMT(stmtNode, txId); break;
+                case 'ALTER_SCHEMA_STMT': returnValue = await this.#evaluateALTER_SCHEMA_STMT(stmtNode, txId); break;
+                case 'DROP_SCHEMA_STMT': returnValue = await this.#evaluateDROP_SCHEMA_STMT(stmtNode, txId); break;
+                case 'CREATE_TABLE_STMT': returnValue = await this.#evaluateCREATE_TABLE_STMT(stmtNode, txId); break;
+                case 'ALTER_TABLE_STMT': returnValue = await this.#evaluateALTER_TABLE_STMT(stmtNode, txId); break;
+                case 'DROP_TABLE_STMT': returnValue = await this.#evaluateDROP_TABLE_STMT(stmtNode, txId); break;
                 // CTE
-                case 'CTE': returnValue = await this.#evaluateCTE(stmtNode, superLateralCtx, superCteRegistry); break;
+                case 'CTE': returnValue = await this.#evaluateCTE(stmtNode, superLateralCtx, superCteRegistry, txId); break;
                 // DML
-                case 'INSERT_STMT': returnValue = await this.#evaluateINSERT(stmtNode, superCteRegistry); break;
-                case 'UPDATE_STMT': returnValue = await this.#evaluateUPDATE(stmtNode, superCteRegistry); break;
-                case 'DELETE_STMT': returnValue = await this.#evaluateDELETE(stmtNode, superCteRegistry); break;
+                case 'INSERT_STMT': returnValue = await this.#evaluateINSERT_STMT(stmtNode, superCteRegistry, txId); break;
+                case 'UPDATE_STMT': returnValue = await this.#evaluateUPDATE_STMT(stmtNode, superCteRegistry, txId); break;
+                case 'DELETE_STMT': returnValue = await this.#evaluateDELETE_STMT(stmtNode, superCteRegistry, txId); break;
                 // DQL
+                case 'TABLE_STMT': returnValue = await this.#evaluateTABLE_STMT(stmtNode, txId); break;
                 case 'BASIC_SELECT_STMT':
-                case 'COMPLETE_SELECT_STMT': returnValue = await this.#evaluateSELECT(stmtNode, superLateralCtx, superCteRegistry); break;
-                case 'TABLE_STMT': returnValue = await this.#evaluateTABLE(stmtNode); break;
+                case 'COMPLETE_SELECT_STMT': returnValue = await this.#evaluateSELECT_STMT(stmtNode, superLateralCtx, superCteRegistry, txId); break;
                 default: throw new Error(`Unknown statement type: ${stmtNode.NODE_NAME}`);
             }
         }
@@ -49,47 +73,47 @@ export class QueryEngine {
 
     // -------- DDL
 
-    async #evaluateCREATE_SCHEMA(stmtNode) {
+    async #evaluateCREATE_SCHEMA_STMT(stmtNode, txId = null) {
         const schemaName = stmtNode.name().value();
         const ifNotExists = stmtNode.ifNotExists() || false;
-        return await this.#storageEngine.createSchema(schemaName, !ifNotExists);
+        return await this.#storageEngine.createSchema(schemaName, !ifNotExists, txId);
     }
 
-    async #evaluateALTER_SCHEMA(stmtNode) {
+    async #evaluateALTER_SCHEMA_STMT(stmtNode, txId = null) {
         const schemaName = stmtNode.name().value();
         const argument = stmtNode.argument();
         const ifNotExists = stmtNode.ifNotExists() || false;
-        return await this.#storageEngine.alterSchema(schemaName, argument, !ifNotExists);
+        return await this.#storageEngine.alterSchema(schemaName, argument, !ifNotExists, txId);
     }
 
-    async #evaluateDROP_SCHEMA(stmtNode) {
+    async #evaluateDROP_SCHEMA_STMT(stmtNode, txId = null) {
         const schemaName = stmtNode.name().value();
         const ifNotExists = stmtNode.ifExists() || false;
-        return await this.#storageEngine.dropSchema(schemaName, !ifNotExists);
+        return await this.#storageEngine.dropSchema(schemaName, !ifNotExists, txId);
     }
 
-    async #evaluateCREATE_TABLE(stmtNode) {
+    async #evaluateCREATE_TABLE_STMT(stmtNode, txId = null) {
         const argument = stmtNode.argument();
         const ifNotExists = stmtNode.ifNotExists() || false;
-        return await this.#storageEngine.createTable(argument, undefined, !ifNotExists);
+        return await this.#storageEngine.createTable(argument, undefined, !ifNotExists, txId);
     }
 
-    async #evaluateALTER_TABLE(stmtNode) {
+    async #evaluateALTER_TABLE_STMT(stmtNode, txId = null) {
         const tableName = stmtNode.name().value();
         const argument = stmtNode.argument();
         const ifNotExists = stmtNode.ifNotExists() || false;
-        return await this.#storageEngine.alterTable(tableName, argument, !ifNotExists);
+        return await this.#storageEngine.alterTable(tableName, argument, !ifNotExists, txId);
     }
 
-    async #evaluateDROP_TABLE(stmtNode) {
+    async #evaluateDROP_TABLE_STMT(stmtNode, txId = null) {
         const tableName = stmtNode.name().value();
         const ifNotExists = stmtNode.ifExists() || false;
-        return await this.#storageEngine.dropTable(tableName, undefined, !ifNotExists);
+        return await this.#storageEngine.dropTable(tableName, undefined, !ifNotExists, txId);
     }
 
     // -------- CTE
 
-    async #evaluateCTE(stmtNode, superLateralCtx = null, superCteRegistry = null) {
+    async #evaluateCTE(stmtNode, superLateralCtx = null, superCteRegistry = null, txId = null) {
         const cteRegistry = new Map(superCteRegistry || []);
         for (const cteItem of stmtNode.declarations()) {
             const cteName = cteItem.alias().value();
@@ -97,20 +121,20 @@ export class QueryEngine {
                 throw new Error(`CTE name ${cteName} already exists in the current context`);
             }
             const itemBody = cteItem.expr();
-            const cteStream = await this.#evaluate(itemBody, null, cteRegistry);
+            const cteStream = await this.#evaluate(itemBody, null, cteRegistry, txId);
             cteRegistry.set(cteName, cteStream);
         }
-        return await this.#evaluate(stmtNode.body(), superLateralCtx, cteRegistry);
+        return await this.#evaluate(stmtNode.body(), superLateralCtx, cteRegistry, txId);
     }
 
     // -------- DML
 
-    async #evaluateINSERT(stmtNode, cteRegistry = null) {
+    async #evaluateINSERT_STMT(stmtNode, cteRegistry = null, txId = null) {
         const _ = {};
         // Resolve schema/table spec
-        const schemaName = stmtNode.tableRef().qualifier()?.value();
+        const schemaName = stmtNode.tableRef().qualifier()?.value(); // undefined defaults to defaultSchemaName in storage engine
         const tableName = stmtNode.tableRef().value();
-        const tableAlias = stmtNode.pgTableAlias()?.value() || '';
+        const tableAlias = stmtNode.pgTableAlias()?.value() || tableName;
         const tableSchema = stmtNode.originSchemas()[0];
 
         // Resolve column names
@@ -144,11 +168,11 @@ export class QueryEngine {
             }
         }
         // ----------- b. select_clause | my_table_clause
-        else if ((_.selectList = stmtNode.selectList())
+        else if ((_.selectClause = stmtNode.selectClause())
             || (_.myTableClause = stmtNode.myTableClause())) {
             const stream = _.myTableClause
-                ? this.#evaluateTABLE(_.myTableClause)
-                : this.#evaluateSELECT(_.selectList);
+                ? await this.#evaluateTABLE_STMT(_.myTableClause, txId)
+                : await this.#evaluateSELECT_STMT(_.selectClause, null, cteRegistry, txId);
             for await (const _record of stream) {
                 const record = { ...defaultRecord };
                 for (const [colName, colValue] of Object.entries(_record)) {
@@ -165,8 +189,8 @@ export class QueryEngine {
         }
         // ----------- d. my_set_clause
         else if (_.mySetClause = stmtNode.mySetClause()) {
-            const record = await this.#renderSetClause({ [tableAlias]: defaultRecord }, _.mySetClause);
-            records.push(record);
+            const renderedLogicalRecord = await this.#renderSetClause({ [tableAlias]: defaultRecord }, _.mySetClause, cteRegistry, txId);
+            records.push(renderedLogicalRecord[tableAlias]);
         }
 
         // Dispatch to DB
@@ -178,11 +202,11 @@ export class QueryEngine {
             // Exec insert / update
             let finalizedRecord;
             try {
-                finalizedRecord = await this.#storageEngine.insert(tableName, record, schemaName);
+                finalizedRecord = await this.#storageEngine.insert(tableName, record, schemaName, txId);
             } catch (e) {
                 if (e instanceof ConflictError && conflictHandlingClause) {
-                    const newLogicalRecord = await this.#renderSetClause({ [tableAlias]: e.existing }, conflictHandlingClause);
-                    finalizedRecord = await this.#storageEngine.update(tableName, newLogicalRecord[tableAlias], schemaName);
+                    const newLogicalRecord = await this.#renderSetClause({ [tableAlias]: e.existing }, conflictHandlingClause, cteRegistry, txId);
+                    finalizedRecord = await this.#storageEngine.update(tableName, newLogicalRecord[tableAlias], schemaName, txId);
                 } else throw e;
             }
             // Process RETURNING clause
@@ -190,7 +214,7 @@ export class QueryEngine {
                 const _record = Object.create(null);
                 const outputRecordContext = { [tableAlias]: finalizedRecord };
                 for (const selectItem of returningClause) {
-                    const { alias, value } = await this.#exprEngine.evaluate(selectItem, outputRecordContext, cteRegistry);
+                    const { alias, value } = await this.#exprEngine.evaluate(selectItem, outputRecordContext, cteRegistry, txId);
                     _record[alias] = value;
                 }
                 returnList.push(_record);
@@ -202,7 +226,7 @@ export class QueryEngine {
         return (async function* () { yield* returnList; })();
     }
 
-    async #evaluateUPDATE(stmtNode, cteRegistry = null) {
+    async #evaluateUPDATE_STMT(stmtNode, cteRegistry = null, txId = null) {
         const _ = {};
         // Derive FromItems and JoinClauses
         let fromItems, joinClauses, updateTargets;
@@ -215,7 +239,7 @@ export class QueryEngine {
                 const tableRef = item.expr?.() || item.tableRef();
                 const tableName = tableRef.value();
                 const tableAlias = item.alias()?.value() || tableName;
-                const schemaName = tableRef.qualifier()?.value();
+                const schemaName = tableRef.qualifier()?.value(); // undefined defaults to defaultSchemaName in storage engine
                 return [tableAlias, tableName, schemaName];
             });
         } else {
@@ -224,18 +248,18 @@ export class QueryEngine {
             fromItems = [tableExpr];
             joinClauses = (stmtNode.pgFromClause()?.entries() || []).concat(stmtNode.joinClauses() || []);
             // Derive update targets
-            const schemaName = tableExpr.tableRef().qualifier()?.value();
+            const schemaName = tableExpr.tableRef().qualifier()?.value(); // undefined defaults to defaultSchemaName in storage engine
             const tableName = tableExpr.tableRef().value();
-            const tableAlias = tableExpr.alias()?.value() || '';
+            const tableAlias = tableExpr.alias()?.value() || tableName;
             updateTargets = [
                 [tableAlias, tableName, schemaName],
             ];
         }
 
         // FROM -> composites
-        let stream = await this.evaluateFromItems(fromItems, joinClauses, null, cteRegistry);
+        let stream = await this.evaluateFromItems(fromItems, joinClauses, stmtNode.originSchemas(), null, cteRegistry, txId);
         if (_.whereClause = stmtNode.whereClause()) {
-            stream = this.evaluateWhereClause(_.whereClause, stream, cteRegistry);
+            stream = this.evaluateWhereClause(_.whereClause, stream, cteRegistry, txId);
         }
 
         // 3. Exec updates
@@ -245,10 +269,10 @@ export class QueryEngine {
         const setClause = stmtNode.setClause();
         for await (const logicalRecord of stream) {
             // Exec update
-            const newLogicalRecord = await this.#renderSetClause(logicalRecord, setClause);
+            const newLogicalRecord = await this.#renderSetClause(logicalRecord, setClause, cteRegistry, txId);
             for (const [tableAlias, tableName, schemaName] of updateTargets) {
                 if (newLogicalRecord[tableAlias] === logicalRecord[tableAlias]) continue;
-                await this.#storageEngine.update(tableName, newLogicalRecord[tableAlias], schemaName);
+                await this.#storageEngine.update(tableName, newLogicalRecord[tableAlias], schemaName, txId);
             }
             // Process RETURNING clause
             if (returningClause) {
@@ -266,7 +290,7 @@ export class QueryEngine {
         return (async function* () { yield* returnList; })();
     }
 
-    async #evaluateDELETE(stmtNode, cteRegistry = null) {
+    async #evaluateDELETE_STMT(stmtNode, cteRegistry = null, txId = null) {
         const _ = {};
         // Derive FromItems and JoinClauses
         let fromItems, joinClauses, deleteTargets;
@@ -289,9 +313,9 @@ export class QueryEngine {
             fromItems = [tableExpr];
             joinClauses = (stmtNode.pgUsingClause()?.entries() || []).concat(stmtNode.joinClauses() || []);
             // Derive update targets
-            const tableAlias = tableExpr.alias()?.value() || '';
             const tableRef = tableExpr.tableRef();
             const tableName = tableRef.value();
+            const tableAlias = tableExpr.alias()?.value() || tableName;
             const schemaName = tableRef.qualifier()?.value();
             deleteTargets = [
                 [tableAlias, tableName, schemaName],
@@ -299,9 +323,9 @@ export class QueryEngine {
         }
 
         // FROM -> composites
-        let stream = await this.evaluateFromItems(fromItems, joinClauses, null, cteRegistry);
+        let stream = await this.evaluateFromItems(fromItems, joinClauses, stmtNode.originSchemas(), null, cteRegistry, txId);
         if (_.whereClause = stmtNode.whereClause()) {
-            stream = this.evaluateWhereClause(_.whereClause, stream, cteRegistry);
+            stream = this.evaluateWhereClause(_.whereClause, stream, cteRegistry, txId);
         }
 
         // 3. Exec updates
@@ -310,7 +334,7 @@ export class QueryEngine {
         const returningClause = stmtNode.returningClause();
         for await (const logicalRecord of stream) {
             for (const [tableAlias, tableName, schemaName] of deleteTargets) {
-                await this.#storageEngine.delete(tableName, logicalRecord[tableAlias], schemaName);
+                await this.#storageEngine.delete(tableName, logicalRecord[tableAlias], schemaName, txId);
             }
             // Process RETURNING clause
             if (returningClause) {
@@ -328,7 +352,7 @@ export class QueryEngine {
         return (async function* () { yield* returnList; })();
     }
 
-    async #renderSetClause(logicalRecord, setClause, cteRegistry = null) {
+    async #renderSetClause(logicalRecord, setClause, cteRegistry = null, txId = null) {
         const newLogicalRecord = { ...logicalRecord };
         const baseAlias = Object.keys(logicalRecord)[0];
         for (const assignmentExpr of setClause) {
@@ -344,13 +368,13 @@ export class QueryEngine {
                     if (!correspondingRight) {
                         throw new Error(`Mismatched number of entries in SET clause: LHS has ${left.entries().length} but RHS has ${right.entries().length}`);
                     }
-                    const colValue = await this.#exprEngine.evaluate(correspondingRight, logicalRecord, cteRegistry);
+                    const colValue = await this.#exprEngine.evaluate(correspondingRight, logicalRecord, cteRegistry, txId);
                     newLogicalRecord[baseAlias] = { ...newLogicalRecord[baseAlias], [colName]: colValue };
                 }
             } else {
                 const colName = left.value();
                 const qualif = left.qualifier()?.value() || baseAlias;
-                const colValue = await this.#exprEngine.evaluate(right, logicalRecord, cteRegistry);
+                const colValue = await this.#exprEngine.evaluate(right, logicalRecord, cteRegistry, txId);
                 newLogicalRecord[qualif] = { ...newLogicalRecord[qualif], [colName]: colValue };
             }
         }
@@ -371,16 +395,16 @@ export class QueryEngine {
 
     // -------- DQL
 
-    async *#evaluateTABLE(stmtNode) {
+    async *#evaluateTABLE_STMT(stmtNode, txId = null) {
         // Resolve schema/table spec
         const tableRef = stmtNode.tableRef();
         const tableName = tableRef.value();
-        const schemaName = tableRef.qualifier()?.value();
+        const schemaName = tableRef.qualifier()?.value(); // undefined defaults to defaultSchemaName in storage engine
         // Exedute table scan
         yield* this.#storageEngine.getCursor(tableName, schemaName);
     }
 
-    async *#evaluateSELECT(stmtNode, superLateralCtx = null, cteRegistry = null) {
+    async *#evaluateSELECT_STMT(stmtNode, superLateralCtx = null, cteRegistry = null, txId = null) {
         const _ = {};
         // 0. originSchemas: alias -> [ColumnSchema]
         const originSchemas = new Map(stmtNode.originSchemas().map((os) => {
@@ -396,20 +420,21 @@ export class QueryEngine {
         // 1. FROM -> composites, WHERE
         let stream = this.evaluateFromClause(
             stmtNode.fromClause(),
-            stmtNode.joinClauses() || [],
+            stmtNode.joinClauses(),
             originSchemas,
             superLateralCtx,
-            cteRegistry
+            cteRegistry,
+            txId
         );
         if (_.whereClause = stmtNode.whereClause()) {
-            stream = this.evaluateWhereClause(_.whereClause, stream, cteRegistry);
+            stream = this.evaluateWhereClause(_.whereClause, stream, cteRegistry, txId);
         }
 
         // 3. GROUPING / aggregates
         const groupByClause = stmtNode.groupByClause();
         const havingClause = stmtNode.havingClause();
         if (groupByClause?.length) {
-            stream = this.evaluateGroupByClause(groupByClause, stream, havingClause);
+            stream = this.evaluateGroupByClause(groupByClause, havingClause, stream, cteRegistry, txId);
         } else {
             stmtNode.walkTree((v) => {
                 if (_.hasAggrFunctions) return;
@@ -425,32 +450,32 @@ export class QueryEngine {
         }
 
         // 4. SELECT (projection) -- always works on compositeRecords
-        stream = this.evaluateSelectList(stmtNode.selectList(), stream);
+        stream = this.evaluateSelectList(stmtNode.selectList(), stream, cteRegistry, txId);
 
         // 5. ORDER BY (materialize) then LIMIT
         const orderByClause = stmtNode.orderByClause();
-        if (orderByClause) stream = this.evaluateOrderByClause(orderByClause, stream);
+        if (orderByClause) stream = this.evaluateOrderByClause(orderByClause, stream, cteRegistry, txId);
 
         // 6. LIMIT + OFFSET
         const limitClause = stmtNode.limitClause();
         const offsetClause = stmtNode.offsetClause();
-        if (limitClause || offsetClause) stream = this.evaluateLimitClause(limitClause, offsetClause, stream);
+        if (limitClause || offsetClause) stream = this.evaluateLimitClause(limitClause, offsetClause, stream, cteRegistry, txId);
 
         yield* stream;
     }
 
-    async evaluateFromClause(fromClause, joinClauses = [], originSchemas, superLateralCtx = null, cteRegistry = null) {
+    async evaluateFromClause(fromClause, joinClauses = [], originSchemas = [], superLateralCtx = null, cteRegistry = null, txId = null) {
         if (!fromClause?.length) return (async function* () { yield {}; })();
-        return await this.evaluateFromItems(fromClause.entries(), joinClauses, originSchemas, superLateralCtx, cteRegistry);
+        return await this.evaluateFromItems(fromClause.entries(), joinClauses, originSchemas, superLateralCtx, cteRegistry, txId);
     }
 
-    async evaluateFromItems(fromEntries, joinClauses, originSchemas, superLateralCtx = null, cteRegistry = null) {
+    async evaluateFromItems(fromEntries, joinClauses, originSchemas, superLateralCtx = null, cteRegistry = null, txId = null) {
         // combine base from entries then join clauses in order
         const allItems = [...fromEntries, ...(joinClauses || [])];
         // start with first item
         const firstItem = allItems[0];
         const firstItemAlias = firstItem.alias?.()?.value();
-        let leftStream = this.evaluateFromItem(firstItem, originSchemas.get(firstItemAlias), superLateralCtx, cteRegistry);
+        let leftStream = this.evaluateFromItem(firstItem, originSchemas.get(firstItemAlias), superLateralCtx, cteRegistry, txId);
 
         // progressively join subsequent items
         for (let idx = 1; idx < allItems.length; idx++) {
@@ -460,9 +485,9 @@ export class QueryEngine {
             // buffer right side composites
             let createRightStream;
             if (rightItem.lateralKW()) {
-                createRightStream = (_lateralCtx) => this.evaluateFromItem(rightItem, originSchemas.get(rightItemAlias), _lateralCtx, cteRegistry);
+                createRightStream = (_lateralCtx) => this.evaluateFromItem(rightItem, originSchemas.get(rightItemAlias), _lateralCtx, cteRegistry, txId);
             } else {
-                const rightStream = this.evaluateFromItem(rightItem, originSchemas.get(rightItemAlias), null, cteRegistry);
+                const rightStream = this.evaluateFromItem(rightItem, originSchemas.get(rightItemAlias), null, cteRegistry, txId);
                 const rightBuffer = [];
                 createRightStream = async function* () {
                     if (rightBuffer.length) {
@@ -479,13 +504,13 @@ export class QueryEngine {
             const joinCondition = rightItem.conditionClause()?.expr() || null;
 
             // join
-            leftStream = this.evaluateJoin(leftStream, createRightStream, joinType, joinCondition, originSchemas, superLateralCtx, cteRegistry);
+            leftStream = this.evaluateJoin(leftStream, createRightStream, joinType, joinCondition, originSchemas, superLateralCtx, cteRegistry, txId);
         }
 
         return leftStream;
     }
 
-    async * evaluateFromItem(fromItem, originSchema, _lateralCtx = null, cteRegistry = null) {
+    async * evaluateFromItem(fromItem, originSchema, _lateralCtx = null, cteRegistry = null, txId = null) {
         // ---------- a. TableAbstraction2 | TableAbstraction1
 
         if (fromItem instanceof registry.TableAbstraction2
@@ -498,7 +523,7 @@ export class QueryEngine {
                 tableRef = fromItem.tableRef();
             }
             // Part2 resolution: table scan
-            const schemaName = tableRef.qualifier()?.value();
+            const schemaName = tableRef.qualifier()?.value(); // undefined defaults to defaultSchemaName in storage engine
             const tableName = tableRef.value();
             const aliasName = tableAlias?.value() || tableName;
             // Consume table scan
@@ -516,7 +541,7 @@ export class QueryEngine {
 
         // ---------- DerivedQuery?
         if (fromItemExpr instanceof registry.DerivedQuery) {
-            for await (const row of this.#evaluate(fromItemExpr.expr(), _lateralCtx, cteRegistry)) {
+            for await (const row of this.#evaluate(fromItemExpr.expr(), _lateralCtx, cteRegistry, txId)) {
                 const values = Object.values(row);
                 const actualColWidth = values.length;
                 if (actualColWidth !== expectedColWidth) {
@@ -540,7 +565,7 @@ export class QueryEngine {
                 }
                 const row = Object.create(null);
                 for (const [i, valueExpr] of rowConstructor.entries().entries()) {
-                    this.#acquireValue(row, originSchema[i], await this.#exprEngine.evaluate(valueExpr, _lateralCtx, cteRegistry));
+                    this.#acquireValue(row, originSchema[i], await this.#exprEngine.evaluate(valueExpr, _lateralCtx, cteRegistry, txId));
                 }
                 yield { [aliasName]: row };
             }
@@ -548,7 +573,7 @@ export class QueryEngine {
         }
 
         const createSRFGenerator = async (callExpr) => {
-            const funcResult = await this.#exprEngine.evaluate(callExpr, _lateralCtx, cteRegistry);
+            const funcResult = await this.#exprEngine.evaluate(callExpr, _lateralCtx, cteRegistry, txId);
             let asyncIter;
             if (Symbol.asyncIterator in funcResult) {
                 asyncIter = funcResult[Symbol.asyncIterator]();
@@ -683,7 +708,7 @@ export class QueryEngine {
         }
 
         // ---------- TableRef1 | TableRef2
-        const schemaName = fromItemExpr.qualifier()?.value();
+        const schemaName = fromItemExpr.qualifier()?.value(); // undefined defaults to defaultSchemaName in storage engine
         const tableName = fromItemExpr.value();
 
         // CTERef?
@@ -712,7 +737,7 @@ export class QueryEngine {
         }
     }
 
-    async * evaluateJoin(leftStream, createRightStream, joinType, joinCondition, originSchemas, superLateralCtx = null, cteRegistry = null) {
+    async * evaluateJoin(leftStream, createRightStream, joinType, joinCondition, originSchemas, superLateralCtx = null, cteRegistry = null, txId = null) {
         // Composition helpers
         const nullFill = (baseComp, aliases) => {
             for (const alias of aliases) {
@@ -734,7 +759,7 @@ export class QueryEngine {
             for await (const rightComp of createRightStream(fullLeftComp)) {
                 const fullMergedComp = { ...fullLeftComp, ...rightComp };
                 if (!joinCondition/* Also: CROSS JOIN */
-                    || await this.#exprEngine.evaluate(joinCondition, fullMergedComp, cteRegistry)) {
+                    || await this.#exprEngine.evaluate(joinCondition, fullMergedComp, cteRegistry, txId)) {
                     yield fullMergedComp;
                     leftMatched = true;
                 } else if (joinType === 'RIGHT' || joinType === 'FULL') {
@@ -754,13 +779,13 @@ export class QueryEngine {
         }
     }
 
-    async * evaluateWhereClause(whereClause, upstream, cteRegistry = null) {
+    async * evaluateWhereClause(whereClause, upstream, cteRegistry = null, txId = null) {
         for await (const comp of upstream) {
-            if (await this.#exprEngine.evaluate(whereClause.expr(), comp, cteRegistry)) yield comp;
+            if (await this.#exprEngine.evaluate(whereClause.expr(), comp, cteRegistry, txId)) yield comp;
         }
     }
 
-    evaluateGroupByClause(groupByClause, upstream, havingClause = null) {
+    evaluateGroupByClause(groupByClause, havingClause, upstream, cteRegistry = null, txId = null) {
         const self = this;
         return (async function* () {
             const groups = new Map; // key -> array of compositeRecords
@@ -769,7 +794,7 @@ export class QueryEngine {
                 // compute grouping key (use exprEngine)
                 const keyParts = [];
                 for (const groupingElement of groupByClause) {
-                    keyParts.push(await self.#exprEngine.evaluate(groupingElement.expr(), comp));
+                    keyParts.push(await self.#exprEngine.evaluate(groupingElement.expr(), comp, cteRegistry, txId));
                 }
                 const key = JSON.stringify(keyParts);
 
@@ -787,10 +812,8 @@ export class QueryEngine {
                 const rep = group[0]; // representative composite
                 // rep already has rep[GROUP_SYMBOL] = group
                 if (havingClause) {
-                    if (await self.#exprEngine.evaluate(havingClause.expr(), rep)) yield rep;
-                } else {
-                    yield rep;
-                }
+                    if (await self.#exprEngine.evaluate(havingClause.expr(), rep, cteRegistry, txId)) yield rep;
+                } else yield rep;
             }
         })();
     }
@@ -809,24 +832,24 @@ export class QueryEngine {
         })();
     }
 
-    async * evaluateSelectList(selectList, upstream) {
+    async * evaluateSelectList(selectList, upstream, cteRegistry = null, txId = null) {
         for await (const comp of upstream) {
             const projected = Object.create(null);
             for (const selectItem of selectList) {
-                const { alias, value } = await this.#exprEngine.evaluate(selectItem, comp);
+                const { alias, value } = await this.#exprEngine.evaluate(selectItem, comp, cteRegistry, txId);
                 projected[alias] = value;
             }
             yield projected;
         }
     }
 
-    async * evaluateOrderByClause(orderByClause, upstream) {
+    async * evaluateOrderByClause(orderByClause, upstream, cteRegistry = null, txId = null) {
         const rows = [];
         for await (const r of upstream) rows.push(r);
         // Precompute keys
         const decorated = await Promise.all(rows.map(async (row) => {
             const keys = await Promise.all(orderByClause.entries().map(orderElement =>
-                this.#exprEngine.evaluate(orderElement.expr(), row)
+                this.#exprEngine.evaluate(orderElement.expr(), row, cteRegistry, txId)
             ));
             return { row, keys };
         }));
@@ -843,10 +866,10 @@ export class QueryEngine {
         for (const d of decorated) yield d.row;
     }
 
-    async * evaluateLimitClause(limitClause, offsetClause, upstream) {
-        const limit = limitClause ? await this.#exprEngine.evaluate(limitClause.expr()) : 0;
-        const offset = offsetClause ? await this.#exprEngine.evaluate(offsetClause.expr()) : (
-            limitClause.myOffset() ? await this.#exprEngine.evaluate(limitClause.myOffset()) : 0
+    async * evaluateLimitClause(limitClause, offsetClause, upstream, cteRegistry = null, txId = null) {
+        const limit = limitClause ? await this.#exprEngine.evaluate(limitClause.expr(), null, cteRegistry, txId) : 0;
+        const offset = offsetClause ? await this.#exprEngine.evaluate(offsetClause.expr(), null, cteRegistry, txId) : (
+            limitClause.myOffset() ? await this.#exprEngine.evaluate(limitClause.myOffset(), null, cteRegistry, txId) : 0
         );
         let idx = 0, yielded = 0;
         for await (const r of upstream) {

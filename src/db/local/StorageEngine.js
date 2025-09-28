@@ -192,7 +192,7 @@ export class StorageEngine extends SimpleEmitter {
         return JSON.stringify(Object.values(record));
     }
 
-    async insert(tableName, record, schemaName = this.#defaultSchemaName) {
+    async insert(tableName, record, schemaName = this.#defaultSchemaName, txId = null) {
         const tableStorage = await this.tableStorage(tableName, schemaName);
         const stored = { ...record };
         const key = await this.#computeKey(schemaName, tableName, stored, true);
@@ -200,11 +200,11 @@ export class StorageEngine extends SimpleEmitter {
         if (existing) throw new ConflictError(`Duplicate key for "${tableName}": ${key}`, existing);
         await tableStorage.set(key, stored);
         const keyColumns = (await this.tableKeyColumns(schemaName, tableName)).map((k) => k.name().value());
-        this.emit('mutation', { type: 'insert', relation: { schema: schemaName, name: tableName, keyColumns }, new: { ...stored } });
+        this.emit('mutation', { type: 'insert', relation: { schema: schemaName, name: tableName, keyColumns }, new: { ...stored }, txId });
         return stored;
     }
 
-    async update(tableName, record, schemaName = this.#defaultSchemaName) {
+    async update(tableName, record, schemaName = this.#defaultSchemaName, txId = null) {
         const tableStorage = await this.tableStorage(tableName, schemaName);
         const stored = { ...record };
         const key = await this.#computeKey(schemaName, tableName, stored, false);
@@ -213,11 +213,11 @@ export class StorageEngine extends SimpleEmitter {
         await tableStorage.set(key, stored);
         const keyColumns = (await this.tableKeyColumns(schemaName, tableName)).map((k) => k.name().value());
         const _key = Object.fromEntries(keyColumns.map((k) => [k, old[k]]));
-        this.emit('mutation', { type: 'update', relation: { schema: schemaName, name: tableName, keyColumns }, key: _key, old, new: { ...stored } });
+        this.emit('mutation', { type: 'update', relation: { schema: schemaName, name: tableName, keyColumns }, key: _key, old, new: { ...stored }, txId });
         return stored;
     }
 
-    async delete(tableName, keyOrRecord, schemaName = this.#defaultSchemaName) {
+    async delete(tableName, keyOrRecord, schemaName = this.#defaultSchemaName, txId = null) {
         const tableStorage = await this.tableStorage(tableName, schemaName);
         const key = await this.#computeKey(schemaName, tableName, { ...keyOrRecord }, false);
         const old = await tableStorage.get(key);
@@ -225,7 +225,7 @@ export class StorageEngine extends SimpleEmitter {
         await tableStorage.delete(key);
         const keyColumns = (await this.tableKeyColumns(tableName)).map((k) => k.name().value());
         const _key = Object.fromEntries(keyColumns.map((k) => [k, old[k]]));
-        this.emit('mutation', { type: 'delete', relation: { schema: schemaName, name: tableName, keyColumns }, key: _key, old });
+        this.emit('mutation', { type: 'delete', relation: { schema: schemaName, name: tableName, keyColumns }, key: _key, old, txId });
         return old;
     }
 
