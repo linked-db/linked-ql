@@ -5,7 +5,7 @@ $describe('Parser - DML Clauses', () => {
     $describe('SetClause', () => {
         $it('should parse SET with single column assignment', async () => {
             await testParseAndStringify('SetClause', 'SET col1 = 1', { dialect: 'postgres' });
-            expect(testParseAndStringify('SetClause', 'SET tbl.col1 = 1', { dialect: 'postgres' })).to.be.rejected;
+            await expect(testParseAndStringify('SetClause', 'SET tbl.col1 = 1', { dialect: 'postgres' })).to.be.rejected;
         });
 
         $it('should parse SET with qualified single column assignment', async () => {
@@ -18,12 +18,12 @@ $describe('Parser - DML Clauses', () => {
 
         $it('should parse SET with row assignment', async () => {
             await testParseAndStringify('SetClause', 'SET (col1, col2) = (SELECT a, b FROM t)', { dialect: 'postgres' });
-            expect(testParseAndStringify('SetClause', 'SET (col1, col2) = (SELECT a, b FROM t)', { dialect: 'mysql' })).to.be.rejected;
+            await expect(testParseAndStringify('SetClause', 'SET (col1, col2) = (SELECT a, b FROM t)', { dialect: 'mysql' })).to.be.rejected;
         });
 
         $it('should parse SET with subquery assignment', async () => {
             await testParseAndStringify('SetClause', 'SET col1 = (SELECT MAX(val) FROM t)', { dialect: 'postgres' });
-            expect(testParseAndStringify('SetClause', 'SET col1 = (SELECT MAX(val) FROM t)', { dialect: 'mysql' })).to.be.rejected;
+            await expect(testParseAndStringify('SetClause', 'SET col1 = (SELECT MAX(val) FROM t)', { dialect: 'mysql' })).to.be.rejected;
         });
 
         $it('should parse SET with expression', async () => {

@@ -25,11 +25,11 @@ $describe('Parser - Function Calls (CallExpr)', () => {
     });
 
     $it('should throw an error for a function call with too many arguments (arity enforcement)', async () => {
-        expect(registry.CallExpr.parse('NOW(1)', { assert: true })).to.be.rejected;
+        await expect(registry.CallExpr.parse('NOW(1)', { assert: true })).to.be.rejected;
     });
 
     $it('should throw an error for a function call with too few arguments (arity enforcement)', async () => {
-        expect(registry.CallExpr.parse('IF(condition)', { assert: true })).to.be.rejected;
+        await expect(registry.CallExpr.parse('IF(condition)', { assert: true })).to.be.rejected;
     });
 
     $it('should parse GROUPING function', async () => {

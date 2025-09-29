@@ -231,7 +231,6 @@ CROSS JOIN (
         });
 
         $it('should "inherit" a foreign key from outer query at subquery and plot a Deep Ref from off it', async () => {
-            globalThis.testMode = true;
             const inputSql =
                 `SELECT
   id,
@@ -245,7 +244,6 @@ CROSS JOIN LATERAL (
 ) AS o`;
             const outputSql = `SELECT u.id AS id, "$join~0"."$ref~0" AS outerparentemail, o.parent_order AS parent_order, o.innerparentemail AS innerparentemail FROM public.users AS u CROSS JOIN LATERAL (SELECT orders.parent_order AS parent_order, "$join~0"."$ref~0" AS innerparentemail FROM public.orders LEFT JOIN (SELECT users.id AS "$key~0", users.id AS "$ref~0" FROM public.users) AS "$join~0" ON u.parent_user1 = "$join~0"."$key~0") AS o LEFT JOIN (SELECT users.id AS "$key~0", users.email AS "$ref~0" FROM public.users) AS "$join~0" ON u.parent_user1 = "$join~0"."$key~0"`;
             await testParseAndStringify('BasicSelectStmt', [inputSql, outputSql], { deSugar: true, prettyPrint: true }, schemaInference);
-            globalThis.testMode = false;
         });
     });
 

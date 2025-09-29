@@ -1,23 +1,59 @@
-import { AbstractStmt } from '../../lang/abstracts/AbstractStmt.js';
-import { TableSchema } from '../../lang/ddl/index.js';
-import { SchemaSchema } from '../../lang/ddl/schema/SchemaSchema.js';
 import { AbstractDriver } from '../abstracts/AbstractDriver.js';
+import { SchemaSchema } from '../../lang/ddl/schema/SchemaSchema.js';
+import { TableSchema } from '../../lang/ddl/index.js';
 import { matchSchemaSelector, normalizeQueryArgs, normalizeSchemaSelectorArg } from '../abstracts/util.js';
 import { StorageEngine } from './StorageEngine.js';
 import { QueryEngine } from './QueryEngine.js';
+import { Result } from '../Result.js';
 
 export class LocalDriver extends AbstractDriver {
 
-    #options;
+    #dialect;
+    #enableLive;
     #storageEngine;
     #queryEngine;
+    #mutationAbortLine;
 
-    get dialect() { return 'postgres'; }
+    get dialect() { return this.#dialect; }
+    get enableLive() { return this.#enableLive; }
+    get storageEngine() { return this.#storageEngine; }
 
-    constructor(options = {}) {
+    constructor({ dialect = 'postgres', enableLive = false, ...options } = {}, storageEngine = null) {
         super();
-        this.#options = options;
+        this.#dialect = dialect;
+        this.#enableLive = !!enableLive;
+        this.#storageEngine = storageEngine || new StorageEngine;
+        this.#queryEngine = new QueryEngine(this.#storageEngine, { dialect, ...options });
     }
+
+    // ---------Lifecycle
+
+    async connect() {
+        if (this.#enableLive) {
+            this.#mutationAbortLine = this.#queryEngine.on('changefeed', (events) => this._fanout(events));
+        }
+    }
+
+    async disconnect() {
+        this.#mutationAbortLine?.();
+        this.#mutationAbortLine = null;
+    }
+
+    // ---------Query
+
+    async query(...args) {
+        const [query, options] = await this._normalizeQueryArgs(...args);
+        const result = await this.#queryEngine.query(query, options);
+        if (Array.isArray(result) || typeof result?.[Symbol.asyncIterator] === 'function') {
+            return new Result({ rows: result });
+        }
+        if (typeof result === 'number') {
+            return new Result({ rowCount: result });
+        }
+        return new Result;
+    }
+
+    // ---------Schemas
 
     async showCreate(selector, schemaWrapped = false) {
         selector = normalizeSchemaSelectorArg(selector);
@@ -53,37 +89,5 @@ export class LocalDriver extends AbstractDriver {
         }
 
         return schemas;
-    }
-
-    // ---------Query
-
-    async query(ast, schemaName = 'public') {
-        const [query, options] = normalizeQueryArgs(true, ...args);
-        return await this.#queryEngine.query(query);
-    }
-
-    // ---------Subscriptions
-
-    subscribe(selector, callback) {
-        if (typeof selector === 'function') {
-            callback = selector;
-            selector = '*';
-        }
-        selector = normalizeSchemaSelectorArg(selector);
-        const abortLines = [...this.#storageEngine.entries()].map(([schemaName, storage]) => {
-            const tables = [].concat(selector['*'] || []).concat(selector[schemaName] || []);
-            if (!tables.length) return;
-            storage.on('mutation', (event) => {
-                if (!tables.includes('*')
-                    && !tables.includes(event.relation.name)) {
-                    return;
-                }
-                callback([{
-                    ...event,
-                    relation: { ...event.relation, schema: schemaName },
-                }]);
-            });
-        });
-        return () => abortLines.forEach((cb) => cb?.());
     }
 }

@@ -4,34 +4,33 @@ import { Expr, Identifier, StringLiteral } from '../../lang/expr/index.js';
 import { ReferentialAction, SchemaSchema, TableSchema } from '../../lang/ddl/index.js';
 import { normalizeQueryArgs, normalizeSchemaSelectorArg, parseSchemaSelectors } from '../abstracts/util.js';
 import { AbstractDriver } from '../abstracts/AbstractDriver.js';
+import { Result } from '../../Result.js';
 
 export class PGDriver extends AbstractDriver {
 
     #connectionParams;
-    #realtime;
+    #enableLive;
     #walSlot;
     #walPublications;
 
     #nativeClient;
     #walClient;
 
-    #subscribers = new Map;
-
     get dialect() { return 'postgres'; }
-    get realtime() { return this.#realtime; }
+    get enableLive() { return this.#enableLive; }
 
     get walSlot() { return this.#walSlot; }
     get walPublications() { return this.#walPublications; }
 
     constructor({
-        realtime = false,
+        enableLive = false,
         walSlot = 'linkedql_default_slot',
         walPublications = 'linkedql_default_publication',
         ...connectionParams
     } = {}) {
         super();
         this.#connectionParams = connectionParams;
-        this.#realtime = realtime;
+        this.#enableLive = enableLive;
 
         this.#walSlot = walSlot;
         this.#walPublications = [].concat(walPublications);
@@ -42,7 +41,7 @@ export class PGDriver extends AbstractDriver {
             this.emit('error', new Error(`Native Client error: ${err}`));
         });
 
-        if (this.#realtime) {
+        if (this.#enableLive) {
             if (!this.#walSlot) throw new Error(`Unable to start realtime; options.walSlot cannot be empty.`);
             if (!this.#walPublications.length) throw new Error(`Unable to start realtime; options.walPublications cannot be empty.`);
             this.#walClient = new LogicalReplicationService(this.#connectionParams);
@@ -54,18 +53,9 @@ export class PGDriver extends AbstractDriver {
             // Handle "data" messages
             let currentXid;
             const walTransactions = new Map;
-            const walRelations = new Map;
-            const resolveRel = (rel) => {
-                if (rel._refs) return rel;
-                return Object.defineProperty(rel, '_refs', {
-                    value: [
-                        JSON.stringify([rel.schema, rel.name]),
-                        JSON.stringify(['*', rel.name]),
-                        JSON.stringify([rel.schema, '*']),
-                    ]
-                });
-            };
+            const walRelations = new Map;;
 
+            // Listen to changes
             this.#walClient.on('data', (lsn, msg) => {
                 switch (msg.tag) {
 
@@ -75,21 +65,21 @@ export class PGDriver extends AbstractDriver {
                         break;
 
                     case 'relation':
-                        walRelations.set(msg.relationOid, resolveRel({
+                        walRelations.set(msg.relationOid, {
                             schema: msg.schema,
                             name: msg.name,
                             keyColumns: msg.keyColumns,
-                        }));
+                        });
                         break;
 
                     case 'insert':
                     case 'update':
                     case 'delete': {
-                        const rel = walRelations.get(msg.relation.relationOid) || resolveRel({
+                        const rel = walRelations.get(msg.relation.relationOid) || {
                             schema: msg.relation.schema,
                             name: msg.relation.name,
                             keyColumns: msg.relation.keyColumns,
-                        });
+                        };
                         const evt = {
                             type: msg.tag,
                             relation: rel
@@ -110,10 +100,7 @@ export class PGDriver extends AbstractDriver {
 
                     case 'commit': {
                         const events = walTransactions.get(currentXid);
-                        if (events?.length) {
-                            const relationHashes = new Set(events.reduce((arr, e) => arr.concat(e.relation._refs), []));
-                            this.#fanout(events, relationHashes);
-                        }
+                        if (events?.length) this._fanout(events);
                         walTransactions.delete(currentXid);
                         currentXid = null;
                         break;
@@ -125,6 +112,8 @@ export class PGDriver extends AbstractDriver {
             });
         }
     }
+
+    // ---------Lifecycle
 
     async connect() {
         await this.#nativeClient.connect();
@@ -159,70 +148,21 @@ export class PGDriver extends AbstractDriver {
         await new Promise((r) => setTimeout(r, 5));
     }
 
-    // ---------Schema
+    // ---------Query
 
-    async schemaNames() {
-        const sql = `SELECT schema_name FROM information_schema.schemata ORDER BY array_position(current_schemas(false), schema_name)`;
-        const result = await this.#nativeClient.query(sql);
-        return result.rows;
+    async query(...args) {
+        const [query, options] = await this._normalizeQueryArgs(...args);
+        const result = await this.#nativeClient.query(query + '', options.values);
+        return new Result({ rows: result.rows, rowCount: result.rowCount });
     }
 
-    async createSchema(schemaName) {
-        const sql = `CREATE SCHEMA IF NOT EXISTS ${schemaName}`;
-        const result = await this.#nativeClient.query(sql);
-        return result.rows || result;
-    }
-
-    async dropSchema(schemaName) {
-        const sql = `DROP SCHEMA IF EXISTS ${schemaName} CASCADE`;
-        const result = await this.#nativeClient.query(sql);
-        return result.rows || result;
-    }
+    // ---------Schemas
 
     async showCreate(selector, schemaWrapped = false) {
         selector = normalizeSchemaSelectorArg(selector);
         const sql = this._composeShowCreateSQL(selector);
         const result = await this.#nativeClient.query(sql);
         return await this._formatShowCreateResult(result.rows || result, schemaWrapped);
-    }
-
-    // ---------Query
-
-    async query(...args) {
-        const [ query, options ] = normalizeQueryArgs(...args);
-        const result = await this.#nativeClient.query(query+'', options.values);
-        return { rows: result.rows };
-    }
-
-    // ---------Subscriptions
-
-    subscribe(selector, callback) {
-        if (typeof selector === 'function') {
-            callback = selector;
-            selector = '*';
-        }
-        selector = normalizeSchemaSelectorArg(selector, true);
-        this.#subscribers.set(callback, selector);
-        return () => this.#subscribers.delete(callback);
-    }
-
-    #fanout(events, relationHashes) {
-        for (const [cb, selectorSet] of this.#subscribers.entries()) {
-            let _events = [];
-            // Match and filter
-            for (const selector of selectorSet) {
-                if (selector === '["*","*"]') {
-                    _events = [...events];
-                    break;
-                } else if (relationHashes.has(selector)) {
-                    _events = events.filter((e) => e.relation._refs.some((r) => selectorSet.has(r)));
-                    break;
-                }
-            }
-            if (!_events.length) continue;
-            // Successful match
-            cb(_events);
-        }
     }
 
     // ----------------------

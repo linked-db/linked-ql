@@ -27,7 +27,7 @@ export class DeleteStmt extends SelectorStmtMixin(DMLStmt) {
                     {
                         dialect: 'mysql',
                         syntax: [
-                            { type: 'TableAbstraction1', as: 'my_delete_list', arity: { min: 1 }, itemSeparator },
+                            { type: 'Identifier', as: 'my_delete_list', arity: { min: 1 }, itemSeparator },
                             { type: 'FromClause', as: 'my_from_clause', autoIndent: true },
                             { type: 'JoinClause', as: 'join_clauses', arity: Infinity, optional: true, autoIndent: true },
                             { type: 'WhereClause', as: 'where_clause', optional: true, autoIndent: true },
@@ -37,7 +37,7 @@ export class DeleteStmt extends SelectorStmtMixin(DMLStmt) {
                         dialect: 'mysql',
                         syntax: [
                             { type: 'keyword', value: 'FROM' },
-                            { type: 'TableAbstraction1', as: 'my_delete_list', arity: { min: 1 }, itemSeparator },
+                            { type: 'Identifier', as: 'my_delete_list', arity: { min: 1 }, itemSeparator },
                             { type: 'UsingFromClause', as: 'my_using_clause', autoIndent: true },
                             { type: 'JoinClause', as: 'join_clauses', arity: Infinity, optional: true, autoIndent: true },
                             { type: 'WhereClause', as: 'where_clause', optional: true, autoIndent: true },

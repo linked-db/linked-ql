@@ -128,7 +128,7 @@ $describe('Parser - DQL Clauses', () => {
             await testParseAndStringify('JoinClause', 'LEFT JOIN tbl2 ON tbl2.col1 = tbl1.col1');
             await testParseAndStringify('JoinClause', 'RIGHT JOIN tbl2 ON tbl2.col1 = tbl1.col1');
             await testParseAndStringify('JoinClause', 'FULL JOIN tbl2 ON tbl2.col1 = tbl1.col1');
-            expect(testParseAndStringify('JoinClause', 'FULL JOIN tbl2 ON tbl2.col1 = tbl1.col1', { dialect: 'mysql', assert: true })).to.be.rejected;
+            await expect(testParseAndStringify('JoinClause', 'FULL JOIN tbl2 ON tbl2.col1 = tbl1.col1', { dialect: 'mysql', assert: true })).to.be.rejected;
         });
 
         $it('should parse a LEFT|RIGHT|FULL "OUTER" JOIN clause', async () => {
@@ -139,20 +139,20 @@ $describe('Parser - DQL Clauses', () => {
 
         $it('should parse a "NATURAL" [LEFT|RIGHT|FULL [OUTER]] JOIN clause with an ON/USING clause rejected', async () => {
             await testParseAndStringify('JoinClause', 'NATURAL JOIN tbl2');
-            expect(testParseAndStringify('JoinClause', 'NATURAL JOIN tbl2 ON tbl2.col1 = tbl1.col1')).to.be.rejected;
+            await expect(testParseAndStringify('JoinClause', 'NATURAL JOIN tbl2 ON tbl2.col1 = tbl1.col1')).to.be.rejected;
             await testParseAndStringify('JoinClause', 'NATURAL INNER JOIN tbl2');
-            expect(testParseAndStringify('JoinClause', 'NATURAL INNER JOIN tbl2 ON tbl2.col1 = tbl1.col1')).to.be.rejected;
+            await expect(testParseAndStringify('JoinClause', 'NATURAL INNER JOIN tbl2 ON tbl2.col1 = tbl1.col1')).to.be.rejected;
             await testParseAndStringify('JoinClause', 'NATURAL LEFT OUTER JOIN tbl2');
-            expect(testParseAndStringify('JoinClause', 'NATURAL LEFT OUTER JOIN tbl2 ON tbl2.col1 = tbl1.col1')).to.be.rejected;
+            await expect(testParseAndStringify('JoinClause', 'NATURAL LEFT OUTER JOIN tbl2 ON tbl2.col1 = tbl1.col1')).to.be.rejected;
             await testParseAndStringify('JoinClause', 'NATURAL RIGHT OUTER JOIN tbl2');
-            expect(testParseAndStringify('JoinClause', 'NATURAL RIGHT OUTER JOIN tbl2 ON tbl2.col1 = tbl1.col1')).to.be.rejected;
+            await expect(testParseAndStringify('JoinClause', 'NATURAL RIGHT OUTER JOIN tbl2 ON tbl2.col1 = tbl1.col1')).to.be.rejected;
             await testParseAndStringify('JoinClause', 'NATURAL FULL OUTER JOIN tbl2');
-            expect(testParseAndStringify('JoinClause', 'NATURAL FULL OUTER JOIN tbl2 ON tbl2.col1 = tbl1.col1')).to.be.rejected;
+            await expect(testParseAndStringify('JoinClause', 'NATURAL FULL OUTER JOIN tbl2 ON tbl2.col1 = tbl1.col1')).to.be.rejected;
         });
 
         $it('should parse a "CROSS" JOIN clause with an ON/USING clause rejected', async () => {
             await testParseAndStringify('JoinClause', 'CROSS JOIN tbl2');
-            expect(testParseAndStringify('JoinClause', 'CROSS JOIN tbl2 ON tbl2.col1 = tbl1.col1')).to.be.rejected;
+            await expect(testParseAndStringify('JoinClause', 'CROSS JOIN tbl2 ON tbl2.col1 = tbl1.col1')).to.be.rejected;
         });
 
         $it('should parse a subquery JOIN clause', async () => {

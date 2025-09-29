@@ -4,22 +4,22 @@ export const GROUP_SYMBOL = Symbol.for('group');
 
 export class ExprEngine {
 
-    #options;
     #derivedQueryCallback;
+    #options;
 
-    constructor(options = {}, derivedQueryCallback = null) {
-        this.#options = options;
+    constructor(derivedQueryCallback = null, options = {}) {
         this.#derivedQueryCallback = derivedQueryCallback;
+        this.#options = options;
     }
 
-    async evaluate(node, compositeRow, cteRegistry = null, txId = null) {
+    async evaluate(node, compositeRow, queryCtx = {}) {
         if (!node) throw new Error(`ExprEngine: Cannot evaluate null/undefined node`);
         // Evaluate derived queries via callback
         if (['DERIVED_QUERY', 'SCALAR_SUBQUERY'].includes(node.NODE_NAME)) {
             if (!this.#derivedQueryCallback) {
                 throw new Error(`ExprEngine: Node ${node.NODE_NAME} not supported in this context`);
             }
-            return await this.#derivedQueryCallback(node, compositeRow, cteRegistry, txId);
+            return await this.#derivedQueryCallback(node, compositeRow, queryCtx);
         }
         // Dispatch to handler
         const handler = this[node.NODE_NAME];
@@ -29,14 +29,14 @@ export class ExprEngine {
 
     // --- CLAUSES & CONSTRUCTS ---
 
-    async SELECT_ITEM(node, compositeRow, cteRegistry = null, txId = null) {
+    async SELECT_ITEM(node, compositeRow, queryCtx = {}) {
         const alias = node.alias()?.value() || (this.#options.dialect === 'mysql' ? '?column?'/* TODO */ : '?column?');
-        const value = await this.evaluate(node.expr(), compositeRow, cteRegistry, txId);
+        const value = await this.evaluate(node.expr(), compositeRow, queryCtx);
         return { alias, value };
     }
 
-    async ON_CLAUSE(node, compositeRow, cteRegistry = null, txId = null) {
-        return await this.evaluate(node.expr(), compositeRow, cteRegistry, txId);
+    async ON_CLAUSE(node, compositeRow, queryCtx = {}) {
+        return await this.evaluate(node.expr(), compositeRow, queryCtx);
     }
 
     async USING_CLAUSE(node, compositeRow) {
@@ -51,15 +51,15 @@ export class ExprEngine {
 
     // --- EXPRESSIONS ---
 
-    async ROW_CONSTRUCTOR(node, compositeRow, cteRegistry = null, txId = null) {
-        const entries = await Promise.all(node.entries().map((e) => this.evaluate(e, compositeRow, cteRegistry, txId)));
+    async ROW_CONSTRUCTOR(node, compositeRow, queryCtx = {}) {
+        const entries = await Promise.all(node.entries().map((e) => this.evaluate(e, compositeRow, queryCtx)));
         return entries.length > 1 ? entries : entries[0];
     }
 
-    async BINARY_EXPR(node, compositeRow, cteRegistry = null, txId = null) {
+    async BINARY_EXPR(node, compositeRow, queryCtx = {}) {
         const op = node.operator().toUpperCase();
-        const L = await this.evaluate(node.left(), compositeRow, cteRegistry, txId);
-        const R = await this.evaluate(node.right(), compositeRow, cteRegistry, txId);
+        const L = await this.evaluate(node.left(), compositeRow, queryCtx);
+        const R = await this.evaluate(node.right(), compositeRow, queryCtx);
         if (L == null || R == null) {
             if (op === 'IS') return L === R;
             if (op === 'IS NOT') return L !== R;
@@ -83,9 +83,9 @@ export class ExprEngine {
         }
     }
 
-    async UNARY_EXPR(node, compositeRow, cteRegistry = null, txId = null) {
+    async UNARY_EXPR(node, compositeRow, queryCtx = {}) {
         const op = node.operator().toUpperCase();
-        const v = await this.evaluate(node.operand(), compositeRow, cteRegistry, txId);
+        const v = await this.evaluate(node.operand(), compositeRow, queryCtx);
         switch (op) {
             case 'NOT': return !Boolean(v);
             case '-': return -v;
@@ -93,9 +93,17 @@ export class ExprEngine {
         }
     }
 
-    async CALL_EXPR(node, compositeRow, cteRegistry = null, txId = null) {
+    async CALL_EXPR(node, compositeRow, queryCtx = {}) {
         const name = node.name().toUpperCase();
-        const args = await Promise.all(node.arguments().map((a) => this.evaluate(a, compositeRow, cteRegistry, txId)));
+
+        // System functions - MySQL
+        if (name === 'VALUES' && compositeRow.EXCLUDED && typeof compositeRow.EXCLUDED === 'object') {
+            const fieldName = node.arguments()[0].value();
+            return compositeRow.EXCLUDED[fieldName];
+        }
+
+        // Classic functions
+        const args = await Promise.all(node.arguments().map((a) => this.evaluate(a, compositeRow, queryCtx)));
         switch (name) {
             case 'LOWER': return String(args[0] ?? '').toLowerCase();
             case 'UPPER': return String(args[0] ?? '').toUpperCase();
@@ -122,11 +130,12 @@ export class ExprEngine {
             }
             case 'JSON_BUILD_ARRAY': // Postgres: JSON_BUILD_ARRAY(val1, ...)
                 return args;
+
             default: throw new Error(`ExprEngine: Unsupported function ${node.name()}`);
         }
     }
 
-    async AGGR_CALL_EXPR(node, compositeRow, cteRegistry = null, txId = null) {
+    async AGGR_CALL_EXPR(node, compositeRow, queryCtx = {}) {
         const fn = node.name().toUpperCase();
         const args = node.arguments();
 
@@ -140,7 +149,7 @@ export class ExprEngine {
                 if (!expr) return group.length;
                 let cnt = 0;
                 for (const member of group) {
-                    const v = await this.evaluate(expr, member, cteRegistry, txId);
+                    const v = await this.evaluate(expr, member, queryCtx);
                     if (v !== null && v !== undefined) cnt++;
                 }
                 return cnt;
@@ -150,7 +159,7 @@ export class ExprEngine {
                 if (!expr) return null;
                 let sum = 0, cnt = 0;
                 for (const member of group) {
-                    const v = await this.evaluate(expr, member, cteRegistry, txId);
+                    const v = await this.evaluate(expr, member, queryCtx);
                     if (v != null && !Number.isNaN(Number(v))) {
                         sum += Number(v);
                         cnt++;
@@ -164,7 +173,7 @@ export class ExprEngine {
                 if (!expr) return null;
                 let result = null;
                 for (const member of group) {
-                    const v = await this.evaluate(expr, member, cteRegistry, txId);
+                    const v = await this.evaluate(expr, member, queryCtx);
                     if (v == null) continue;
                     if (result == null) {
                         result = v;
@@ -181,7 +190,7 @@ export class ExprEngine {
                 if (!expr) return [];
                 const arr = [];
                 for (const member of group) {
-                    arr.push(await this.evaluate(expr, member, cteRegistry, txId));
+                    arr.push(await this.evaluate(expr, member, queryCtx));
                 }
                 return arr;
             }
@@ -192,8 +201,8 @@ export class ExprEngine {
                 if (!keyExpr || !valExpr) return {};
                 const obj = Object.create(null);
                 for (const member of group) {
-                    const k = await this.evaluate(keyExpr, member, cteRegistry, txId);
-                    const v = await this.evaluate(valExpr, member, cteRegistry, txId);
+                    const k = await this.evaluate(keyExpr, member, queryCtx);
+                    const v = await this.evaluate(valExpr, member, queryCtx);
                     obj[k] = v;
                 }
                 return obj;
@@ -212,23 +221,23 @@ export class ExprEngine {
             case 'RANK': {
                 const orderExpr = args[0];
                 if (!orderExpr) throw new Error(`RANK() requires an ORDER BY expression`);
-                const values = await Promise.all(group.map((r) => this.evaluate(orderExpr, r, cteRegistry, txId)));
+                const values = await Promise.all(group.map((r) => this.evaluate(orderExpr, r, queryCtx)));
                 const uniqueSorted = [...new Set(values)].sort((a, b) => a - b);
-                const currentVal = await this.evaluate(orderExpr, compositeRow, cteRegistry, txId);
+                const currentVal = await this.evaluate(orderExpr, compositeRow, queryCtx);
                 return uniqueSorted.indexOf(currentVal) + 1;
             }
 
             case 'DENSE_RANK': {
                 const orderExpr = args[0];
                 if (!orderExpr) throw new Error(`DENSE_RANK() requires an ORDER BY expression`);
-                const values = await Promise.all(group.map((r) => this.evaluate(orderExpr, r, cteRegistry, txId)));
+                const values = await Promise.all(group.map((r) => this.evaluate(orderExpr, r, queryCtx)));
                 const uniqueSorted = [...new Set(values)].sort((a, b) => a - b);
-                const currentVal = await this.evaluate(orderExpr, compositeRow, cteRegistry, txId);
+                const currentVal = await this.evaluate(orderExpr, compositeRow, queryCtx);
                 return uniqueSorted.indexOf(currentVal) + 1;
             }
 
             case 'NTILE': {
-                const buckets = Number(await this.evaluate(args[0], compositeRow, cteRegistry, txId));
+                const buckets = Number(await this.evaluate(args[0], compositeRow, queryCtx));
                 if (!Number.isInteger(buckets) || buckets <= 0) {
                     throw new Error(`NTILE(n) requires a positive integer`);
                 }
@@ -239,27 +248,27 @@ export class ExprEngine {
             case 'LAG': {
                 const expr = args[0];
                 const offset = Number(args[1]?.value || 1);
-                const defaultValue = args[2] ? await this.evaluate(args[2], compositeRow, cteRegistry, txId) : null;
+                const defaultValue = args[2] ? await this.evaluate(args[2], compositeRow, queryCtx) : null;
                 const target = group[rowIndex - offset];
-                return target ? await this.evaluate(expr, target, cteRegistry, txId) : defaultValue;
+                return target ? await this.evaluate(expr, target, queryCtx) : defaultValue;
             }
 
             case 'LEAD': {
                 const expr = args[0];
                 const offset = Number(args[1]?.value() || 1);
-                const defaultValue = args[2] ? await this.evaluate(args[2], compositeRow, cteRegistry, txId) : null;
+                const defaultValue = args[2] ? await this.evaluate(args[2], compositeRow, queryCtx) : null;
                 const target = group[rowIndex + offset];
-                return target ? await this.evaluate(expr, target, cteRegistry, txId) : defaultValue;
+                return target ? await this.evaluate(expr, target, queryCtx) : defaultValue;
             }
 
             case 'FIRST_VALUE': {
                 const expr = args[0];
-                return await this.evaluate(expr, group[0], cteRegistry, txId);
+                return await this.evaluate(expr, group[0], queryCtx);
             }
 
             case 'LAST_VALUE': {
                 const expr = args[0];
-                return await this.evaluate(expr, group[group.length - 1], cteRegistry, txId);
+                return await this.evaluate(expr, group[group.length - 1], queryCtx);
             }
 
             default: throw new Error(`ExprEngine: Unsupported window function ${node.name()}`);

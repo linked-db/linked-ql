@@ -14,7 +14,10 @@ export class Script extends AbstractNodeList {
             'DeleteStmt',
             'MYSetStmt',
             'CTE',
+            'CreateSchemaStmt',
+            'DropSchemaStmt',
             'CreateTableStmt',
+            'DropTableStmt',
         ];
     }
 

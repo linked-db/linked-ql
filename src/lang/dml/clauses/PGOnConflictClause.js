@@ -15,7 +15,7 @@ export class PGOnConflictClause extends AbstractNodeList {
                     syntaxes: [
                         [
                             { type: 'PGConflictTarget', as: 'conflict_target', optional: true },
-                            { type: 'keyword', as: 'do_nothing', value: 'DO' },
+                            { type: 'keyword', as: 'do_nothing_kw', value: 'DO', booleanfy: true },
                             { type: 'keyword', value: 'NOTHING' },
                         ],
                         [
@@ -36,7 +36,7 @@ export class PGOnConflictClause extends AbstractNodeList {
 
     conflictTarget() { return this._get('conflict_target'); }
 
-    doNothing() { return this._get('do_nothing'); }
+    doNothingKW() { return this._get('do_nothing_kw'); }
 
     whereClause() { return this._get('where_clause'); }
 }
