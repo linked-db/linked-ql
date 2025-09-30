@@ -35,7 +35,7 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 		if (!transformer && !schemaInference) return [];
 
 		const name = this._get('value');
-		const inGrepMode = (!name || name === '*') && !deepMatchCallback;
+		const inGrepMode = (!name || name === '*') && (!deepMatchCallback || this.parentNode?.value?.() === '*');
 
 		const isFromItemRef = this.parentNode instanceof registry.FromItem;
 		const enclosingDerivedQuery = this.statementNode?.parentNode instanceof registry.DerivedQuery

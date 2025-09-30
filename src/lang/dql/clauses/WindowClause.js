@@ -8,7 +8,7 @@ export class WindowClause extends AbstractNodeList {
         const itemSeparator = { type: 'punctuation', value: ',' };
         return [
             { type: 'keyword', value: 'WINDOW' },
-            { type: 'WindowDeclaration', as: 'entries', arity: { min: 1 }, itemSeparator, assert: true, autoIndent: 2 }
+            { type: 'WindowDeclaration', as: 'entries', arity: { min: 1 }, itemSeparator, assert: true, autoIndent: 2 },
         ];
     }
 }

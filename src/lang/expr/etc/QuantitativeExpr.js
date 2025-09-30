@@ -7,7 +7,12 @@ export class QuantitativeExpr extends AbstractNode {
     static get syntaxRules() {
         return [
             { type: 'keyword', as: 'quantifier', value: ['ALL', 'ANY', 'SOME'] },
-            { type: ['DerivedQuery', 'RowConstructor', 'TypedRowConstructor'], as: 'expr' },
+            {
+                syntaxes: [
+                    { type: 'DerivedQuery', as: 'expr' },
+                    { type: 'paren_block', syntax: { type: 'Expr', as: 'expr' } }
+                ],
+            }
         ];
     }
 

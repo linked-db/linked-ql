@@ -25,7 +25,7 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
     /* API */
 
     dataType() { return this.resultSchema()?.dataType() || super.dataType(); }
-    
+
     // ----------------
 
     canReferenceOutputColumns() {
@@ -63,7 +63,6 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
                 qualifier: qualifierJson,
                 result_schema: resultSchema,
             });
-
             this.parentNode._adoptNodes(resolvedColumnRef1);
 
             return resolvedColumnRef1;
@@ -138,7 +137,12 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
             || !this.resultSchema()
         ) && (transformer || schemaInference)) {
             // Column qualification or schema resolution...
-            resultJson = this.resolve(transformer, schemaInference).jsonfy(/* IMPORTANT */);
+            const resolved = this.resolve(transformer, schemaInference);
+            if (resolved.value?.() !== this.value()) {
+                // Resolved from scope
+                return resolved.jsonfy();
+            }
+            resultJson = resolved.jsonfy(/* IMPORTANT */);
             // Case normalization...
             if ((options.deSugar === true || options.deSugar.normalizeCasing) && !resultJson.delim) {
                 resultJson = { ...resultJson, value: resultJson.resolution === 'system' ? resultJson.value.toUpperCase() : resultJson.value.toLowerCase() };

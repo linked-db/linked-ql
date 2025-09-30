@@ -672,10 +672,9 @@ export class AbstractNode {
 			// Compose binary expressions (e.g., col + 2)
 			const operator = await tokenStream.match('operator');
 			if (!operator || operator.prec < minPrecedence) break;
-			const prevLeft = left;
 			const newLeft = await this._parseFromTypes(tokenStream, types, {
 				left,
-				minPrecedence,//: operator.prec + (operator.assoc === 'right' ? 0 : 1),
+				minPrecedence,
 				trail,
 				...options
 			});

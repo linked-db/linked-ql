@@ -22,7 +22,7 @@ export class LocalDriver extends AbstractDriver {
         super();
         this.#dialect = dialect;
         this.#enableLive = !!enableLive;
-        this.#storageEngine = storageEngine || new StorageEngine;
+        this.#storageEngine = storageEngine || new StorageEngine({ dialect, ...options });
         this.#queryEngine = new QueryEngine(this.#storageEngine, { dialect, ...options });
     }
 

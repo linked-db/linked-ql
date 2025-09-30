@@ -22,7 +22,7 @@ export class ColumnSchema extends AbstractSchema {
         ];
         return [
             { type: ['ColumnIdent', 'Identifier'/* to support mock names */], as: 'name' },
-            { type: 'DataType', as: 'data_type', assert: true },
+            { type: 'DataType', as: 'data_type'/*, assert: true (SRFExprDDL1 needs to be able to check out)*/ },
             { type, as: 'entries', arity: Infinity, singletons: true, optional: true },
 
         ];

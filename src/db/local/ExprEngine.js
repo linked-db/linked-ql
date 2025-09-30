@@ -1,4 +1,5 @@
 import { _eq } from '../../lang/abstracts/util.js';
+import { registry } from '../../lang/registry.js';
 
 export const GROUP_SYMBOL = Symbol.for('group');
 
@@ -24,14 +25,47 @@ export class ExprEngine {
         // Dispatch to handler
         const handler = this[node.NODE_NAME];
         if (!handler) throw new Error(`ExprEngine: Unsupported AST node: ${node.NODE_NAME}`);
-        return await handler.call(this, node, compositeRow);
+        return await handler.call(this, node, compositeRow, queryCtx);
+    }
+
+    async evaluateToScalar(expr, compositeRow, queryCtx) {
+        if (expr instanceof registry.DerivedQuery) {
+            const rows = [];
+            for await (const row of await this.evaluate(expr, compositeRow, queryCtx)) rows.push(row);
+            if (!rows.length) return;
+            if (rows.length > 1) throw new Error(`[${node}] Subquery returned more than one row`);
+            const values = Object.values(rows[0]);
+            if (values.length > 1) throw new Error(`[${node}] Subquery returned more than one column`);
+            return values[0] ?? null;
+        }
+        if (expr instanceof registry.RowConstructor) {
+            if (expr.length !== 1) throw new Error(`Expects a scalar expression but got ${expr}`);
+            return await this.evaluateToScalar(expr.entries()[0], compositeRow, queryCtx);
+        }
+        return await this.evaluate(expr, compositeRow, queryCtx);
+    }
+
+    async evaluateToList(expr, compositeRow, queryCtx) {
+        if (expr instanceof registry.DerivedQuery) {
+            const rows = [];
+            for await (const row of await this.evaluate(expr, compositeRow, queryCtx)) rows.push(row);
+            if (!rows.length) return [];
+            if (Object.values(rows[0]).length > 1) throw new Error(`[${node}] Subquery returned more than one column`);
+            return rows.map((r) => Object.values(r)[0]);
+        }
+        if (expr instanceof registry.RowConstructor) {
+            return await Promise.all(expr.entries().map((e) => this.evaluateToScalar(e, compositeRow, queryCtx)));
+        }
+        const result = await this.evaluate(expr, compositeRow, queryCtx);
+        if (!Array.isArray(result)) throw new Error(`[${expr}] Not a list`);
+        return result;
     }
 
     // --- CLAUSES & CONSTRUCTS ---
 
     async SELECT_ITEM(node, compositeRow, queryCtx = {}) {
         const alias = node.alias()?.value() || (this.#options.dialect === 'mysql' ? '?column?'/* TODO */ : '?column?');
-        const value = await this.evaluate(node.expr(), compositeRow, queryCtx);
+        const value = await this.evaluateToScalar(node.expr(), compositeRow, queryCtx);
         return { alias, value };
     }
 
@@ -40,7 +74,7 @@ export class ExprEngine {
     }
 
     async USING_CLAUSE(node, compositeRow) {
-        const cols = node.column().entries?.() || [node.column()];
+        const cols = node.columns() || [node.column()];
         return cols.every((col) => {
             const colName = col.value();
             const caliases = Object.keys(compositeRow).filter((a) => a && colName in compositeRow[a]);
@@ -52,40 +86,152 @@ export class ExprEngine {
     // --- EXPRESSIONS ---
 
     async ROW_CONSTRUCTOR(node, compositeRow, queryCtx = {}) {
-        const entries = await Promise.all(node.entries().map((e) => this.evaluate(e, compositeRow, queryCtx)));
+        const entries = await Promise.all(node.entries().map((e) => this.evaluateToScalar(e, compositeRow, queryCtx)));
         return entries.length > 1 ? entries : entries[0];
+    }
+
+    async TYPED_ROW_CONSTRUCTOR(node, compositeRow, queryCtx = {}) {
+        return await this.ROW_CONSTRUCTOR(node, compositeRow, queryCtx);
+    }
+
+    async PG_TYPED_ARRAY_LITERAL(node, compositeRow, queryCtx = {}) {
+        return await Promise.all(node.entries().map((a) => this.evaluate(a, compositeRow, queryCtx)));
+    }
+
+    async CASE_EXPR(node, compositeRow, queryCtx = {}) {
+        const subject = node.subject()
+            ? await this.evaluate(node.subject(), compositeRow, queryCtx)
+            : undefined;
+        for (const branch of node) {
+            const condition = await this.evaluate(branch.condition(), compositeRow, queryCtx);
+            const test = subject === undefined ? !!condition : _eq(subject, condition);
+            if (test) return await this.evaluate(branch.consequent(), compositeRow, queryCtx);
+        }
+        if (node.alternate()) return await this.evaluate(node.alternate(), compositeRow, queryCtx);
+        return null;
+    }
+
+    async _CAST_EXPR(expr, dataType, compositeRow, queryCtx = {}) {
+        const L = await this.evaluate(expr, compositeRow, queryCtx);
+        const DT = dataType.value();
+        switch (DT) {
+            case 'INT': return parseInt(L);
+            case 'TEXT': return String(L);
+            case 'BOOLEAN':
+            case 'BOOLEAN': return Boolean(L);
+            default: return L;
+        }
+    }
+
+    async CAST_EXPR(node, compositeRow, queryCtx = {}) {
+        return await this._CAST_EXPR(node.expr(), node.dataType(), compositeRow, queryCtx);
+    }
+
+    async PG_CAST_EXPR2(node, compositeRow, queryCtx = {}) {
+        return await this._CAST_EXPR(node.left(), node.right(), compositeRow, queryCtx);
+    }
+
+    async PREDICATE_EXPR(node, compositeRow, queryCtx = {}) {
+        switch (node.predicate()) {
+            case 'EXISTS':
+                const result = (await (await this.evaluate(node.expr(), compositeRow, queryCtx)).next()).value;
+                return !!result;
+            default: throw new Error(`ExprEngine: Unimplemented predicate ${node.predicate()}`);
+        }
+    }
+
+    async IN_EXPR(node, compositeRow, queryCtx = {}) {
+        const L = await this.evaluateToScalar(node.left(), compositeRow, queryCtx);
+        const R = await this.evaluateToList(node.right(), compositeRow, queryCtx);
+        const negation = node.negation();
+        const res = (val) => negation ? !val : val;
+        return res(R.some((v) => _eq(L, v)));
+    }
+
+    async BETWEEN_EXPR(node, compositeRow, queryCtx = {}) {
+        const L = await this.evaluateToScalar(node.left(), compositeRow, queryCtx);
+        const R = await Promise.all(node.right().map((e) => this.evaluateToScalar(e, compositeRow, queryCtx)));
+        const negation = node.negation();
+        const res = (val) => negation ? !val : val;
+        return res(L >= R[0] && L <= R[1]);
+    }
+
+    async DISTINCT_FROM_EXPR(node, compositeRow, queryCtx = {}) {
+        const L = await this.evaluate(node.left(), compositeRow, queryCtx);
+        const R = await this.evaluate(node.right(), compositeRow, queryCtx);
+        const negation = node.logic() === 'IS NOT';
+        const res = (val) => negation ? !val : val;
+        return res(!_eq(L, R));
     }
 
     async BINARY_EXPR(node, compositeRow, queryCtx = {}) {
         const op = node.operator().toUpperCase();
-        const L = await this.evaluate(node.left(), compositeRow, queryCtx);
-        const R = await this.evaluate(node.right(), compositeRow, queryCtx);
-        if (L == null || R == null) {
-            if (op === 'IS') return L === R;
-            if (op === 'IS NOT') return L !== R;
+        const negation = node.negation();
+
+        const res = (val) => negation ? !val : val;
+
+        const compare = (L, R) => {
+            const anyIsNull = L === null || R === null;
+            if (anyIsNull && op !== 'IS' && op !== 'IS NOT') return false;
+            switch (op) {
+                case '=':
+                case 'IS': return _eq(L, R);
+                case '<>':
+                case '!=':
+                case 'IS NOT': return !_eq(L, R);
+                case '<': return L < R;
+                case '<=': return L <= R;
+                case '>': return L > R;
+                case '>=': return L >= R;
+                case 'LIKE': return likeCompare(String(L), String(R));
+                default: throw new Error(`ExprEngine: Unsupported comparison operator ${op}`);
+            }
+        };
+
+        if (node.right() instanceof registry.QuantitativeExpr) {
+            const quantifier = node.right().quantifier();
+            const L = await this.evaluateToScalar(node.left(), compositeRow, queryCtx);
+            const R = await this.evaluateToList(node.right().expr(), compositeRow, queryCtx);
+            switch (quantifier) {
+                case 'ALL': return res(R.every((R) => compare(L, R)));
+                case 'ANY':
+                case 'SOME': return res(R.some((R) => compare(L, R)));
+            }
         }
 
+        const L = await this.evaluateToScalar(node.left(), compositeRow, queryCtx);
+        const R = await this.evaluateToScalar(node.right(), compositeRow, queryCtx);
+
         switch (op) {
+            // Comparison
             case '=':
-            case '==': return _eq(L, R);
+            case 'IS':
             case '<>':
-            case '!=': return !_eq(L, R);
-            case '<': return L < R;
-            case '<=': return L <= R;
-            case '>': return L > R;
-            case '>=': return L >= R;
-            case 'AND': return Boolean(L) && Boolean(R);
-            case 'OR': return Boolean(L) || Boolean(R);
-            case 'LIKE': return likeCompare(String(L), String(R));
-            case 'IN': return [].concat(R).some((v) => _eq(L, v));
-            case '||': return (L ?? '') + (R ?? '');
+            case '!=':
+            case 'IS NOT':
+            case '<':
+            case '<=':
+            case '>':
+            case '>=':
+            case 'LIKE': return res(compare(L, R));
+            // Arithmetic
+            case '+': return Number(L) + Number(R);
+            case '-': return Number(L) - Number(R);
+            case '/': return Number(L) / Number(R);
+            case '*': return Number(L) * Number(R);
+            case '%': return Number(L) % Number(R);
+            // String
+            case '||': return String(L ?? '') + String(R ?? '');
+            // Logical
+            case 'AND': return res(Boolean(L) && Boolean(R));
+            case 'OR': return res(Boolean(L) || Boolean(R));
             default: throw new Error(`ExprEngine: Unsupported binary operator ${op}`);
         }
     }
 
     async UNARY_EXPR(node, compositeRow, queryCtx = {}) {
         const op = node.operator().toUpperCase();
-        const v = await this.evaluate(node.operand(), compositeRow, queryCtx);
+        const v = await this.evaluateToScalar(node.operand(), compositeRow, queryCtx);
         switch (op) {
             case 'NOT': return !Boolean(v);
             case '-': return -v;
@@ -96,31 +242,39 @@ export class ExprEngine {
     async CALL_EXPR(node, compositeRow, queryCtx = {}) {
         const name = node.name().toUpperCase();
 
-        // System functions - MySQL
-        if (name === 'VALUES' && compositeRow.EXCLUDED && typeof compositeRow.EXCLUDED === 'object') {
+        // System functions
+        if (name === 'VALUES'/* MySQL */ && compositeRow.EXCLUDED && typeof compositeRow.EXCLUDED === 'object') {
             const fieldName = node.arguments()[0].value();
             return compositeRow.EXCLUDED[fieldName];
         }
 
         // Classic functions
         const args = await Promise.all(node.arguments().map((a) => this.evaluate(a, compositeRow, queryCtx)));
+
+        // System functions (Cont.)
+        if (name === 'UNNEST') {
+            return (function* () {
+                for (let i = 0; i < args[0].length; i++) yield args.map((arr) => arr[i] ?? null);
+            })();
+        }
+        if (name === 'GENERATE_SERIES') {
+            return (function* () {
+                for (let x = args[0]; x <= args[1]; x += args[2] ?? 1) yield [x];
+            })();
+        }
+
         switch (name) {
             case 'LOWER': return String(args[0] ?? '').toLowerCase();
             case 'UPPER': return String(args[0] ?? '').toUpperCase();
             case 'LENGTH': return args[0] == null ? null : String(args[0]).length;
             case 'ABS': return Math.abs(Number(args[0]));
+            case 'COALESCE': return args.reduce((prev, cur) => prev !== null ? prev : cur, null);
+            case 'NULLIF': return _eq(args[0], args[1]) ? null : args[0];
             // JSON functions (Postgres & MySQL variants)
-            case 'JSON_OBJECT': {// MySQL: JSON_OBJECT(key1, val1, key2, val2, ...)
-                if (args.length % 2 !== 0) throw new Error('JSON_OBJECT requires an even number of arguments');
-                const obj = Object.create(null);
-                for (let i = 0; i < args.length; i += 2) {
-                    obj[args[i]] = args[i + 1];
-                }
-                return obj;
-            }
-            case 'JSON_ARRAY': // MySQL: JSON_ARRAY(val1, val2, ...)
-                return args;
-            case 'JSON_BUILD_OBJECT': {// Postgres: JSON_BUILD_OBJECT(key1, val1, ...)
+            case 'JSON_BUILD_ARRAY':
+            case 'JSON_ARRAY': return args;
+            case 'JSON_BUILD_OBJECT':
+            case 'JSON_OBJECT': {
                 if (args.length % 2 !== 0) throw new Error('JSON_BUILD_OBJECT requires an even number of arguments');
                 const buildObj = Object.create(null);
                 for (let i = 0; i < args.length; i += 2) {
@@ -128,8 +282,6 @@ export class ExprEngine {
                 }
                 return buildObj;
             }
-            case 'JSON_BUILD_ARRAY': // Postgres: JSON_BUILD_ARRAY(val1, ...)
-                return args;
 
             default: throw new Error(`ExprEngine: Unsupported function ${node.name()}`);
         }
@@ -146,8 +298,9 @@ export class ExprEngine {
 
         switch (fn) {
             case 'COUNT': {
-                if (!expr) return group.length;
+                if (!expr || expr instanceof registry.ColumnRef0) return group.length;
                 let cnt = 0;
+                console.log('___________----------', compositeRow);
                 for (const member of group) {
                     const v = await this.evaluate(expr, member, queryCtx);
                     if (v !== null && v !== undefined) cnt++;
@@ -160,7 +313,7 @@ export class ExprEngine {
                 let sum = 0, cnt = 0;
                 for (const member of group) {
                     const v = await this.evaluate(expr, member, queryCtx);
-                    if (v != null && !Number.isNaN(Number(v))) {
+                    if (v !== null && !Number.isNaN(Number(v))) {
                         sum += Number(v);
                         cnt++;
                     }
@@ -294,7 +447,7 @@ export class ExprEngine {
 
     async STRING_LITERAL(node) { return node.value(); }
     async NUMBER_LITERAL(node) { return Number(node.value()); }
-    async BOOLEAN_LITERAL(node) { return Boolean(node.value()); }
+    async BOOL_LITERAL(node) { return Boolean(node.value()); }
     async NULL_LITERAL() { return null; }
 }
 

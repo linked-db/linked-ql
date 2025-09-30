@@ -37,24 +37,18 @@ export class SRFExpr4 extends ResultSchemaMixin(AbstractNodeList) {
     jsonfy(options = {}, transformer = null, schemaInference = null) {
         let resultJson = super.jsonfy(options, transformer, schemaInference);
         if (options.deSugar) {
-
-            let ordinalityColumn;
+            let colIdx = 1;
+            const entries = resultJson.entries.reduce((entries, exprJson) => {
+                const exprJsonEntries = exprJson.result_schema.jsonfy().entries.map((x) => ({ ...x, name: { ...x.name, value: colIdx++ } }));
+                return entries.concat(exprJsonEntries);
+            }, []);
             if (resultJson.with_ordinality) {
-                ordinalityColumn = registry.ColumnSchema.fromJSON({
-                    name: { nodeName: registry.Identifier.NODE_NAME, value: 'ordinality' },
+                entries.push({
+                    name: { nodeName: registry.Identifier.NODE_NAME, value: colIdx },
                     data_type: { nodeName: registry.DataType.NODE_NAME, value: 'INT' },
                 });
             }
-
-            const resultSchema = registry.JSONSchema.fromJSON({
-                entries: [
-                    ...resultJson.entries.reduce((entries, exprJson) => {
-                        const exprJsonEntries = exprJson.result_schema.jsonfy().entries;
-                        return entries.concat(exprJsonEntries);
-                    }, []),
-                ].concat(ordinalityColumn || []),
-            });
-
+            const resultSchema = registry.JSONSchema.fromJSON({ entries });
             resultJson = {
                 ...resultJson,
                 result_schema: resultSchema

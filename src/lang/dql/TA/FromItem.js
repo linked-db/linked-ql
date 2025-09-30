@@ -120,15 +120,16 @@ export class FromItem extends ResultSchemaMixin(AbstractNode) {
 
             let resultSchema = resultJson.expr.result_schema;
 
+
             if (resultSchema instanceof registry.TableSchema) {
                 resultSchema = resultSchema.clone({ renameTo: schemaIdent });
             } else if (schemaIdent) {
                 resultSchema = registry.TableSchema.fromJSON({
                     name: schemaIdent,
                     entries: resultSchema?.entries().map((s) => s.jsonfy()) || [],
-                });
+                }, { assert: true });
             }
-
+            
             if (resultJson.alias?.columns?.length) {
                 if (resultJson.alias.columns.length !== resultSchema.length) {
                     throw new SyntaxError(`[${this}] Number of column aliases must match number of result columns.`);

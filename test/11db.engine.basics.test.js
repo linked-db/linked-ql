@@ -6,7 +6,6 @@ import '../src/lang/index.js';
 import { matchSchemaSelector, normalizeSchemaSelectorArg } from '../src/db/abstracts/util.js';
 import { StorageEngine } from '../src/db/local/StorageEngine.js';
 import { LocalDriver } from '../src/db/local/LocalDriver.js';
-import { registry } from '../src/lang/registry.js';
 
 describe('Util', () => {
 
@@ -142,12 +141,17 @@ describe('StorageEngine - Basic CRUD', () => {
     });
 });
 
+const setupDriver = async (defaultSchemaName = undefined) => {
+    const driver = new LocalDriver({ defaultSchemaName });
+    await driver.connect();
+    return driver;
+};
+
 describe('LocalDriver - Basic DDL', () => {
     let driver;
 
     before(async () => {
-        driver = new LocalDriver;
-        await driver.connect();
+        driver = await setupDriver();
     });
 
     after(async () => {
@@ -294,6 +298,10 @@ describe('LocalDriver - Basic DDL', () => {
         });
     });
 
+    after(async () => {
+        await driver.query('DROP SCHEMA lq_test_table CASCADE');
+    });
+
     // ---------- ALTER (TODO)
 });
 
@@ -301,8 +309,7 @@ describe('LocalDriver - DDL Inference', () => {
     let driver;
 
     before(async () => {
-        driver = new LocalDriver;
-        await driver.connect();
+        driver = await setupDriver();
     });
 
     after(async () => {
@@ -470,8 +477,7 @@ describe('LocalDriver - DML', () => {
     }
 
     before(async () => {
-        driver = new LocalDriver();
-        await driver.connect();
+        driver = await setupDriver();
 
         // prepare schema + tables used across the tests
         await driver.query('CREATE SCHEMA IF NOT EXISTS lq_test_dml');
@@ -699,3 +705,588 @@ describe('LocalDriver - DML', () => {
         });
     });
 });
+
+describe("LocalDriver - DQL", () => {
+
+    describe("SELECT - Basics", () => {
+        let driver, schemaName = 'lq_test_dgl', t1 = "t1";
+        before(async () => {
+            driver = await setupDriver(schemaName);
+
+            // prepare schema + tables used across the tests
+            await driver.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+            await driver.query(`CREATE TABLE ${t1} (id INT PRIMARY KEY, val TEXT)`);
+            await driver.query(`INSERT INTO ${t1} (id, val) VALUES (1, 'a'), (2, 'b'), (3, NULL)`);
+        });
+
+        it("should select a literal", async () => {
+            const { rows } = await driver.query(`SELECT 1 AS x`);
+            expect(rows).to.deep.equal([{ x: 1 }]);
+        });
+
+        it("should select a single column", async () => {
+            const { rows } = await driver.query(`SELECT id FROM ${t1}`);
+            expect(rows.map(r => r.id)).to.deep.equal([1, 2, 3]);
+        });
+
+        it("should alias a column", async () => {
+            const { rows } = await driver.query(`SELECT id AS ident FROM ${t1}`);
+            expect(Object.keys(rows[0])).to.include("ident");
+        });
+
+        it("should select multiple columns", async () => {
+            const { rows } = await driver.query(`SELECT id, val FROM ${t1}`);
+            expect(rows).to.have.length(3);
+            expect(rows[0]).to.have.keys(["id", "val"]);
+        });
+
+        it("should select all columns with *", async () => {
+            const { rows } = await driver.query(`SELECT * FROM ${t1}`);
+            expect(rows[0]).to.have.keys(["id", "val"]);
+        });
+
+        it("should apply DISTINCT", async () => {
+            const { rows } = await driver.query(`SELECT DISTINCT val FROM ${t1}`);
+            const values = rows.map(r => r.val);
+            expect(values).to.deep.equal(["a", "b", null]);
+        });
+
+        it("should filter with WHERE conditions", async () => {
+            const { rows } = await driver.query(`SELECT id FROM ${t1} WHERE id > 1`);
+            expect(rows.map(r => r.id)).to.deep.equal([2, 3]);
+        });
+
+        it("should handle boolean expressions", async () => {
+            const { rows } = await driver.query(`SELECT id FROM ${t1} WHERE id > 1 AND val IS NOT NULL`);
+            expect(rows.map(r => r.id)).to.deep.equal([2]);
+        });
+
+        it("should check for nulls correctly", async () => {
+            const { rows } = await driver.query(`SELECT id FROM ${t1} WHERE val IS NULL`);
+            expect(rows.map(r => r.id)).to.deep.equal([3]);
+        });
+    });
+
+    describe("SELECT - FROM Variants", () => {
+        let driver, schemaName = 'lq_test_dgl', t1 = "t1";
+        before(async () => {
+            driver = await setupDriver(schemaName);
+
+            // prepare schema + tables used across the tests
+            await driver.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+            await driver.query(`CREATE TABLE ${t1} (id INT, val TEXT)`);
+            await driver.query(`INSERT INTO ${t1} (id, val) VALUES (1, 'a'), (2, 'b')`);
+        });
+
+        it("should select from a table", async () => {
+            const { rows } = await driver.query(`SELECT * FROM ${t1}`);
+            expect(rows).to.have.length(2);
+        });
+
+        it("should select from VALUES with alias and column names", async () => {
+            const { rows } = await driver.query(`SELECT * FROM (VALUES (1, 'x'), (2, 'y')) AS v(c1, c2)`);
+            expect(rows).to.deep.equal([{ c1: 1, c2: "x" }, { c1: 2, c2: "y" }]);
+        });
+
+        it("should select from a subquery with alias", async () => {
+            const { rows } = await driver.query(`SELECT sub.* FROM (SELECT id FROM ${t1}) AS sub`);
+            expect(rows).to.deep.eq([{ id: 1 }, { id: 2 }]);
+        });
+
+        it("should not error even when subquery has no alias", async () => {
+            const { rows } = await driver.query(`SELECT * FROM (SELECT id FROM ${t1})`);
+            expect(rows).to.deep.eq([{ id: 1 }, { id: 2 }]);
+        });
+
+        it("should select from a function call (simulate unnest)", async () => {
+            const { rows } = await driver.query(`SELECT * FROM unnest(ARRAY[10,20,30]) AS t(x)`);
+            expect(rows).to.deep.eq([{ x: 10 }, { x: 20 }, { x: 30 }]);
+        });
+
+        it("should select from ROWS FROM (multiple funcs)", async () => {
+            const { rows } = await driver.query(`
+                SELECT * FROM ROWS FROM (generate_series(1, 2), unnest(ARRAY['a','b'])) AS t(c1, c2)
+            `);
+            expect(rows).to.deep.equal([{ c1: 1, c2: "a" }, { c1: 2, c2: "b" }]);
+        });
+
+        it("should select with WITH ORDINALITY", async () => {
+            const { rows } = await driver.query(`
+                SELECT * FROM unnest(ARRAY['x','y']) WITH ORDINALITY AS t(val, ord)
+            `);
+            expect(rows).to.deep.equal([{ val: "x", ord: 1 }, { val: "y", ord: 2 }]);
+        });
+    });
+
+    describe("SELECT - Expressions & Operators", () => {
+        let driver, schemaName = 'lq_test_exprs';
+
+        before(async () => {
+            driver = await setupDriver(schemaName);
+            await driver.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+            // tables
+            await driver.query(`CREATE TABLE expr_nums (id INT PRIMARY KEY, a INT, b INT, txt TEXT)`);
+            await driver.query(`INSERT INTO expr_nums (id, a, b, txt) VALUES
+                (1, 10, 3, 'alpha'),
+                (2, 5, NULL, 'beta'),
+                (3, -2, 4, NULL)`); // includes NULLs, negative, etc.
+        });
+
+        after(async () => {
+            await driver.disconnect();
+        });
+
+        it('arithmetic operators (+, -, *, /, %)', async () => {
+            const { rows } = await driver.query(`SELECT id, a + 1 AS ap, a - b AS am, a * 2 AS amul, a / 2.0 AS adiv, a % 3 AS amod FROM expr_nums ORDER BY id`);
+            expect(rows).to.have.lengthOf(3);
+            expect(rows[0]).to.include({ id: 1, ap: 11, amul: 20 });
+            // division and modulo sanity
+            expect(rows.every(r => 'adiv' in r)).to.be.true;
+        });
+
+        it('comparison operators and NULL behavior', async () => {
+            const { rows } = await driver.query(`
+                SELECT id FROM expr_nums
+                WHERE (a > 0 AND (b IS NULL OR a > b)) OR (a < 0)
+                ORDER BY id
+            `);
+            // rows: id=1 (10>3), id=2 (5>0 and b IS NULL), id=3 (a<0)
+            expect(rows.map(r => r.id)).to.deep.equal([1, 2, 3]);
+        });
+
+        it('BETWEEN and IN operators', async () => {
+            const { rows: r1 } = await driver.query(`SELECT id FROM expr_nums WHERE a BETWEEN 0 AND 10 ORDER BY id`);
+            expect(r1.map(r => r.id)).to.deep.equal([1, 2]);
+
+            const { rows: r2 } = await driver.query(`SELECT id FROM expr_nums WHERE id IN (1,3) ORDER BY id`);
+            expect(r2.map(r => r.id)).to.deep.equal([1, 3]);
+        });
+
+        it('LIKE and pattern matching', async () => {
+            const { rows } = await driver.query(`SELECT id FROM expr_nums WHERE txt LIKE 'a%'`);
+            expect(rows.map(r => r.id)).to.deep.equal([1]);
+        });
+
+        it('COALESCE and NULLIF', async () => {
+            const { rows } = await driver.query(`SELECT id, COALESCE(txt, 'missing') AS t, NULLIF(a, 10) AS nul FROM expr_nums ORDER BY id`);
+            expect(rows[0].t).to.eq('alpha');
+            expect(rows[2].t).to.eq('missing'); // txt NULL -> 'missing'
+            // NULLIF(a,10) should be null for id=1
+            expect(rows[0].nul).to.be.null;
+        });
+
+        it('CASE expressions (simple and searched)', async () => {
+            const { rows } = await driver.query(`
+                SELECT id,
+                CASE id WHEN 1 THEN 'one' WHEN 2 THEN 'two' ELSE 'other' END AS simpl,
+                CASE WHEN a > 0 THEN 'pos' WHEN a < 0 THEN 'neg' ELSE 'zero' END AS searched
+                FROM expr_nums ORDER BY id
+            `);
+            expect(rows.map(r => r.simpl)).to.deep.equal(['one', 'two', 'other']);
+            expect(rows.map(r => r.searched)).to.deep.equal(['pos', 'pos', 'neg']);
+        });
+
+        it('ANY / ALL with ARRAY (where available)', async () => {
+            // this is Postgres-style but many test engines emulate ARRAY syntax used elsewhere in tests
+            const { rows } = await driver.query(`SELECT id FROM expr_nums WHERE a = ANY(ARRAY[10,5]) ORDER BY id`);
+            expect(rows.map(r => r.id)).to.deep.equal([1, 2]);
+        });
+
+        it('boolean precedence and parentheses', async () => {
+            const { rows: r1 } = await driver.query(`SELECT id FROM expr_nums WHERE a > 0 AND b IS NULL OR a < 0 ORDER BY id`);
+            // Without parentheses this is (a>0 AND b IS NULL) OR (a<0) -> expect id=2 (5, null) and id=3 (a<0)
+            expect(r1.map(r => r.id)).to.deep.equal([2, 3]);
+
+            const { rows: r2 } = await driver.query(`SELECT id FROM expr_nums WHERE a > 0 AND (b IS NULL OR a < 0) ORDER BY id`);
+            // With parentheses: a>0 AND (b IS NULL OR a<0) -> only id=2
+            expect(r2.map(r => r.id)).to.deep.equal([2]);
+        });
+    });
+
+    describe("SELECT - Joins (incl. LATERAL)", () => {
+        let driver, schemaName = 'lq_test_joins';
+
+        before(async () => {
+            driver = await setupDriver(schemaName);
+            await driver.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+
+            // join tables
+            await driver.query(`CREATE TABLE ja (id INT PRIMARY KEY, aname TEXT)`);
+            await driver.query(`CREATE TABLE jb (id INT PRIMARY KEY, bval TEXT)`);
+            await driver.query(`INSERT INTO ja (id, aname) VALUES (1, 'A1'), (2, 'A2'), (3, 'A3')`);
+            await driver.query(`INSERT INTO jb (id, bval) VALUES (1, 'B1'), (3, 'B3'), (4, 'B4')`);
+
+            // tables to test USING/duplicate column names
+            await driver.query(`CREATE TABLE jc (id INT PRIMARY KEY, val INT)`);
+            await driver.query(`CREATE TABLE jd (id INT PRIMARY KEY, val2 INT)`);
+            await driver.query(`INSERT INTO jc (id,val) VALUES (1,10), (2,20)`);
+            await driver.query(`INSERT INTO jd (id,val2) VALUES (1,100), (3,300)`);
+
+            // lateral table for expansion tests
+            await driver.query(`CREATE TABLE lateral_nums (id INT PRIMARY KEY, n INT)`);
+            await driver.query(`INSERT INTO lateral_nums (id, n) VALUES (1, 2), (2, 1), (3, 0)`);
+        });
+
+        after(async () => {
+            await driver.disconnect();
+        });
+
+        it('INNER JOIN (explicit ON) yields only matching rows', async () => {
+            const { rows } = await driver.query(`
+                SELECT a.id AS aid, a.aname, b.id AS bid, b.bval
+                FROM ja a JOIN jb b ON a.id = b.id
+                ORDER BY aid
+            `);
+            // matches on id=1 and id=3
+            expect(rows).to.have.lengthOf(2);
+            expect(rows.map(r => r.aid)).to.deep.equal([1, 3]);
+            expect(rows.some(r => r.bval === 'B3')).to.be.true;
+        });
+
+        it('implicit join (comma + WHERE) equals inner join', async () => {
+            const { rows } = await driver.query(`
+                SELECT a.id AS aid, b.bval
+                FROM ja a, jb b
+                WHERE a.id = b.id
+                ORDER BY aid
+            `);
+            expect(rows).to.have.lengthOf(2);
+            expect(rows.map(r => r.aid)).to.deep.equal([1, 3]);
+        });
+
+        it('LEFT JOIN produces null-filled non-matching rows', async () => {
+            const { rows } = await driver.query(`
+                SELECT a.id AS aid, b.bval
+                FROM ja a LEFT JOIN jb b ON a.id = b.id
+                ORDER BY a.id
+            `);
+            // should include all ja rows; for id=2, b.bval should be null
+            expect(rows.map(r => r.aid)).to.deep.equal([1, 2, 3]);
+            const row2 = rows.find(r => r.aid === 2);
+            expect(row2.bval).to.be.null;
+        });
+
+        it('RIGHT JOIN preserves right side rows (if supported)', async () => {
+            const { rows } = await driver.query(`
+                SELECT a.id AS aid, b.id AS bid
+                FROM ja a RIGHT JOIN jb b ON a.id = b.id
+                ORDER BY bid
+            `);
+            // jb contains id 1,3,4 -> expect 3 rows, with aid null for id=4
+            expect(rows.map(r => r.bid)).to.deep.equal([1, 3, 4]);
+            expect(rows.find(r => r.bid === 4).aid).to.be.null;
+        });
+
+        it('FULL JOIN returns union of both sides (if supported)', async () => {
+            const { rows } = await driver.query(`
+                SELECT COALESCE(a.id, b.id) AS id
+                FROM ja a FULL JOIN jb b ON a.id = b.id
+                ORDER BY id
+            `);
+            // ids should be 1,2,3,4
+            expect(rows.map(r => r.id)).to.deep.equal([1, 2, 3, 4]);
+        });
+
+        it('CROSS JOIN produces Cartesian product', async () => {
+            const { rows } = await driver.query(`SELECT a.id AS aid, b.id AS bid FROM ja a CROSS JOIN jb b`);
+            // product size = 3 * 3 = 9
+            expect(rows).to.have.lengthOf(9);
+        });
+
+        it('NATURAL JOIN auto-matches common column names', async () => {
+            // natural join on id between jc and jd should return rows for id=1 only (both have id 1)
+            const { rows } = await driver.query(`SELECT * FROM jc NATURAL JOIN jd ORDER BY id`);
+            // expect columns at least ['id','val','val2'] and single row
+            expect(rows).to.have.lengthOf(1);
+            expect(rows[0]).to.have.property('id', 1);
+            expect(rows[0]).to.have.property('val', 10);
+            expect(rows[0]).to.have.property('val2', 100);
+        });
+
+        it('JOIN ... USING merges join key into single column', async () => {
+            const { rows } = await driver.query(`
+                SELECT id, val, val2 FROM jc JOIN jd USING (id) ORDER BY id
+            `);
+            // should have one row for id=1
+            expect(rows).to.have.lengthOf(1);
+            expect(rows[0]).to.deep.include({ id: 1, val: 10, val2: 100 });
+        });
+
+        it('JOIN ... ON vs JOIN ... USING behavior for column names', async () => {
+            const { rows: r1 } = await driver.query(`
+                SELECT a.id AS aid, a.val AS aval, b.id AS bid, b.val2 AS bval FROM jc a JOIN jd b ON a.id = b.id ORDER BY a.id
+            `);
+            expect(r1).to.have.lengthOf(1);
+            expect(r1[0]).to.deep.include({ aid: 1, bid: 1, aval: 10, bval: 100 });
+        });
+
+        // ---------- LATERAL tests ----------
+        it('CROSS JOIN LATERAL with generate_series expands per-row', async () => {
+            // expects: (1,1),(1,2),(2,1)  — id=3 with n=0 yields no rows
+            const { rows } = await driver.query(`
+                SELECT t.id, s.val
+                FROM lateral_nums t
+                CROSS JOIN LATERAL generate_series(1, t.n) AS s(val)
+                ORDER BY t.id, s.val
+            `);
+            expect(rows).to.deep.equal([{ id: 1, val: 1 }, { id: 1, val: 2 }, { id: 2, val: 1 }]);
+        });
+
+        it('LEFT JOIN LATERAL keeps outer row when lateral yields nothing', async () => {
+            const { rows } = await driver.query(`
+                SELECT t.id, s.val
+                FROM lateral_nums t
+                LEFT JOIN LATERAL generate_series(1, t.n) AS s(val) ON true
+                ORDER BY t.id, s.val
+            `);
+            // rows should include id=3 with val = null
+            const grouped = rows.reduce((acc, r) => {
+                (acc[r.id] || (acc[r.id] = [])).push(r.val);
+                return acc;
+            }, {});
+            expect(grouped[1]).to.deep.equal([1, 2]);
+            expect(grouped[2]).to.deep.equal([1]);
+            expect(grouped[3]).to.deep.equal([null]);
+        });
+
+        it('LATERAL subquery can reference outer columns', async () => {
+            const { rows } = await driver.query(`
+                SELECT t.id, sub.dbl FROM lateral_nums t
+                JOIN LATERAL (SELECT t.n * 2 AS dbl) sub ON true
+                ORDER BY t.id
+            `);
+            // each outer row should have dbl = n*2
+            expect(rows).to.deep.equal([{ id: 1, dbl: 4 }, { id: 2, dbl: 2 }, { id: 3, dbl: 0 }]);
+        });
+
+        it('LATERAL with ROWS FROM and WITH ORDINALITY interplay', async () => {
+            // combine a function (generate_series) with unnest in ROWS FROM, lateralized
+            const { rows } = await driver.query(`
+                SELECT t.id, r.x, r.y, r.ordinal 
+                FROM lateral_nums t
+                CROSS JOIN LATERAL ROWS FROM (
+                generate_series(1, t.n),
+                unnest(ARRAY['u','v','w']) -- this will be padded/zip behaviour per engine
+                ) WITH ORDINALITY AS r(x, y, ordinal)
+                WHERE t.n > 0
+                ORDER BY t.id, r.ordinal
+            `)
+            expect(rows.every(r => 'x' in r && 'y' in r && 'ordinal' in r)).to.be.true;
+        });
+    });
+
+    describe("SELECT - Ordering & Pagination", () => {
+        let driver, schemaName = 'lq_test_dgl', t1 = "t1_ordering";
+
+        before(async () => {
+            driver = await setupDriver(schemaName);
+            await driver.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+            // tables
+            await driver.query(`CREATE TABLE ${t1} (id INT, val TEXT)`);
+            await driver.query(`
+                INSERT INTO ${t1} (id, val) VALUES
+                (1, 'b'), (2, 'a'), (3, NULL), (4, 'c')
+            `);
+        });
+
+        it("should order ascending by a column", async () => {
+            const { rows } = await driver.query(`SELECT val FROM ${t1} ORDER BY val ASC`);
+            expect(rows.map(r => r.val)).to.deep.equal(["a", "b", "c", null]);
+        });
+
+        it("should order descending by a column", async () => {
+            const { rows } = await driver.query(`SELECT val FROM ${t1} ORDER BY val DESC`);
+            expect(rows.map(r => r.val)).to.deep.equal([null, "c", "b", "a"]);
+        });
+
+        it("should order by multiple columns", async () => {
+            const { rows } = await driver.query(`
+                SELECT * FROM ${t1} ORDER BY (val IS NULL), val
+            `);
+            expect(rows.map(r => r.val)).to.deep.equal(["a", "b", "c", null]);
+        });
+
+        it("should order by an expression", async () => {
+            const { rows } = await driver.query(`
+                SELECT id, id * 2 AS doubled FROM ${t1} ORDER BY doubled DESC
+            `);
+            expect(rows.map(r => r.doubled)).to.deep.equal([8, 6, 4, 2]);
+        });
+
+        it("should order by column position", async () => {
+            const { rows } = await driver.query(`
+                SELECT id, val FROM ${t1} ORDER BY 2 ASC
+            `);
+            expect(rows.map(r => r.val)).to.deep.equal(["a", "b", "c", null]);
+        });
+
+        it("should support NULLS FIRST / LAST", async () => {
+            const { rows: rowsFirst } = await driver.query(`
+                SELECT val FROM ${t1} ORDER BY val NULLS FIRST
+            `);
+            expect(rowsFirst[0].val).to.be.null;
+
+            const { rows: rowsLast } = await driver.query(`
+                SELECT val FROM ${t1} ORDER BY val NULLS LAST
+            `);
+            expect(rowsLast[3].val).to.be.null;
+        });
+
+        it("should limit result count", async () => {
+            const { rows } = await driver.query(`SELECT id FROM ${t1} ORDER BY id LIMIT 2`);
+            expect(rows.map(r => r.id)).to.deep.equal([1, 2]);
+        });
+
+        it("should offset rows", async () => {
+            const { rows } = await driver.query(`SELECT id FROM ${t1} ORDER BY id OFFSET 2`);
+            expect(rows.map(r => r.id)).to.deep.equal([3, 4]);
+        });
+
+        it("should combine LIMIT and OFFSET", async () => {
+            const { rows } = await driver.query(`SELECT id FROM ${t1} ORDER BY id LIMIT 1 OFFSET 2`);
+            expect(rows.map(r => r.id)).to.deep.equal([3]);
+        });
+    });
+
+    describe("SELECT - Grouping & Aggregation", () => {
+        let driver, schemaName = 'lq_test_dgl', t2 = "t2_grouping";
+
+        before(async () => {
+            driver = await setupDriver(schemaName);
+            await driver.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+            // tables
+            await driver.query(`CREATE TABLE ${t2} (category TEXT, amount INT)`);
+            await driver.query(`
+                INSERT INTO ${t2} (category, amount) VALUES
+                ('a', 10), ('a', 20), ('b', 5), ('b', 15), ('c', NULL)
+            `);
+        });
+
+        it("should count rows", async () => {
+            const { rows } = await driver.query(`SELECT COUNT(*) AS cnt FROM ${t2}`);
+            expect(rows[0].cnt).to.equal(5);
+        });
+
+        it("should aggregate with SUM", async () => {
+            const { rows } = await driver.query(`SELECT SUM(amount) AS total FROM ${t2}`);
+            expect(rows[0].total).to.equal(50);
+        });
+
+        it("should group by a column", async () => {
+            const { rows } = await driver.query(`
+                SELECT category, COUNT(*) AS cnt FROM ${t2} GROUP BY category ORDER BY category
+            `);
+            expect(rows).to.deep.equal([
+                { category: "a", cnt: 2 },
+                { category: "b", cnt: 2 },
+                { category: "c", cnt: 1 },
+            ]);
+        });
+
+        it("should group by an expression", async () => {
+            const { rows } = await driver.query(`
+                SELECT (amount % 2 = 0) AS even, COUNT(*) AS cnt
+                FROM ${t2} WHERE amount IS NOT NULL
+                GROUP BY even ORDER BY even
+            `);
+            expect(rows).to.deep.equal([
+                { even: false, cnt: 2 },
+                { even: true, cnt: 2 },
+            ]);
+        });
+
+        it("should group by column position", async () => {
+            const { rows } = await driver.query(`
+                SELECT category, COUNT(*) FROM ${t2} GROUP BY 1 ORDER BY category
+            `);
+            expect(rows.map(r => r.count)).to.deep.equal([2, 2, 1]);
+        });
+
+        it("should filter groups with HAVING", async () => {
+            const { rows } = await driver.query(`
+                SELECT category, SUM(amount) AS total
+                FROM ${t2} GROUP BY category HAVING SUM(amount) > 25
+                ORDER BY category
+            `);
+            expect(rows).to.deep.equal([{ category: "a", total: 30 }]);
+        });
+    });
+
+    describe("SELECT - Subqueries", () => {
+        let driver, schemaName = 'lq_test_dgl', t3 = "t3_subq", t4 = "nums";
+
+        before(async () => {
+            driver = await setupDriver(schemaName);
+            await driver.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+            // tables
+            await driver.query(`CREATE TABLE ${t3} (id INT, val TEXT)`);
+            await driver.query(`INSERT INTO ${t3} (id, val) VALUES (1, 'a'), (2, 'b'), (3, 'c')`);
+            await driver.query(`CREATE TABLE ${t4} (id INT PRIMARY KEY, val INT)`);
+            await driver.query(`INSERT INTO ${t4} (id, val) VALUES (1, 10), (2, 20), (3, 30)`);
+        });
+
+        it("should use a scalar subquery in SELECT list", async () => {
+            const { rows } = await driver.query(`
+                SELECT id, (SELECT MAX(id) FROM ${t3}) AS max_id FROM ${t3} ORDER BY id
+            `);
+            expect(rows.map(r => r.max_id)).to.deep.equal([3, 3, 3]);
+        });
+
+        it("should use a subquery in WHERE with IN", async () => {
+            const { rows } = await driver.query(`
+                SELECT id FROM ${t3} WHERE val IN (SELECT val FROM ${t3} WHERE id < 3)
+            `);
+            expect(rows.map(r => r.id)).to.deep.equal([1, 2]);
+        });
+
+        it("should use a subquery with EXISTS", async () => {
+            const { rows } = await driver.query(`
+                SELECT id FROM ${t3} t WHERE EXISTS (SELECT 1 FROM ${t3} WHERE val = t.val)
+            `);
+            expect(rows.map(r => r.id)).to.deep.equal([1, 2, 3]);
+        });
+
+        it("should use a correlated subquery", async () => {
+            const { rows } = await driver.query(`
+                SELECT id, val FROM ${t3} t
+                WHERE id = (SELECT MAX(id) FROM ${t3} WHERE val <= t.val)
+            `);
+            expect(rows.map(r => r.id)).to.deep.equal([1, 2, 3]);
+        });
+
+        it("should evaluate = ANY(subquery)", async () => {
+            const { rows } = await driver.query(`
+                SELECT 15 = ANY(SELECT val FROM ${t4}) AS match_any,
+                20 = ANY(SELECT val FROM ${t4}) AS match_any_20
+        `   );
+            expect(rows[0].match_any).to.be.false;
+            expect(rows[0].match_any_20).to.be.true;
+        });
+
+        it("should evaluate > ALL(subquery)", async () => {
+            const { rows } = await driver.query(`
+                SELECT 40 > ALL(SELECT val FROM ${t4}) AS greater_all,
+                25 > ALL(SELECT val FROM ${t4}) AS not_greater
+            `);
+            expect(rows[0].greater_all).to.be.true;       // 40 > 10,20,30
+            expect(rows[0].not_greater).to.be.false;      // 25 > 30? false
+        });
+
+        it("should evaluate < ANY(subquery)", async () => {
+            const { rows } = await driver.query(`
+                SELECT 5 < ANY(SELECT val FROM ${t4}) AS less_any,
+                5 < ALL(SELECT val FROM ${t4}) AS less_all
+            `);
+            expect(rows[0].less_any).to.be.true;   // 5 < 10, true
+            expect(rows[0].less_all).to.be.true;   // 5 < all of 10,20,30
+        });
+
+        it("should select from a nested subquery", async () => {
+            const { rows } = await driver.query(`
+                SELECT * FROM (SELECT * FROM (SELECT id FROM ${t3}) AS inner1) AS inner2
+            `);
+            expect(rows.map(r => r.id)).to.deep.equal([1, 2, 3]);
+        });
+    });
+});
+

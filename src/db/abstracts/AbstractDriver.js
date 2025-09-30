@@ -49,6 +49,7 @@ export class AbstractDriver extends SimpleEmitter {
 
         // Schema inference...
         const schemaSelector = {};
+        let anyFound = false;
         query.walkTree((v) => {
             if (v instanceof registry.DDLStmt
                 && !v.returningClause?.()) return;
@@ -67,9 +68,10 @@ export class AbstractDriver extends SimpleEmitter {
             }
             if (!schemaSelector[schemaName].includes(tableName)) {
                 schemaSelector[schemaName].push(tableName);
+                anyFound = true;
             }
         });
-        await this.#schemaInference.provide(schemaSelector);
+        if (anyFound) await this.#schemaInference.provide(schemaSelector);
 
         // DeSugaring...
         query = query.deSugar(true, {}, null, this.#schemaInference);

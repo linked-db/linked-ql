@@ -7,7 +7,7 @@ export class SRFExprDDL1 extends AbstractNode {
     static get syntaxRules() {
         const itemSeparator = { type: 'punctuation', value: ',' };
         return [
-            { type: 'keyword', value: 'AS' },
+            { type: 'keyword', as: 'as_kw', value: 'AS' },
             {
                 type: 'paren_block',
                 syntax: { type: 'ColumnSchema', as: 'column_defs', arity: { min: 1 }, itemSeparator },

@@ -9,9 +9,9 @@ export class SRFExprDDL2 extends AbstractNode {
         return [
             {
                 syntaxes: [
-                    { type: 'Identifier', as: 'alias' },
+                    { type: 'Identifier', as: 'alias', peek: [1, 'paren_block'] },
                     [
-                        { type: 'keyword', value: 'AS', as: 'as_kw' },
+                        { type: 'keyword', as: 'as_kw', value: 'AS', peek: [2, 'paren_block'] },
                         { type: 'Identifier', as: 'alias', assert: true }
                     ]
                 ]

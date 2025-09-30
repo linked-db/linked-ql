@@ -15,13 +15,32 @@ export class QueryEngine extends SimpleEmitter {
         super();
         this.#storageEngine = storageEngine;
         this.#options = { dialect, ...options };
+
+        // The ExprEngine
+        const self = this;
         this.#exprEngine = new ExprEngine(
-            async (derivedQuery, compositeRow, queryCtx) => {
-                return this.#evaluateSTMT(
-                    derivedQuery.expr(),
-                    { ...queryCtx, lateralCtx: { ...(queryCtx.lateralCtx || {}), ...compositeRow } }
-                );
-                // Optimize when derivedQuery.isCorrelated() === false
+            async function* (derivedQuery, compositeRow, queryCtx) {
+                let queryString, result;
+                // Always run afresh if correlated or if first time
+                if (derivedQuery.isCorrelated() || !(
+                    result = queryCtx.cteRegistry?.get(queryString = derivedQuery.stringify()))) {
+                    result = await self.#evaluateSTMT(
+                        derivedQuery.expr(),
+                        { ...queryCtx, lateralCtx: { ...(queryCtx.lateralCtx || {}), ...compositeRow } }
+                    );
+                    if (queryCtx.cteRegistry && queryString) {
+                        // Cache now being not isCorrelated()
+                        const _result = result, copy = [];
+                        queryCtx.cteRegistry.set(queryString, copy);
+                        result = (async function* () {
+                            for await (const row of _result) {
+                                copy.push(row);
+                                yield row;
+                            }
+                        })();
+                    }
+                }
+                yield * result;
             },
             this.#options,
         );
@@ -32,7 +51,7 @@ export class QueryEngine extends SimpleEmitter {
     async query(scriptNode, options = {}) {
         const events = [];
         const txId = `$tx${(0 | Math.random() * 9e6).toString(36)}`;
-        const queryCtx = { options, txId, lateralCtx: null, cteRegistry: null };
+        const queryCtx = { options, txId, lateralCtx: null, cteRegistry: new Map };
         const eventsAbortLine = this.#storageEngine.on('changefeed', (event) => {
             if (event.txId !== txId) return;
             events.push(event);
@@ -89,7 +108,7 @@ export class QueryEngine extends SimpleEmitter {
         // Evaluate entries if any
         if (returnValue && stmtNode.pgEntries()?.length) {
             if (ifNotExists) {
-                throw new Error('CREATE SCHEMA ... IF NOT EXISTS ... with entries is not supported yet');
+                throw new Error('CREATE SCHEMA ... IF NOT EXISTS ... with entries is not supported');
             }
             const __queryCtx = { ..._queryCtx, schemaName };
             for (const entry of stmtNode.pgEntries()) {
@@ -183,7 +202,6 @@ export class QueryEngine extends SimpleEmitter {
         const tableName = stmtNode.tableRef().value();
         const tableAlias = stmtNode.pgTableAlias()?.value() || tableName;
         const tableSchema = _.originSchemas[0];
-
         // Resolve column names
         const definedColumns = Object.fromEntries(tableSchema.columns().map((col) => [col.name().value(), col]));
         const columnNames = stmtNode.columnList()?.entries().map((col) => col.value())
@@ -467,24 +485,15 @@ export class QueryEngine extends SimpleEmitter {
     async *#evaluateSELECT_STMT(stmtNode, queryCtx) {
         const _ = {};
         if (!Array.isArray(_.originSchemas = stmtNode.originSchemas())) throw new Error('Expected a pre-resolved query object with originSchemas() returning an array');
-        // 0. originSchemas: alias -> [ColumnSchema]
-        const originSchemas = new Map(_.originSchemas.map((os) => {
-            const alias = os instanceof registry.JSONSchema
-                ? '' // Only one such expected in a query
-                : os.name().value();
-            const columns = os instanceof registry.JSONSchema
-                ? os.entries()
-                : os.columns();
-            return [alias, columns];
-        }));
 
         // 1. FROM -> composites, WHERE
-        let stream = this.evaluateFromClause(
+        let stream = await this.evaluateFromClause(
             stmtNode.fromClause(),
             stmtNode.joinClauses(),
-            originSchemas,
+            _.originSchemas,
             queryCtx
         );
+
         if (_.whereClause = stmtNode.whereClause()) {
             stream = this.evaluateWhereClause(_.whereClause, stream, queryCtx);
         }
@@ -492,8 +501,10 @@ export class QueryEngine extends SimpleEmitter {
         // 3. GROUPING / aggregates
         const groupByClause = stmtNode.groupByClause();
         const havingClause = stmtNode.havingClause();
+        const selectList = stmtNode.selectList();
         if (groupByClause?.length) {
-            stream = this.evaluateGroupByClause(groupByClause, havingClause, stream, queryCtx);
+            const groupingElements = this.#resolveScopedRefsInClause(groupByClause, selectList);
+            stream = this.evaluateGroupByClause(groupingElements, havingClause, stream, queryCtx);
         } else {
             stmtNode.walkTree((v) => {
                 if (_.hasAggrFunctions) return;
@@ -501,19 +512,23 @@ export class QueryEngine extends SimpleEmitter {
                     || v instanceof registry.ScalarSubquery) return;
                 if (v instanceof registry.AggrCallExpr) {
                     _.hasAggrFunctions = true;
-                }
+                } else return v;
             });
             if (_.hasAggrFunctions) {
                 stream = this.evaluateGlobalGroup(stream);
             }
         }
 
-        // 4. SELECT (projection) -- always works on compositeRecords
-        stream = this.evaluateSelectList(stmtNode.selectList(), stream, queryCtx);
-
         // 5. ORDER BY (materialize) then LIMIT
         const orderByClause = stmtNode.orderByClause();
-        if (orderByClause) stream = this.evaluateOrderByClause(orderByClause, stream, queryCtx);
+        if (orderByClause) {
+            const orderElements = this.#resolveScopedRefsInClause(orderByClause, selectList);
+            stream = this.evaluateOrderByClause(orderElements, stream, queryCtx);
+        }
+
+        if (!queryCtx.cteRegistry) console.log(queryCtx);
+        // 4. SELECT (projection) -- always works on compositeRecords
+        stream = this.evaluateSelectList(selectList, stream, queryCtx);
 
         // 6. LIMIT + OFFSET
         const limitClause = stmtNode.limitClause();
@@ -523,8 +538,8 @@ export class QueryEngine extends SimpleEmitter {
         yield* stream;
     }
 
-    async evaluateFromClause(fromClause, joinClauses, originSchemas, queryCtx = {}) {
-        if (!fromClause?.length) return (async function* () { yield {}; })();
+    async evaluateFromClause(fromClause, joinClauses, originSchemas, queryCtx) {
+        if (!fromClause?.length) return (async function* () { yield { ...(queryCtx.lateralCtx || {}) }; })();
         return await this.evaluateFromItems(fromClause.entries(), joinClauses, originSchemas, queryCtx);
     }
 
@@ -534,20 +549,22 @@ export class QueryEngine extends SimpleEmitter {
         // start with first item
         const firstItem = allItems[0];
         const firstItemAlias = firstItem.alias?.()?.value();
-        const _originSchema = (aliasName) => originSchemas.find((os) => os.identifiesAs(aliasName));
+        const _originSchema = (aliasName) => originSchemas.find((os) => !aliasName ? !os.name?.() : os.identifiesAs(aliasName));
         let leftStream = this.evaluateFromItem(firstItem, _originSchema(firstItemAlias), queryCtx);
 
         // progressively join subsequent items
         for (let idx = 1; idx < allItems.length; idx++) {
             const rightItem = allItems[idx];
-            const rightItemAlias = rightItem.alias?.()?.value();
+            const rightAlias = rightItem.alias?.()?.value();
+            const rightSchema = _originSchema(rightAlias);
 
             // buffer right side composites
             let createRightStream;
-            if (rightItem.lateralKW?.()) {
-                createRightStream = (_lateralCtx) => this.evaluateFromItem(rightItem, _originSchema(rightItemAlias), { ...queryCtx, lateralCtx: _lateralCtx });
+            const isLateral = rightItem.lateralKW?.();
+            if (isLateral) {
+                createRightStream = (_lateralCtx) => this.evaluateFromItem(rightItem, rightSchema, { ...queryCtx, lateralCtx: _lateralCtx });
             } else {
-                const rightStream = this.evaluateFromItem(rightItem, _originSchema(rightItemAlias), { ...queryCtx, lateralCtx: null });
+                const rightStream = this.evaluateFromItem(rightItem, rightSchema, { ...queryCtx, lateralCtx: null });
                 const rightBuffer = [];
                 createRightStream = async function* () {
                     if (rightBuffer.length) {
@@ -561,10 +578,23 @@ export class QueryEngine extends SimpleEmitter {
 
             // determine join type and condition
             const joinType = rightItem.joinType?.() || (fromEntries.includes(rightItem) ? 'CROSS' : 'INNER');
-            const joinCondition = rightItem.conditionClause?.()?.expr() || null;
+            let joinCondition = rightItem.conditionClause?.();
+            if (!joinCondition && rightItem.naturalKW?.()) {
+                const leftAlias = allItems[idx - 1].alias?.()?.value();
+                const leftSchema = _originSchema(leftAlias);
+                const lCols = leftSchema.columns?.() || leftSchema.entries();
+                const rCols = rightSchema.columns?.() || rightSchema.entries();
+                const columns = rCols.reduce((all, rc) => {
+                    if (!lCols.find((lc) => lc.identifiesAs(rc))) return all;
+                    return all.concat({ value: rc.name().value(), delim: rc._get('delim') });
+                }, []);
+                if (columns.length) {
+                    joinCondition = registry.UsingClause.fromJSON({ columns }, { assert: true });
+                }
+            }
 
             // join
-            leftStream = this.evaluateJoin(leftStream, createRightStream, joinType, joinCondition, originSchemas, queryCtx);
+            leftStream = this.evaluateJoin(leftStream, { alias: rightAlias, isLateral }, createRightStream, joinType, joinCondition, originSchemas, queryCtx);
         }
 
         return leftStream;
@@ -596,7 +626,7 @@ export class QueryEngine extends SimpleEmitter {
 
         // ---------- DerivedQuery?
         if (fromItemExpr instanceof registry.DerivedQuery) {
-            for await (const row of this.#evaluateSTMT(fromItemExpr.expr(), queryCtx)) {
+            for await (const row of await this.#evaluateSTMT(fromItemExpr.expr(), queryCtx)) {
                 const entries = Object.entries(row);
                 const actualColWidth = entries.length;
                 if (actualColWidth !== expectedColWidth) {
@@ -620,7 +650,7 @@ export class QueryEngine extends SimpleEmitter {
                 }
                 const row = Object.create(null);
                 for (const [i, valueExpr] of rowConstructor.entries().entries()) {
-                    this.#acquireValue(row, originSchema.entries()[i], await this.#exprEngine.evaluate(valueExpr, queryCtx));
+                    this.#acquireValue(row, originSchema.entries()[i], await this.#exprEngine.evaluate(valueExpr, queryCtx.lateralCtx, queryCtx));
                 }
                 yield { [aliasName]: row };
             }
@@ -628,16 +658,12 @@ export class QueryEngine extends SimpleEmitter {
         }
 
         const createSRFGenerator = async (callExpr) => {
-            const funcResult = await this.#exprEngine.evaluate(callExpr, queryCtx);
+            const funcResult = await this.#exprEngine.evaluate(callExpr, queryCtx.lateralCtx, queryCtx);
             let asyncIter;
             if (Symbol.asyncIterator in funcResult) {
                 asyncIter = funcResult[Symbol.asyncIterator]();
             } else if (Symbol.iterator in funcResult) {
-                const iter = funcResult[Symbol.iterator]();
-                asyncIter = {
-                    async next() { return iter.next(); },
-                    [Symbol.asyncIterator]() { return this; },
-                };
+                asyncIter = (async function* () { yield* funcResult; })();
             } else throw new Error(`Function ${callExpr.name()} did not return an iterable value or a promise of such thereof.`);
             return asyncIter;
         };
@@ -653,7 +679,7 @@ export class QueryEngine extends SimpleEmitter {
             const qualif = fromItemExpr.qualif(); // SRFExprDDL1 | SRFExprDDL2
             const aliasName = qualif.alias/* if SRFExprDDL2 */?.()?.value() || '';
             // Consume callExpr as async iterator
-            for await (const row of createSRFGenerator2(callExpr, qualif.columnDefs())) {
+            for await (const row of await createSRFGenerator2(callExpr, qualif.columnDefs())) {
                 if (!Array.isArray(row) && !(row && typeof row === 'object')) {
                     throw new Error(`Function ${callExpr.name()} did not return an object or array value or a promise of such thereof.`);
                 }
@@ -677,7 +703,7 @@ export class QueryEngine extends SimpleEmitter {
             const withOrdinality = fromItemExpr.withOrdinality(); // Boolean
             // Consume callExpr as async iterator
             let rowIdx = 0;
-            for await (const row of createSRFGenerator(callExpr)) {
+            for await (const row of await createSRFGenerator(callExpr)) {
                 if (!Array.isArray(row) && !(row && typeof row === 'object')) {
                     throw new Error(`Function ${callExpr.name()} did not return an object or array value or a promise of such thereof.`);
                 }
@@ -707,7 +733,7 @@ export class QueryEngine extends SimpleEmitter {
                 }
                 const callExpr = entry.callExpr();
                 const qualif = entry.qualif(); // SRFExprDDL1
-                const stream = await createSRFGenerator2(callExpr, qualif.columnDefs());
+                const stream = await createSRFGenerator2(callExpr, qualif?.columnDefs());
                 asyncIters.push({ stream, callExpr });
             }
             // Zipped iteration
@@ -788,48 +814,56 @@ export class QueryEngine extends SimpleEmitter {
             for (const [key, value] of entries) {
                 this.#acquireValue(_row, originSchema._get('entries', key), value);
             }
-            yield { [aliasName]: _row };
+            yield { ...(queryCtx.lateralCtx || {}), [aliasName]: _row };
         }
     }
 
-    async * evaluateJoin(leftStream, createRightStream, joinType, joinCondition, originSchemas, queryCtx) {
+    async * evaluateJoin(leftStream, { alias: rightAlias, isLateral }, createRightStream, joinType, joinCondition, originSchemas, queryCtx) {
         const _originSchema = (aliasName) => originSchemas.find((os) => os.identifiesAs(aliasName));
         // Composition helpers
         const nullFill = (baseComp, aliases) => {
             for (const alias of aliases) {
                 if (baseComp[alias]) continue;
-                const columns = _originSchema(alias);
+                const originSchema = _originSchema(alias);
+                const columns = originSchema.columns?.() || originSchema.entries();
                 baseComp[alias] = Object.fromEntries(columns.map((col) => [col.name().value(), null]));
             }
+            return baseComp;
         };
 
         const leftAliasSet = new Set;
-        const rightUnmatched = new Set;
+        const rightMatches = new Map;
 
         // The JOIN
         for await (const leftComp of leftStream) {
             for (const k of Object.keys(leftComp)) leftAliasSet.add(k);
-            const fullLeftComp = { ...(queryCtx.lateralCtx || {}), ...leftComp };
 
             let leftMatched = false;
-            for await (const rightComp of createRightStream(fullLeftComp)) {
-                const fullMergedComp = { ...fullLeftComp, ...rightComp };
+            for await (const rightComp of createRightStream(leftComp)) {
+                const fullMergedComp = { ...leftComp, ...rightComp };
+
+                const rightRef = () => _rightRef || (_rightRef = isLateral ? JSON.stringify(rightComp) : rightComp);
+                let _rightRef;
+
                 if (!joinCondition/* Also: CROSS JOIN */
                     || await this.#exprEngine.evaluate(joinCondition, fullMergedComp, queryCtx)) {
-                    yield fullMergedComp;
                     leftMatched = true;
-                } else if (joinType === 'RIGHT' || joinType === 'FULL') {
-                    rightUnmatched.add(rightComp);
+                    rightMatches.set(rightRef(), true);
+                    yield fullMergedComp;
+                } else if ((joinType === 'RIGHT' || joinType === 'FULL') && !rightMatches.has(rightRef())) {
+                    rightMatches.set(rightRef(), false);
                 }
             }
 
             if (!leftMatched && (joinType === 'LEFT' || joinType === 'FULL')) {
-                yield nullFill({ ...leftComp }, Object.keys(rightComp));
+                yield nullFill({ ...leftComp }, [rightAlias]);
             }
         }
 
         if (joinType === 'RIGHT' || joinType === 'FULL') {
-            for (const rightComp of rightUnmatched) {
+            for (let [rightComp, matched] of rightMatches.entries()) {
+                if (matched) continue;
+                if (typeof rightComp === 'string') rightComp = JSON.parse(rightComp);
                 yield nullFill({ ...rightComp }, [...leftAliasSet]);
             }
         }
@@ -841,7 +875,7 @@ export class QueryEngine extends SimpleEmitter {
         }
     }
 
-    evaluateGroupByClause(groupByClause, havingClause, upstream, queryCtx) {
+    evaluateGroupByClause(groupingElements, havingClause, upstream, queryCtx) {
         const self = this;
         return (async function* () {
             const groups = new Map; // key -> array of compositeRecords
@@ -849,7 +883,7 @@ export class QueryEngine extends SimpleEmitter {
             for await (const comp of upstream) {
                 // compute grouping key (use exprEngine)
                 const keyParts = [];
-                for (const groupingElement of groupByClause) {
+                for (const groupingElement of groupingElements) {
                     keyParts.push(await self.#exprEngine.evaluate(groupingElement.expr(), comp, queryCtx));
                 }
                 const key = JSON.stringify(keyParts);
@@ -899,22 +933,73 @@ export class QueryEngine extends SimpleEmitter {
         }
     }
 
-    async * evaluateOrderByClause(orderByClause, upstream, queryCtx) {
+    #resolveScopedRefsInClause(clause, selectList) {
+        return clause.entries().map((entry) => {
+            let refedExpr;
+            if (entry.expr() instanceof registry.NumberLiteral) {
+                if (!(refedExpr = selectList.entries()[parseInt(entry.expr().value()) - 1]?.expr())) {
+                    throw new Error(`[${clause}] The reference by offset ${entry.expr().value()} does not resolve to a select list entry`);
+                }
+            } else if (entry.expr().resolution?.() === 'scope') {
+                refedExpr = selectList.entries().find((si, i) => si.alias()?.identifiesAs(entry.expr()))?.expr();
+            }
+            if (refedExpr) {
+                entry = entry.constructor.fromJSON({ ...entry.jsonfy(), expr: refedExpr.jsonfy() }, { assert: true });
+                clause._adoptNodes(entry);
+            }
+            return entry;
+        });
+    }
+
+    async * evaluateOrderByClause(orderElements, upstream, queryCtx) {
         const rows = [];
         for await (const r of upstream) rows.push(r);
         // Precompute keys
         const decorated = await Promise.all(rows.map(async (row) => {
-            const keys = await Promise.all(orderByClause.entries().map(orderElement =>
+            const keys = await Promise.all(orderElements.map(orderElement =>
                 this.#exprEngine.evaluate(orderElement.expr(), row, queryCtx)
             ));
             return { row, keys };
         }));
         // Sort synchronously
         decorated.sort((a, b) => {
-            for (let i = 0; i < orderByClause.length; i++) {
-                const dir = orderByClause.entries()[i].dir() === 'DESC' ? -1 : 1;
-                if (a.keys[i] < b.keys[i]) return -dir;
-                if (a.keys[i] > b.keys[i]) return dir;
+            for (let i = 0; i < orderElements.length; i++) {
+                const idDesc = orderElements[i].dir() === 'DESC';
+                const dir = idDesc ? -1 : 1;
+                const nullsSpec = orderElements[i].nullsSpec()
+                    || (this.#options.dialect === 'mysql' ? (idDesc ? 'LAST' : 'FIRST') : (idDesc ? 'FIRST' : 'LAST'));
+
+                const valA = a.keys[i];
+                const valB = b.keys[i];
+                const aIsNull = valA === null; // Explicit NULL check
+                const bIsNull = valB === null;
+
+                // 1. Handle NULL vs. NULL (Always equal)
+                if (aIsNull && bIsNull) continue; // Move to next order element
+
+                // 2. Handle NULL vs. Non-NULL
+                if (aIsNull || bIsNull) {
+                    // Determine the NULLs order required by the SQL dialect/spec
+                    // If NULLS FIRST:
+                    //   - A is NULL, B is NOT: A comes first (return -1)
+                    //   - B is NULL, A is NOT: B comes first (return 1)
+                    if (nullsSpec === 'FIRST') {
+                        if (aIsNull) return -1; // A comes first
+                        if (bIsNull) return 1;  // A comes after B
+                    }
+                    // If NULLS LAST:
+                    //   - A is NULL, B is NOT: A comes last (return 1)
+                    //   - B is NULL, A is NOT: B comes last (return -1)
+                    else { // NULLS LAST
+                        if (aIsNull) return 1;  // A comes after B
+                        if (bIsNull) return -1; // A comes before B
+                    }
+                }
+
+                // 3. Handle Non-NULL vs. Non-NULL (Original logic)
+                // Ensure comparison is safe for potentially non-numeric/string values if needed
+                if (valA < valB) return -dir;
+                if (valA > valB) return dir;
             }
             return 0;
         });

@@ -23,7 +23,7 @@ $describe('Parser - DML Clauses', () => {
 
         $it('should parse SET with subquery assignment', async () => {
             await testParseAndStringify('SetClause', 'SET col1 = (SELECT MAX(val) FROM t)', { dialect: 'postgres' });
-            await expect(testParseAndStringify('SetClause', 'SET col1 = (SELECT MAX(val) FROM t)', { dialect: 'mysql' })).to.be.rejected;
+            await testParseAndStringify('SetClause', 'SET col1 = (SELECT MAX(val) FROM t)', { dialect: 'mysql' });
         });
 
         $it('should parse SET with expression', async () => {

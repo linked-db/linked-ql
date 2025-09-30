@@ -171,7 +171,7 @@ export class StorageEngine extends SimpleEmitter {
 
     async #computeKey(schemaName, tableName, record, forInsert = false) {
         let keyColumns;
-        if (keyColumns = await this.tableKeyColumns(tableName, schemaName)) {
+        if ((keyColumns = await this.tableKeyColumns(tableName, schemaName)).length) {
             const autoIncr = keyColumns.some((keyCol) => (keyCol.identityConstraint() || keyCol.autoIncrementConstraint()));
 
             const values = [];

@@ -4,8 +4,11 @@ import { SchemaInference } from '../src/lang/SchemaInference.js';
 
 let sql, resultNode;
 
-sql = `SELECT email AS alias[], (SELECT * FROM users u2 WHERE u1.id = u2.id) u FROM users u1`;
-resultNode = await registry['BasicSelectStmt'].parse(sql);
+sql = `b IS NULL OR a > b`;
+resultNode = await registry['Expr'].parse(sql);
+console.log(resultNode.jsonfy());
+
+process.emit();
 
 console.log('\n\n\n\nresultClassic:\n');
 console.log(resultNode?.stringify());

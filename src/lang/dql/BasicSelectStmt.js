@@ -131,11 +131,10 @@ export class BasicSelectStmt extends SelectorStmtMixin(
             }
 
             if (fieldName === 'having_clause') {
-                resultJson = { ...resultJson, [fieldName]: resolveds[0] };
-            } else if (fieldName === 'group_by_clause') {
+                resultJson = { ...resultJson, [fieldName]: { expr: resolveds[0] } };
+            } else if (fieldName === 'group_by_clause' || fieldName === 'order_by_clause') {
                 resultJson = { ...resultJson, [fieldName]: { entries: resolveds } };
             }
-
         }
 
         return resultJson;

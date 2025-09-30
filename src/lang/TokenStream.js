@@ -897,7 +897,7 @@ function finalizeIdentifier(token, { options, state, localState }, forceYield = 
         return [];
     };
 
-    const processExactMatch = () => {
+    const resolveTok = (matchResult) => {
         let { type: _, spaceBefore, line, column, ...restTok } = token;
         if (multiwordBufferLength) {
             spaceBefore = localState.multiwordBuffer[0].spaceBefore;
@@ -913,6 +913,11 @@ function finalizeIdentifier(token, { options, state, localState }, forceYield = 
             line, // "line" and "column" coming last now
             column
         };
+        return tok;
+    };
+
+    const processExactMatch = (matchResult) => {
+        const tok = resolveTok(matchResult);
         if (multiwordBufferLength) {
             finalToken = [tok];
             localState.multiwordBuffer.splice(0);
@@ -921,8 +926,8 @@ function finalizeIdentifier(token, { options, state, localState }, forceYield = 
             finalToken = [tok];
         }
     };
-    const processPartialMatch = () => {
-        const tok = { ...token, type: tokenCategory === 'dataTypes' ? 'data_type' : tokenCategory.replace(/s$/, '') };
+    const processPartialMatch = (matchResult) => {
+        const tok = resolveTok(matchResult);
         localState.multiwordBuffer.push(tok);
         finalToken = [];
     };
@@ -930,7 +935,7 @@ function finalizeIdentifier(token, { options, state, localState }, forceYield = 
     let multiwordMatched = false;
     let [tokenCategory, matchResult] = findInBranch('compound');
     if (matchResult?.value === wordSoFar) {
-        processExactMatch();
+        processExactMatch(matchResult);
         multiwordMatched = true;
     } else if (matchResult) {
         // first (e.g. DISTINCT kw vs DISTINCT FROM op)
@@ -939,15 +944,15 @@ function finalizeIdentifier(token, { options, state, localState }, forceYield = 
             [tokenCategory, matchResult] = [tokenCategory2, matchResult2];
         }
         if (forceYield) {
-            processExactMatch();
+            processExactMatch(matchResult);
         } else {
-            processPartialMatch();
+            processPartialMatch(matchResult);
         }
         multiwordMatched = true;
     } else {
         [tokenCategory, matchResult] = findInBranch('classic');
         if (matchResult) {
-            processExactMatch();
+            processExactMatch(matchResult);
             multiwordMatched = true;
         }
     }
