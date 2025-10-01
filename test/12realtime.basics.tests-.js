@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
 import '../src/lang/index.js';
-import { LocalDriver } from '../src/db/local/LocalDriver.js';
+import { LiteQL } from '../src/db/l/LiteQL.js';
 import { PGDriver } from '../src/db/postgres/PGDriver.js';
 import { SchemaInference } from '../src/lang/SchemaInference.js';
 import { QueryWindow } from '../src/db/realtime/QueryWindow.js';
@@ -20,7 +20,7 @@ describe('Local - Subscriptions', () => {
 
         let driver, storage, relation, eventsCollector;
         before(async () => {
-            driver = new LocalDriver;
+            driver = new LiteQL;
             storage = await driver.createSchema('lq_test_public');
             await storage.createTable('tbl1');
             relation = { name: 'tbl1', keyColumns: ['id'] };
@@ -63,11 +63,11 @@ describe('Local - Subscriptions', () => {
         });
     });
 
-    describe('LocalDriver - Subscriptions', () => {
+    describe('LiteQL - Subscriptions', () => {
 
         let driver, storage, relation, eventsCollector;
         before(async () => {
-            driver = new LocalDriver;
+            driver = new LiteQL;
             storage = await driver.createSchema('lq_test_public');
 
             await storage.createTable('tbl1');

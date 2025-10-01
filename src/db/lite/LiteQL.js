@@ -6,7 +6,7 @@ import { StorageEngine } from './StorageEngine.js';
 import { QueryEngine } from './QueryEngine.js';
 import { Result } from '../Result.js';
 
-export class LocalDriver extends AbstractDriver {
+export class LiteQL extends AbstractDriver {
 
     #dialect;
     #enableLive;

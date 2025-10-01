@@ -1,7 +1,7 @@
 import { _eq } from '../../lang/abstracts/util.js';
 import { registry } from '../../lang/registry.js';
 
-export const GROUP_SYMBOL = Symbol.for('group');
+export const GROUPING_META = Symbol.for('grouping_meta');
 
 export class ExprEngine {
 
@@ -243,33 +243,77 @@ export class ExprEngine {
         const name = node.name().toUpperCase();
 
         // System functions
+
+        if (name === 'GROUPING') {
+            const args = expr.arguments();
+            if (args.length !== 1) throw new Error("GROUPING() takes exactly one argument");
+            const meta = row[GROUPING_META];
+            if (!meta) throw new Error("GROUPING() used outside of grouping context");
+
+            const idx = meta.exprIndex.get(args[0].stringify());
+            if (idx === undefined) {
+                throw new Error(`[${node}] argument ${args[0]} not found in GROUP BY clause`);
+            }
+            return (meta.groupingId & (1 << idx)) ? 1 : 0;
+        }
+
+        if (name === 'GROUPING_ID') {
+            // GROUPING_ID(expr [, expr ...]) or with no args
+            const args = expr.arguments();
+            const meta = row[GROUPING_META];
+            if (!meta) throw new Error("GROUPING_ID() used outside of grouping context");
+
+            if (args.length === 0) {
+                return meta.groupingId;
+            }
+
+            let mask = 0;
+            for (const arg of args) {
+                const idx = meta.exprIndex.get(arg.stringify());
+                if (idx === undefined) {
+                    throw new Error(`[${node}] argument ${arg} not found in GROUP BY clause`);
+                }
+                if (meta.groupingId & (1 << idx)) {
+                    mask |= (1 << idx);
+                }
+            }
+            return mask;
+        }
+
         if (name === 'VALUES'/* MySQL */ && compositeRow.EXCLUDED && typeof compositeRow.EXCLUDED === 'object') {
             const fieldName = node.arguments()[0].value();
             return compositeRow.EXCLUDED[fieldName];
         }
 
         // Classic functions
+
         const args = await Promise.all(node.arguments().map((a) => this.evaluate(a, compositeRow, queryCtx)));
 
         // System functions (Cont.)
+
         if (name === 'UNNEST') {
             return (function* () {
                 for (let i = 0; i < args[0].length; i++) yield args.map((arr) => arr[i] ?? null);
             })();
         }
+
         if (name === 'GENERATE_SERIES') {
             return (function* () {
                 for (let x = args[0]; x <= args[1]; x += args[2] ?? 1) yield [x];
             })();
         }
 
+        // Classic, foreal
+
         switch (name) {
+            // Classic functions
             case 'LOWER': return String(args[0] ?? '').toLowerCase();
             case 'UPPER': return String(args[0] ?? '').toUpperCase();
             case 'LENGTH': return args[0] == null ? null : String(args[0]).length;
             case 'ABS': return Math.abs(Number(args[0]));
             case 'COALESCE': return args.reduce((prev, cur) => prev !== null ? prev : cur, null);
             case 'NULLIF': return _eq(args[0], args[1]) ? null : args[0];
+
             // JSON functions (Postgres & MySQL variants)
             case 'JSON_BUILD_ARRAY':
             case 'JSON_ARRAY': return args;
@@ -293,14 +337,15 @@ export class ExprEngine {
 
         // ----------------------
 
-        const group = compositeRow?.[GROUP_SYMBOL] || [];
+        const meta = compositeRow[GROUPING_META];
+        if (!meta) throw new Error('GROUPING() called outside of GROUP BY context');
+        const group = meta.group;
         const expr = args[0] || null;
 
         switch (fn) {
             case 'COUNT': {
                 if (!expr || expr instanceof registry.ColumnRef0) return group.length;
                 let cnt = 0;
-                console.log('___________----------', compositeRow);
                 for (const member of group) {
                     const v = await this.evaluate(expr, member, queryCtx);
                     if (v !== null && v !== undefined) cnt++;
@@ -442,6 +487,7 @@ export class ExprEngine {
             const table = compositeRow[alias];
             if (colName in table) return table[colName];
         }
+        console.log('____________------', compositeRow);
         throw new Error(`Column ${colName} not found in the current context`);
     }
 

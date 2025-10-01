@@ -3,7 +3,7 @@ import { ConflictError } from './ConflictError.js';
 import { ExprEngine } from './ExprEngine.js';
 import { registry } from '../../lang/registry.js';
 
-export const GROUP_SYMBOL = Symbol.for('group');
+export const GROUPING_META = Symbol.for('grouping_meta');
 
 export class QueryEngine extends SimpleEmitter {
 
@@ -40,7 +40,7 @@ export class QueryEngine extends SimpleEmitter {
                         })();
                     }
                 }
-                yield * result;
+                yield* result;
             },
             this.#options,
         );
@@ -875,51 +875,158 @@ export class QueryEngine extends SimpleEmitter {
         }
     }
 
-    evaluateGroupByClause(groupingElements, havingClause, upstream, queryCtx) {
-        const self = this;
-        return (async function* () {
-            const groups = new Map; // key -> array of compositeRecords
+    async * evaluateGroupByClause(groupingElements, havingClause, upstream, queryCtx) {
+        // Expand a GroupingElement into concrete grouping sets (Array<ExprNode>[]).
+        function expandElement(elem) {
+            if (elem.groupingSets()) {
+                return elem.groupingSets().flatMap(expandElement);
+            }
+            const resolveExpr = (expr) => {
+                return expr instanceof registry.RowConstructor && expr.length === 1 ? expr.entries()[0] : expr;
+            };
 
-            for await (const comp of upstream) {
-                // compute grouping key (use exprEngine)
-                const keyParts = [];
-                for (const groupingElement of groupingElements) {
-                    keyParts.push(await self.#exprEngine.evaluate(groupingElement.expr(), comp, queryCtx));
+            if (elem.rollupSet()) {
+                const entries = elem.rollupSet().entries().map(resolveExpr); // bare Expr nodes
+                const sets = [];
+                for (let i = entries.length; i >= 0; i--) {
+                    sets.push(entries.slice(0, i)); // slice returns Expr[]
                 }
-                const key = JSON.stringify(keyParts);
-
-                if (!groups.has(key)) groups.set(key, []);
-                const group = groups.get(key);
-
-                // attach group reference then push (single-shot)
-                comp[GROUP_SYMBOL] = group;
-                group.push(comp);
+                return sets;
+            }
+            if (elem.cubeSet()) {
+                const entries = elem.cubeSet().entries().map(resolveExpr); // bare Expr nodes
+                const n = entries.length;
+                const sets = [];
+                for (let mask = 0; mask < (1 << n); mask++) {
+                    const subset = [];
+                    for (let j = 0; j < n; j++) {
+                        if (mask & (1 << j)) subset.push(entries[j]);
+                    }
+                    sets.push(subset);
+                }
+                return sets;
             }
 
-            // finalize groups: apply HAVING if present, yield representative compositeRecords
-            for (const group of groups.values()) {
-                if (group.length === 0) continue;
-                const rep = group[0]; // representative composite
-                // rep already has rep[GROUP_SYMBOL] = group
-                if (havingClause) {
-                    if (await self.#exprEngine.evaluate(havingClause.expr(), rep, queryCtx)) yield rep;
-                } else yield rep;
+            if (elem.expr()) {
+                const e = elem.expr();
+                if (e instanceof registry.ParenExpr) {
+                    return [[]]; // empty grouping set `()`
+                }
+                return [[e]];
             }
-        })();
+
+            return [[]]; // fallback
+        }
+
+        // Collect atomic exprs per top-level element (for GROUPING_ID masks)
+        function getAtomicExprs(elem) {
+            if (elem.groupingSets()) {
+                return elem.groupingSets().flatMap(getAtomicExprs);
+            }
+            if (elem.rollupSet()) return [...elem.rollupSet().entries()];
+            if (elem.cubeSet()) return [...elem.cubeSet().entries()];
+            if (elem.expr()) {
+                const e = elem.expr();
+                if (e instanceof registry.ParenExpr) return []; // empty
+                return [e];
+            }
+            return [];
+        }
+
+        const groupingSets = groupingElements.flatMap(expandElement);
+
+        // Build mapping ExprNode → top-level index
+        const topEntryAtomicMap = new Map();
+        const exprToTopIndex = new Map();
+        for (let j = 0; j < groupingElements.length; j++) {
+            const atomic = getAtomicExprs(groupingElements[j]);
+            topEntryAtomicMap.set(j, atomic);
+            for (const exprNode of atomic) exprToTopIndex.set(exprNode.stringify(), j);
+        }
+
+        // Groups keyed by JSON string
+        const groups = new Map();
+
+        for await (const comp of upstream) {
+            for (let setIndex = 0; setIndex < groupingSets.length; setIndex++) {
+                const set = groupingSets[setIndex]; // Array<ExprNode>
+
+                const keyVals = set.length
+                    ? await Promise.all(set.map((expr) => this.#exprEngine.evaluate(expr, comp, queryCtx)))
+                    : [];
+
+                // Compute mask
+                let mask = 0;
+                for (let j = 0; j < groupingElements.length; j++) {
+                    const atomic = topEntryAtomicMap.get(j) || [];
+                    if (atomic.length === 0) {
+                        mask |= (1 << j);
+                        continue;
+                    }
+                    let allPresent = atomic.every(aExpr => set.includes(aExpr));
+                    if (!allPresent) mask |= (1 << j);
+                }
+
+                const key = JSON.stringify([setIndex, keyVals]);
+                if (!groups.has(key)) {
+                    groups.set(key, { members: [], mask, setIndex, keyVals });
+                }
+                groups.get(key).members.push(comp);
+            }
+        }
+
+        // Yield groups as representative rows
+        const groupEntries = [...groups.values()];
+        // Sort groups by setIndex ascending (rollups naturally put grand totals last)
+        groupEntries.sort((a, b) => a.setIndex - b.setIndex);
+
+        for (const { members, mask, setIndex, keyVals } of groupEntries) {
+            const base = { ...members[0] };
+
+            // Null out grouping columns for grand total rows (mask === all bits set)
+            if (mask === ((1 << groupingElements.length) - 1)) {
+                // For each grouping column, set its value to null
+                for (const keyExpr of exprToTopIndex.keys()) {
+                    const [q, n] = keyExpr.split('.');
+                    if (base[q]) base[q][n] = null; // TODO: be more standard as (a.ccc) as key wouldnt work
+                }
+            }
+            
+            base[GROUPING_META] = {
+                group: members,
+                groupValues: keyVals,
+                groupingId: mask,
+                setIndex,
+                exprIndex: new Map(exprToTopIndex),
+            };
+
+            // Apply HAVING clause (evaluate against representative row)
+            if (havingClause) {
+                const keep = await this.#exprEngine.evaluate(havingClause.expr(), base, queryCtx);
+                if (!keep) continue;
+            }
+
+            yield base;
+        }
     }
 
-    evaluateGlobalGroup(upstream) {
-        const self = this;
-        return (async function* () {
-            const members = [];
-            for await (const comp of upstream) members.push(comp);
-            // attach group array to members
-            for (let i = 0; i < members.length; i++) members[i][GROUP_SYMBOL] = members;
-            // representative: first member or empty composite
-            const rep = members[0] ? { ...members[0] } : {};
-            rep[GROUP_SYMBOL] = members;
-            yield rep;
-        })();
+    async * evaluateGlobalGroup(upstream) {
+        const members = [];
+        for await (const comp of upstream) members.push(comp);
+
+        // representative: first member or empty composite
+        const rep = members[0] ? { ...members[0] } : {};
+
+        // attach grouping metadata
+        rep[GROUPING_META] = {
+            group: members,
+            groupValues: [],
+            groupingId: 0,
+            setIndex: 0,
+            exprIndex: new Map()
+        };
+
+        yield rep;
     }
 
     async * evaluateSelectList(selectList, upstream, queryCtx) {
@@ -940,7 +1047,7 @@ export class QueryEngine extends SimpleEmitter {
                 if (!(refedExpr = selectList.entries()[parseInt(entry.expr().value()) - 1]?.expr())) {
                     throw new Error(`[${clause}] The reference by offset ${entry.expr().value()} does not resolve to a select list entry`);
                 }
-            } else if (entry.expr().resolution?.() === 'scope') {
+            } else if (entry.expr()?.resolution?.() === 'scope') {
                 refedExpr = selectList.entries().find((si, i) => si.alias()?.identifiesAs(entry.expr()))?.expr();
             }
             if (refedExpr) {
@@ -963,6 +1070,11 @@ export class QueryEngine extends SimpleEmitter {
         }));
         // Sort synchronously
         decorated.sort((a, b) => {
+            const aMeta = a.row[GROUPING_META];
+            const bMeta = b.row[GROUPING_META];
+            if (aMeta && bMeta && aMeta.setIndex !== bMeta.setIndex) {
+                return aMeta.setIndex - bMeta.setIndex; // TODO: see if this is best approach
+            }
             for (let i = 0; i < orderElements.length; i++) {
                 const idDesc = orderElements[i].dir() === 'DESC';
                 const dir = idDesc ? -1 : 1;
