@@ -61,7 +61,8 @@ export class StorageEngine extends SimpleEmitter {
         return schemaObject;
     }
 
-    async createTable(tableSchema, schemaName = this.#defaultSchemaName, { ifNotExists = false } = {}) {
+    async createTable(tableSchema, schemaName = this.#defaultSchemaName, { ifNotExists = false, options = {} } = {}) {
+        const dialect = options.dialect || this.#dialect;
         // Normalize input
         if (typeof tableSchema === 'string') {
             tableSchema = { name: { value: tableSchema }, entries: [] };
@@ -73,7 +74,7 @@ export class StorageEngine extends SimpleEmitter {
                     entries: [{ nodeName: 'COLUMN_PK_CONSTRAINT', value: 'KEY' }],
                 };
                 if (this.#defaultAutoIncr) {
-                    if (this.#dialect === 'mysql') {
+                    if (dialect === 'mysql') {
                         keyCol.entries.push({
                             nodeName: 'MY_COLUMN_AUTO_INCREMENT_MODIFIER',
                             value: 'AUTO_INCREMENT',
@@ -89,7 +90,7 @@ export class StorageEngine extends SimpleEmitter {
                 tableSchema.entries.push(keyCol);
             }
             // Instantiate
-            tableSchema = registry.TableSchema.fromJSON(tableSchema, { dialect: this.#dialect });
+            tableSchema = registry.TableSchema.fromJSON(tableSchema, { dialect });
         } else {
             if (!(tableSchema instanceof registry.TableSchema)) {
                 throw new Error(`tableSchema must be an instance of TableSchema`);

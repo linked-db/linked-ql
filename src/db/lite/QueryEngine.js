@@ -52,18 +52,26 @@ export class QueryEngine extends SimpleEmitter {
 
     async query(scriptNode, options = {}) {
         const events = [];
+        
         const txId = `$tx${(0 | Math.random() * 9e6).toString(36)}`;
-        const queryCtx = { options, txId, lateralCtx: null, cteRegistry: new Map, depth: 0 };
+        const queryCtx = {
+            options: { ...this.#options, ...options },
+            txId, lateralCtx: null,
+            cteRegistry: new Map,
+            depth: 0,
+        };
         const eventsAbortLine = this.#storageEngine.on('changefeed', (event) => {
             if (event.txId !== txId) return;
             events.push(event);
         });
+
         const returnValue = await this.#evaluateSTMT(scriptNode, queryCtx);
         if (returnValue && typeof returnValue?.[Symbol.asyncIterator] === 'function' && options.bufferResultRows !== false) {
             const rows = [];
             for await (const r of returnValue) rows.push(r);
             return rows;
         }
+
         eventsAbortLine();
         if (events.length) this.emit('changefeed', events);
         return returnValue;
@@ -1395,7 +1403,7 @@ export class QueryEngine extends SimpleEmitter {
                 const idDesc = orderElements[i].dir() === 'DESC';
                 const dir = idDesc ? -1 : 1;
                 const nullsSpec = orderElements[i].nullsSpec()
-                    || (this.#options.dialect === 'mysql' ? (idDesc ? 'LAST' : 'FIRST') : (idDesc ? 'FIRST' : 'LAST'));
+                    || (queryCtx.options.dialect === 'mysql' ? (idDesc ? 'LAST' : 'FIRST') : (idDesc ? 'FIRST' : 'LAST'));
 
                 const valA = a.keys[i];
                 const valB = b.keys[i];
