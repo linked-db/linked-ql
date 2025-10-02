@@ -4,6 +4,7 @@ import { ExprEngine } from './ExprEngine.js';
 import { registry } from '../../lang/registry.js';
 
 export const GROUPING_META = Symbol.for('grouping_meta');
+export const WINDOW_META = Symbol.for('window_meta');
 
 export class QueryEngine extends SimpleEmitter {
 
@@ -473,7 +474,7 @@ export class QueryEngine extends SimpleEmitter {
 
     // -------- DQL
 
-    async *#evaluateTABLE_STMT(stmtNode, queryCtx) {
+    async * #evaluateTABLE_STMT(stmtNode, queryCtx) {
         // Resolve schema/table spec
         const tableRef = stmtNode.tableRef();
         const tableName = tableRef.value();
@@ -482,7 +483,7 @@ export class QueryEngine extends SimpleEmitter {
         yield* this.#storageEngine.getCursor(tableName, schemaName);
     }
 
-    async *#evaluateSELECT_STMT(stmtNode, queryCtx) {
+    async * #evaluateSELECT_STMT(stmtNode, queryCtx) {
         const _ = {};
         if (!Array.isArray(_.originSchemas = stmtNode.originSchemas())) throw new Error('Expected a pre-resolved query object with originSchemas() returning an array');
 
@@ -498,25 +499,34 @@ export class QueryEngine extends SimpleEmitter {
             stream = this.evaluateWhereClause(_.whereClause, stream, queryCtx);
         }
 
-        // 3. GROUPING / aggregates
+        // 3. Grep aggr and window functions
+        const aggrFunctions = [];
+        const winFunctions = [];
+        stmtNode.walkTree((v) => {
+            if (v instanceof registry.DerivedQuery
+                || v instanceof registry.ScalarSubquery) return;
+            if (v instanceof registry.AggrCallExpr) {
+                if (v.overClause()) winFunctions.push(v);
+                else aggrFunctions.push(v);
+            } else return v;
+        });
+
+        // 4. GROUPING / aggregates
         const groupByClause = stmtNode.groupByClause();
         const havingClause = stmtNode.havingClause();
         const selectList = stmtNode.selectList();
+
         if (groupByClause?.length) {
             const groupingElements = this.#resolveScopedRefsInClause(groupByClause, selectList);
             stream = this.evaluateGroupByClause(groupingElements, havingClause, stream, queryCtx);
-        } else {
-            stmtNode.walkTree((v) => {
-                if (_.hasAggrFunctions) return;
-                if (v instanceof registry.DerivedQuery
-                    || v instanceof registry.ScalarSubquery) return;
-                if (v instanceof registry.AggrCallExpr) {
-                    _.hasAggrFunctions = true;
-                } else return v;
-            });
-            if (_.hasAggrFunctions) {
-                stream = this.evaluateGlobalGroup(stream);
-            }
+        } else if (aggrFunctions.length) {
+            stream = this.evaluateGlobalGroup(stream);
+        }
+
+        // 5. WINDOWING
+        if (winFunctions.length) {
+            const windowDefs = new Map(stmtNode.windowClause()?.entries().map((w) => [w.name().value(), w.spec()]) || []);
+            stream = this.evaluateWindowing(winFunctions, windowDefs, stream, queryCtx);
         }
 
         // 5. ORDER BY (materialize) then LIMIT
@@ -526,7 +536,6 @@ export class QueryEngine extends SimpleEmitter {
             stream = this.evaluateOrderByClause(orderElements, stream, queryCtx);
         }
 
-        if (!queryCtx.cteRegistry) console.log(queryCtx);
         // 4. SELECT (projection) -- always works on compositeRecords
         stream = this.evaluateSelectList(selectList, stream, queryCtx);
 
@@ -876,86 +885,79 @@ export class QueryEngine extends SimpleEmitter {
     }
 
     async * evaluateGroupByClause(groupingElements, havingClause, upstream, queryCtx) {
-        // Expand a GroupingElement into concrete grouping sets (Array<ExprNode>[]).
-        function expandElement(elem) {
-            if (elem.groupingSets()) {
-                return elem.groupingSets().flatMap(expandElement);
-            }
-            const resolveExpr = (expr) => {
-                return expr instanceof registry.RowConstructor && expr.length === 1 ? expr.entries()[0] : expr;
-            };
 
+        // -----------Utils:
+
+        function flattenRowConstructor(expr) {
+            if (expr instanceof registry.RowConstructor) {
+                // Flatten each entry recursively
+                return expr.entries().flatMap(flattenRowConstructor);
+            }
+            return [expr];
+        }
+
+        function expandElement(elem) {
+            if (elem.groupingSets()) return elem.groupingSets().flatMap(expandElement);
             if (elem.rollupSet()) {
-                const entries = elem.rollupSet().entries().map(resolveExpr); // bare Expr nodes
+                const entries = elem.rollupSet().entries();
                 const sets = [];
-                for (let i = entries.length; i >= 0; i--) {
-                    sets.push(entries.slice(0, i)); // slice returns Expr[]
-                }
+                for (let i = entries.length; i >= 0; i--) sets.push(entries.slice(0, i).flatMap(flattenRowConstructor));
                 return sets;
             }
             if (elem.cubeSet()) {
-                const entries = elem.cubeSet().entries().map(resolveExpr); // bare Expr nodes
+                const entries = elem.cubeSet().entries();
                 const n = entries.length;
                 const sets = [];
                 for (let mask = 0; mask < (1 << n); mask++) {
                     const subset = [];
-                    for (let j = 0; j < n; j++) {
-                        if (mask & (1 << j)) subset.push(entries[j]);
-                    }
-                    sets.push(subset);
+                    for (let j = 0; j < n; j++) if (mask & (1 << j)) subset.push(entries[j]);
+                    sets.push(subset.flatMap(flattenRowConstructor));
                 }
                 return sets;
             }
-
-            if (elem.expr()) {
-                const e = elem.expr();
-                if (e instanceof registry.ParenExpr) {
-                    return [[]]; // empty grouping set `()`
-                }
-                return [[e]];
-            }
-
+            if (elem.expr()) return [flattenRowConstructor(elem.expr())];
             return [[]]; // fallback
         }
 
-        // Collect atomic exprs per top-level element (for GROUPING_ID masks)
         function getAtomicExprs(elem) {
-            if (elem.groupingSets()) {
-                return elem.groupingSets().flatMap(getAtomicExprs);
-            }
+            if (elem.groupingSets()) return elem.groupingSets().flatMap(getAtomicExprs);
             if (elem.rollupSet()) return [...elem.rollupSet().entries()];
             if (elem.cubeSet()) return [...elem.cubeSet().entries()];
             if (elem.expr()) {
                 const e = elem.expr();
-                if (e instanceof registry.ParenExpr) return []; // empty
-                return [e];
+                return e instanceof registry.RowConstructor ? e.entries() : [e];
             }
             return [];
         }
 
-        const groupingSets = groupingElements.flatMap(expandElement);
+        // ------------ Processing:
+
+        let groupingSets;
+        if (groupingElements.every(e => e.expr() && !e.rollupSet() && !e.cubeSet() && !e.groupingSets())) {
+            // plain multi-column GROUP BY
+            groupingSets = [groupingElements.flatMap(e => expandElement(e)[0])];
+        } else {
+            // includes GROUPING SETS / ROLLUP / CUBE
+            groupingSets = groupingElements.flatMap(expandElement);
+        }
 
         // Build mapping ExprNode → top-level index
         const topEntryAtomicMap = new Map();
-        const exprToTopIndex = new Map();
         for (let j = 0; j < groupingElements.length; j++) {
             const atomic = getAtomicExprs(groupingElements[j]);
             topEntryAtomicMap.set(j, atomic);
-            for (const exprNode of atomic) exprToTopIndex.set(exprNode.stringify(), j);
         }
 
-        // Groups keyed by JSON string
         const groups = new Map();
-
         for await (const comp of upstream) {
             for (let setIndex = 0; setIndex < groupingSets.length; setIndex++) {
-                const set = groupingSets[setIndex]; // Array<ExprNode>
+                const set = groupingSets[setIndex];
 
                 const keyVals = set.length
                     ? await Promise.all(set.map((expr) => this.#exprEngine.evaluate(expr, comp, queryCtx)))
                     : [];
 
-                // Compute mask
+                // Compute mask for GROUPING_ID
                 let mask = 0;
                 for (let j = 0; j < groupingElements.length; j++) {
                     const atomic = topEntryAtomicMap.get(j) || [];
@@ -963,47 +965,74 @@ export class QueryEngine extends SimpleEmitter {
                         mask |= (1 << j);
                         continue;
                     }
-                    let allPresent = atomic.every(aExpr => set.includes(aExpr));
+                    let allPresent = atomic.every((aExpr) => set.includes(aExpr));
                     if (!allPresent) mask |= (1 << j);
                 }
 
                 const key = JSON.stringify([setIndex, keyVals]);
                 if (!groups.has(key)) {
-                    groups.set(key, { members: [], mask, setIndex, keyVals });
+                    groups.set(key, { window: [], mask, setIndex, keyVals, set });
                 }
-                groups.get(key).members.push(comp);
+                groups.get(key).window.push(comp);
             }
         }
 
-        // Yield groups as representative rows
-        const groupEntries = [...groups.values()];
-        // Sort groups by setIndex ascending (rollups naturally put grand totals last)
-        groupEntries.sort((a, b) => a.setIndex - b.setIndex);
+        // Yield representative rows
+        for (const { window, mask, setIndex, keyVals, set } of groups.values()) {
+            const base = {};
 
-        for (const { members, mask, setIndex, keyVals } of groupEntries) {
-            const base = { ...members[0] };
-
-            // Null out grouping columns for grand total rows (mask === all bits set)
-            if (mask === ((1 << groupingElements.length) - 1)) {
-                // For each grouping column, set its value to null
-                for (const keyExpr of exprToTopIndex.keys()) {
-                    const [q, n] = keyExpr.split('.');
-                    if (base[q]) base[q][n] = null; // TODO: be more standard as (a.ccc) as key wouldnt work
+            // Build lightweight groupingColumnsMap: Map<alias, Set<colName>>
+            const groupingColumnsMap = new Map();
+            const _add = (colRef) => {
+                const alias = colRef.qualifier()?.value() || '';
+                const set = groupingColumnsMap.get(alias) ?? new Set();
+                set.add(colRef.value());
+                groupingColumnsMap.set(alias, set);
+            };
+            // Scan set and build groupingColumnsMap
+            for (const expr of set) {
+                if (expr instanceof registry.ColumnRef1) _add(expr); else {
+                    expr.walkTree((child) => {
+                        if (child instanceof registry.ColumnRef1) _add(child);
+                        return child;
+                    });
                 }
             }
-            
+
+            // Build exprToTopIndex per grouping set for GROUPING_ID evaluation
+            const exprToTopIndex = new Map();
+            for (let j = 0; j < groupingElements.length; j++) {
+                const atomic = topEntryAtomicMap.get(j) || [];
+                for (const exprNode of atomic) exprToTopIndex.set(exprNode, j);
+            }
+
+            // Metadata
             base[GROUPING_META] = {
-                group: members,
+                window: window,
+                frameStart: 0,
+                frameEnd: window.length - 1,
                 groupValues: keyVals,
                 groupingId: mask,
                 setIndex,
-                exprIndex: new Map(exprToTopIndex),
+                exprIndex: exprToTopIndex,
+                isGrandTotal: set.length === 0,
+                groupingColumnsMap
             };
 
-            // Apply HAVING clause (evaluate against representative row)
+            // Apply HAVING
             if (havingClause) {
                 const keep = await this.#exprEngine.evaluate(havingClause.expr(), base, queryCtx);
                 if (!keep) continue;
+            }
+
+            // Column-level nulling
+            for (const alias of Object.keys(window[0])) {
+                const tableRow = structuredClone({ ...window[0][alias] });
+                for (const colName of Object.keys(tableRow)) {
+                    const isGrouped = groupingColumnsMap.get(alias)?.has(colName);
+                    if (!isGrouped) tableRow[colName] = null;
+                }
+                base[alias] = tableRow;
             }
 
             yield base;
@@ -1011,15 +1040,16 @@ export class QueryEngine extends SimpleEmitter {
     }
 
     async * evaluateGlobalGroup(upstream) {
-        const members = [];
-        for await (const comp of upstream) members.push(comp);
-
+        const window = [];
+        for await (const comp of upstream) window.push(comp);
         // representative: first member or empty composite
-        const rep = members[0] ? { ...members[0] } : {};
+        const rep = window[0] ? { ...window[0] } : {};
 
         // attach grouping metadata
         rep[GROUPING_META] = {
-            group: members,
+            window: window,
+            frameStart: 0,
+            frameEnd: window.length - 1,
             groupValues: [],
             groupingId: 0,
             setIndex: 0,
@@ -1027,6 +1057,265 @@ export class QueryEngine extends SimpleEmitter {
         };
 
         yield rep;
+    }
+
+    async * evaluateWindowing(winFunctions, windowDefs, upstream, queryCtx) {
+        const rows = Array.isArray(upstream) ? upstream : [];
+        if (!Array.isArray(upstream)) for await (const r of upstream) rows.push(r);
+        // Group window functions by their resolved 'effective spec'
+        const winFnMap = new Map(); // winHash -> { winFn, effectiveSpec }
+
+        for (const winFn of winFunctions) {
+            const over = winFn.overClause();
+
+            let effectiveSpec;
+            if (over instanceof registry.WindowRef) {
+                const namedSpec = windowDefs.get(over.value());
+                if (!namedSpec) throw new Error(`[${winFn}] Window '${over.value()}' not found`);
+                effectiveSpec = {
+                    partitionBy: namedSpec.partitionByClause(),
+                    orderBy: namedSpec.orderByClause(),
+                    frameSpec: namedSpec.frameSpec(),
+                };
+            } else if (over instanceof registry.WindowSpec) {
+                const baseSpec = over.superWindow() ? windowDefs.get(over.superWindow().value()) : null;
+                effectiveSpec = {
+                    partitionBy: over.partitionByClause() ?? baseSpec?.partitionByClause(),
+                    orderBy: over.orderByClause() ?? baseSpec?.orderByClause(),
+                    frameSpec: over.frameSpec() ?? baseSpec?.frameSpec(),
+                };
+            }
+
+            const winHash = JSON.stringify(effectiveSpec); // simple stable hash
+            if (!winFnMap.has(winHash)) winFnMap.set(winHash, effectiveSpec);
+            winFn.winHash = winHash;
+        }
+
+        // Partition rows per window function
+        for (const [winHash, effectiveSpec] of winFnMap.entries()) {
+            // Partition rows by PARTITION BY expression(s)
+            const partitions = new Map(); // key -> rows[]
+
+            for (const row of rows) {
+                const keyVals = await Promise.all(effectiveSpec.partitionBy?.map((expr) => this.#exprEngine(expr, row, queryCtx)) ?? []);
+                const key = JSON.stringify(keyVals);
+                if (!partitions.has(key)) partitions.set(key, []);
+                partitions.get(key).push(row);
+            }
+
+            // Populate WINDOW_META for each row
+            for (let window of partitions.values()) {
+
+                // Apply ORDER BY if present
+                if (effectiveSpec.orderBy) {
+                    const ordered = this.evaluateOrderByClause(effectiveSpec.orderBy.entries(), window, queryCtx, true);
+                    const orderedArray = [];
+                    for await (const decorated of ordered) orderedArray.push(decorated);
+                    window = orderedArray;
+                }
+
+                // Attach meta
+                let i = 0;
+                const isDecorated = !!effectiveSpec.orderBy;
+                for (const entry of window) {
+                    const { row, keys } = isDecorated ? entry : { row: entry, keys: [i] };
+
+                    // Compute frame start/end for this row
+                    const { frameStart, frameEnd } = this.#computeFrameBounds(
+                        effectiveSpec,
+                        window,
+                        i,
+                        isDecorated
+                    );
+
+                    if (!row[WINDOW_META]) row[WINDOW_META] = {};
+                    row[WINDOW_META][winHash] = {
+                        window: isDecorated ? window.map((d) => d.row) : window,
+                        orderKeysHash: JSON.stringify(keys),
+                        orderKeys: keys,
+                        offset: i++,
+                        frameStart,
+                        frameEnd,
+                    };
+                }
+            }
+        }
+
+        yield* rows;
+    }
+
+    #computeFrameBounds(effectiveSpec, window, rowIndex, isDecorated = false) {
+        const frameSpec = effectiveSpec.frameSpec;
+        const total = window.length;
+
+        // Default frame = full partition
+        if (!frameSpec) {
+            return { frameStart: 0, frameEnd: total - 1 };
+        }
+
+        const specifier = frameSpec.specifier();
+        const [start, end] = frameSpec.bounds() ?? [];
+
+        let frameStart = 0;
+        let frameEnd = total - 1;
+
+        // helper to clamp safely
+        const clamp = (n) => Math.min(Math.max(n, 0), total - 1);
+
+        // ----- ROWS -----
+        if (specifier === 'ROWS') {
+            // --- Start ---
+            if (!start || start.specifier() === 'CURRENT ROW') {
+                frameStart = rowIndex;
+            } else if (start.specifier() === 'UNBOUNDED' && start.dir() === 'PRECEDING') {
+                frameStart = 0;
+            } else if (start.specifier() instanceof registry.NumberLiteral) {
+                const n = start.specifier().value();
+                frameStart = clamp(
+                    start.dir() === 'PRECEDING' ? rowIndex - n : rowIndex + n
+                );
+            }
+
+            // --- End ---
+            if (!end || end.specifier() === 'CURRENT ROW') {
+                frameEnd = rowIndex;
+            } else if (end.specifier() === 'UNBOUNDED' && end.dir() === 'FOLLOWING') {
+                frameEnd = total - 1;
+            } else if (end.specifier() instanceof registry.NumberLiteral) {
+                const n = end.specifier().value();
+                frameEnd = clamp(
+                    end.dir() === 'FOLLOWING' ? rowIndex + n : rowIndex - n
+                );
+            }
+        }
+
+        // ----- RANGE -----
+        else if (specifier === 'RANGE') {
+            if (!effectiveSpec.orderBy) {
+                return { frameStart: 0, frameEnd: total - 1 };
+            }
+
+            const getKeys = (entry) => isDecorated ? entry.keys : [rowIndex];
+            const myKeys = getKeys(window[rowIndex]);
+            const myValue = myKeys[0]; // leading ORDER BY key
+
+            const getValue = (entry) => isDecorated ? entry.keys[0] : rowIndex;
+
+            // Peer range by default
+            let peerStart = rowIndex;
+            while (peerStart > 0 && getValue(window[peerStart - 1]) === myValue) peerStart--;
+            let peerEnd = rowIndex;
+            while (peerEnd < total - 1 && getValue(window[peerEnd + 1]) === myValue) peerEnd++;
+
+            frameStart = peerStart;
+            frameEnd = peerEnd;
+
+            const adjustBound = (bound, isStart) => {
+                if (!bound) return;
+
+                if (bound.specifier() === 'UNBOUNDED' && bound.dir() === 'PRECEDING') {
+                    frameStart = 0;
+                } else if (bound.specifier() === 'UNBOUNDED' && bound.dir() === 'FOLLOWING') {
+                    frameEnd = total - 1;
+                } else if (bound.specifier() === 'CURRENT ROW') {
+                    if (isStart) frameStart = peerStart;
+                    else frameEnd = peerEnd;
+                } else if (bound.specifier() instanceof registry.NumberLiteral) {
+                    // numeric RANGE offset
+                    const n = bound.specifier().value();
+                    const ref = myValue + (bound.dir() === 'FOLLOWING' ? n : -n);
+                    if (isStart) {
+                        let idx = 0;
+                        while (idx < total && getValue(window[idx]) < ref) idx++;
+                        frameStart = idx;
+                    } else {
+                        let idx = total - 1;
+                        while (idx >= 0 && getValue(window[idx]) > ref) idx--;
+                        frameEnd = idx;
+                    }
+                } else if (bound.specifier() instanceof registry.TypedIntervalLiteral) {
+                    const refTime = new Date(myValue).getTime();
+                    const shifted = bound.specifier().applyToDate(new Date(refTime), bound.dir());
+
+                    if (isStart) {
+                        let idx = 0;
+                        while (idx < total && new Date(getValue(window[idx])).getTime() < shifted) idx++;
+                        frameStart = idx;
+                    } else {
+                        let idx = total - 1;
+                        while (idx >= 0 && new Date(getValue(window[idx])).getTime() > shifted) idx--;
+                        frameEnd = idx;
+                    }
+                }
+            };
+
+            adjustBound(start, true);
+            adjustBound(end, false);
+        }
+
+        // ----- GROUPS -----
+        else if (specifier === 'GROUPS') {
+            if (!effectiveSpec.orderBy) {
+                // no ORDER BY → one peer group (all rows)
+                return { frameStart: 0, frameEnd: total - 1 };
+            }
+
+            const getHash = (entry) => {
+                return isDecorated
+                    ? JSON.stringify(entry.keys)
+                    : JSON.stringify([rowIndex]);
+            };
+
+            // Build groups of peer rows by orderKeys
+            const groups = [];
+            let currentGroup = [0];
+            let lastHash = getHash(window[0]);
+
+            for (let i = 1; i < total; i++) {
+                const h = getHash(window[i]);
+                if (h === lastHash) {
+                    currentGroup.push(i);
+                } else {
+                    groups.push(currentGroup);
+                    currentGroup = [i];
+                    lastHash = h;
+                }
+            }
+            groups.push(currentGroup);
+
+            // Find current row's group index
+            const groupIndex = groups.findIndex((g) => g.includes(rowIndex));
+
+            let startGroup = groupIndex;
+            let endGroup = groupIndex;
+
+            if (start) {
+                if (start.specifier() === 'UNBOUNDED' && start.dir() === 'PRECEDING') {
+                    startGroup = 0;
+                } else if (start.specifier() === 'CURRENT ROW') {
+                    startGroup = groupIndex;
+                } else if (start.specifier() instanceof registry.NumberLiteral) {
+                    const n = start.specifier().value();
+                    startGroup = clamp(groupIndex - n);
+                }
+            }
+
+            if (end) {
+                if (end.specifier() === 'UNBOUNDED' && end.dir() === 'FOLLOWING') {
+                    endGroup = groups.length - 1;
+                } else if (end.specifier() === 'CURRENT ROW') {
+                    endGroup = groupIndex;
+                } else if (end.specifier() instanceof registry.NumberLiteral) {
+                    const n = end.specifier().value();
+                    endGroup = clamp(groupIndex + n);
+                }
+            }
+
+            frameStart = groups[startGroup][0];
+            frameEnd = groups[endGroup][groups[endGroup].length - 1];
+        }
+
+        return { frameStart, frameEnd };
     }
 
     async * evaluateSelectList(selectList, upstream, queryCtx) {
@@ -1058,9 +1347,9 @@ export class QueryEngine extends SimpleEmitter {
         });
     }
 
-    async * evaluateOrderByClause(orderElements, upstream, queryCtx) {
-        const rows = [];
-        for await (const r of upstream) rows.push(r);
+    async * evaluateOrderByClause(orderElements, upstream, queryCtx, withKeys = false) {
+        const rows = Array.isArray(upstream) ? upstream : [];
+        if (!Array.isArray(upstream)) for await (const r of upstream) rows.push(r);
         // Precompute keys
         const decorated = await Promise.all(rows.map(async (row) => {
             const keys = await Promise.all(orderElements.map(orderElement =>
@@ -1070,11 +1359,6 @@ export class QueryEngine extends SimpleEmitter {
         }));
         // Sort synchronously
         decorated.sort((a, b) => {
-            const aMeta = a.row[GROUPING_META];
-            const bMeta = b.row[GROUPING_META];
-            if (aMeta && bMeta && aMeta.setIndex !== bMeta.setIndex) {
-                return aMeta.setIndex - bMeta.setIndex; // TODO: see if this is best approach
-            }
             for (let i = 0; i < orderElements.length; i++) {
                 const idDesc = orderElements[i].dir() === 'DESC';
                 const dir = idDesc ? -1 : 1;
@@ -1116,7 +1400,10 @@ export class QueryEngine extends SimpleEmitter {
             return 0;
         });
         // Extract rows back
-        for (const d of decorated) yield d.row;
+        for (const d of decorated) {
+            if (withKeys) yield d;
+            else yield d.row;
+        }
     }
 
     async * evaluateLimitClause(limitClause, offsetClause, upstream, queryCtx) {

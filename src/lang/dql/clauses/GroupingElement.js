@@ -24,7 +24,7 @@ export class GroupingElement extends AbstractNode {
                     { type: 'keyword', value: 'CUBE' },
                     { type: 'RowConstructor', as: 'cube_set', assert: true },
                 ],
-                { type: ['Expr', 'ParenExpr'], as: 'expr' },
+                { type: 'Expr', as: 'expr' },
             ]
         };
     }

@@ -7,3 +7,7 @@ const tokenStream = await TokenStream.create(sql, { structured: true });
 for await (const tok of tokenStream) {
     console.log(tok);
 }
+
+let r = {ff: 4};
+r[Symbol.for('dd')] = 44;
+console.log(r, Object.keys(r))

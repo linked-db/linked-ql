@@ -65,7 +65,7 @@ export class BasicSelectStmt extends SelectorStmtMixin(
             // Trigger fields resolution
             if (node instanceof registry.GroupByClause
                 || node instanceof registry.HavingClause
-                || node instanceof registry.OrderByClause) {
+                || (node instanceof registry.OrderByClause && node.parentNode === this/* to exclude ORDER BYs within window functions */)) {
                 // Try to capture Linked QL's native GROUP BY clause that's derived
                 // from a back ref, which won't resolve at this time because the relevant generated JOIN
                 // hasn't been add

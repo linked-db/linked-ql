@@ -1147,7 +1147,6 @@ describe("LiteQL - DQL", () => {
             expect(rows.map(r => r.id)).to.deep.equal([3]);
         });
     });
-
     describe("SELECT - Grouping & Aggregation", () => {
         let driver, schemaName = 'lq_test_dgl', t2 = "t2_grouping";
 
@@ -1164,17 +1163,20 @@ describe("LiteQL - DQL", () => {
 
         it("should count rows", async () => {
             const { rows } = await driver.query(`SELECT COUNT(*) AS cnt FROM ${t2}`);
-            expect(rows[0].cnt).to.equal(5);
+            expect(rows).to.deep.equal([{ cnt: 5 }]);
         });
 
         it("should aggregate with SUM", async () => {
             const { rows } = await driver.query(`SELECT SUM(amount) AS total FROM ${t2}`);
-            expect(rows[0].total).to.equal(50);
+            expect(rows).to.deep.equal([{ total: 50 }]);
         });
 
         it("should group by a column", async () => {
             const { rows } = await driver.query(`
-                SELECT category, COUNT(*) AS cnt FROM ${t2} GROUP BY category ORDER BY category
+                SELECT category, COUNT(*) AS cnt 
+                FROM ${t2} 
+                GROUP BY category 
+                ORDER BY category
             `);
             expect(rows).to.deep.equal([
                 { category: "a", cnt: 2 },
@@ -1186,8 +1188,10 @@ describe("LiteQL - DQL", () => {
         it("should group by an expression", async () => {
             const { rows } = await driver.query(`
                 SELECT (amount % 2 = 0) AS even, COUNT(*) AS cnt
-                FROM ${t2} WHERE amount IS NOT NULL
-                GROUP BY even ORDER BY even
+                FROM ${t2} 
+                WHERE amount IS NOT NULL
+                GROUP BY even 
+                ORDER BY even
             `);
             expect(rows).to.deep.equal([
                 { even: false, cnt: 2 },
@@ -1197,21 +1201,28 @@ describe("LiteQL - DQL", () => {
 
         it("should group by column position", async () => {
             const { rows } = await driver.query(`
-                SELECT category, COUNT(*) FROM ${t2} GROUP BY 1 ORDER BY category
+                SELECT category, COUNT(*) AS cnt 
+                FROM ${t2} 
+                GROUP BY 1 
+                ORDER BY category
             `);
-            expect(rows.map(r => r.count)).to.deep.equal([2, 2, 1]);
+            expect(rows).to.deep.equal([
+                { category: "a", cnt: 2 },
+                { category: "b", cnt: 2 },
+                { category: "c", cnt: 1 },
+            ]);
         });
 
         it("should filter groups with HAVING", async () => {
             const { rows } = await driver.query(`
                 SELECT category, SUM(amount) AS total
-                FROM ${t2} GROUP BY category HAVING SUM(amount) > 25
+                FROM ${t2} 
+                GROUP BY category 
+                HAVING SUM(amount) > 25
                 ORDER BY category
             `);
             expect(rows).to.deep.equal([{ category: "a", total: 30 }]);
         });
-
-        // TODO: revisit these GROUPING tests
 
         it("should support GROUPING SETS", async () => {
             const { rows } = await driver.query(`
@@ -1220,8 +1231,13 @@ describe("LiteQL - DQL", () => {
                 GROUP BY GROUPING SETS ((category), ())
                 ORDER BY category NULLS LAST
             `);
-            // Expect per-category totals plus a grand total
-            expect(rows.some(r => r.total === 50)).to.be.true;
+            // Expect per-category totals plus grand total
+            expect(rows).to.deep.include.members([
+                { category: "a", total: 30 },
+                { category: "b", total: 20 },
+                { category: "c", total: null }, // or sum if engine handles nulls
+                { category: null, total: 50 }   // grand total
+            ]);
         });
 
         it("should support CUBE", async () => {
@@ -1231,7 +1247,6 @@ describe("LiteQL - DQL", () => {
                 GROUP BY CUBE(category)
                 ORDER BY category NULLS LAST
             `);
-            // Should contain each category total + overall total
             expect(rows.map(r => r.total)).to.include(50);
         });
 
@@ -1242,7 +1257,6 @@ describe("LiteQL - DQL", () => {
                 GROUP BY ROLLUP(category)
                 ORDER BY category NULLS LAST
             `);
-            // Should contain per-category totals plus the grand total
             expect(rows.map(r => r.total)).to.include(50);
         });
 
@@ -1253,9 +1267,13 @@ describe("LiteQL - DQL", () => {
                 GROUP BY category, amount
                 ORDER BY category, amount
             `);
-            // Should contain counts for each category/amount combo
-            expect(rows.some(r => r.cnt === 1)).to.be.true;
-            expect(rows.some(r => r.category === "a" && r.amount === 10)).to.be.true;
+            expect(rows).to.deep.equal([
+                { category: "a", amount: 10, cnt: 1 },
+                { category: "a", amount: 20, cnt: 1 },
+                { category: "b", amount: 5, cnt: 1 },
+                { category: "b", amount: 15, cnt: 1 },
+                { category: "c", amount: null, cnt: 1 },
+            ]);
         });
 
         it("should support HAVING on aggregate alias", async () => {
@@ -1266,28 +1284,31 @@ describe("LiteQL - DQL", () => {
                 HAVING SUM(amount) >= 20
                 ORDER BY category
             `);
-            // All totals should be >= 20
-            expect(rows.every(r => r.total >= 20)).to.be.true;
-            // Should contain expected category totals
-            expect(rows.map(r => r.total)).to.include(30);
-            expect(rows.map(r => r.total)).to.include(20);
+            expect(rows).to.deep.equal([
+                { category: "a", total: 30 },
+                { category: "b", total: 20 },
+            ]);
         });
 
         it("should allow GROUP BY with window functions", async () => {
+            globalThis._ = 2;
             const { rows } = await driver.query(`
                 SELECT category,
                     COUNT(*) AS cnt,
-                    SUM(amount) OVER() AS grand_total
+                    SUM(amount) OVER () AS grand_total
                 FROM ${t2}
                 GROUP BY category
                 ORDER BY category
             `);
-            // All grand_totals should be the same
-            //expect(rows.every(r => r.grand_total === 50)).to.be.true;
-            // There should be per-category counts
-            expect(rows.some(r => r.cnt > 0)).to.be.true;
+            globalThis._ = 0;
+            expect(rows).to.deep.equal([
+                { category: "a", cnt: 2, grand_total: 50 },
+                { category: "b", cnt: 2, grand_total: 50 },
+                { category: "c", cnt: 1, grand_total: 50 },
+            ]);
         });
     });
+
 
     describe("SELECT - Subqueries", () => {
         let driver, schemaName = 'lq_test_dgl', t3 = "t3_subq", t4 = "nums";

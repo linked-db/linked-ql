@@ -2,6 +2,7 @@ import { _eq } from '../../lang/abstracts/util.js';
 import { registry } from '../../lang/registry.js';
 
 export const GROUPING_META = Symbol.for('grouping_meta');
+export const WINDOW_META = Symbol.for('window_meta');
 
 export class ExprEngine {
 
@@ -111,6 +112,14 @@ export class ExprEngine {
         return null;
     }
 
+    async CAST_EXPR(node, compositeRow, queryCtx = {}) {
+        return await this._CAST_EXPR(node.expr(), node.dataType(), compositeRow, queryCtx);
+    }
+
+    async PG_CAST_EXPR2(node, compositeRow, queryCtx = {}) {
+        return await this._CAST_EXPR(node.left(), node.right(), compositeRow, queryCtx);
+    }
+
     async _CAST_EXPR(expr, dataType, compositeRow, queryCtx = {}) {
         const L = await this.evaluate(expr, compositeRow, queryCtx);
         const DT = dataType.value();
@@ -121,14 +130,6 @@ export class ExprEngine {
             case 'BOOLEAN': return Boolean(L);
             default: return L;
         }
-    }
-
-    async CAST_EXPR(node, compositeRow, queryCtx = {}) {
-        return await this._CAST_EXPR(node.expr(), node.dataType(), compositeRow, queryCtx);
-    }
-
-    async PG_CAST_EXPR2(node, compositeRow, queryCtx = {}) {
-        return await this._CAST_EXPR(node.left(), node.right(), compositeRow, queryCtx);
     }
 
     async PREDICATE_EXPR(node, compositeRow, queryCtx = {}) {
@@ -240,48 +241,70 @@ export class ExprEngine {
     }
 
     async CALL_EXPR(node, compositeRow, queryCtx = {}) {
-        const name = node.name().toUpperCase();
+        const fn = node.name().toUpperCase();
 
-        // System functions
+        // SRFs
 
-        if (name === 'GROUPING') {
-            const args = expr.arguments();
-            if (args.length !== 1) throw new Error("GROUPING() takes exactly one argument");
-            const meta = row[GROUPING_META];
-            if (!meta) throw new Error("GROUPING() used outside of grouping context");
+        if (fn === 'UNNEST' || fn === 'GENERATE_SERIES') {
+            const args = await Promise.all(node.arguments().map((a) => this.evaluate(a, compositeRow, queryCtx)));
 
-            const idx = meta.exprIndex.get(args[0].stringify());
-            if (idx === undefined) {
-                throw new Error(`[${node}] argument ${args[0]} not found in GROUP BY clause`);
-            }
-            return (meta.groupingId & (1 << idx)) ? 1 : 0;
+            return (function* () {
+                if (fn === 'UNNEST') {
+                    for (let i = 0; i < args[0].length; i++) yield args.map((arr) => arr[i] ?? null);
+                }
+
+                if (fn === 'GENERATE_SERIES') {
+                    for (let x = args[0]; x <= args[1]; x += args[2] ?? 1) yield [x];
+                }
+            })();
         }
 
-        if (name === 'GROUPING_ID') {
-            // GROUPING_ID(expr [, expr ...]) or with no args
-            const args = expr.arguments();
-            const meta = row[GROUPING_META];
-            if (!meta) throw new Error("GROUPING_ID() used outside of grouping context");
+        // Meta functions
 
-            if (args.length === 0) {
+        if (fn === 'GROUPING' || fn === 'GROUPING_ID') {
+            const meta = compositeRow[GROUPING_META];
+            if (!meta) throw new Error(`${fn}() called outside of grouping pipeline`);
+
+            const args = node.arguments();
+
+            const getBit = (arg) => {
+                const bitIndex = meta.exprIndex.get(arg);
+                if (bitIndex !== undefined) return (meta.groupingId >> bitIndex) & 1;
+
+                if (!(arg instanceof registry.ColumnRef1)) {
+                    throw new Error(`${fn}() argument must be a grouping column reference`);
+                }
+                const alias = arg.qualifier()?.value() || '';
+                const colName = arg.value();
+                return meta.groupingColumnsMap.get(alias)?.has(colName) ? 0 : 1;
+            };
+
+            // Fast path for GROUPING_ID when args match all top-level grouping expressions
+            if (fn === 'GROUPING_ID' &&
+                args.length === meta.exprIndex.size &&
+                args.every((arg, i) => meta.exprIndex.has(arg) && meta.exprIndex.get(arg) === i)
+            ) {
                 return meta.groupingId;
             }
 
+            // Compute mask manually
             let mask = 0;
-            for (const arg of args) {
-                const idx = meta.exprIndex.get(arg.stringify());
-                if (idx === undefined) {
-                    throw new Error(`[${node}] argument ${arg} not found in GROUP BY clause`);
-                }
-                if (meta.groupingId & (1 << idx)) {
-                    mask |= (1 << idx);
-                }
+            for (let i = 0; i < args.length; i++) {
+                const bit = getBit(args[i]);
+                if (fn === 'GROUPING') return bit; // early return for single-bit GROUPING
+                mask = (mask << 1) | bit;
             }
+
             return mask;
         }
 
-        if (name === 'VALUES'/* MySQL */ && compositeRow.EXCLUDED && typeof compositeRow.EXCLUDED === 'object') {
-            const fieldName = node.arguments()[0].value();
+        if (fn === 'VALUES'/* MySQL */
+            && compositeRow.EXCLUDED
+            && typeof compositeRow.EXCLUDED === 'object') {
+
+            const args = node.arguments();
+            const fieldName = args[0].value();
+
             return compositeRow.EXCLUDED[fieldName];
         }
 
@@ -289,34 +312,22 @@ export class ExprEngine {
 
         const args = await Promise.all(node.arguments().map((a) => this.evaluate(a, compositeRow, queryCtx)));
 
-        // System functions (Cont.)
-
-        if (name === 'UNNEST') {
-            return (function* () {
-                for (let i = 0; i < args[0].length; i++) yield args.map((arr) => arr[i] ?? null);
-            })();
-        }
-
-        if (name === 'GENERATE_SERIES') {
-            return (function* () {
-                for (let x = args[0]; x <= args[1]; x += args[2] ?? 1) yield [x];
-            })();
-        }
-
-        // Classic, foreal
-
-        switch (name) {
-            // Classic functions
+        switch (fn) {
             case 'LOWER': return String(args[0] ?? '').toLowerCase();
+
             case 'UPPER': return String(args[0] ?? '').toUpperCase();
+
             case 'LENGTH': return args[0] == null ? null : String(args[0]).length;
+
             case 'ABS': return Math.abs(Number(args[0]));
+
             case 'COALESCE': return args.reduce((prev, cur) => prev !== null ? prev : cur, null);
+
             case 'NULLIF': return _eq(args[0], args[1]) ? null : args[0];
 
-            // JSON functions (Postgres & MySQL variants)
             case 'JSON_BUILD_ARRAY':
             case 'JSON_ARRAY': return args;
+
             case 'JSON_BUILD_OBJECT':
             case 'JSON_OBJECT': {
                 if (args.length % 2 !== 0) throw new Error('JSON_BUILD_OBJECT requires an even number of arguments');
@@ -332,32 +343,47 @@ export class ExprEngine {
     }
 
     async AGGR_CALL_EXPR(node, compositeRow, queryCtx = {}) {
+
+        let metaData;
+
+        if (node.overClause()) {
+            const meta = compositeRow[WINDOW_META];
+            if (!meta) throw new Error(`${node} called outside of window processing pipeline (1)`);
+            if (!node.winHash) throw new Error(`${node} called outside of window processing pipeline (2)`);
+            if (!meta[node.winHash]) throw new Error(`${node} called outside of window processing pipeline (3)`);
+            metaData = meta[node.winHash];
+        } else {
+            const meta = compositeRow[GROUPING_META];
+            if (!meta) throw new Error('GROUPING() called outside of grouping pipeline');
+            metaData = meta;
+        }
+
+        const { window, frameStart, frameEnd, offset = 0 } = metaData;
         const fn = node.name().toUpperCase();
         const args = node.arguments();
-
-        // ----------------------
-
-        const meta = compositeRow[GROUPING_META];
-        if (!meta) throw new Error('GROUPING() called outside of GROUP BY context');
-        const group = meta.group;
         const expr = args[0] || null;
 
         switch (fn) {
             case 'COUNT': {
-                if (!expr || expr instanceof registry.ColumnRef0) return group.length;
+                if (!expr || expr instanceof registry.ColumnRef0) {
+                    return frameEnd - frameStart + 1;
+                }
                 let cnt = 0;
-                for (const member of group) {
-                    const v = await this.evaluate(expr, member, queryCtx);
+                for (let j = frameStart; j <= frameEnd; j++) {
+                    const entry = window[j];
+                    const v = await this.evaluate(expr, entry, queryCtx);
                     if (v !== null && v !== undefined) cnt++;
                 }
                 return cnt;
             }
+
             case 'SUM':
             case 'AVG': {
                 if (!expr) return null;
                 let sum = 0, cnt = 0;
-                for (const member of group) {
-                    const v = await this.evaluate(expr, member, queryCtx);
+                for (let j = frameStart; j <= frameEnd; j++) {
+                    const entry = window[j];
+                    const v = await this.evaluate(expr, entry, queryCtx);
                     if (v !== null && !Number.isNaN(Number(v))) {
                         sum += Number(v);
                         cnt++;
@@ -366,12 +392,14 @@ export class ExprEngine {
                 if (fn === 'SUM') return cnt === 0 ? null : sum;
                 return cnt === 0 ? null : sum / cnt;
             }
+
             case 'MIN':
             case 'MAX': {
                 if (!expr) return null;
                 let result = null;
-                for (const member of group) {
-                    const v = await this.evaluate(expr, member, queryCtx);
+                for (let j = frameStart; j <= frameEnd; j++) {
+                    const entry = window[j];
+                    const v = await this.evaluate(expr, entry, queryCtx);
                     if (v == null) continue;
                     if (result == null) {
                         result = v;
@@ -382,91 +410,196 @@ export class ExprEngine {
                 }
                 return result;
             }
-            // JSON aggregation functions (Postgres & MySQL variants)
+
             case 'JSON_AGG':
             case 'JSON_ARRAYAGG': {
+
                 if (!expr) return [];
                 const arr = [];
-                for (const member of group) {
-                    arr.push(await this.evaluate(expr, member, queryCtx));
+
+                for (let j = frameStart; j <= frameEnd; j++) {
+                    const entry = window[j];
+                    arr.push(await this.evaluate(expr, entry, queryCtx));
                 }
                 return arr;
             }
+
             case 'JSON_OBJECT_AGG':
             case 'JSON_OBJECTAGG': {
-                // Postgres: JSON_OBJECT_AGG(key, value)
+
                 const keyExpr = args[0], valExpr = args[1];
                 if (!keyExpr || !valExpr) return {};
                 const obj = Object.create(null);
-                for (const member of group) {
-                    const k = await this.evaluate(keyExpr, member, queryCtx);
-                    const v = await this.evaluate(valExpr, member, queryCtx);
+
+                for (let j = frameStart; j <= frameEnd; j++) {
+                    const entry = window[j];
+                    const k = await this.evaluate(keyExpr, entry, queryCtx);
+                    const v = await this.evaluate(valExpr, entry, queryCtx);
                     obj[k] = v;
                 }
                 return obj;
             }
-        }
 
-        // ----------------------
+            case 'STRING_AGG': {
 
-        const rowIndex = group.indexOf(compositeRow);
-        if (rowIndex === -1) throw new Error(`ExprEngine: Row not found in group`);
+                const expr = args[0];
+                const delimiter = args[1] ? await this.evaluate(args[1], compositeRow, queryCtx) : ',';
+                const arr = [];
 
-        switch (fn) {
+                for (let j = frameStart; j <= frameEnd; j++) {
+                    const v = await this.evaluate(expr, window[j], queryCtx);
+                    if (v != null) arr.push(String(v));
+                }
+                return arr.join(delimiter);
+            }
+
+            case 'ARRAY_AGG': {
+                const expr = args[0];
+                const arr = [];
+                for (let j = frameStart; j <= frameEnd; j++) {
+                    arr.push(await this.evaluate(expr, window[j], queryCtx));
+                }
+                return arr;
+            }
+
+            case 'BIT_AND': {
+                const expr = args[0];
+                let result = ~0; // all bits set
+                for (let j = frameStart; j <= frameEnd; j++) {
+                    const v = await this.evaluate(expr, window[j], queryCtx);
+                    if (v != null) result &= Number(v);
+                }
+                return result;
+            }
+
+            case 'BIT_OR': {
+                const expr = args[0];
+                let result = 0;
+                for (let j = frameStart; j <= frameEnd; j++) {
+                    const v = await this.evaluate(expr, window[j], queryCtx);
+                    if (v != null) result |= Number(v);
+                }
+                return result;
+            }
+
+            case 'BOOL_AND': {
+                const expr = args[0];
+                for (let j = frameStart; j <= frameEnd; j++) {
+                    const v = await this.evaluate(expr, window[j], queryCtx);
+                    if (!v) return false;
+                }
+                return true;
+            }
+
+            case 'BOOL_OR': {
+                const expr = args[0];
+                for (let j = frameStart; j <= frameEnd; j++) {
+                    const v = await this.evaluate(expr, window[j], queryCtx);
+                    if (v) return true;
+                }
+                return false;
+            }
+
+            // -------- Window function proper
+
             case 'ROW_NUMBER':
-                return rowIndex + 1;
+                return offset + 1;
 
-            case 'RANK': {
-                const orderExpr = args[0];
-                if (!orderExpr) throw new Error(`RANK() requires an ORDER BY expression`);
-                const values = await Promise.all(group.map((r) => this.evaluate(orderExpr, r, queryCtx)));
-                const uniqueSorted = [...new Set(values)].sort((a, b) => a - b);
-                const currentVal = await this.evaluate(orderExpr, compositeRow, queryCtx);
-                return uniqueSorted.indexOf(currentVal) + 1;
+            case 'RANK':
+            case 'PERCENT_RANK': {
+                const myKeysHash = metaData.orderKeysHash;
+                let rank;
+                // find first peer group member
+                for (let i = 0; i <= offset; i++) {
+                    const otherKeysHash = window[i][WINDOW_META][node.winHash].orderKeysHash;
+                    if (myKeysHash === otherKeysHash) {
+                        rank = i + 1; // 1-based
+                        break;
+                    }
+                }
+                if (fn === 'RANK') return rank;
+                // PERCENT_RANK
+                const total = window.length;
+                return total === 1 ? 0 : (rank - 1) / (total - 1);
             }
 
             case 'DENSE_RANK': {
-                const orderExpr = args[0];
-                if (!orderExpr) throw new Error(`DENSE_RANK() requires an ORDER BY expression`);
-                const values = await Promise.all(group.map((r) => this.evaluate(orderExpr, r, queryCtx)));
-                const uniqueSorted = [...new Set(values)].sort((a, b) => a - b);
-                const currentVal = await this.evaluate(orderExpr, compositeRow, queryCtx);
-                return uniqueSorted.indexOf(currentVal) + 1;
+                const seen = new Set();
+                for (let i = 0; i <= offset; i++) {
+                    const otherKeysHash = window[i][WINDOW_META][node.winHash].orderKeysHash;
+                    if (!seen.has(otherKeysHash)) {
+                        seen.add(otherKeysHash);
+                    }
+                }
+                return seen.size;
             }
 
             case 'NTILE': {
-                const buckets = Number(await this.evaluate(args[0], compositeRow, queryCtx));
+                const buckets = Number(await this.evaluateToScalar(args[0], compositeRow, queryCtx));
                 if (!Number.isInteger(buckets) || buckets <= 0) {
-                    throw new Error(`NTILE(n) requires a positive integer`);
+                    throw new Error(`[${node}] NTILE(n) requires a positive integer`);
                 }
-                const size = Math.ceil(group.length / buckets);
-                return Math.floor(rowIndex / size) + 1;
+                const total = window.length;
+                const baseSize = Math.floor(total / buckets);
+                const remainder = total % buckets;
+                // bucket boundaries
+                let threshold = 0;
+                for (let b = 1; b <= buckets; b++) {
+                    const bucketSize = baseSize + (b <= remainder ? 1 : 0);
+                    if (offset < threshold + bucketSize) {
+                        return b;
+                    }
+                    threshold += bucketSize;
+                }
+            }
+
+            case 'CUME_DIST': {
+                const total = window.length;
+                const myKeysHash = metaData.orderKeysHash;
+                let lastIndex = offset;
+                for (let i = offset + 1; i < total; i++) {
+                    const otherKeysHash = window[i][WINDOW_META][node.winHash].orderKeysHash;
+                    if (otherKeysHash === myKeysHash) lastIndex = i;
+                    else break;
+                }
+                return (lastIndex + 1) / total;
             }
 
             case 'LAG': {
                 const expr = args[0];
-                const offset = Number(args[1]?.value || 1);
+                const lagBy = Number(await this.evaluate(args[1] ?? { value: 1 }, compositeRow, queryCtx));
                 const defaultValue = args[2] ? await this.evaluate(args[2], compositeRow, queryCtx) : null;
-                const target = group[rowIndex - offset];
-                return target ? await this.evaluate(expr, target, queryCtx) : defaultValue;
+                const targetIndex = offset - lagBy;
+                return targetIndex >= 0 ? await this.evaluate(expr, window[targetIndex], queryCtx) : defaultValue;
             }
 
             case 'LEAD': {
                 const expr = args[0];
-                const offset = Number(args[1]?.value() || 1);
+                const leadBy = Number(await this.evaluate(args[1] ?? { value: 1 }, compositeRow, queryCtx));
                 const defaultValue = args[2] ? await this.evaluate(args[2], compositeRow, queryCtx) : null;
-                const target = group[rowIndex + offset];
-                return target ? await this.evaluate(expr, target, queryCtx) : defaultValue;
+                const targetIndex = offset + leadBy;
+                return targetIndex < window.length ? await this.evaluate(expr, window[targetIndex], queryCtx) : defaultValue;
             }
 
             case 'FIRST_VALUE': {
                 const expr = args[0];
-                return await this.evaluate(expr, group[0], queryCtx);
+                return await this.evaluate(expr, window[frameStart], queryCtx);
             }
 
             case 'LAST_VALUE': {
                 const expr = args[0];
-                return await this.evaluate(expr, group[group.length - 1], queryCtx);
+                return await this.evaluate(expr, window[frameEnd], queryCtx);
+            }
+
+            case 'NTH_VALUE': {
+                const expr = args[0];
+                const n = Number(await this.evaluateToScalar(args[1], compositeRow, queryCtx));
+                if (!Number.isInteger(n) || n <= 0) {
+                    throw new Error(`[${node}] NTH_VALUE(n) requires a positive integer`);
+                }
+                const targetIndex = frameStart + (n - 1);
+                if (targetIndex > frameEnd) return null;
+                return await this.evaluate(expr, window[targetIndex], queryCtx);
             }
 
             default: throw new Error(`ExprEngine: Unsupported window function ${node.name()}`);
@@ -487,7 +620,7 @@ export class ExprEngine {
             const table = compositeRow[alias];
             if (colName in table) return table[colName];
         }
-        console.log('____________------', compositeRow);
+
         throw new Error(`Column ${colName} not found in the current context`);
     }
 
