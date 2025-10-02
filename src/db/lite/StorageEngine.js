@@ -204,6 +204,7 @@ export class StorageEngine extends SimpleEmitter {
         await tableStorage.set(key, stored);
         const keyColumns = (await this.tableKeyColumns(tableName, schemaName)).map((k) => k.name().value());
         this.emit('changefeed', { type: 'insert', relation: { schema: schemaName, name: tableName, keyColumns }, new: { ...stored }, txId });
+        if (txId) return Object.defineProperty({ ...stored }, 'XMAX', { value: 0 }); // Must be 0
         return stored;
     }
 
@@ -217,6 +218,7 @@ export class StorageEngine extends SimpleEmitter {
         const keyColumns = (await this.tableKeyColumns(tableName, schemaName)).map((k) => k.name().value());
         const _key = Object.fromEntries(keyColumns.map((k) => [k, old[k]]));
         this.emit('changefeed', { type: 'update', relation: { schema: schemaName, name: tableName, keyColumns }, key: _key, old, new: { ...stored }, txId });
+        if (txId) return Object.defineProperty({ ...stored }, 'XMAX', { value: txId });
         return stored;
     }
 
@@ -229,6 +231,7 @@ export class StorageEngine extends SimpleEmitter {
         const keyColumns = (await this.tableKeyColumns(tableName, schemaName)).map((k) => k.name().value());
         const _key = Object.fromEntries(keyColumns.map((k) => [k, old[k]]));
         this.emit('changefeed', { type: 'delete', relation: { schema: schemaName, name: tableName, keyColumns }, key: _key, old, txId });
+        if (txId) return Object.defineProperty({ ...old }, 'XMAX', { value: txId });
         return old;
     }
 

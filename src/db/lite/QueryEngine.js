@@ -25,9 +25,10 @@ export class QueryEngine extends SimpleEmitter {
                 // Always run afresh if correlated or if first time
                 if (derivedQuery.isCorrelated() || !(
                     result = queryCtx.cteRegistry?.get(queryString = derivedQuery.stringify()))) {
+                    const _queryCtx = { ...queryCtx, lateralCtx: { ...(queryCtx.lateralCtx || {}), ...compositeRow }, depth: queryCtx.depth + 1 };
                     result = await self.#evaluateSTMT(
                         derivedQuery.expr(),
-                        { ...queryCtx, lateralCtx: { ...(queryCtx.lateralCtx || {}), ...compositeRow } }
+                        _queryCtx
                     );
                     if (queryCtx.cteRegistry && queryString) {
                         // Cache now being not isCorrelated()
@@ -52,7 +53,7 @@ export class QueryEngine extends SimpleEmitter {
     async query(scriptNode, options = {}) {
         const events = [];
         const txId = `$tx${(0 | Math.random() * 9e6).toString(36)}`;
-        const queryCtx = { options, txId, lateralCtx: null, cteRegistry: new Map };
+        const queryCtx = { options, txId, lateralCtx: null, cteRegistry: new Map, depth: 0 };
         const eventsAbortLine = this.#storageEngine.on('changefeed', (event) => {
             if (event.txId !== txId) return;
             events.push(event);
@@ -224,10 +225,14 @@ export class QueryEngine extends SimpleEmitter {
             for (const rowConstructor of _.valuesClause) {
                 const record = { ...defaultRecord };
                 const defaultContext = { [tableAlias]: record };
-                for (const [i, valueExpr] of rowConstructor.entries().entries()) {
+                for (const [i, valExpr] of rowConstructor.entries().entries()) {
                     const colName = columnNames[i];
-                    const colValue = await this.#exprEngine.evaluate(valueExpr, defaultContext, queryCtx);
                     const colSchema = definedColumns[colName];
+                    if (valExpr instanceof registry.DefaultLiteral) {
+                        const defaultConstraint = colSchema.defaultConstraint();
+                        if (defaultConstraint) valExpr = defaultConstraint.expr();
+                    }
+                    const colValue = await this.#exprEngine.evaluate(valExpr, defaultContext, queryCtx);
                     this.#acquireValue(record, colSchema, colValue);
                 }
                 records.push(record);
@@ -236,13 +241,15 @@ export class QueryEngine extends SimpleEmitter {
         // ----------- b. select_clause | my_table_clause
         else if ((_.selectClause = stmtNode.selectClause())
             || (_.myTableClause = stmtNode.myTableClause())) {
+            const _queryCtx = { ...queryCtx, depth: queryCtx.depth + 1 };
             const stream = _.myTableClause
-                ? await this.#evaluateTABLE_STMT(_.myTableClause, queryCtx)
-                : await this.#evaluateSELECT_STMT(_.selectClause, queryCtx);
+                ? this.#evaluateTABLE_STMT(_.myTableClause, _queryCtx)
+                : this.#evaluateSELECT_STMT(_.selectClause, _queryCtx);
             for await (const _record of stream) {
                 const record = { ...defaultRecord };
-                for (const [colName, colValue] of Object.entries(_record)) {
-                    const colSchema = definedColumns[colName];
+                for (const [colIdx, colValue] of Object.values(_record).entries()) {
+                    const targetColName = columnNames[colIdx];
+                    const colSchema = definedColumns[targetColName];
                     this.#acquireValue(record, colSchema, colValue);
                 }
                 records.push(record);
@@ -255,7 +262,7 @@ export class QueryEngine extends SimpleEmitter {
         }
         // ----------- d. my_set_clause
         else if (_.mySetClause = stmtNode.mySetClause()) {
-            const renderedLogicalRecord = await this.#renderSetClause({ [tableAlias]: defaultRecord }, _.mySetClause, queryCtx);
+            const renderedLogicalRecord = await this.#renderSetClause({ [tableAlias]: defaultRecord }, _.mySetClause, null, queryCtx);
             records.push(renderedLogicalRecord[tableAlias]);
         }
 
@@ -276,7 +283,7 @@ export class QueryEngine extends SimpleEmitter {
                         && !await this.evaluateWhereClause(conflictHandlingClause.whereClause(), [{ [tableAlias]: e.existing }], queryCtx)) {
                         finalizedRecord = null;
                     } else {
-                        const newLogicalRecord = await this.#renderSetClause({ [tableAlias]: e.existing, EXCLUDED: record }, conflictHandlingClause, queryCtx);
+                        const newLogicalRecord = await this.#renderSetClause({ [tableAlias]: e.existing, EXCLUDED: record }, conflictHandlingClause, _.originSchemas, queryCtx);
                         finalizedRecord = await this.#storageEngine.update(tableName, newLogicalRecord[tableAlias], schemaName, queryCtx);
                     }
                 } else if (e instanceof ConflictError && conflictHandlingClause?.doNothingKW?.()) {
@@ -346,10 +353,10 @@ export class QueryEngine extends SimpleEmitter {
         const setClause = stmtNode.setClause();
         for await (const logicalRecord of stream) {
             // Exec update
-            const newLogicalRecord = await this.#renderSetClause(logicalRecord, setClause, queryCtx);
+            const newLogicalRecord = await this.#renderSetClause(logicalRecord, setClause, _.originSchemas, queryCtx);
             for (const [tableAlias, tableName, schemaName] of updateTargets) {
                 if (newLogicalRecord[tableAlias] === logicalRecord[tableAlias]) continue;
-                await this.#storageEngine.update(tableName, newLogicalRecord[tableAlias], schemaName, queryCtx);
+                newLogicalRecord[tableAlias] = await this.#storageEngine.update(tableName, newLogicalRecord[tableAlias], schemaName, queryCtx);
             }
             // Process RETURNING clause
             if (returningClause) {
@@ -411,9 +418,9 @@ export class QueryEngine extends SimpleEmitter {
         let rowCount = 0;
         const returnList = [];
         const returningClause = stmtNode.returningClause();
-        for await (const logicalRecord of stream) {
+        for await (let logicalRecord of stream) {
             for (const [tableAlias, tableName, schemaName] of deleteTargets) {
-                await this.#storageEngine.delete(tableName, logicalRecord[tableAlias], schemaName, queryCtx);
+                logicalRecord[tableAlias] = await this.#storageEngine.delete(tableName, logicalRecord[tableAlias], schemaName, queryCtx);
             }
             // Process RETURNING clause
             if (returningClause) {
@@ -431,9 +438,20 @@ export class QueryEngine extends SimpleEmitter {
         return (async function* () { yield* returnList; })();
     }
 
-    async #renderSetClause(logicalRecord, setClause, queryCtx) {
+    async #renderSetClause(logicalRecord, setClause, originSchemas, queryCtx) {
         const newLogicalRecord = { ...logicalRecord };
         const baseAlias = Object.keys(logicalRecord)[0];
+
+        const acquireValue = async (tableAlias, colName, valExpr) => {
+            if (valExpr instanceof registry.DefaultLiteral) {
+                const colSchema = originSchemas.find((os) => os.identifiesAs(tableAlias)).columns().find((col) => col.identifiesAs(colName));
+                const defaultConstraint = colSchema.defaultConstraint();
+                if (defaultConstraint) valExpr = defaultConstraint.expr();
+            }
+            const colValue = await this.#exprEngine.evaluate(valExpr, logicalRecord, queryCtx);
+            newLogicalRecord[tableAlias] = { ...newLogicalRecord[tableAlias], [colName]: colValue };
+        };
+
         for (const assignmentExpr of setClause) {
             const left = assignmentExpr.left();
             const right = assignmentExpr.right();
@@ -447,16 +465,15 @@ export class QueryEngine extends SimpleEmitter {
                     if (!correspondingRight) {
                         throw new Error(`Mismatched number of entries in SET clause: LHS has ${left.entries().length} but RHS has ${right.entries().length}`);
                     }
-                    const colValue = await this.#exprEngine.evaluate(correspondingRight, logicalRecord, queryCtx);
-                    newLogicalRecord[baseAlias] = { ...newLogicalRecord[baseAlias], [colName]: colValue };
+                    await acquireValue(baseAlias, colName, correspondingRight);
                 }
             } else {
                 const colName = left.value();
                 const qualif = left.qualifier?.()?.value() || baseAlias;
-                const colValue = await this.#exprEngine.evaluate(right, logicalRecord, queryCtx);
-                newLogicalRecord[qualif] = { ...newLogicalRecord[qualif], [colName]: colValue };
+                await acquireValue(qualif, colName, right);
             }
         }
+
         return newLogicalRecord;
     }
 
@@ -658,8 +675,8 @@ export class QueryEngine extends SimpleEmitter {
                     throw new Error(`Expected number of columns in ROW_CONSTRUCTOR to be ${expectedColWidth} but got ${actualColWidth}`);
                 }
                 const row = Object.create(null);
-                for (const [i, valueExpr] of rowConstructor.entries().entries()) {
-                    this.#acquireValue(row, originSchema.entries()[i], await this.#exprEngine.evaluate(valueExpr, queryCtx.lateralCtx, queryCtx));
+                for (const [i, valExpr] of rowConstructor.entries().entries()) {
+                    this.#acquireValue(row, originSchema.entries()[i], await this.#exprEngine.evaluate(valExpr, queryCtx.lateralCtx, queryCtx));
                 }
                 yield { [aliasName]: row };
             }
@@ -979,7 +996,7 @@ export class QueryEngine extends SimpleEmitter {
 
         // Yield representative rows
         for (const { window, mask, setIndex, keyVals, set } of groups.values()) {
-            const base = {};
+            const rep = {};
 
             // Build lightweight groupingColumnsMap: Map<alias, Set<colName>>
             const groupingColumnsMap = new Map();
@@ -1006,8 +1023,18 @@ export class QueryEngine extends SimpleEmitter {
                 for (const exprNode of atomic) exprToTopIndex.set(exprNode, j);
             }
 
+            // Column-level nulling
+            for (const alias of Object.keys(window[0])) {
+                const tableRow = { ...window[0][alias] };
+                for (const colName of Object.keys(tableRow)) {
+                    const isGrouped = groupingColumnsMap.get(alias)?.has(colName);
+                    if (!isGrouped) tableRow[colName] = null;
+                }
+                rep[alias] = tableRow;
+            }
+
             // Metadata
-            base[GROUPING_META] = {
+            rep[GROUPING_META] = {
                 window: window,
                 frameStart: 0,
                 frameEnd: window.length - 1,
@@ -1021,21 +1048,11 @@ export class QueryEngine extends SimpleEmitter {
 
             // Apply HAVING
             if (havingClause) {
-                const keep = await this.#exprEngine.evaluate(havingClause.expr(), base, queryCtx);
+                const keep = await this.#exprEngine.evaluate(havingClause.expr(), rep, queryCtx);
                 if (!keep) continue;
             }
 
-            // Column-level nulling
-            for (const alias of Object.keys(window[0])) {
-                const tableRow = structuredClone({ ...window[0][alias] });
-                for (const colName of Object.keys(tableRow)) {
-                    const isGrouped = groupingColumnsMap.get(alias)?.has(colName);
-                    if (!isGrouped) tableRow[colName] = null;
-                }
-                base[alias] = tableRow;
-            }
-
-            yield base;
+            yield rep;
         }
     }
 
@@ -1096,11 +1113,24 @@ export class QueryEngine extends SimpleEmitter {
             // Partition rows by PARTITION BY expression(s)
             const partitions = new Map(); // key -> rows[]
 
-            for (const row of rows) {
-                const keyVals = await Promise.all(effectiveSpec.partitionBy?.map((expr) => this.#exprEngine(expr, row, queryCtx)) ?? []);
+            const rowsAreReps = !!rows[0]?.[GROUPING_META];
+            const rowToRepMap = new WeakMap;
+            for (let row of rows) {
+                const originalRep = row;
+                let originalRow = row;
+                if (rowsAreReps) {
+                    // Rep rows may have nulled columns 
+                    // we fall back origianl rep row
+                    originalRow = { ...row[GROUPING_META].window[0] };
+                    rowToRepMap.set(originalRow, originalRep);
+                }
+                const keyVals = await Promise.all(effectiveSpec.partitionBy?.map((expr) => this.#exprEngine(expr, originalRow, queryCtx)) ?? []);
                 const key = JSON.stringify(keyVals);
-                if (!partitions.has(key)) partitions.set(key, []);
-                partitions.get(key).push(row);
+                if (!partitions.has(key)) {
+                    const window = [];
+                    partitions.set(key, window);
+                }
+                partitions.get(key).push(originalRow);
             }
 
             // Populate WINDOW_META for each row
@@ -1119,17 +1149,16 @@ export class QueryEngine extends SimpleEmitter {
                 const isDecorated = !!effectiveSpec.orderBy;
                 for (const entry of window) {
                     const { row, keys } = isDecorated ? entry : { row: entry, keys: [i] };
+                    const originalRep = rowsAreReps ? rowToRepMap.get(row) : row;
 
                     // Compute frame start/end for this row
-                    const { frameStart, frameEnd } = this.#computeFrameBounds(
-                        effectiveSpec,
-                        window,
-                        i,
-                        isDecorated
-                    );
+                    const {
+                        frameStart,
+                        frameEnd
+                    } = this.#computeFrameBounds(effectiveSpec, window, i, isDecorated);
 
-                    if (!row[WINDOW_META]) row[WINDOW_META] = {};
-                    row[WINDOW_META][winHash] = {
+                    if (!originalRep[WINDOW_META]) originalRep[WINDOW_META] = {};
+                    originalRep[WINDOW_META][winHash] = {
                         window: isDecorated ? window.map((d) => d.row) : window,
                         orderKeysHash: JSON.stringify(keys),
                         orderKeys: keys,
@@ -1321,9 +1350,12 @@ export class QueryEngine extends SimpleEmitter {
     async * evaluateSelectList(selectList, upstream, queryCtx) {
         for await (const comp of upstream) {
             const projected = Object.create(null);
+            let fieldIdx = 1;
             for (const selectItem of selectList) {
-                const { alias, value } = await this.#exprEngine.evaluate(selectItem, comp, queryCtx);
+                let { alias, value } = await this.#exprEngine.evaluate(selectItem, comp, queryCtx);
+                if (projected[alias] && queryCtx.depth) alias += fieldIdx;
                 projected[alias] = value;
+                fieldIdx++;
             }
             yield projected;
         }

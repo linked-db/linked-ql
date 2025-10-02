@@ -105,7 +105,7 @@ export class SelectItem extends ResultSchemaMixin(AbstractNode) {
             if (resultSchema instanceof registry.ColumnSchema) {
                 const tableSchema = resultSchema.parentNode;
                 resultSchema = resultSchema.clone({ renameTo: schemaIdent });
-                tableSchema._adoptNodes(resultSchema);
+                tableSchema?._adoptNodes(resultSchema);
             } else if (!(exprNode instanceof registry.LQDeepRef1)
                 && !(exprNode instanceof registry.ColumnRef0)) {
                 resultSchema = registry.ColumnSchema.fromJSON({

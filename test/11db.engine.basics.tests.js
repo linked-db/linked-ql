@@ -1291,7 +1291,6 @@ describe("LiteQL - DQL", () => {
         });
 
         it("should allow GROUP BY with window functions", async () => {
-            globalThis._ = 2;
             const { rows } = await driver.query(`
                 SELECT category,
                     COUNT(*) AS cnt,
@@ -1300,11 +1299,10 @@ describe("LiteQL - DQL", () => {
                 GROUP BY category
                 ORDER BY category
             `);
-            globalThis._ = 0;
             expect(rows).to.deep.equal([
-                { category: "a", cnt: 2, grand_total: 50 },
-                { category: "b", cnt: 2, grand_total: 50 },
-                { category: "c", cnt: 1, grand_total: 50 },
+                { category: "a", cnt: 2, grand_total: 15 },
+                { category: "b", cnt: 2, grand_total: 15 },
+                { category: "c", cnt: 1, grand_total: 15 },
             ]);
         });
     });
@@ -1474,5 +1472,362 @@ describe("LiteQL - CTEs", () => {
                 { cnt: 2 }
             ]);
         });
+    });
+});
+
+describe("INSERT - SELECT", () => {
+    let driver, schemaName = 'lq_test_dml_dgl', src = "src_tbl", dest = "dest_tbl";
+
+    before(async () => {
+        driver = await setupDriver(schemaName);
+        await driver.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+
+        await driver.query(`DROP TABLE IF EXISTS ${src}`);
+        await driver.query(`DROP TABLE IF EXISTS ${dest}`);
+
+        await driver.query(`CREATE TABLE ${src} (id INT, val TEXT)`);
+        await driver.query(`CREATE TABLE ${dest} (id INT, val TEXT)`);
+
+        await driver.query(`
+            INSERT INTO ${src} (id, val) 
+            VALUES (1, 'a'), (2, 'b'), (3, 'c')
+        `);
+    });
+
+    it("should insert all rows from a SELECT", async () => {
+        await driver.query(`
+            INSERT INTO ${dest} (id, val)
+            SELECT id, val FROM ${src}
+        `);
+
+        const { rows } = await driver.query(`SELECT * FROM ${dest} ORDER BY id`);
+        expect(rows).to.deep.eq([
+            { id: 1, val: "a" },
+            { id: 2, val: "b" },
+            { id: 3, val: "c" },
+        ]);
+    });
+
+    it("should insert with a filtered SELECT", async () => {
+        await driver.query(`DELETE FROM ${dest}`);
+        await driver.query(`
+            INSERT INTO ${dest} (id, val)
+            SELECT id, val FROM ${src} WHERE id > 1
+        `);
+
+        const { rows } = await driver.query(`SELECT * FROM ${dest} ORDER BY id`);
+        expect(rows).to.deep.eq([
+            { id: 2, val: "b" },
+            { id: 3, val: "c" },
+        ]);
+    });
+
+    it("should insert with computed columns", async () => {
+        await driver.query(`DELETE FROM ${dest}`);
+        await driver.query(`
+            INSERT INTO ${dest} (id, val)
+            SELECT id * 10, val || '_x' FROM ${src}
+        `);
+
+        const { rows } = await driver.query(`SELECT * FROM ${dest} ORDER BY id`);
+        expect(rows).to.deep.eq([
+            { id: 10, val: "a_x" },
+            { id: 20, val: "b_x" },
+            { id: 30, val: "c_x" },
+        ]);
+    });
+
+    it("should insert with aggregation in SELECT", async () => {
+        await driver.query(`DELETE FROM ${dest}`);
+        await driver.query(`
+            INSERT INTO ${dest} (id, val)
+            SELECT COUNT(*), 'total' FROM ${src}
+        `);
+
+        const { rows } = await driver.query(`SELECT * FROM ${dest}`);
+        expect(rows).to.deep.eq([
+            { id: 3, val: "total" },
+        ]);
+    });
+
+    it("should insert with a subquery in SELECT", async () => {
+        await driver.query(`DELETE FROM ${dest}`);
+        await driver.query(`
+            INSERT INTO ${dest} (id, val)
+            SELECT id, (SELECT MAX(id) FROM ${src})::text FROM ${src}
+        `);
+
+        const { rows } = await driver.query(`SELECT * FROM ${dest} ORDER BY id`);
+        expect(rows).to.deep.eq([
+            { id: 1, val: "3" },
+            { id: 2, val: "3" },
+            { id: 3, val: "3" },
+        ]);
+    });
+});
+
+describe("DML - RETURNING", () => {
+    let driver, schemaName = 'lq_test_dgl', tbl = "tbl_ret";
+
+    before(async () => {
+        driver = await setupDriver(schemaName);
+        await driver.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+
+        await driver.query(`DROP TABLE IF EXISTS ${tbl}`);
+        await driver.query(`CREATE TABLE ${tbl} (id INT PRIMARY KEY, val TEXT)`);
+
+        await driver.query(`
+            INSERT INTO ${tbl} (id, val) VALUES 
+            (1, 'a'), (2, 'b'), (3, 'c')
+        `);
+    });
+
+    it("should return inserted rows", async () => {
+        const { rows } = await driver.query(`
+            INSERT INTO ${tbl} (id, val)
+            VALUES (4, 'd'), (5, 'e')
+            RETURNING id, val
+        `);
+
+        expect(rows).to.deep.eq([
+            { id: 4, val: "d" },
+            { id: 5, val: "e" },
+        ]);
+    });
+
+    it("should return updated rows", async () => {
+        const { rows } = await driver.query(`
+            UPDATE ${tbl}
+            SET val = val || '_x'
+            WHERE id <= 2
+            RETURNING id, val
+        `);
+
+        expect(rows).to.deep.eq([
+            { id: 1, val: "a_x" },
+            { id: 2, val: "b_x" },
+        ]);
+    });
+
+    it("should return deleted rows", async () => {
+        const { rows } = await driver.query(`
+            DELETE FROM ${tbl}
+            WHERE id = 3
+            RETURNING id, val
+        `);
+
+        expect(rows).to.deep.eq([
+            { id: 3, val: "c" },
+        ]);
+    });
+
+    it("should allow expressions in RETURNING", async () => {
+        const { rows } = await driver.query(`
+            INSERT INTO ${tbl} (id, val)
+            VALUES (6, 'z')
+            RETURNING id * 10 AS id_times_10, upper(val) AS upper_val
+        `);
+
+        expect(rows).to.deep.eq([
+            { id_times_10: 60, upper_val: "Z" },
+        ]);
+    });
+
+    it("should return no rows when UPDATE matches nothing", async () => {
+        const { rows } = await driver.query(`
+            UPDATE ${tbl}
+            SET val = 'none'
+            WHERE id = 999
+            RETURNING id, val
+        `);
+
+        expect(rows).to.deep.eq([]); // nothing matched
+    });
+});
+
+describe("DML - RETURNING with CTEs and ROW_NUMBER", () => {
+    let driver, schemaName = 'lq_test_dgl', tbl = "tbl_ret";
+
+    before(async () => {
+        driver = await setupDriver(schemaName);
+        await driver.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+
+        await driver.query(`DROP TABLE IF EXISTS ${tbl}`);
+        await driver.query(`CREATE TABLE ${tbl} (id INT PRIMARY KEY, val TEXT)`);
+
+        await driver.query(`
+            INSERT INTO ${tbl} (id, val) VALUES 
+            (1, 'a'), (2, 'b'), (3, 'c')
+        `);
+    });
+
+    it("CTE with INSERT ... RETURNING + SELECT with ROW_NUMBER", async () => {
+        const { rows } = await driver.query(`
+            WITH inserted AS (
+                INSERT INTO ${tbl} (id, val)
+                VALUES (4, 'd'), (5, 'e')
+                RETURNING id, val
+            ), sel AS (
+                SELECT 
+                    id, val,
+                    ROW_NUMBER() OVER (ORDER BY id) AS rn
+                FROM inserted
+            )
+            SELECT * FROM sel
+        `);
+
+        expect(rows).to.deep.eq([
+            { id: 4, val: "d", rn: 1 },
+            { id: 5, val: "e", rn: 2 }
+        ]);
+    });
+
+    it("CTE with UPDATE ... RETURNING + SELECT with ROW_NUMBER", async () => {
+        const { rows } = await driver.query(`
+            WITH updated AS (
+                UPDATE ${tbl}
+                SET val = val || '_x'
+                WHERE id <= 2
+                RETURNING id, val
+            ), sel AS (
+                SELECT 
+                    id, val,
+                    ROW_NUMBER() OVER (ORDER BY val DESC) AS rn
+                FROM updated
+            )
+            SELECT * FROM sel
+        `);
+
+        expect(rows).to.deep.eq([
+            { id: 1, val: "a_x", rn: 2 },
+            { id: 2, val: "b_x", rn: 1 },
+        ]);
+    });
+
+    it("CTE with DELETE ... RETURNING + SELECT with ROW_NUMBER", async () => {
+        const { rows } = await driver.query(`
+            WITH deleted AS (
+                DELETE FROM ${tbl}
+                WHERE id = 3
+                RETURNING id, val
+            ), sel AS (
+                SELECT 
+                    id, val,
+                    ROW_NUMBER() OVER () AS rn
+                FROM deleted
+            )
+            SELECT * FROM sel
+        `);
+
+        expect(rows).to.deep.eq([
+            { id: 3, val: "c", rn: 1 }
+        ]);
+    });
+
+    it("CTE with expressions in RETURNING + SELECT with ROW_NUMBER", async () => {
+        const { rows } = await driver.query(`
+            WITH inserted AS (
+                INSERT INTO ${tbl} (id, val)
+                VALUES (6, 'z')
+                RETURNING id * 10 AS id_times_10, upper(val) AS upper_val
+            ), sel AS (
+                SELECT 
+                    id_times_10, upper_val,
+                    ROW_NUMBER() OVER (ORDER BY id_times_10 DESC) AS rn
+                FROM inserted
+            )
+            SELECT * FROM sel
+        `);
+
+        expect(rows).to.deep.eq([
+            { id_times_10: 60, upper_val: "Z", rn: 1 }
+        ]);
+    });
+
+    it("CTE with UPDATE matching nothing + SELECT with ROW_NUMBER", async () => {
+        const { rows } = await driver.query(`
+            WITH updated AS (
+                UPDATE ${tbl}
+                SET val = 'none'
+                WHERE id = 999
+                RETURNING id, val
+            ), sel AS (
+                SELECT 
+                    id, val,
+                    ROW_NUMBER() OVER () AS rn
+                FROM updated
+            )
+            SELECT * FROM sel
+        `);
+
+        expect(rows).to.deep.eq([]); // nothing matched
+    });
+});
+describe("ROW_NUMBER ordering", () => {
+    let driver, schemaName = 'lq_test_rownum';
+
+    before(async () => {
+        driver = await setupDriver(schemaName);
+        await driver.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+    });
+
+    it("should order rows by val DESC for ROW_NUMBER", async () => {
+        const { rows } = await driver.query(`
+            WITH data AS (
+                SELECT id, val
+                FROM (VALUES
+                    (1, 'apple'),
+                    (2, 'banana'),
+                    (3, 'cherry')
+                ) AS t(id, val)
+            ), numbered AS (
+                SELECT
+                    id,
+                    val,
+                    ROW_NUMBER() OVER (ORDER BY val DESC) AS rn
+                FROM data
+            )
+            SELECT id, val, rn
+            FROM numbered
+            ORDER BY rn;
+        `);
+
+        expect(rows).to.deep.eq([
+            { id: 3, val: "cherry", rn: 1 },
+            { id: 2, val: "banana", rn: 2 },
+            { id: 1, val: "apple", rn: 3 }
+        ]);
+    });
+
+    it("should order rows by val DESC with tie-breaker stability", async () => {
+        const { rows } = await driver.query(`
+            WITH data AS (
+                SELECT id, val
+                FROM (VALUES
+                    (1, 'apple'),
+                    (2, 'apple'),
+                    (3, 'banana'),
+                    (4, 'banana'),
+                    (5, 'cherry')
+                ) AS t(id, val)
+            ), numbered AS (
+                SELECT
+                    id,
+                    val,
+                    ROW_NUMBER() OVER (ORDER BY val DESC, id ASC) AS rn
+                FROM data
+            )
+            SELECT id, val, rn
+            FROM numbered
+            ORDER BY rn;
+        `);
+
+        expect(rows).to.deep.eq([
+            { id: 5, val: "cherry", rn: 1 },
+            { id: 3, val: "banana", rn: 2 },
+            { id: 4, val: "banana", rn: 3 },
+            { id: 1, val: "apple", rn: 4 },
+            { id: 2, val: "apple", rn: 5 }
+        ]);
     });
 });

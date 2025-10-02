@@ -121,7 +121,7 @@ export class ExprEngine {
     }
 
     async _CAST_EXPR(expr, dataType, compositeRow, queryCtx = {}) {
-        const L = await this.evaluate(expr, compositeRow, queryCtx);
+        const L = await this.evaluateToScalar(expr, compositeRow, queryCtx);
         const DT = dataType.value();
         switch (DT) {
             case 'INT': return parseInt(L);
@@ -624,6 +624,7 @@ export class ExprEngine {
         throw new Error(`Column ${colName} not found in the current context`);
     }
 
+    async DEFAULT_LITERAL(node) { return null; }
     async STRING_LITERAL(node) { return node.value(); }
     async NUMBER_LITERAL(node) { return Number(node.value()); }
     async BOOL_LITERAL(node) { return Boolean(node.value()); }
