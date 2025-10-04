@@ -24,8 +24,11 @@
   "sideEffects": true,
   "main": "./src/index.js",
   "exports": {
-    ".": "./src/index.js",
-    "./sql": "./src/api/sql/SQLClient.js"
+    ".": "./src/db/flash/FlashClient.js",
+    "./flash": "./src/db/flash/FlashClient.js",
+    "./realtime": "./src/db/realtime/RealtimeClient.js",
+    "./mysql": "./src/db/classic/mysql/MySQLClient.js",
+    "./pg": "./src/db/classic/pg/PGClient.js"
   },
   "bin": {
     "linkedql": "src/cli/index.js"

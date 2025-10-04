@@ -1,23 +1,20 @@
-import { AbstractDriver } from '../abstracts/AbstractDriver.js';
 import { normalizeQueryArgs, splitLogicalExpr } from '../abstracts/util.js';
+import { AbstractClient } from '../abstracts/AbstractClient.js';
 import { registry } from '../../lang/registry.js';
 import { RealtimeResult } from './RealtimeResult.js';
 import { QueryWindow } from './QueryWindow.js';
 
-export class RealtimeDriver extends AbstractDriver {
+export class RealtimeClient {
 
     #windows = new Set;
-    #dbDriver;
+    #driver;
 
-    constructor(dbDriver) {
+    constructor(driver) {
         super();
-        if (!(dbDriver instanceof AbstractDriver)) {
-            throw new TypeError('driver must be an instance of AbstractDriver');
+        if (!(driver instanceof AbstractClient)) {
+            throw new TypeError('driver must be an instance of AbstractClient');
         }
-        if (dbDriver instanceof RealtimeDriver) {
-            throw new Error(`driver cannot be an instance of RealtimeDriver`);
-        }
-        this.#dbDriver = dbDriver;
+        this.#driver = driver;
     }
 
     async query(...args) {
@@ -55,7 +52,7 @@ export class RealtimeDriver extends AbstractDriver {
                     // Exact filters match and exact projection match
                     return window;
                 }
-                const newWindow = new QueryWindow(this.#dbDriver, query, [..._filters]);
+                const newWindow = new QueryWindow(this.#driver, query, [..._filters]);
                 newWindow.inherit(window);
                 return newWindow;
             }
@@ -63,7 +60,7 @@ export class RealtimeDriver extends AbstractDriver {
         }
         // 2. Create afresh since no parent window
         const options = {};
-        const newWindow = new QueryWindow(this.#dbDriver, query, filterArray, options);
+        const newWindow = new QueryWindow(this.#driver, query, filterArray, options);
         // 3. Find a bind a child window...
         for (const window of windowsByShortestFilters) {
             if (_filters = newWindow.matchFilters(window.filters)) {

@@ -1,4 +1,4 @@
-import { AbstractDriver } from '../abstracts/AbstractDriver.js';
+import { AbstractClient } from '../abstracts/AbstractClient.js';
 import { SchemaSchema } from '../../lang/ddl/schema/SchemaSchema.js';
 import { TableSchema } from '../../lang/ddl/index.js';
 import { matchSchemaSelector, normalizeQueryArgs, normalizeSchemaSelectorArg } from '../abstracts/util.js';
@@ -6,7 +6,7 @@ import { StorageEngine } from './StorageEngine.js';
 import { QueryEngine } from './QueryEngine.js';
 import { Result } from '../Result.js';
 
-export class LiteQL extends AbstractDriver {
+export class FlashClient extends AbstractClient {
 
     #dialect;
     #enableLive;

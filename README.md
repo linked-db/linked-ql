@@ -267,9 +267,9 @@ await client.query(
 |:-----------------------|:--------------|:-------------------------|
 | Core Parser/Compiler   | 🟩🟩🟩🟩 `100%` | Done 🏆                  |
 | Core Transform Engine  | 🟩🟩🟩🟩 `100%` | Done 🏆                  |
-| InMemory DB Engine     | 🟩🟩🟩⬜ `80%`  | Stable but expanding     |
-| DB Drivers (PG/MySQL)  | 🟩🟩🟩🟨 `90%`  | MySQL catching up        |
-| Realtime Engine        | 🟩🟩🟩⬜ `85%`  | Core live queries working|
+| InMemory DB Engine     | 🟩🟩🟩🟩 `99%`  | Stable but expanding     |
+| DB Drivers (PG/MySQL)  | 🟩🟩🟩🟩 `97%`  | MySQL catching up        |
+| Realtime Engine        | 🟩🟩🟩🟨 `95%`  | Core live queries working|
 | Version Binding        | 🟩⬜⬜⬜ `20%`  | Early prototype          |
 | Auto-Versioning Engine | 🟩⬜⬜⬜ `10%`  | Deferring to v0.3.*      |
 | Migration Wizard       | 🟩⬜⬜⬜ `10%`  | Deferring to v0.3.*      |

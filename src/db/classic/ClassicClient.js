@@ -1,158 +1,16 @@
-import pg from 'pg';
-import { LogicalReplicationService, PgoutputPlugin } from 'pg-logical-replication';
-import { Expr, Identifier, StringLiteral } from '../../lang/expr/index.js';
+import { normalizeSchemaSelectorArg, parseSchemaSelectors } from '../abstracts/util.js';
 import { ReferentialAction, SchemaSchema, TableSchema } from '../../lang/ddl/index.js';
-import { normalizeQueryArgs, normalizeSchemaSelectorArg, parseSchemaSelectors } from '../abstracts/util.js';
-import { AbstractDriver } from '../abstracts/AbstractDriver.js';
-import { Result } from '../../Result.js';
+import { Expr, Identifier, StringLiteral } from '../../lang/expr/index.js';
+import { AbstractClient } from '../abstracts/AbstractClient.js';
+import { Result } from '../Result.js';
 
-export class PGDriver extends AbstractDriver {
-
-    #connectionParams;
-    #enableLive;
-    #walSlot;
-    #walPublications;
-
-    #nativeClient;
-    #walClient;
-
-    get dialect() { return 'postgres'; }
-    get enableLive() { return this.#enableLive; }
-
-    get walSlot() { return this.#walSlot; }
-    get walPublications() { return this.#walPublications; }
-
-    constructor({
-        enableLive = false,
-        walSlot = 'linkedql_default_slot',
-        walPublications = 'linkedql_default_publication',
-        ...connectionParams
-    } = {}) {
-        super();
-        this.#connectionParams = connectionParams;
-        this.#enableLive = enableLive;
-
-        this.#walSlot = walSlot;
-        this.#walPublications = [].concat(walPublications);
-
-        // Setup clients
-        this.#nativeClient = new pg.Pool(this.#connectionParams);
-        this.#nativeClient.on('error', (err) => {
-            this.emit('error', new Error(`Native Client error: ${err}`));
-        });
-
-        if (this.#enableLive) {
-            if (!this.#walSlot) throw new Error(`Unable to start realtime; options.walSlot cannot be empty.`);
-            if (!this.#walPublications.length) throw new Error(`Unable to start realtime; options.walPublications cannot be empty.`);
-            this.#walClient = new LogicalReplicationService(this.#connectionParams);
-
-            this.#walClient.on('error', (err) => {
-                this.emit('error', new Error(`WAL Client error: ${err}`));
-            });
-
-            // Handle "data" messages
-            let currentXid;
-            const walTransactions = new Map;
-            const walRelations = new Map;;
-
-            // Listen to changes
-            this.#walClient.on('data', (lsn, msg) => {
-                switch (msg.tag) {
-
-                    case 'begin':
-                        currentXid = msg.xid;
-                        walTransactions.set(currentXid, []);
-                        break;
-
-                    case 'relation':
-                        walRelations.set(msg.relationOid, {
-                            schema: msg.schema,
-                            name: msg.name,
-                            keyColumns: msg.keyColumns,
-                        });
-                        break;
-
-                    case 'insert':
-                    case 'update':
-                    case 'delete': {
-                        const rel = walRelations.get(msg.relation.relationOid) || {
-                            schema: msg.relation.schema,
-                            name: msg.relation.name,
-                            keyColumns: msg.relation.keyColumns,
-                        };
-                        const evt = {
-                            type: msg.tag,
-                            relation: rel
-                        };
-                        if (msg.tag === 'insert') {
-                            evt.new = msg.new;
-                        } else if (msg.tag === 'update') {
-                            evt.key = msg.key || Object.fromEntries(rel.keyColumns.map((k) => [k, msg.old?.[k] || msg.new?.[k]]));
-                            evt.new = msg.new;
-                            evt.old = msg.old; // If REPLICA IDENTITY FULL
-                        } else if (msg.tag === 'delete') {
-                            evt.key = msg.key || Object.fromEntries(rel.keyColumns.map((k) => [k, msg.old[k]]));
-                            evt.old = msg.old; // If REPLICA IDENTITY FULL
-                        }
-                        walTransactions.get(currentXid)?.push(evt);
-                        break;
-                    }
-
-                    case 'commit': {
-                        const events = walTransactions.get(currentXid);
-                        if (events?.length) this._fanout(events);
-                        walTransactions.delete(currentXid);
-                        currentXid = null;
-                        break;
-                    }
-
-                    default:
-                        break; // ignore other tags like 'type'
-                }
-            });
-        }
-    }
-
-    // ---------Lifecycle
-
-    async connect() {
-        await this.#nativeClient.connect();
-        if (!this.#walClient) return;
-
-        const sql1 = `SELECT slot_name FROM pg_replication_slots WHERE slot_name = '${this.#walSlot}'`;
-        const result1 = await this.#nativeClient.query(sql1);
-        if (!result1.rows.length) {
-            const sql = `SELECT * FROM pg_create_logical_replication_slot('${this.#walSlot}', 'pgoutput')`;
-            await this.#nativeClient.query(sql);
-        }
-        const sql2 = `SELECT pubname FROM pg_publication WHERE pubname IN ('${this.#walPublications.join("', '")}')`;
-        const result2 = await this.#nativeClient.query(sql2);
-        await Promise.all(this.#walPublications.map(async (pub) => {
-            if (!result2.rows.find((r) => r.pubname === pub)) {
-                const sql = `CREATE PUBLICATION ${pub} FOR ALL TABLES`;
-                await this.#nativeClient.query(sql);
-            }
-        }));
-
-        // Subscribe...
-        const walPlugin = new PgoutputPlugin({ publicationNames: this.#walPublications, protoVersion: 2 });
-        const sub = this.#walClient.subscribe(walPlugin, this.#walSlot);
-        //await sub; // awaits forever
-        await new Promise((r) => setTimeout(r, 5));
-    }
-
-    async disconnect() {
-        const end = this.#nativeClient.end();
-        //await end; // awaits forever
-        await this.#walClient?.stop();
-        await new Promise((r) => setTimeout(r, 5));
-    }
+export class ClassicClient extends AbstractClient {
 
     // ---------Query
 
     async query(...args) {
         const [query, options] = await this._normalizeQueryArgs(...args);
-        const result = await this.#nativeClient.query(query + '', options.values);
+        const result = await this.driver.query(query + '', options.values);
         return new Result({ rows: result.rows, rowCount: result.rowCount });
     }
 
@@ -161,7 +19,7 @@ export class PGDriver extends AbstractDriver {
     async showCreate(selector, schemaWrapped = false) {
         selector = normalizeSchemaSelectorArg(selector);
         const sql = this._composeShowCreateSQL(selector);
-        const result = await this.#nativeClient.query(sql);
+        const result = await this.driver.query(sql);
         return await this._formatShowCreateResult(result.rows || result, schemaWrapped);
     }
 
