@@ -1398,47 +1398,7 @@ export class QueryEngine extends SimpleEmitter {
             return { row, keys };
         }));
         // Sort synchronously
-        decorated.sort((a, b) => {
-            for (let i = 0; i < orderElements.length; i++) {
-                const idDesc = orderElements[i].dir() === 'DESC';
-                const dir = idDesc ? -1 : 1;
-                const nullsSpec = orderElements[i].nullsSpec()
-                    || (queryCtx.options.dialect === 'mysql' ? (idDesc ? 'LAST' : 'FIRST') : (idDesc ? 'FIRST' : 'LAST'));
-
-                const valA = a.keys[i];
-                const valB = b.keys[i];
-                const aIsNull = valA === null; // Explicit NULL check
-                const bIsNull = valB === null;
-
-                // 1. Handle NULL vs. NULL (Always equal)
-                if (aIsNull && bIsNull) continue; // Move to next order element
-
-                // 2. Handle NULL vs. Non-NULL
-                if (aIsNull || bIsNull) {
-                    // Determine the NULLs order required by the SQL dialect/spec
-                    // If NULLS FIRST:
-                    //   - A is NULL, B is NOT: A comes first (return -1)
-                    //   - B is NULL, A is NOT: B comes first (return 1)
-                    if (nullsSpec === 'FIRST') {
-                        if (aIsNull) return -1; // A comes first
-                        if (bIsNull) return 1;  // A comes after B
-                    }
-                    // If NULLS LAST:
-                    //   - A is NULL, B is NOT: A comes last (return 1)
-                    //   - B is NULL, A is NOT: B comes last (return -1)
-                    else { // NULLS LAST
-                        if (aIsNull) return 1;  // A comes after B
-                        if (bIsNull) return -1; // A comes before B
-                    }
-                }
-
-                // 3. Handle Non-NULL vs. Non-NULL (Original logic)
-                // Ensure comparison is safe for potentially non-numeric/string values if needed
-                if (valA < valB) return -dir;
-                if (valA > valB) return dir;
-            }
-            return 0;
-        });
+        this.#exprEngine.applySorting(decorated, orderElements, queryCtx);
         // Extract rows back
         for (const d of decorated) {
             if (withKeys) yield d;

@@ -6,22 +6,122 @@ import { _eq } from "../../lang/abstracts/util.js";
 
 export class QueryWindow extends SimpleEmitter {
 
+    static analyseQuery(query) {
+
+        const analysis = {
+            hasSubqueryExprsInSelect: 0,
+            hasSubqueryExprsInWhere: 0,
+            hasSubqueryExprsInOrderBy: 0,
+            hasSubqueryExprs: 0,
+            hasWindowFunctions: false,
+            hasAggrFunctions: false,
+            hasGroupByClause: false,
+            hasOrderByClause: false,
+            hasOffsetClause: false,
+            hasLimitClause: false,
+            fromItemsBySchema: {},
+            fromItemsByAlias: {},
+            isSingleTable: false,
+        };
+
+        query.walkTree((n) => {
+            // Aggregate expressions?
+            if (n instanceof registry.AggrCallExpr) {
+                if (n.overClause()) {
+                    analysis.hasWindowFunctions = true;
+                } else analysis.hasAggrFunctions = true;
+            }
+            // Subquery/derived query expresions?
+            else if (n instanceof registry.DerivedQuery) {
+                const relationHashes = new Set;
+                grepFromItems(n.expr(), analysis.fromItemsBySchema, relationHashes);
+                const resulutionLevel = relationHashes.size || !(n.expr() instanceof registry.SelectStmt)
+                    ? 2 : (n.isCorrelated() ? 1 : 0);
+                if (resulutionLevel === 0) return;
+                // Publish
+                if (analysis.hasSubqueryExprs < resulutionLevel) {
+                    analysis.hasSubqueryExprs = resulutionLevel;
+                }
+                if (analysis.hasSubqueryExprsInSelect < resulutionLevel
+                    && query.selectList().containsNode(n)) {
+                    analysis.hasSubqueryExprsInSelect = resulutionLevel;
+                } else if (analysis.hasSubqueryExprsInWhere < resulutionLevel
+                    && query.whereClause()?.containsNode(n)) {
+                    analysis.hasSubqueryExprsInWhere = resulutionLevel;
+                } else if (analysis.hasSubqueryExprsInOrderBy < resulutionLevel
+                    && query.orderByClause()?.containsNode(n)) {
+                    analysis.hasSubqueryExprsInOrderBy = resulutionLevel;
+                }
+            }
+            // Enter FromItem:
+            else if (n instanceof registry.FromItem) {
+                // Aliases are expected
+                //  - except for a FROM (subquery) scenario, where it's optional
+                const alias = n.alias()?.value() || '';
+                if (n.expr() instanceof registry.DerivedQuery) {
+                    const relationHashes = new Set;
+                    grepFromItems(n.expr().expr(), analysis.fromItemsBySchema, relationHashes);
+                    analysis.fromItemsByAlias[alias] = relationHashes;
+                } else if (n.expr() instanceof registry.TableRef1
+                    && n.expr().resolution() === 'default') {
+                    const relationHashes = new Set;
+                    acquireTableRef(n.expr(), analysis.fromItemsBySchema, relationHashes);
+                    analysis.fromItemsByAlias[alias] = relationHashes;
+                } else {
+                    analysis.fromItemsByAlias[alias] = new Set;
+                }
+            } else return n;
+        });
+
+        function grepFromItems(query, fromItemsBySchema, relationHashes = null) {
+            query.walkTree((n) => {
+                if (n instanceof registry.FromItem
+                    && n.expr() instanceof registry.TableRef1
+                    && n.expr().resolution() === 'default') {
+                    acquireTableRef(n.expr(), fromItemsBySchema, relationHashes);
+                } else return n;
+            });
+        }
+
+        function acquireTableRef(tableRef, fromItemsBySchema, relationHashes = null) {
+            const tableName = tableRef.value();
+            const schemaName = tableRef.qualifier().value(); // Both name and qualifier are expected
+            fromItemsBySchema[schemaName] = [].concat(fromItemsBySchema[schemaName] || []).concat(tableName);
+            if (relationHashes) relationHashes.add(JSON.stringify([schemaName, tableName]));
+        }
+
+        if (query.groupByClause()) analysis.hasGroupByClause = true;
+        if (query.orderByClause()) analysis.hasOrderByClause = true;
+        if (query.offsetClause()) analysis.hasOffsetClause = true;
+        if (query.limitClause()) analysis.hasLimitClause = true;
+
+        analysis.isSingleTable = !query.joinClauses()?.length
+            && !(analysis.hasAggrFunctions || analysis.hasGroupByClause)
+            && !analysis.hasWindowFunctions
+            && analysis.hasSubqueryExprs !== 2
+            && ((fromItems) => fromItems.length === 1 && !(fromItems[0].expr() instanceof registry.DerivedQuery))(query.fromClause()?.entries());
+
+        return analysis;
+    }
+
+    // -----------------
+
     #driver;
     #options;
 
+    #exprEngine;
+    #queryCtx;
+
     #query;
     #queryJson;
-    #filters = [];
-
-    #parentWindow;
-    #generatorDisconnect;
-    #exprEngine;
-
-    #logicalQuery;
-    #logicalQueryJson;
 
     #analysis;
-    #strategy = { ssr: false, diffing: false };
+    #strategy = {
+        ssr: false,
+        requeryMode: 'selective',
+        requeryWrappedSelectivity: false,
+        diffing: 'key',
+    };
     #subwindowingRules = {
         projection: '~',
         whereClause: '>=',
@@ -31,25 +131,38 @@ export class QueryWindow extends SimpleEmitter {
         limitClause: '<=',
     };
 
+    #logicalQuery;
+    #logicalQueryJson;
+
     #aliases = [];
     #originSchemasLite = new Map;
+
+    #effectiveLimit = 0;
+
+    #parentWindow;
+    #generatorDisconnect;
+    #inheritanceDepth = 0;
+    #subwindowWheres = [];
+    #subwindowOffset = 0;
 
     #localRecords = new Map;
     #firstRun = false;
 
     get driver() { return this.#driver; }
-    get parentWindow() { return this.#parentWindow; }
-    get filters() { return this.#filters; }
 
     get analysis() { return this.#analysis; }
     get strategy() { return this.#strategy; }
     get subwindowingRules() { return this.#subwindowingRules; }
 
-    constructor(driver, query, analysis = null, options = {}) {
+    get parentWindow() { return this.#parentWindow; }
+    get inheritanceDepth() { return this.#inheritanceDepth; }
+    get subwindowWheres() { return this.#subwindowWheres; }
+    get subwindowOffset() { return this.#subwindowOffset; }
+
+    constructor(driver, query, { analysis = null, subwindowWheres = [], subwindowOffset = 0, ...options } = {}) {
         super();
         this.#driver = driver;
         this.#options = options;
-        this.#exprEngine = new ExprEngine(this.#options);
 
         if (!(query instanceof registry.BasicSelectStmt)) {
             throw new Error('Only SELECT statements are supported in live mode');
@@ -63,67 +176,107 @@ export class QueryWindow extends SimpleEmitter {
         // ------------------ Derive strategy
 
         this.#analysis = analysis || this.constructor.analyseQuery(query);
+
         if (this.#analysis.hasAggrFunctions || this.#analysis.hasGroupByClause) {
-            // has aggr functions; [SSR] | [possible diffing]
-            // ... if configured: "wholistic" re-query -> diffing -> selective re-rendering (with aggregated ids as keys)
-            // ... if not: "wholistic" re-query -> wholistic re-rendering; no diffing as it gets impractical to compute keys
-            // SELECT: { ssr[, key[, ord]] }
-            this.#strategy.ssr = true;
-            this.#strategy.diffing = this.#options.forceDiffing
-                ? 2 // key + content
-                : 0; // no diffing
-        } else if (this.#analysis.hasWindowFunctions) {
-            // has window functions (but no aggr functions): [SSR] | [diffing]
-            // ... "wholistic" re-query -> diffing -> selective re-rendering
-            // SELECT: { ssr[, key, ordinality] }
-            this.#strategy.ssr = true;
-            this.#strategy.diffing = 2; // key + content
-        } else if (this.#analysis.hasSubqueryExprs) {
-            // has Subquery expressions? [SSR] | [diffing]
-            // ... on leaf event: "wholistic" re-query -> diffing [+on affected fields] -> wholistic re-rendering
-            // ... on From item event: from item's terms; e.g. diffing
-            // SELECT: { ssr, key[, ord] }
-            this.#strategy.ssr = true;
-            this.#strategy.diffing = this.#analysis.hasSubqueryExprsInSelect
-                ? 3 // key + content
-                : 2; // key only
+            // Can't be computed client-side due to windowing
+            this.#strategy.ssr = true; // SELECT: { ssr[, key[, ord]] }
+            // Result records not mappable via keys to database records
+            this.#strategy.requeryMode = 'wholistic';
+            if (this.#options.forceDiffing) {
+                this.#strategy.diffing = 'deep'; // key + content
+            } else {
+                this.#strategy.diffing = false; // no diffing
+            }
+        }
+
+        if (this.#analysis.hasWindowFunctions) {
+            // Can't be computed client-side due to windowing
+            this.#strategy.ssr = true; // SELECT: { ssr[, key[, ord]] }
+            if (this.#strategy.requeryMode === 'selective') {
+                // Wrapped; to happen only after windowing
+                this.#strategy.requeryWrappedSelectivity = true;
+            }
+            if (this.#strategy.diffing !== false) {
+                // if not already disabled by aggr functions
+                this.#strategy.diffing = 'deep'; // key + content
+            }
+        }
+
+        if (this.#analysis.hasSubqueryExprsInSelect
+            || this.#analysis.hasSubqueryExprsInOrderBy) {
+            // Can't be computed client-side
+            this.#strategy.ssr = true; // SELECT: { ssr[, key[, ord]] }
+            if (this.#strategy.diffing !== false
+                && this.#analysis.hasSubqueryExprsInSelect) {
+                // if not already disabled by aggr functions
+                this.#strategy.diffing = 'deep'; // key + content
+            }
+        }
+
+        if (this.#analysis.hasOffsetClause
+            || (this.#analysis.hasLimitClause && this.#analysis.hasOrderByClause)) {
+            // Can't be computed client-side due to windowing
+            if (this.#strategy.requeryMode === 'selective') {
+                // Wrapped; to happen only after windowing
+                this.#strategy.requeryWrappedSelectivity = true;
+            }
         }
 
         // ------------------ Derive subwindowingRules rules
 
         if (this.#strategy.ssr) {
-            // using SSR strategy:
-            // - projection must match
-            // - where must match
+            // RESULT shape doesn't support client-side computing of projection & WHERE & ORDER BY
+            // so these must match
             this.#subwindowingRules.projection = '=';
             this.#subwindowingRules.whereClause = '=';
             this.#subwindowingRules.ordinality = '=';
+        } else {
+            // RESULT shape supports client-side computing of projection & ORDER BY
+            // but subqueries in WHERE can't be computed client-side, so, WHERE must match
+            if (this.#analysis.hasSubqueryExprsInWhere) {
+                this.#subwindowingRules.whereClause = '=';
+            }
         }
 
-        if ((this.#analysis.hasOffsetClause || this.#analysis.hasLimitClause)
-            && this.#analysis.hasOrderByClause) {
-            // has OFFSET/LIMIT + ORDER BY (windowing):
-            // - everything must match including WHERE & ORDER BY (expressions + directions)
-            // - OFFSET/LIMIT may differ but must fall within window
-            // else: the defaults:
-            // if ORDER BY alone:
-            // - expressions must match
-            // - directions may differ
-            // if WHERE:
-            // - must fall within window
+        if (this.#analysis.hasOffsetClause
+            || (this.#analysis.hasLimitClause && this.#analysis.hasOrderByClause)) {
+            // Has OFFSET/LIMIT + ORDER BY (windowing):
+            // so everything must match including WHERE & ORDER BY (expressions + directions) due to windowing
             this.#subwindowingRules.whereClause = '=';
             this.#subwindowingRules.ordinality = '=';
             this.#subwindowingRules.orderDirections = '=';
+            // - OFFSET/LIMIT may differ in subwindow but must fall within current window range
+            // - projection may differ in subwindow
         }
 
-        // ------------------ Construct schemas
+        // ----------- exprEngine
+
+        const self = this;
+        this.#exprEngine = new ExprEngine(
+            async function* (derivedQuery, compositeRow, queryCtx) {
+                const stmt = derivedQuery.expr();
+                if (!(stmt instanceof registry.SelectStmt)) {
+                    throw new Error(`Unexpected expression: ${stmt}`);
+                }
+                const row = Object.create(null);
+                for (const selectItem of stmt.selectList()) {
+                    const { alias, value } = await self.#exprEngine.evaluate(selectItem, {}, queryCtx);
+                    row[alias] = value;
+                }
+                yield row;
+            },
+            this.#options
+        );
+    }
+
+    async connect() {
 
         const getJson = (node) => {
             const value = node.value();
             const delim = node._get('delim');
             return { value: delim ? value : value.toLowerCase(), delim };
         };
-        for (const [alias, tableRefHashes] of Object.entries(this.#analysis.fromItemsByAlias)) {
+        for (const [alias, relationHashes] of Object.entries(this.#analysis.fromItemsByAlias)) {
             const originSchema = this.#query.originSchemas().find((os) => {
                 if (os instanceof registry.JSONSchema) return alias === '';
                 return os.identifiesAs(alias);
@@ -133,19 +286,23 @@ export class QueryWindow extends SimpleEmitter {
                 usingAllColumnsForKeyColumns = false;
             if (originSchema instanceof registry.JSONSchema) {
                 $columns = originSchema.entries().map((e) => getJson(e.name()));
-                if (tableRefHashes.size > 1 || !($keyColumns = originSchema.entries().filter((e) => e.pkConstraint()).map(getJson)).length) {
+                if (relationHashes.size > 1 || !($keyColumns = originSchema.entries().filter((e) => e.pkConstraint()).map(getJson)).length) {
                     $keyColumns = structuredClone($columns);
                     usingAllColumnsForKeyColumns = true;
                 }
             } else {
                 $columns = originSchema.columns().map((e) => getJson(e.name()));
-                if (tableRefHashes.size > 1 || !($keyColumns = originSchema.pkConstraint(true)?.columns().map(getJson))) {
+                if (relationHashes.size > 1 || !($keyColumns = originSchema.pkConstraint(true)?.columns().map(getJson))) {
                     $keyColumns = structuredClone($columns);
                     usingAllColumnsForKeyColumns = true;
                 }
             }
+            const relation = relationHashes.size === 1
+                ? (([schema, name]) => ({ schema, name }))(JSON.parse([...relationHashes][0]))
+                : null;
             this.#originSchemasLite.set(alias, {
-                tableRefHashes: tableRefHashes,
+                relation,
+                relationHashes: relationHashes,
                 columns: $columns.map((c) => c.value),
                 keyColumns: $keyColumns.map((c) => c.value),
                 usingAllColumnsForKeyColumns,
@@ -160,114 +317,92 @@ export class QueryWindow extends SimpleEmitter {
 
         // ----------- Compose newQueryHead
 
-        if (this.#strategy.diffing) {
-            // Reconstruct the query's head for internal use
-            let newQueryHead = this.#aliases.reduce((acc, aliasJson) => {
-                const originSchema = this.#originSchemasLite.get(aliasJson.value);
+        // Reconstruct the query's head for internal use
+        let newQueryHead = this.#aliases.reduce((acc, aliasJson) => {
+            const originSchema = this.#originSchemasLite.get(aliasJson.value);
 
-                // Column key/value construction
-                const createColKeyValJson = (colJson) => {
-                    const keyJson = { nodeName: 'STRING_LITERAL', ...colJson };
-                    let colRefJson = { nodeName: 'COLUMN_REF1', ...colJson, qualifier: { nodeName: 'TABLE_REF1', ...aliasJson } };
-                    // Format for strategy.aggrMode === 2?
-                    if (this.#analysis.hasAggrFunctions) {
-                        const fnName = this.#driver.dialect === 'mysql' ? 'JSON_STRINGAGG' : 'JSON_AGG';
-                        colRefJson = { nodeName: 'CALL_EXPR', name: fnName, arguments: [colRefJson] };
-                    }
-                    return [keyJson, colRefJson];
-                };
-                // Compose the cols JSON
-                const fnName = this.#driver.dialect === 'mysql' ? 'JSON_OBJECT' : 'JSON_BUILD_OBJECT';
-                const fnArgs = (this.#strategy.ssr ? originSchema.$keyColumns : originSchema.$columns)
-                    .reduce((colKeyValJsons, colJson) => ([...colKeyValJsons, ...createColKeyValJson(colJson)]), []);
-                const aliasColsExpr = { nodeName: 'CALL_EXPR', name: fnName, arguments: fnArgs };
-
-                // Format for strategy.ssr?
-                // SELECT: { ssr: {...}, key: {...}[, ord] }
-                if (this.#strategy.ssr) {
-                    const aliasKeyJson = { nodeName: 'STRING_LITERAL', ...aliasJson };
-                    return acc.concat(aliasKeyJson, aliasColsExpr);
+            // Column key/value construction
+            const createColKeyValJson = (colJson) => {
+                const keyJson = { nodeName: 'STRING_LITERAL', ...colJson };
+                let colRefJson = { nodeName: 'COLUMN_REF1', ...colJson, qualifier: { nodeName: 'TABLE_REF1', ...aliasJson } };
+                // Format for strategy.aggrMode === 2?
+                if (this.#analysis.hasAggrFunctions) {
+                    const fnName = this.#driver.dialect === 'mysql' ? 'JSON_STRINGAGG' : 'JSON_AGG';
+                    colRefJson = { nodeName: 'CALL_EXPR', name: fnName, arguments: [colRefJson] };
                 }
-
-                // Format for nornal select list
-                // SELECT: { t1: {...}, t2: {...}, }
-                const aliasKeyJson = { nodeName: 'SELECT_ITEM_ALIAS', ...aliasJson };
-                return acc.concat({
-                    nodeName: 'SELECT_ITEM',
-                    alias: aliasKeyJson,
-                    expr: aliasColsExpr,
-                });
-            }, []);
+                return [keyJson, colRefJson];
+            };
+            // Compose the cols JSON
+            const fnName = this.#driver.dialect === 'mysql' ? 'JSON_OBJECT' : 'JSON_BUILD_OBJECT';
+            const fnArgs = (this.#strategy.ssr ? originSchema.$keyColumns : originSchema.$columns)
+                .reduce((colKeyValJsons, colJson) => ([...colKeyValJsons, ...createColKeyValJson(colJson)]), []);
+            const aliasColsExpr = { nodeName: 'CALL_EXPR', name: fnName, arguments: fnArgs };
 
             // Format for strategy.ssr?
             // SELECT: { ssr: {...}, key: {...}[, ord] }
             if (this.#strategy.ssr) {
-                // 1. Whole original query head as a select item
-                const originalsArgs = this.#queryJson.select_list.reduce((acc, si) => {
-                    return acc.concat({ ...si.alias, nodeName: 'STRING_LITERAL' }, si.expr);
-                }, []);
-                const originalsJson = { nodeName: 'CALL_EXPR', name: fnName, arguments: originalsArgs };
-                // 2. All keys as a select item
-                const fnName = this.#driver.dialect === 'mysql' ? 'JSON_OBJECT' : 'JSON_BUILD_OBJECT';
-                const keysJson = { nodeName: 'CALL_EXPR', name: fnName, arguments: newQueryHead };
-                // Final newQueryHead
-                newQueryHead = [
-                    { nodeName: 'SELECT_ITEM', alias: { nodeName: 'SELECT_ITEM_ALIAS', value: 'ssr' }, expr: originalsJson },
-                    { nodeName: 'SELECT_ITEM', alias: { nodeName: 'SELECT_ITEM_ALIAS', value: 'key' }, expr: keysJson },
-                ];
+                const aliasKeyJson = { nodeName: 'STRING_LITERAL', ...aliasJson };
+                return acc.concat(aliasKeyJson, aliasColsExpr);
+            }
+
+            // Format for nornal select list
+            // SELECT: { t1: {...}, t2: {...}, }
+            const aliasKeyJson = { nodeName: 'SELECT_ITEM_ALIAS', ...aliasJson };
+            return acc.concat({
+                nodeName: 'SELECT_ITEM',
+                alias: aliasKeyJson,
+                expr: aliasColsExpr,
+            });
+        }, []);
+
+        // Format for strategy.ssr?
+        // SELECT: { ssr: {...}, key: {...}[, ord] }
+        if (this.#strategy.ssr) {
+            // 1. Whole original query head as a select item
+            const originalsArgs = this.#queryJson.select_list.reduce((acc, si) => {
+                return acc.concat({ ...si.alias, nodeName: 'STRING_LITERAL' }, si.expr);
+            }, []);
+            const originalsJson = { nodeName: 'CALL_EXPR', name: fnName, arguments: originalsArgs };
+            // 2. All keys as a select item
+            const fnName = this.#driver.dialect === 'mysql' ? 'JSON_OBJECT' : 'JSON_BUILD_OBJECT';
+            const keysJson = { nodeName: 'CALL_EXPR', name: fnName, arguments: newQueryHead };
+            // Final newQueryHead
+            newQueryHead = [{ nodeName: 'SELECT_ITEM', alias: { nodeName: 'SELECT_ITEM_ALIAS', value: 'ssr' }, expr: originalsJson }];
+            if (this.#strategy.diffing) {
+                newQueryHead.push({ nodeName: 'SELECT_ITEM', alias: { nodeName: 'SELECT_ITEM_ALIAS', value: 'key' }, expr: keysJson });
                 // Oh ... with ordinality?
-                if (this.#analysis.hasOrderByClause && this.#subwindowingRules.orderDirections === '~') {
+                if (this.#analysis.hasOrderByClause) {
                     const fnName = this.#driver.dialect === 'mysql' ? 'JSON_ARRAY' : 'JSON_BUILD_ARRAY';
                     const ordsJson = { nodeName: 'CALL_EXPR', name: fnName, entries: this.#queryJson.order_by_clause.entries.map((oi) => oi.expr) };
                     newQueryHead.push({ nodeName: 'SELECT_ITEM', alias: { nodeName: 'SELECT_ITEM_ALIAS', value: 'ord' }, expr: ordsJson });
                 }
             }
-
-            // Declare this.#logicalQueryJson
-            this.#logicalQueryJson = { ...this.#queryJson, select_list: { entries: newQueryHead } };
-            this.#logicalQuery = !filters.length
-                ? this.#query.constructor.fromJSON(this.#logicalQueryJson, { dialect: this.#driver.dialect })
-                : this.resetFilters(filters);
         }
 
-        // ----------- Execution
+        // Declare this.#logicalQueryJson
+        this.#logicalQueryJson = { ...this.#queryJson, select_list: { entries: newQueryHead } };
+        this.#logicalQuery = subwindowWheres.length || subwindowOffset
+            ? this.resetFrame(subwindowWheres, subwindowOffset)
+            : this.#query.constructor.fromJSON(this.#logicalQueryJson, { dialect: this.#driver.dialect });
 
-        // Subscribe to WAL events...
+        // ----------- effectiveLimit
+
+        if (this.#analysis.hasLimitClause) {
+            this.#effectiveLimit = await this.#exprEngine.evaluate(this.#query.limitClause().expr(), {}, this.#queryCtx);
+        }
+
+        // ----------- Subscription
+
+        await this.disconnect();
         this.#generatorDisconnect = this.#driver.subscribe(this.#analysis.fromItemsBySchema, (events) => {
             this.#handleEvents(events).catch((e) => this.emit('error', e));
         });
     }
 
-    async disconnect() { this.#generatorDisconnect?.(); }
-
-    // --------------------------
-
-    inherit(parentWindow) {
+    async disconnect() {
+        // Unsubscribe to WAL events...
         this.#generatorDisconnect?.();
-        if (!parentWindow) return;
-        this.#parentWindow = parentWindow;
-        this.#generatorDisconnect = parentWindow.on('changefeed', async (outputEvent) => {
-            if (outputEvent.type === 'delete') {
-                if (this.#localRecords.has(outputEvent.oldHash)) {
-                    this.#localDelete(outputEvent.oldHash);
-                } else return; // A delete event that mismatches
-            } else {
-                if (!await this.#satisfiesFilters(outputEvent.logicalRecord)) {
-                    // Handle mismatch...
-                    if (outputEvent.type === 'update' && this.#localRecords.has(outputEvent.oldHash)) {
-                        // An update that translates to delete
-                        this.#localDelete(outputEvent.oldHash);
-                        outputEvent = { ...outputEvent, type: 'delete' };
-                    } else return; // An update|insert eventthat mismatches
-                }
-                if (outputEvent.type === 'update' && !this.#localRecords.has(outputEvent.oldHash)) {
-                    // An update that translates to insert
-                    this.#localSet(outputEvent.newHash, outputEvent.logicalRecord);
-                    outputEvent = { ...outputEvent, type: 'insert' };
-                }
-            }
-            await this.#fanout(outputEvent);
-        });
+        this.#inheritanceDepth = 0;
     }
 
     // --------------------------
@@ -325,23 +460,29 @@ export class QueryWindow extends SimpleEmitter {
         return true;
     }
 
-    matchFilters(filters) {
-        return matchLogicalExprs(this.#filters, filters);
+    matchFrame(subwindowWheres, subwindowOffset = 0, frameLimit = 0) {
+        return (!this.#subwindowOffset || subwindowOffset > this.#subwindowOffset)
+        return matchLogicalExprs(this.#subwindowWheres, subwindowWheres);
     }
 
-    resetFilters(newFilters) {
-        this.#filters = newFilters;
+    resetFrame(subwindowWheres, subwindowOffset = 0) {
+        this.#subwindowWheres = subwindowWheres;
+        this.#subwindowOffset = subwindowOffset;
         // Rewrite as logical expression
-        const _newFilters = newFilters.slice(0);
-        const headlessWhereExpr = _newFilters.reduce((left, right) => {
+        const _subwindowWheres = subwindowWheres.slice(0);
+        const headlessWhereExpr = _subwindowWheres.reduce((left, right) => {
             return { nodeName: 'BINARY_EXPR', left: left.jsonfy(), operator: 'AND', right: right.jsonfy() };
-        }, _newFilters.shift());
+        }, _subwindowWheres.shift());
         // Patch logicalQueryJson
         this.#logicalQueryJson = {
             ...this.#logicalQueryJson,
             where_clause: headlessWhereExpr ? {
                 nodeName: 'WHERE_CLAUSE',
                 expr: headlessWhereExpr,
+            } : undefined,
+            offset_clause: subwindowOffset ? {
+                nodeName: 'OFFSET_CLAUSE',
+                expr: { nodeName: 'NUMBER_LITERAL', value: subwindowOffset }
             } : undefined,
         };
         // Instantiate logicalQueryJson
@@ -351,90 +492,157 @@ export class QueryWindow extends SimpleEmitter {
         );
     }
 
-    async #satisfiesFilters(logicalRecord) {
-        if (!this.#logicalQuery.whereClause()) return true;
-        return await this.#exprEngine.evaluate(this.#logicalQuery.whereClause().expr(), logicalRecord);
+    // --------------------------
+
+    inherit(parentWindow) {
+        this.#generatorDisconnect?.();
+        if (!parentWindow) return;
+
+        this.#parentWindow = parentWindow;
+        this.#inheritanceDepth = parentWindow.inheritanceDepth + 1;
+
+        const abortLine1 = parentWindow.on('rawresult', async (resultRecords) => {
+            resultRecords = await this.#applySubwindowConstraints(resultRecords);
+            await this.#commitResult(resultRecords, true);
+        });
+
+        const abortLine2 = parentWindow.on('rawdiff', async (diffEvents) => {
+            const _diffEvents = new Set;
+
+            for (let diffEvent of diffEvents) {
+                if (diffEvent.type === 'delete') {
+                    // Ignore if not in this window
+                    if (!this.#localRecords.has(diffEvent.oldHash)) continue;
+                } else {
+                    const passesWhere = await this.#applySubwindowWheres(diffEvent.logicalRecord);
+                    if (this.#localRecords.has(diffEvent.oldHash)) {
+                        diffEvent = !passesWhere
+                            ? { ...diffEvent, type: 'delete' } // drop
+                            : { ...diffEvent }; // keep
+                    } else if (passesWhere) {
+                        // Cast to insert; even if update
+                        diffEvent = { ...diffEvent, type: 'insert' };
+                    }
+                }
+                _diffEvents.add(diffEvent);
+            }
+
+            await this.#commitDiffs(_diffEvents);
+        });
+
+        this.#generatorDisconnect = () => {
+            abortLine1();
+            abortLine2();
+        };
+    }
+
+    async #applySubwindowConstraints(resultRecords) {
+        let resultEntries = [];
+        for (const [logicalHash, logicalRecord] of resultRecords.entries()) {
+            if (await this.#applySubwindowWheres(logicalRecord)) {
+                resultEntries.push([logicalHash, logicalRecord]);
+            }
+        }
+        if (this.#strategy.diffing && this.#analysis.hasOrderByClause && (
+            this.#subwindowingRules.ordinality === '~' || this.#subwindowingRules.orderDirections === '~')) {
+            resultEntries = await this.#applySorting(resultEntries);
+        }
+        if (this.#analysis.hasOffsetClause || this.#effectiveLimit) {
+            resultEntries = resultEntries.slice(this.#subwindowOffset, this.#effectiveLimit);
+        }
+        return new Map(resultEntries);
+    }
+
+    async #applySubwindowWheres(logicalRecord) {
+        for (const expr of this.#subwindowWheres) {
+            const _eval = await this.#exprEngine.evaluate(expr, logicalRecord, this.#queryCtx);
+            if (!_eval) return false;
+        }
+        return true;
     }
 
     // --------------------------
 
-    async initialResult() {
-        const currentRecords = await this.currentRecords();
+    async currentRendering() {
+        const resultRecords = await this.currentRecords();
         const rows = [], hashes = [];
-        for (const [logicalHash, logicalRecord] of currentRecords.entries()) {
-            const projection = await this.#renderLogicalRecord(logicalRecord);
-            rows.push(projection);
+        for (const [logicalHash, logicalRecord] of resultRecords.entries()) {
+            const row = await this.#renderLogicalRecord(logicalRecord);
+            rows.push(row);
             hashes.push(logicalHash);
         }
         return { rows, hashes };
     }
 
     async currentRecords() {
-        const mode = this.#options.mode;
-        // Try reuse...
-        if (mode === 2 && this.#firstRun) {
-            return new Map(this.#localRecords);
-        }
-        let resultRecords;
-        // Inherit or run fresh...
-        if (this.#parentWindow) {
-            resultRecords = await this.#parentWindow.currentRecords();
-            for (const [logicalHash, logicalRecord] of resultRecords.entries()) {
-                if (!await this.#satisfiesFilters(logicalRecord)) {
-                    resultRecords.delete(logicalHash);
-                    continue;
-                }
-            }
-        } else {
-            resultRecords = await this.#queryHeadless();
-        }
-        // renderProjection? This is first time call
         if (!this.#firstRun) {
-            this.#firstRun = true;
-            for (const [logicalHash, logicalRecord] of resultRecords) {
-                this.#localSet(logicalHash, logicalRecord);
+            let resultRecords;
+            if (this.#parentWindow) {
+                resultRecords = await this.#parentWindow.currentRecords();
+                resultRecords = await this.#applySubwindowConstraints(resultRecords);
+            } else {
+                resultRecords = await this.#queryHeadless();
             }
+            await this.#commitResult(resultRecords);
+            this.#firstRun = true;
         }
-        return resultRecords;
+        return this.#localRecords;
     }
 
-    async #queryHeadless(extraWhereJson = null, logicalHashCreateCallback = null) {
-        // Record ID create util
-        if (!logicalHashCreateCallback) {
-            logicalHashCreateCallback = (logicalRecord) => {
-                const newKeysList = [...this.#originSchemasLite.entries()].map(([alias, originSchema]) => {
-                    const _newKeys = originSchema.keyColumns.map((k) => logicalRecord[alias][k]);
-                    if (_newKeys.every((s) => s === null)) {
-                        return null; // IMPORTANT
-                    }
-                    return _newKeys;
-                });
-                const logicalHash = this.#stringifyLogicalHash(newKeysList);
-                return [logicalHash/* oldKeys */, logicalHash/* newKeys */];
+    async #queryHeadless(extraWhere = null) {
+        let logicalQuery = this.#logicalQuery;
+
+        if (extraWhere && this.#strategy.requeryWrappedSelectivity) {
+            const deriveSelectItem = (si) => ({ ...si, expr: { ...si.expr, qualifier: undefined } });
+            const logicalQueryJson = {
+                nodeName: 'BASIC_SELECT_STMT',
+                select_list: { entries: this.#logicalQueryJson.select_list.entries.map(deriveSelectItem) },
+                from_clause: { entries: [{ nodeName: 'FROM_ITEM', expr: { nodeName: 'DERIVED_QUERY', expr: this.#logicalQueryJson } }] },
+                where_clause: { expr: extraWhere },
             };
-        }
-        // Finalize logicalQueryJson
-        let logicalQueryJson = this.#logicalQueryJson;
-        if (extraWhereJson) {
+            logicalQuery = this.#query.constructor.fromJSON(logicalQueryJson, { dialect: this.#driver.dialect });
+        } else if (extraWhere) {
+            let logicalQueryJson = this.#logicalQueryJson;
             const finalWhereJson = logicalQueryJson.where_clause?.expr
-                ? { nodeName: 'BINARY_EXPR', left: extraWhereJson, operator: 'AND', right: logicalQueryJson.where_clause.expr }
-                : extraWhereJson;
+                ? { nodeName: 'BINARY_EXPR', left: extraWhere, operator: 'AND', right: logicalQueryJson.where_clause.expr }
+                : extraWhere;
             logicalQueryJson = {
                 ...logicalQueryJson,
                 where_clause: { nodeName: 'WHERE_CLAUSE', expr: finalWhereJson },
             };
+            logicalQuery = this.#query.constructor.fromJSON(logicalQueryJson, { dialect: this.#driver.dialect });
         }
-        // The fetch
-        const logicalQuery = this.#query.constructor.fromJSON(logicalQueryJson, { dialect: this.#driver.dialect });
+
         const result = await this.#driver.query(logicalQuery);
-        // Map to joint IDs
+
         const resultMap = new Map;
-        for (const logicalRecord of result.rows) {
-            const [oldHash, newHash] = logicalHashCreateCallback(logicalRecord);
-            logicalRecord[Symbol.for('newHash')] = newHash;
-            resultMap.set(oldHash, logicalRecord);
+        for (const [i, logicalRecord] of result.rows.entries()) {
+            const logicalHash = this.#strategy.diffing
+                ? this.#deriveLogicalHash(logicalRecord)
+                : i;
+            resultMap.set(logicalHash, logicalRecord);
         }
+
         return resultMap;
+    }
+
+    // --------------------------
+
+    #getKeyValue(logicalRecord, alias, k) {
+        return this.#strategy.ssr
+            ? logicalRecord.key[alias][k]
+            : logicalRecord[alias][k];
+    }
+
+    #deriveLogicalHash(logicalRecord) {
+        const newKeysList = [...this.#originSchemasLite.entries()].map(([alias, originSchema]) => {
+            const _newKeys = originSchema.keyColumns.map((k) => this.#getKeyValue(logicalRecord, alias, k));
+            if (_newKeys.every((s) => s === null)) {
+                return null; // IMPORTANT
+            }
+            return _newKeys;
+        });
+        return this.#stringifyLogicalHash(newKeysList);
     }
 
     #stringifyLogicalHash(keyValues) {
@@ -446,7 +654,7 @@ export class QueryWindow extends SimpleEmitter {
     }
 
     #localSet(logicalHash, logicalRecord) {
-        this.#localRecords.set(logicalHash, this.#deriveLocalCopy(logicalRecord));
+        this.#localRecords.set(logicalHash, logicalRecord);
     }
 
     #localDelete(logicalHash) {
@@ -454,45 +662,44 @@ export class QueryWindow extends SimpleEmitter {
     }
 
     #localReindex(idChanges) {
-        if (!idChanges.size) return;
         this.#localRecords = new Map([...this.#localRecords.entries()].map(([id, logicalRecord]) => {
             if (idChanges.has(id)) id = idChanges.get(id);
             return [id, logicalRecord];
         }));
     }
 
-    #deriveLocalCopy(logicalRecord) {
-        const mode = this.#options.mode;
-        return mode === 2
-            ? logicalRecord
-            : Object.fromEntries([...this.#originSchemasLite.entries()].map(([alias, originSchema]) => {
-                const rowObj = Object.fromEntries(originSchema.keyColumns.map((k) => [k, logicalRecord[alias][k]]));
-                return [alias, rowObj];
-            }));
-    }
-
     async #renderLogicalRecord(logicalRecord) {
-        const projection = Object.create(null);
-        for (const selectItem of this.#queryJson.selectList()) {
-            const { alias, value } = await this.#exprEngine.evaluate(selectItem, logicalRecord);
-            projection[alias] = value;
+        if (this.#strategy.ssr) {
+            return logicalRecord.ssr;
         }
-        return projection;
+        const row = Object.create(null);
+        for (const selectItem of this.#query.selectList()) {
+            const { alias, value } = await this.#exprEngine.evaluate(selectItem, logicalRecord, this.#queryCtx);
+            row[alias] = value;
+        }
+        return row;
     }
 
     // --------------------------
 
     #normalizeEvents(events) {
-        // Normalize oldKeys stuff
-        let usingAllColumnsForKeyColumns_found;
-        const normalizedEvents = events.filter((e) => e.type === 'insert' || e.type === 'update' || e.type === 'delete').map((e) => {
+        const normalizedEventsMap = new Map;
+        const keyHistoryMap = new Map;
+        const allAffectedAliases = new Set;
+
+        for (const e of events) {
+            if (!(e.type === 'insert' || e.type === 'update' || e.type === 'delete')) continue;
             const relationHash = JSON.stringify([e.relation.schema, e.relation.name]);
 
-            const affectedAliasesEntries = [...this.#originSchemasLite.entries()].filter(([, originSchema]) => originSchema.tableRefHashes.has(relationHash));
-            const affectedAliases = affectedAliasesEntries.map(([alias]) => alias);
-            if (affectedAliasesEntries.find(([, originSchema]) => originSchema.usingAllColumnsForKeyColumns)) {
-                usingAllColumnsForKeyColumns_found = true;
+            const affectedAliasesEntries = [...this.#originSchemasLite.entries()].filter(([, originSchema]) => originSchema.relationHashes.has(relationHash));
+
+            if (!affectedAliasesEntries.length
+                || affectedAliasesEntries.find(([, originSchema]) => originSchema.relationHashes.size > 1)) {
+                return true;
             }
+
+            const affectedAliases = affectedAliasesEntries.map(([alias]) => alias);
+            for (const alias of affectedAliases) allAffectedAliases.add(alias);
 
             const keyColumns = e.relation.keyColumns;
             const oldKeys = e.key
@@ -502,181 +709,132 @@ export class QueryWindow extends SimpleEmitter {
                 ? keyColumns.map((k) => e.new[k])
                 : oldKeys.slice(0);
 
-            return { ...e, keyColumns, oldKeys, newKeys, relationHash, affectedAliases };
-        });
+            const normalizedEvent = { ...e, keyColumns, oldKeys, newKeys, relationHash, affectedAliases };
 
-        // 2. Normalize sequences and gather some intelligence stuff
-        const normalizedEventsMap = new Map;
-        const keyHistoryMap = new Map;
+            let rowKeyHash_old = this.#stringifyLogicalHash([e.relation.schema, e.relation.name, normalizedEvent.oldKeys]);
+            let rowKeyHash_new, previous;
 
-        for (const normalizedEvent of normalizedEvents) {
-            const keyHash_old = this.#stringifyLogicalHash(normalizedEvent.oldKeys);
-            let previous, keyHash_new;
-            if (previous = normalizedEventsMap.get(keyHash_old)) {
+            if ((previous = normalizedEventsMap.get(rowKeyHash_old))
+                // Or if previous type was an update with key change... we see if rowKeyHash_old === previos' rowKeyHash_new
+                || keyHistoryMap.has(rowKeyHash_old) && (previous = normalizedEventsMap.get(rowKeyHash_old = keyHistoryMap.get(rowKeyHash_old)))) {
                 if (previous.type === 'insert' && normalizedEvent.type === 'delete') {
                     // Ignore; inconsequential
                     continue;
                 }
                 if (previous.type === 'delete' && normalizedEvent.type === 'insert') {
                     // Treat as update should in case props were changed before reinsertion
-                    normalizedEventsMap.set(keyHash_old, { ...normalizedEvent, type: 'update', old: previous.old });
+                    const _normalizedEvent = { ...normalizedEvent, type: 'update', old: previous.old };
+                    normalizedEventsMap.set(rowKeyHash_old, _normalizedEvent);
                     continue;
                 }
                 if (previous.type === 'insert' && normalizedEvent.type === 'update') {
-                    // Use the lastest state of said record, but as an insert
-                    normalizedEventsMap.set(keyHash_old, { ...normalizedEvent, type: 'insert' });
+                    // Use the lastest state of said record for the insert
+                    const _normalizedEvent = { ...normalizedEvent, oldKeys: previous.oldKeys, old: null, type: 'insert' };
+                    normalizedEventsMap.delete(rowKeyHash_old); // Don't retain old slot; must come first
+                    normalizedEventsMap.set(rowKeyHash_old, _normalizedEvent);
+                    // Handle key changes
+                    if ((rowKeyHash_new = this.#stringifyLogicalHash([e.relation.schema, e.relation.name, normalizedEvent.newKeys])) !== rowKeyHash_old) {
+                        keyHistoryMap.set(rowKeyHash_new, rowKeyHash_old);
+                    }
+                    continue;
+                }
+                if (previous.type === 'update' && normalizedEvent.type === 'update') {
+                    // Honour latest update, but mapped to old identity
+                    const _normalizedEvent = { ...normalizedEvent, oldKeys: previous.oldKeys, old: previous.old };
+                    normalizedEventsMap.delete(rowKeyHash_old); // Don't retain old slot; must come first
+                    normalizedEventsMap.set(rowKeyHash_old, _normalizedEvent);
+                    // Handle key changes
+                    if ((rowKeyHash_new = this.#stringifyLogicalHash([e.relation.schema, e.relation.name, normalizedEvent.newKeys])) !== rowKeyHash_old) {
+                        keyHistoryMap.set(rowKeyHash_new, rowKeyHash_old);
+                    }
                     continue;
                 }
                 if (previous.type === 'update' && normalizedEvent.type === 'delete') {
-                    // Honur latest event using same ID
-                    normalizedEventsMap.delete(keyHash_old); // Don't retain old slot
-                    keyHistoryMap.get(normalizedEvent.relationHash)?.delete(keyHash_old); // Forget about any key transition in previous
-                    // Flow down normally
+                    // Honour latest event using same ID
+                    normalizedEventsMap.delete(rowKeyHash_old); // Don't retain old slot
+                    normalizedEventsMap.set(rowKeyHash_old, normalizedEvent);
+                    continue;
                 }
-            } else if (normalizedEvent.type === 'update' && (previous = keyHistoryMap.get(normalizedEvent.relationHash)?.get(keyHash_old)?.normalizedEvent)) {
-                const _normalizedEvent = { ...normalizedEvent, oldKeys: previous.oldKeys, old: previous.old }; // Honour latest, but mapped to old keys
-                normalizedEventsMap.delete(keyHash_old); // Don't retain old slot; must come first
-                normalizedEventsMap.set(keyHash_old, _normalizedEvent);
-                // Do history stuff
-                if ((keyHash_new = this.#stringifyLogicalHash(_normalizedEvent.newKeys)) !== keyHash_old) {
-                    if (!keyHistoryMap.has(normalizedEvent.relationHash)) {
-                        keyHistoryMap.set(normalizedEvent.relationHash, new Map);
+            } else {
+                if (normalizedEvent.type === 'update') {
+                    // Handle key changes
+                    if ((rowKeyHash_new = this.#stringifyLogicalHash([e.relation.schema, e.relation.name, normalizedEvent.newKeys])) !== rowKeyHash_old) {
+                        keyHistoryMap.set(rowKeyHash_new, rowKeyHash_old);
                     }
-                    keyHistoryMap.get(normalizedEvent.relationHash).set(keyHash_new, { keyHash_old: keyHistoryMap.get(normalizedEvent.relationHash).get(keyHash_old).keyHash_old/* original keyHash_old */, normalizedEvent: _normalizedEvent });
-                    keyHistoryMap.get(normalizedEvent.relationHash).delete(keyHash_old); // Forget previous history; must come only after
                 }
-                continue;
-            } else if (normalizedEvent.type === 'update' && (keyHash_new = this.#stringifyLogicalHash(normalizedEvent.newKeys)) !== keyHash_old) {
-                if (!keyHistoryMap.has(normalizedEvent.relationHash)) {
-                    keyHistoryMap.set(normalizedEvent.relationHash, new Map);
-                }
-                keyHistoryMap.get(normalizedEvent.relationHash).set(keyHash_new, { keyHash_old, normalizedEvent });
-                // Flow down normally
+                normalizedEventsMap.set(rowKeyHash_old, normalizedEvent);
             }
-            normalizedEventsMap.set(keyHash_old, normalizedEvent);
         }
-        // 3. For updates that include primary changes
-        // we'll need to derive oldLogicalHashs from keyHistoryMap
-        let logicalHashCreateCallback = null;
-        if (keyHistoryMap.size) {
-            logicalHashCreateCallback = (logicalRecord) => {
-                const [oldKeysList, newKeysList] = [...this.#originSchemasLite.entries()].reduce(([o, n], [alias, originSchema]) => {
-                    const relationHash = originSchema.tableRefHashes.size === 1
-                        ? [...originSchema.tableRefHashes][0]
-                        : null;
-                    const keyColumns = originSchema.keyColumns;
-                    let _newKeys = keyColumns.map((k) => logicalRecord[alias][k]);
-                    if (_newKeys.every((s) => s === null)) {
-                        _newKeys = null; // null: IMPORTANT
-                    }
-                    const _newKeys_str = this.#stringifyLogicalHash(_newKeys);
-                    let _oldKeys;
-                    if (_newKeys && keyHistoryMap.get(relationHash)?.has(_newKeys_str)) {
-                        _oldKeys = keyHistoryMap.get(relationHash).get(_newKeys_str).normalizedEvent.oldKeys;
-                    } else {
-                        _oldKeys = _newKeys;
-                    }
-                    return [[...o, _oldKeys], [...n, _newKeys]];
-                }, [[], []]);
-                const oldHash = this.#stringifyLogicalHash(oldKeysList);
-                const newHash = this.#stringifyLogicalHash(newKeysList);
-                return [oldHash, newHash];
-            };
-        }
-        return [normalizedEventsMap, logicalHashCreateCallback, usingAllColumnsForKeyColumns_found];
-    }
 
-    
-    #isSingleTable = true;
-    #isWindowedQuery = false;
-    #specifiedLimit = 0;
+        return [normalizedEventsMap, keyHistoryMap, allAffectedAliases];
+    }
 
     async #handleEvents(events) {
-
-        // Quick flags
-        this.#isWindowedQuery = meta.hasAggrFunctions;
-        this.#isSingleTable = !otherTableRefs.size && ((k) => k.length === 1 && fromItemsBySchema[k[0]].length === 1)(Object.keys(fromItemsBySchema));
-        this.#specifiedLimit = this.#query.limitClause()?.expr();
-
-        // --------------- logicalSelectItems
-
-        // Derived query From items: [diffing]
-        // ... on event (own event):
-        // ... if single-table: "selective" re-query -> diffing -> selective re-rendering
-        // ... ... with key being any derived keys, or whole columns, if none (=== table without keys)
-        // ... if not: "wholistic" re-query -> diffing -> selective re-rendering
-        // SELECT: { ...aliases }
-
-        const [
-            normalizedEventsMap,
-            logicalHashCreateCallback,
-            usingAllColumnsForKeyColumns_found,
-        ] = this.#normalizeEvents(events);
-        if (this.#isSingleTable && !this.#isWindowedQuery) {
-            // Only windowing NOT supported; offsets / limit supported
-            await this.#handleEvents_SingleTable(normalizedEventsMap);
-        } else if (!this.#isWindowedQuery && !usingAllColumnsForKeyColumns_found && !this.#queryJson.limit_clause && !this.#queryJson.offset_clause) {
-            // NONE of windowing / offsets / limit supported; plus usingAllColumnsForKeyColumns_found NOT supported
-            await this.#handleEvents_MultiTable_Incremental(normalizedEventsMap, logicalHashCreateCallback);
-        } else {
-            await this.#handleEvents_Wholistic(logicalHashCreateCallback);
+        if (this.#strategy.requeryMode === 'wholistic') {
+            // Aggr functions in the house
+            return await this.#diffWithOrigin_Wholistic();
         }
+        const normalizeEvents = this.#normalizeEvents(events);
+        if (normalizeEvents === true) {
+            return await this.#diffWithOrigin_Wholistic();
+        }
+        if (this.#analysis.isSingleTable) {
+            const [normalizedEventsMap] = normalizeEvents;
+            return await this.#diffWithLocal(normalizedEventsMap);
+        }
+        const [normalizedEventsMap, keyHistoryMap, allAffectedAliases] = normalizeEvents;
+        return await this.#diffWithOrigin_Selective(normalizedEventsMap, keyHistoryMap, allAffectedAliases);
     }
 
-    async #handleEvents_SingleTable(normalizedEventsMap) {
-        const idChanges = new Map;
-        const deferredInserts = new Set;
-        e: for (const normalizedEvent of normalizedEventsMap.values()) {
-            switch (normalizedEvent.type) {
-                case 'insert':
-                    if (this.#specifiedLimit && this.#localRecords.size === this.#specifiedLimit) {
-                        // Defere INSERTs
-                        deferredInserts.add(normalizedEvent);
-                        continue e;
-                    }
-                    const logicalHash_1 = this.#stringifyLogicalHash([normalizedEvent.newKeys]);
-                    const jointRecord_1 = { [normalizedEvent.affectedAliases[0]]: normalizedEvent.new };
-                    if (!await this.#satisfiesFilters(jointRecord_1)) {
-                        continue e;
-                    }
-                    this.#localSet(logicalHash_1, jointRecord_1);
-                    await this.#fanout({ type: 'insert', newHash: logicalHash_1, logicalRecord: jointRecord_1 });
-                    break;
-                case 'update':
-                    const logicalHash_2 = this.#stringifyLogicalHash([normalizedEvent.oldKeys]);
-                    if (!this.#localRecords.has(logicalHash_2)) {
-                        continue e;
-                    }
-                    const jointRecord_2 = { [normalizedEvent.affectedAliases[0]]: normalizedEvent.new };
-                    this.#localSet(logicalHash_2, jointRecord_2);
-                    const logicalHash_3 = this.#stringifyLogicalHash([normalizedEvent.newKeys]);
-                    if (logicalHash_3 !== logicalHash_2) {
-                        idChanges.set(logicalHash_2, logicalHash_3);
-                    }
-                    await this.#fanout({ type: 'update', oldHash: logicalHash_2, newHash: logicalHash_3, logicalRecord: jointRecord_2 });
-                    break;
-                case 'delete':
-                    const logicalHash_4 = this.#stringifyLogicalHash([normalizedEvent.oldKeys]);
-                    if (!this.#localRecords.has(logicalHash_4)) {
-                        continue e;
-                    }
-                    this.#localDelete(logicalHash_2);
-                    await this.#fanout({ type: 'delete', oldHash: logicalHash_4 });
-                    break;
+    async #diffWithLocal(normalizedEventsMap) {
+        const diffEvents = new Set;
+
+        for (const normalizedEvent of normalizedEventsMap.values()) {
+
+            if (normalizedEvent.type === 'insert') {
+                const newHash = this.#stringifyLogicalHash([normalizedEvent.newKeys]);
+                const logicalRecord = { [normalizedEvent.affectedAliases[0]]: normalizedEvent.new };
+                const passesWhere = !this.#query.whereClause()
+                    || await this.#exprEngine.evaluate(this.#query.whereClause().expr(), logicalRecord, this.#queryCtx);
+                if (!passesWhere) continue;
+                const diffEvent = { type: 'insert', newHash, logicalRecord };
+                diffEvents.add(diffEvent);
+            }
+
+            if (normalizedEvent.type === 'update') {
+                const oldHash = this.#stringifyLogicalHash([normalizedEvent.oldKeys]);
+                const newHash = this.#stringifyLogicalHash([normalizedEvent.newKeys]);
+                const logicalRecord = { [normalizedEvent.affectedAliases[0]]: normalizedEvent.new };
+                let diffEvent;
+                const passesWhere = !this.#query.whereClause()
+                    || await this.#exprEngine.evaluate(this.#query.whereClause().expr(), logicalRecord, this.#queryCtx);
+                if (this.#localRecords.has(oldHash)) {
+                    diffEvent = !passesWhere
+                        ? { type: 'delete', oldHash }
+                        : { type: 'update', oldHash, newHash, logicalRecord };
+                } else if (passesWhere) {
+                    diffEvent = { type: 'insert', newHash, logicalRecord };
+                }
+                if (diffEvent) diffEvents.add(diffEvent);
+            }
+
+            if (normalizedEvent.type === 'delete') {
+                const oldHash = this.#stringifyLogicalHash([normalizedEvent.oldKeys]);
+                if (this.#localRecords.has(oldHash)) {
+                    const diffEvent = { type: 'delete', oldHash, logicalRecord: this.#localRecords.get(oldHash) };
+                    diffEvents.add(diffEvent);
+                }
             }
         }
-        this.#localReindex(idChanges);
-        // Re-attempt INSERTs
-        if (deferredInserts.size && this.#localRecords.size < this.#specifiedLimit) {
-            this.#handleEvents_SingleTable(deferredInserts);
-        }
+
+        return await this.#commitDiffs(diffEvents);
     }
 
-    async #handleEvents_MultiTable_Incremental(normalizedEventsMap, logicalHashCreateCallback) {
-        const composeDiffingPredicate = (alias, keyColumns, keyValues, nullTest = 0) => {
-            // Handle multi-key PKs
+    async #diffWithOrigin_Selective(normalizedEventsMap, keyHistoryMap, allAffectedAliases) {
+
+        const composeSelectionLogic = (alias, keyColumns, keyValues, nullTest = 0) => {
             if (keyColumns.length > 1) {
-                const operands = keyColumns.map((keyColumn, i) => composeDiffingPredicate(alias, [keyColumn], [keyValues[i]], nullTest));
+                const operands = keyColumns.map((keyColumn, i) => composeSelectionLogic(alias, [keyColumn], [keyValues[i]], nullTest));
                 return operands.reduce((left, right) => registry.BinaryExpr.fromJSON({
                     nodeName: 'BINARY_EXPR',
                     left,
@@ -685,7 +843,11 @@ export class QueryWindow extends SimpleEmitter {
                 }), operands.shift());
             }
             // Compose...
-            const columnRef = { nodeName: 'COLUMN_REF1', value: keyColumns[0], qualifier: { nodeName: 'TABLE_REF1', value: alias } };
+            const columnRef = this.#strategy.requeryWrappedSelectivity
+                // key -> alias -> keyColumn
+                ? { nodeName: 'BINARY_EXPR', left: { nodeName: 'COLUMN_REF1', value: 'key' }, operator: '->', right: { nodeName: 'BINARY_EXPR', left: { nodeName: 'COLUMN_REF1', value: alias }, operator: '->>', right: { nodeName: 'COLUMN_REF1', value: keyColumns[0] } } }
+                // alias.keyColumn
+                : { nodeName: 'COLUMN_REF1', value: keyColumns[0], qualifier: { nodeName: 'TABLE_REF1', value: alias } };
             // Compose: <keyColumn> IS NULL
             const nullLiteral = { nodeName: 'NULL_LITERAL', value: 'NULL' };
             const isNullExpr = registry.BinaryExpr.fromJSON({
@@ -717,37 +879,40 @@ export class QueryWindow extends SimpleEmitter {
             }
             return eqExpr;
         };
-        // Do partial diffing!
+
+        // ----------------
+
         const localRecords = new Map;
         const remoteDiffingFilters = [];
+
         for (const normalizedEvent of normalizedEventsMap.values()) {
             let diffingFilters = [];
             const affectedAliases = normalizedEvent.affectedAliases;
             if (normalizedEvent.type === 'insert') {
-                // keyColumn === null // keyColumn = newKey
+                // keyColumn === null // keyColumn IN [null, newKey]
                 diffingFilters = [
-                    affectedAliases.map((alias) => composeDiffingPredicate(alias, normalizedEvent.keyColumns, normalizedEvent.oldKeys, 0)),
-                    affectedAliases.map((alias) => composeDiffingPredicate(alias, normalizedEvent.keyColumns, normalizedEvent.newKeys, 1)),
+                    affectedAliases.map((alias) => composeSelectionLogic(alias, normalizedEvent.keyColumns, normalizedEvent.oldKeys, 0)),
+                    affectedAliases.map((alias) => composeSelectionLogic(alias, normalizedEvent.keyColumns, normalizedEvent.newKeys, 2/* IMPORTANT */)),
                 ];
             }
             if (normalizedEvent.type === 'update') {
                 // keyColumn IN [null, oldKey] // keyColumn IN [null, newKey]
                 diffingFilters = [
-                    affectedAliases.map((alias) => composeDiffingPredicate(alias, normalizedEvent.keyColumns, normalizedEvent.oldKeys, 2)),
-                    affectedAliases.map((alias) => composeDiffingPredicate(alias, normalizedEvent.keyColumns, normalizedEvent.newKeys, 2)),
+                    affectedAliases.map((alias) => composeSelectionLogic(alias, normalizedEvent.keyColumns, normalizedEvent.oldKeys, 2)),
+                    affectedAliases.map((alias) => composeSelectionLogic(alias, normalizedEvent.keyColumns, normalizedEvent.newKeys, 2)),
                 ];
             }
             if (normalizedEvent.type === 'delete') {
-                // keyColumn = oldKey // keyColumn === null
+                // keyColumn IN [null, oldKey] // keyColumn === null
                 diffingFilters = [
-                    affectedAliases.map((alias) => composeDiffingPredicate(alias, normalizedEvent.keyColumns, normalizedEvent.oldKeys, 1)),
-                    affectedAliases.map((alias) => composeDiffingPredicate(alias, normalizedEvent.keyColumns, normalizedEvent.newKeys, 0)),
+                    affectedAliases.map((alias) => composeSelectionLogic(alias, normalizedEvent.keyColumns, normalizedEvent.oldKeys, 2/* IMPORTANT */)),
+                    affectedAliases.map((alias) => composeSelectionLogic(alias, normalizedEvent.keyColumns, normalizedEvent.newKeys, 0)),
                 ];
             }
-            row: for (const [logicalHash, logicalRecord] of this.#localRecords.entries()) {
+            top: for (const [logicalHash, logicalRecord] of this.#localRecords.entries()) {
                 for (const expr of diffingFilters[0]) {
-                    if (!await this.#exprEngine.evaluate(expr, logicalRecord)) {
-                        continue row;
+                    if (!await this.#exprEngine.evaluate(expr, logicalRecord, this.#queryCtx)) {
+                        continue top;
                     }
                 }
                 // All of diffingFilters[0] matched - AND
@@ -759,196 +924,221 @@ export class QueryWindow extends SimpleEmitter {
             }, diffingFilters[1].shift());
             remoteDiffingFilters.push(diffingFilters_currentEvent);
         }
-        // Build all event's diffingFilters
-        let diffingFilters_allEvents;
+
+        let diffingFilters_allEvents = remoteDiffingFilters[0];
         if (remoteDiffingFilters.length > 1) {
+            // Compose the logic
             const _diffingFilters_allEvents = remoteDiffingFilters.reduce((left, right) => {
                 return registry.BinaryExpr.fromJSON({ nodeName: 'BINARY_EXPR', left, operator: 'OR', right });
             }, remoteDiffingFilters.shift());
-            diffingFilters_allEvents = registry.RowConstructor.fromJSON({
-                nodeName: 'ROW_CONSTRUCTOR',
-                entries: [_diffingFilters_allEvents],
-            });
-        } else {
-            diffingFilters_allEvents = remoteDiffingFilters[0];
+            // Wrap the logic?
+            if (!this.#strategy.requeryWrappedSelectivity) {
+                diffingFilters_allEvents = registry.RowConstructor.fromJSON({
+                    nodeName: 'ROW_CONSTRUCTOR',
+                    entries: [_diffingFilters_allEvents],
+                });
+            } else diffingFilters_allEvents = _diffingFilters_allEvents;
         }
-        const remoteRecords = await this.#queryHeadless(diffingFilters_allEvents, logicalHashCreateCallback);
-        await this.#diffRecords(localRecords, remoteRecords);
-    }
 
-    async #handleEvents_Wholistic(logicalHashCreateCallback) {
-        const remoteRecords = await this.#queryHeadless(null, logicalHashCreateCallback);
-        await this.#diffRecords(this.#localRecords, remoteRecords);
-    }
+        // ----------------
 
-    async #diffRecords(localRecords, remoteRecords) {
-        const localLogicalHashs = new Set(localRecords.keys());
-        const remoteLogicalHashs = new Set(remoteRecords.keys());
-        const allLogicalHashs = new Set([
-            ...localLogicalHashs,
-            ...remoteLogicalHashs
-        ]);
-        // Utils:
-        const aliasesLength = this.#originSchemasLite.size;
-        const findPartialMatch = (oldJId) => {
-            const oldJId_split = this.#parseLogicalHash(oldJId);
-            top: for (const remoteJid of remoteLogicalHashs) {
-                const remoteJid_split = this.#parseLogicalHash(remoteJid);
-                let matched = true;
-                let nullMatched_o = false;
-                let nullMatched_n = false;
-                for (let i = 0; i < aliasesLength; i++) {
-                    if (oldJId_split[i] === null) {
-                        if (nullMatched_o) return; // Multiple slots in old
-                        nullMatched_o = true;
+        const resolveTransition = (oldHash, matches) => {
+            const oldHash_parsed = this.#parseLogicalHash(oldHash);
+            let i;
+            for (const [alias, originSchema] of this.#originSchemasLite.entries()) {
+                if (allAffectedAliases.has(alias)) {
+                    const relation = originSchema.relation;
+                    // An event happen of this alias?
+                    let possibleEventId;
+                    let normalizedEvent;
+                    if (oldHash_parsed[i] === null) {
+                        // Find INSERTS or UPDATES that might slot in here from the right hand side
+                        matches = matches.filter(([k]) => {
+                            // Find an INSERT or UPDATE that might talk about this object
+                            if (k[i] !== null && (possibleEventId = JSON.parse([relation.schema, relation.name, k[i]])) && (
+                                (normalizedEvent = normalizedEventsMap.get(possibleEventId))
+                                || keyHistoryMap.has(possibleEventId) && (normalizedEvent = normalizedEventsMap.get(possibleEventId = keyHistoryMap.get(possibleEventId)))
+                            )) return true; // At least an INSERT or UPDATE is found on oldHash_parsed[i]
+                        });
+                    } else {
+                        // Find a DELETE or UPDATE that might talk about this object
+                        if ((possibleEventId = JSON.parse([relation.schema, relation.name, oldHash_parsed[i]]))
+                            && (normalizedEvent = normalizedEventsMap.get(possibleEventId))) {
+                            matches = matches.filter(([k]) => {
+                                // Remote hash would be null on normalizedEvent.type === 'delete'
+                                return normalizedEvent.type === 'delete' ? k[i] === null : _eq(normalizedEvent.newKeys, k[i]);
+                            });
+                        }
                     }
-                    if (remoteJid_split[i] === null) {
-                        if (nullMatched_n) continue top; // Multiple slots in new
-                        nullMatched_n = true;
-                    }
-                    matched = matched && (_eq(oldJId_split[i], remoteJid_split[i]) || nullMatched_o || nullMatched_n);
                 }
-                if (matched) return remoteJid;
+                // Default matcher: exact key values at given slot
+                matches = matches.filter(([k]) => _eq(oldHash_parsed[i], k[i]));
+                i++;
             }
+            if (!matches.length) return [];
+            return [this.#stringifyLogicalHash(matches[0][0]), matches[0][1]];
         };
-        // The diffing...
-        const idChanges = new Map;
-        const enittedPartials = new Set;
-        for (const jId of allLogicalHashs) {
-            if (localLogicalHashs.has(jId)) {
-                // Exact match
-                if (remoteLogicalHashs.has(jId)) {
-                    this.#localSet(jId, remoteRecords.get(jId)); // Replacing any existing
-                    remoteLogicalHashs.delete(jId); // IMPORTANT subsequent iterations should not see this anymore; especially when findPartialMatch()
-                    await this.#fanout({ type: 'update', oldHash: jId, newHash: remoteRecords.get(jId)[Symbol.for('newHash')] || jId, logicalRecord: remoteRecords.get(jId) });
+
+        // ----------------
+
+        const remoteRecords = await this.#queryHeadless(diffingFilters_allEvents);
+        return await this.#createDiffs(localRecords, remoteRecords, resolveTransition);
+    }
+
+    async #diffWithOrigin_Wholistic() {
+        const remoteRecords = await this.#queryHeadless();
+        return !this.#strategy.diffing
+            ? await this.#commitResult(remoteRecords, true)
+            : await this.#createDiffs(this.#localRecords, remoteRecords);
+    }
+
+    async #createDiffs(localRecords, remoteRecords, resolveTransition = null) {
+        const diffEvents = new Set;
+
+        const parseRemoteRecords = () => [...remoteRecords.entries()].map(([k, v]) => [this.#parseLogicalHash(k), v]);
+        let remoteRecords_parsed = parseRemoteRecords();
+
+        for (const [logicalHash_existing, logicalRecord_existing] of localRecords.entries()) {
+            if (remoteRecords.has(logicalHash_existing)) {
+                const logicalRecord_new = remoteRecords.get(logicalHash_existing);
+                remoteRecords.delete(logicalHash_existing);
+                remoteRecords_parsed = parseRemoteRecords(); // refresh
+                const diffEvent = { type: 'update', oldHash: logicalHash_existing, newHash: logicalHash_existing, logicalRecord: logicalRecord_new };
+                diffEvents.add(diffEvent);
+                continue;
+            }
+            if (resolveTransition) {
+                const [logicalHash_new, logicalRecord_new] = resolveTransition(logicalHash_existing, remoteRecords_parsed);
+                if (logicalHash_new) {
+                    remoteRecords.delete(logicalHash_new);
+                    remoteRecords_parsed = parseRemoteRecords(); // refresh
+                    const diffEvent = { type: 'update', oldHash: logicalHash_existing, newHash: logicalRecord_new, logicalRecord: logicalRecord_new };
+                    diffEvents.add(diffEvent);
                     continue;
                 }
-                const remoteJid = findPartialMatch(jId);
-                if (remoteJid && !enittedPartials.has(remoteJid)/* IMPORTANT */) {
-                    // Partial match
-                    this.#localSet(jId, remoteRecords.get(remoteJid)); // Replacing any existing
-                    remoteLogicalHashs.delete(remoteJid); // IMPORTANT: subsequent iterations should not see this anymore; especially when findPartialMatch()
-                    enittedPartials.add(remoteJid);
-                    const remoteNewJId = remoteRecords.get(remoteJid)[Symbol.for('newHash')] || remoteJid;
-                    idChanges.set(jId, remoteNewJId);
-                    await this.#fanout({ type: 'update', oldHash: jId, newHash: remoteNewJId, logicalRecord: remoteRecords.get(remoteJid) });
-                } else {
-                    // Obsolete
-                    this.#localDelete(jId);
-                    await this.#fanout({ type: 'delete', oldHash: jId });
-                }
-            } else if (remoteLogicalHashs.has(jId)) {
-                // All new
-                this.#localSet(jId, remoteRecords.get(jId)); // Push new
-                await this.#fanout({ type: 'insert', newHash: jId, logicalRecord: remoteRecords.get(jId) });
             }
+            const diffEvent = { type: 'delete', oldHash: logicalHash_existing, logicalRecord: logicalRecord_existing };
+            diffEvents.add(diffEvent);
         }
-        this.#localReindex(idChanges);
+
+        for (const [logicalHash_new, logicalRecord_new] of remoteRecords.entries()) {
+            const diffEvent = { type: 'insert', newHash: logicalHash_new, logicalRecord: logicalRecord_new };
+            diffEvents.add(diffEvent);
+        }
+
+        return await this.#commitDiffs(diffEvents);
     }
 
-    async #fanout(outputEvent) {
-        this.emit('changefeed', outputEvent);
-        // Handle deletions
-        if (outputEvent.type === 'delete') {
-            const mutationEvent = {
-                type: outputEvent.type,
-                oldHash: outputEvent.oldHash,
-                old: outputEvent.old,
+    async #commitDiffs(diffEvents) {
+        if (!diffEvents?.size) return false;
+
+        const _diffEvents = new Set;
+        const deferredInserts = new Set;
+        const idChanges = new Map;
+        const outputEvents = new Set;
+
+        const render = async (diffEvent) => {
+            const row = await this.#renderLogicalRecord(diffEvent.logicalRecord);
+            const outputEvent = {
+                type: diffEvent.type,
+                ...(diffEvent.type === 'update' ? { oldHash: diffEvent.oldHash, old: diffEvent.old } : {}),
+                newHash: diffEvent.newHash,
+                new: row,
             };
-            this.emit('mutation', mutationEvent);
-            return;
-        }
-        // Run projection
-        const projection = await this.#renderLogicalRecord(outputEvent.logicalRecord);
-        // Emit events
-        const mutationEvent = {
-            type: outputEvent.type,
-            ...(outputEvent.type === 'update' ? { oldHash: outputEvent.oldHash, old: outputEvent.old } : {}),
-            newHash: outputEvent.newHash,
-            new: projection,
+            return outputEvent;
         };
-        this.emit('mutation', mutationEvent);
+
+        for (const diffEvent of diffEvents) {
+            if (diffEvent.type === 'delete') {
+                const outputEvent = {
+                    type: diffEvent.type,
+                    oldHash: diffEvent.oldHash,
+                    old: diffEvent.old,
+                }
+                this.#localDelete(diffEvent.oldHash);
+                _diffEvents.add(diffEvent);
+                outputEvents.add(outputEvent);
+                continue;
+            }
+            if (diffEvent.type === 'update'
+                && diffEvent.newHash !== diffEvent.oldHash) {
+                idChanges.set(diffEvent.oldHash, diffEvent.newHash);
+            } else if (diffEvent.type === 'insert'
+                && this.#effectiveLimit
+                && this.#localRecords.size === this.#effectiveLimit) {
+                deferredInserts.add(diffEvent);
+                continue;
+            }
+            this.#localSet(diffEvent.oldHash, diffEvent.logicalRecord);
+            _diffEvents.add(diffEvent);
+            outputEvents.add(await render(diffEvent));
+        }
+
+        // Re-attempt INSERTs
+        for (const diffEvent of deferredInserts) {
+            if (this.#localRecords.size === this.#effectiveLimit) break;
+            this.#localSet(diffEvent.newHash, diffEvent.logicalRecord);
+            _diffEvents.add(diffEvent);
+            outputEvents.add(await render(diffEvent));
+        }
+
+        if (idChanges.size) this.#localReindex(idChanges);
+        if (_diffEvents.size) this.emit('rawdiff', _diffEvents);
+        if (outputEvents.size) this.emit('diff', [...outputEvents]);
+
+        if (this.#analysis.hasOrderByClause) {
+            const reorderedLocalRecords = await this.#applySorting(this.#localRecords, true);
+            await this.#commitResult(reorderedLocalRecords);
+        }
+
+        return true;
     }
 
-    static analyseQuery(query) {
-        const analysis = {
-            hasSubqueryExprs: false,
-            hasSubqueryExprsInSelect: false,
-            hasWindowFunctions: false,
-            hasAggrFunctions: false,
-            hasGroupByClause: false,
-            hasOrderByClause: false,
-            hasOffsetClause: false,
-            hasLimitClause: false,
-            fromItemsBySchema: {},
-            fromItemsByAlias: {},
-        };
+    async #commitResult(resultRecords, emit = false) {
+        this.#localRecords.clear();
+        for (const [logicalHash, logicalRecord] of resultRecords.entries()) {
+            this.#localSet(logicalHash, logicalRecord);
+        }
+        if (emit) {
+            this.emit('rawresult', new Map(this.#localRecords));
+            this.emit('result', await this.currentRendering());
+        }
+    }
 
-        query.walkTree((n) => {
-            // Aggregate expressions?
-            if (n instanceof registry.AggrCallExpr) {
-                if (n.overClause()) {
-                    analysis.hasWindowFunctions = true;
-                } else analysis.hasAggrFunctions = true;
+    async #applySorting(logicalRecords, emit = false) {
+        const entries = !Array.isArray(logicalRecords)
+            ? [...logicalRecords.entries()]
+            : logicalRecords;
+
+        const orderElements = this.#query.orderByClause().entries();
+        let decorated;
+        if (this.#strategy.ssr) {
+            decorated = decorated.map((entry) => ({ entry, keys: entry[1].ord }));
+        } else {
+            decorated = await Promise.all(entries.map(async (entry) => {
+                const keys = await Promise.all(orderElements.map(orderElement =>
+                    this.#exprEngine.evaluate(orderElement.expr(), entry[1], this.#queryCtx)
+                ));
+                return { entry, keys };
+            }));
+        }
+        this.#exprEngine.applySorting(decorated, orderElements, this.#queryCtx);
+        const _entries = decorated.map((e) => e.entry);
+
+        if (emit) {
+            const origianlLogicalKeys = entries/* original */.map((e) => e[0]);
+            const reorderedLocalKeys = _entries.map((e) => e[0]);
+            const keyRemap = [];
+            for (const [oldIdx, logicalHash] of origianlLogicalKeys.entries()) {
+                const newIdx = reorderedLocalKeys.indexOf(logicalHash);
+                if (newIdx !== oldIdx) keyRemap.push([logicalHash, origianlLogicalKeys[newIdx]]);
             }
-            // Subquery/derived query expresions?
-            else if (n instanceof registry.DerivedQuery) {
-                analysis.hasSubqueryExprs = true;
-                if (query.selectList().containsNode(n)) {
-                    analysis.hasSubqueryExprsInSelect = true;
-                }
-                grepFromItems(n.expr(), analysis.fromItemsBySchema);
+            if (keyRemap.length) {
+                this.emit('swap', keyRemap);
             }
-            // Enter FromItem:
-            else if (n instanceof registry.FromItem) {
-                // Aliases are expected
-                //  - except for a FROM (subquery) scenario, where it's optional
-                const alias = n.alias()?.value() || '';
-                if (n.expr() instanceof registry.DerivedQuery) {
-                    const tableRefHashes = new Set;
-                    grepFromItems(n.expr().expr(), analysis.fromItemsBySchema, tableRefHashes);
-                    analysis.fromItemsByAlias[alias] = tableRefHashes;
-                } else if (n.expr() instanceof registry.TableRef1
-                    && n.expr().resolution() === 'default') {
-                    const tableRefHashes = new Set;
-                    acquireTableRef(n.expr(), analysis.fromItemsBySchema, tableRefHashes);
-                    analysis.fromItemsByAlias[alias] = tableRefHashes;
-                } else {
-                    analysis.fromItemsByAlias[alias] = new Set;
-                }
-            } else return n;
-        });
-
-        function grepFromItems(query, fromItemsBySchema, tableRefHashes = null) {
-            query.walkTree((n) => {
-                if (n instanceof registry.FromItem
-                    && n.expr() instanceof registry.TableRef1
-                    && n.expr().resolution() === 'default') {
-                    acquireTableRef(n.expr(), fromItemsBySchema, tableRefHashes);
-                } else return n;
-            });
         }
 
-        function acquireTableRef(tableRef, fromItemsBySchema, tableRefHashes = null) {
-            const tableName = tableRef.value();
-            const schemaName = tableRef.qualifier().value(); // Both name and qualifier are expected
-            fromItemsBySchema[schemaName] = [].concat(fromItemsBySchema[schemaName] || []).concat(tableName);
-            if (tableRefHashes) tableRefHashes.add(JSON.stringify([schemaName, tableName]));
-        }
-
-        if (query.groupByClause()) {
-            analysis.hasGroupByClause = true;
-        }
-        if (query.orderByClause()) {
-            analysis.hasOrderByClause = true;
-        }
-        if (query.offsetClause()) {
-            analysis.hasOffsetClause = true;
-        }
-        if (query.limitClause()) {
-            analysis.hasLimitClause = true;
-        }
-
-        return analysis;
+        if (!Array.isArray(logicalRecords)) return new Map(_entries);
+        return _entries;
     }
 }

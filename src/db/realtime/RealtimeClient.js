@@ -18,21 +18,19 @@ export class RealtimeClient {
     }
 
     async query(...args) {
-        const [query, options] = normalizeQueryArgs(true, ...args);
+        const [query, { callback, signal, ...options }] = normalizeQueryArgs(true, ...args);
         if (!(query instanceof registry.BasicSelectStmt)) {
             throw new Error('Only SELECT statements are supported in live mode');
         }
-        const queryWindow = this.createWindow(query);
-        const resultJson = await queryWindow.initialResult();
-        if (options.callback) {
-            resultJson.abort = queryWindow.on('mutation', options.callback);
-        } else {
-            resultJson.abort = queryWindow.on('mutation', (event) => {
-                realtimeResult._render(event);
-            });
-        }
-        resultJson.signal = options.signal;
-        const realtimeResult = new RealtimeResult(resultJson);
+        const queryWindow = this.createWindow(query, options);
+        const resultJson = await queryWindow.currentRendering();
+        const realtimeResult = new RealtimeResult(resultJson, () => abortLines.forEach((c) => c()), signal);
+
+        const changeHandler = callback || ((eventName, eventData) => realtimeResult._apply(eventName, eventData));
+        const abortLines = ['result', 'diff', 'swap'].map((eventName) => {
+            return queryWindow.on(eventName, (eventData) => changeHandler(eventName, eventData));
+        });
+
         return realtimeResult;
     }
 
