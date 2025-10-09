@@ -25,7 +25,7 @@ export class FlashClient extends AbstractClient {
         this.#enableLive = !!enableLive;
         this.#storageEngine = storageEngine || new StorageEngine({ dialect, ...options });
         this.#queryEngine = new QueryEngine(this.#storageEngine, { dialect, ...options });
-        this.#realtimeClient = new RealtimeClient(this.driver);
+        this.#realtimeClient = new RealtimeClient(this);
     }
 
     // ---------Lifecycle
