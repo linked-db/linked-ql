@@ -40,7 +40,8 @@
     "build": "esbuild main=src/index.js --bundle --minify --sourcemap --outdir=dist",
     "preversion": "npm run test && npm run build && git add -A dist",
     "postversion": "npm publish --tag next",
-    "postpublish": "git push && git push --tags"
+    "postpublish": "git push && git push --tags",
+    "publish:next": "npm run build && npm version prerelease --preid=next && npm publish --tag next"
   },
   "dependencies": {
     "@webqit/observer": "file:../observer",
