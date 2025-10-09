@@ -1,5 +1,8 @@
 {
   "name": "@linked-db/linked-ql",
+  "publishConfig": {
+    "access": "public"
+  },
   "title": "Linked QL",
   "description": "A query client that extends standard SQL with new syntax sugars and enables auto-versioning capabilities on any database",
   "keywords": [
