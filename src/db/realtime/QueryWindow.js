@@ -99,7 +99,7 @@ export class QueryWindow extends SimpleEmitter {
             && !(analysis.hasAggrFunctions || analysis.hasGroupByClause)
             && !analysis.hasWindowFunctions
             && analysis.hasSubqueryExprs !== 2
-            && ((fromItems) => fromItems.length === 1 && !(fromItems[0].expr() instanceof registry.DerivedQuery))(query.fromClause()?.entries());
+            && ((fromItems) => fromItems.length === 1 && !(fromItems[0].expr() instanceof registry.DerivedQuery))(query.fromClause().entries());
 
         return analysis;
     }
@@ -244,6 +244,9 @@ export class QueryWindow extends SimpleEmitter {
         this.#driver = driver;
         if (!(query instanceof registry.BasicSelectStmt)) {
             throw new Error('Only SELECT statements are supported in live mode');
+        }
+        if (!query.fromClause()) {
+            throw new Error('Query has no FROM clause');
         }
         if (!Array.isArray(query.originSchemas())) {
             throw new Error('Expected a pre-resolved query object with originSchemas() returning an array');
@@ -448,8 +451,8 @@ export class QueryWindow extends SimpleEmitter {
             });
             const delim = alias !== alias.toLowerCase()
                 || /^\d/.test(alias)
-                || !/^(\*|[\w]+)$/.test(alias);
-            this.#originAliases.push({ value: alias, delim });
+                || !/^(\*|[\w]+)$/.test(alias);                
+            this.#originAliases.push({ value: alias, delim: delim && '"' || '' });
         }
 
         // ----------- newQueryHead
@@ -496,13 +499,13 @@ export class QueryWindow extends SimpleEmitter {
         // Format for strategy.ssr?
         // SELECT: { ssr: {...}, key: {...}[, ord] }
         if (strategy.ssr) {
+            const fnName = this.#driver.dialect === 'mysql' ? 'JSON_OBJECT' : 'JSON_BUILD_OBJECT';
             // 1. Whole original query head as a select item
-            const originalsArgs = this.#queryJson.select_list.reduce((acc, si) => {
-                return acc.concat({ ...si.alias, nodeName: 'STRING_LITERAL' }, si.expr);
+            const originalsArgs = this.#queryJson.select_list.entries.reduce((acc, si) => {
+                return acc.concat({ nodeName: 'STRING_LITERAL', value: si.alias.value }, si.expr);
             }, []);
             const originalsJson = { nodeName: 'CALL_EXPR', name: fnName, arguments: originalsArgs };
             // 2. All keys as a select item
-            const fnName = this.#driver.dialect === 'mysql' ? 'JSON_OBJECT' : 'JSON_BUILD_OBJECT';
             const keysJson = { nodeName: 'CALL_EXPR', name: fnName, arguments: newQueryHead };
             // Final newQueryHead
             newQueryHead = [{ nodeName: 'SELECT_ITEM', alias: { nodeName: 'SELECT_ITEM_ALIAS', value: 'ssr' }, expr: originalsJson }];

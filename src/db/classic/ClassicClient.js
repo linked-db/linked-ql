@@ -18,7 +18,7 @@ export class ClassicClient extends AbstractClient {
     async query(...args) {
         const [query, options] = await this._normalizeQueryArgs(...args);
         // Realtime query?
-        if (options.live) {
+        if (options.live && query.fromClause?.()) {
             return await this.#realtimeClient.query(query, options);
         }
         const result = await this.driver.query(query + '', options.values);

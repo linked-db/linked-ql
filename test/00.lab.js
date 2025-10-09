@@ -20,7 +20,8 @@ await client.query(sql);
 
 
 
-const result = await client.query('TABLE t1');
+//const result = await client.query('TABLE t1');
+const result = await client.query('SELECT MAX(id) FROM t1', { live: true, forceDiffing: true });
 console.log('-----------ffff', result.rows);
 
 
