@@ -1,4 +1,3 @@
-import '../src/lang/index.js';
 import { matchSchemaSelector, normalizeSchemaSelectorArg } from '../src/db/abstracts/util.js';
 import { StorageEngine } from '../src/db/flash/StorageEngine.js';
 import { FlashClient } from '../src/db/flash/FlashClient.js';

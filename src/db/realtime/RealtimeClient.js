@@ -1,3 +1,4 @@
+import '../../lang/index.js';
 import { AbstractClient } from '../abstracts/AbstractClient.js';
 import { RealtimeResult } from './RealtimeResult.js';
 import { QueryWindow } from './QueryWindow.js';

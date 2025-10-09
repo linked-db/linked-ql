@@ -1,3 +1,4 @@
+import '../../lang/index.js';
 import { normalizeQueryArgs, normalizeSchemaSelectorArg } from './util.js';
 import { AbstractStmt } from '../../lang/abstracts/AbstractStmt.js';
 import { SchemaInference } from '../../lang/SchemaInference.js';

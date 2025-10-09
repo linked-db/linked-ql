@@ -1,5 +1,6 @@
 import './lang/index.js';
 import { Script } from './lang/Script.js';
+import { FlashClient } from './db/flash/FlashClient.js';
 
-//console.log('LinkedQL loaded', (await Script.parse('SELECT * FROM users; INSERT INTO u SELECT *;')) + '');
 export { Script };
+export { FlashClient }
