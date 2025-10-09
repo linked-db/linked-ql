@@ -1,5 +1,5 @@
 import { SimpleEmitter } from '../abstracts/SimpleEmitter.js';
-import { ExprEngine } from "../l/ExprEngine.js";
+import { ExprEngine } from '../flash/ExprEngine.js';
 import { matchExpr } from '../abstracts/util.js';
 import { registry } from "../../lang/registry.js";
 import { _eq } from "../../lang/abstracts/util.js";

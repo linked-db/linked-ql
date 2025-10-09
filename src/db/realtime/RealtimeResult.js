@@ -25,7 +25,7 @@ export class RealtimeResult extends Result {
     _apply(eventName, eventData) {
         if (eventName === 'diff') {
             Observer.batch(this.#$rows, () => {
-                for (const event of eventData) {
+                for (let event of eventData) {
                     if (event.type === 'update') {
                         const i = this.#hashes.indexOf(event.oldHash);
                         if (i > -1) {

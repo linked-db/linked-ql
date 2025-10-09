@@ -11,7 +11,6 @@ export class RealtimeClient {
     #driver;
 
     constructor(driver) {
-        super();
         if (!(driver instanceof AbstractClient)) {
             throw new TypeError('driver must be an instance of AbstractClient');
         }

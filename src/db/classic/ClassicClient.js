@@ -1,15 +1,26 @@
 import { normalizeSchemaSelectorArg, parseSchemaSelectors } from '../abstracts/util.js';
-import { ReferentialAction, SchemaSchema, TableSchema } from '../../lang/ddl/index.js';
-import { Expr, Identifier, StringLiteral } from '../../lang/expr/index.js';
 import { AbstractClient } from '../abstracts/AbstractClient.js';
+import { RealtimeClient } from '../realtime/RealtimeClient.js';
+import { registry } from '../../lang/registry.js';
 import { Result } from '../Result.js';
 
 export class ClassicClient extends AbstractClient {
+
+    #realtimeClient;
+
+    constructor() {
+        super();
+        this.#realtimeClient = new RealtimeClient(this);
+    }
 
     // ---------Query
 
     async query(...args) {
         const [query, options] = await this._normalizeQueryArgs(...args);
+        // Realtime query?
+        if (options.live) {
+            return await this.#realtimeClient.query(query, options);
+        }
         const result = await this.driver.query(query + '', options.values);
         return new Result({ rows: result.rows, rowCount: result.rowCount });
     }
@@ -171,8 +182,8 @@ export class ClassicClient extends AbstractClient {
     _createCommonSQLUtils() {
         const utils = {
             //groupConcat: (col, orderBy) => this.dialect === 'mysql' ? `GROUP_CONCAT(${col}${orderBy ? ` ORDER BY ${orderBy}` : ``} SEPARATOR ',')` : `STRING_AGG(${col}, ','${orderBy ? ` ORDER BY ${orderBy}` : ``})`,
-            ident: (name) => Identifier.fromJSON({ value: name }, { dialect: this.dialect }),
-            str: (value) => StringLiteral.fromJSON({ value }, { dialect: this.dialect }),
+            ident: (name) => registry.Identifier.fromJSON({ value: name }, { dialect: this.dialect }),
+            str: (value) => registry.StringLiteral.fromJSON({ value }, { dialect: this.dialect }),
             jsonBuildObject: (exprs) => this.dialect === 'mysql' ? `JSON_OBJECT(${exprs.join(', ')})` : `JSON_BUILD_OBJECT(${exprs.join(', ')})`,
             jsonAgg: (expr) => this.dialect === 'mysql' ? `JSON_ARRAYAGG(${expr})` : `JSON_AGG(${expr})`,
             anyValue: (col) => this.dialect === 'mysql' ? col : `MAX(${col})`,
@@ -205,13 +216,13 @@ export class ClassicClient extends AbstractClient {
             if (cons.update_rule) {
                 consSchema.referential_rules.push({
                     nodeName: 'FK_UPDATE_RULE',
-                    action: await ReferentialAction.parse(cons.update_rule, { dialect: this.dialect }),
+                    action: await registry.ReferentialAction.parse(cons.update_rule, { dialect: this.dialect }),
                 });
             }
             if (cons.delete_rule) {
                 consSchema.referential_rules.push({
                     nodeName: 'FK_DELETE_RULE',
-                    action: await ReferentialAction.parse(cons.delete_rule, { dialect: this.dialect }),
+                    action: await registry.ReferentialAction.parse(cons.delete_rule, { dialect: this.dialect }),
                 });
             }
             return consSchema;
@@ -223,7 +234,7 @@ export class ClassicClient extends AbstractClient {
             }));
         };
         const parseExpr = async (expr) => {
-            return (await Expr.parse(expr || '', { dialect: this.dialect })).jsonfy();
+            return (await registry.Expr.parse(expr || '', { dialect: this.dialect })).jsonfy();
         };
 
         const schemas = [];
@@ -337,12 +348,12 @@ export class ClassicClient extends AbstractClient {
                 }
 
                 (schemaWrapped ? schemaSchemaJson.entries : schemas).push(
-                    TableSchema.fromJSON(tableSchemaJson, { dialect: this.dialect })
+                    registry.TableSchema.fromJSON(tableSchemaJson, { dialect: this.dialect })
                 );
             }
 
             if (schemaWrapped) {
-                schemas.push(SchemaSchema.fromJSON(schemaSchemaJson, { dialect: this.dialect }));
+                schemas.push(registry.SchemaSchema.fromJSON(schemaSchemaJson, { dialect: this.dialect }));
             }
         }
 

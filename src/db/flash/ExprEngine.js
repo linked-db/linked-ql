@@ -126,7 +126,6 @@ export class ExprEngine {
         switch (DT) {
             case 'INT': return parseInt(L);
             case 'TEXT': return String(L);
-            case 'BOOLEAN':
             case 'BOOLEAN': return Boolean(L);
             default: return L;
         }

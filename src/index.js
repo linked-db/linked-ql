@@ -1,6 +1,6 @@
 import './lang/index.js';
-import { Script } from './lang/Script.js';
 import { FlashClient } from './db/flash/FlashClient.js';
+import { Script } from './lang/Script.js';
 
-export { Script };
 export { FlashClient }
+export { Script };

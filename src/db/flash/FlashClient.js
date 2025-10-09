@@ -1,9 +1,9 @@
 import { AbstractClient } from '../abstracts/AbstractClient.js';
-import { SchemaSchema } from '../../lang/ddl/schema/SchemaSchema.js';
-import { TableSchema } from '../../lang/ddl/index.js';
-import { matchSchemaSelector, normalizeQueryArgs, normalizeSchemaSelectorArg } from '../abstracts/util.js';
+import { matchSchemaSelector, normalizeSchemaSelectorArg } from '../abstracts/util.js';
+import { RealtimeClient } from '../realtime/RealtimeClient.js';
 import { StorageEngine } from './StorageEngine.js';
 import { QueryEngine } from './QueryEngine.js';
+import { registry } from '../../lang/registry.js';
 import { Result } from '../Result.js';
 
 export class FlashClient extends AbstractClient {
@@ -13,6 +13,7 @@ export class FlashClient extends AbstractClient {
     #storageEngine;
     #queryEngine;
     #mutationAbortLine;
+    #realtimeClient;
 
     get dialect() { return this.#dialect; }
     get enableLive() { return this.#enableLive; }
@@ -24,6 +25,7 @@ export class FlashClient extends AbstractClient {
         this.#enableLive = !!enableLive;
         this.#storageEngine = storageEngine || new StorageEngine({ dialect, ...options });
         this.#queryEngine = new QueryEngine(this.#storageEngine, { dialect, ...options });
+        this.#realtimeClient = new RealtimeClient(this.driver);
     }
 
     // ---------Lifecycle
@@ -43,6 +45,10 @@ export class FlashClient extends AbstractClient {
 
     async query(...args) {
         const [query, options] = await this._normalizeQueryArgs(...args);
+        // Realtime query?
+        if (options.live) {
+            return await this.#realtimeClient.query(query, options);
+        }
         const result = await this.#queryEngine.query(query, options);
         if (Array.isArray(result) || typeof result?.[Symbol.asyncIterator] === 'function') {
             return new Result({ rows: result });
@@ -80,11 +86,11 @@ export class FlashClient extends AbstractClient {
                 tableSchemaJson.name.qualifier = { nodeName: 'SCHEMA_REF', value: schemaName };
                 (schemaWrapped
                     ? schemaSchemaJson.entries
-                    : schemas).push(TableSchema.fromJSON(tableSchemaJson, { dialect: this.dialect }));
+                    : schemas).push(registry.TableSchema.fromJSON(tableSchemaJson, { dialect: this.dialect }));
             }
 
             if (schemaWrapped) {
-                schemas.push(SchemaSchema.fromJSON(schemaSchemaJson, { dialect: this.dialect }));
+                schemas.push(registry.SchemaSchema.fromJSON(schemaSchemaJson, { dialect: this.dialect }));
             }
         }
 
