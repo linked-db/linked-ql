@@ -234,7 +234,7 @@ export class QueryEngine extends SimpleEmitter {
             for (const rowConstructor of _.valuesClause) {
                 const record = { ...defaultRecord };
                 const defaultContext = { [tableAlias]: record };
-                for (const [i, valExpr] of rowConstructor.entries().entries()) {
+                for (let [i, valExpr] of rowConstructor.entries().entries()) {
                     const colName = columnNames[i];
                     const colSchema = definedColumns[colName];
                     if (valExpr instanceof registry.DefaultLiteral) {
