@@ -1,6 +1,6 @@
-import { splitLogicalExpr, matchLogicalExprs, matchExpr } from '../abstracts/util.js';
 import { SimpleEmitter } from '../abstracts/SimpleEmitter.js';
 import { ExprEngine } from "../l/ExprEngine.js";
+import { matchExpr } from '../abstracts/util.js';
 import { registry } from "../../lang/registry.js";
 import { _eq } from "../../lang/abstracts/util.js";
 
@@ -104,10 +104,88 @@ export class QueryWindow extends SimpleEmitter {
         return analysis;
     }
 
+    static intersectQueries(query1, query2, subwindowingRules) {
+
+        const specialClauses = [
+            // projection
+            'select_list',
+            // filtering
+            'where_clause',
+            // windowing
+            'order_by_clause',
+            'offset_clause',
+            'limit_clause'
+        ];
+
+        const clauses_a = new Set(query1._keys().filter((c) => !specialClauses.includes(c)));
+        const clauses_b = new Set(query2._keys().filter((c) => !specialClauses.includes(c)));
+        if (clauses_a.size !== clauses_b.size) return false;
+        for (const clauseName of new Set([...clauses_a, ...clauses_b])) {
+            if (!clauses_a.has(clauseName) || !clauses_b.has(clauseName)) return false;
+            if (!matchExpr(query1._get(clauseName), query2._get(clauseName))) return false;
+        }
+
+        const selectMapping = [];
+        if (subwindowingRules.projection === '=') {
+            const selectItems_a = query1.selectList().entries();
+            const selectItems_b = query2.selectList().entries();
+            for (const b of selectItems_b) {
+                const i_a = selectItems_a.findIndex((a) => matchExpr(a.expr(), b.expr()));
+                if (i_a === -1) return false;
+                selectMapping.push(i_a);
+            }
+        }
+
+        const effectiveWhere = [];
+        const aWhere = query1.whereClause()?.expr();
+        const bWhere = query2.whereClause()?.expr();
+        if (aWhere || bWhere) {
+            if (subwindowingRules.whereClause === '>=') {
+                const _effectiveWhere = matchExpr(aWhere, bWhere, 'AND~');
+                if (_effectiveWhere === false) return false;
+                effectiveWhere.push(..._effectiveWhere);
+            } else if (!matchExpr(aWhere, bWhere)) return false;
+        }
+
+        const aOrd = query1.orderByClause()?.entries() || [];
+        const bOrd = query2.orderByClause()?.entries() || [];
+        if (subwindowingRules.ordinality === '=') {
+            if (aOrd.length !== bOrd.length) return false;
+            if (!aOrd.every((a, i) => matchExpr(a.expr(), bOrd[i].expr()))) return false;
+            if (subwindowingRules.orderDirections === '=') {
+                if (!aOrd.every((a, i) => matchExpr(a.dir(), bOrd[i].dir()))) return false;
+            }
+        }
+
+        let effectiveOffset = 0;
+        const aOffs = query1.offsetClause()?.expr();
+        const bOffs = query2.offsetClause()?.expr();
+        if (subwindowingRules.offsetClause === '=') {
+            if ((aOffs || bOffs) && !matchExpr(aOffs, bOffs)) return;
+        } else if (aOffs || bOffs) {
+            if (!(bOffs instanceof registry.NumberLiteral)) return false;
+            if ((effectiveOffset = bOffs.value() - (aOffs?.value() || 0)) < 0) return false;
+        }
+
+        const aLmt = query1.limitClause()?.expr();
+        const bLmt = query2.limitClause()?.expr();
+        if (subwindowingRules.limitClause === '=') {
+            if ((aLmt || bLmt) && !matchExpr(aLmt, bLmt)) return;
+        } else if (aLmt || bLmt) {
+            if (!(bLmt instanceof registry.NumberLiteral)) return false;
+            if (((aLmt?.value() || Infinity) - bLmt.value()) < 0) return false;
+        }
+
+        return { selectMapping, filters: effectiveWhere, offset: effectiveOffset };
+    }
+
     // -----------------
 
     #driver;
     #options;
+
+    #status = 0;
+    #abortLine;
 
     #exprEngine;
     #queryCtx;
@@ -134,16 +212,16 @@ export class QueryWindow extends SimpleEmitter {
     #logicalQuery;
     #logicalQueryJson;
 
-    #aliases = [];
-    #originSchemasLite = new Map;
-
-    #effectiveLimit = 0;
+    #originAliases = [];
+    #originSchemas = new Map;
 
     #parentWindow;
-    #generatorDisconnect;
+    #subwindowConstraints = {
+        selectMapping: [],
+        filters: [],
+        offset: 0,
+    };
     #inheritanceDepth = 0;
-    #subwindowWheres = [];
-    #subwindowOffset = 0;
 
     #localRecords = new Map;
     #firstRun = false;
@@ -154,16 +232,15 @@ export class QueryWindow extends SimpleEmitter {
     get strategy() { return this.#strategy; }
     get subwindowingRules() { return this.#subwindowingRules; }
 
+    get status() { return this.#status; }
+
     get parentWindow() { return this.#parentWindow; }
     get inheritanceDepth() { return this.#inheritanceDepth; }
-    get subwindowWheres() { return this.#subwindowWheres; }
-    get subwindowOffset() { return this.#subwindowOffset; }
 
-    constructor(driver, query, { analysis = null, subwindowWheres = [], subwindowOffset = 0, ...options } = {}) {
+    constructor(driver, query, options = {}) {
         super();
-        this.#driver = driver;
-        this.#options = options;
 
+        this.#driver = driver;
         if (!(query instanceof registry.BasicSelectStmt)) {
             throw new Error('Only SELECT statements are supported in live mode');
         }
@@ -172,84 +249,7 @@ export class QueryWindow extends SimpleEmitter {
         }
         this.#query = query;
         this.#queryJson = this.#query.jsonfy({ resultSchemas: false, originSchemas: false });
-
-        // ------------------ Derive strategy
-
-        this.#analysis = analysis || this.constructor.analyseQuery(query);
-
-        if (this.#analysis.hasAggrFunctions || this.#analysis.hasGroupByClause) {
-            // Can't be computed client-side due to windowing
-            this.#strategy.ssr = true; // SELECT: { ssr[, key[, ord]] }
-            // Result records not mappable via keys to database records
-            this.#strategy.requeryMode = 'wholistic';
-            if (this.#options.forceDiffing) {
-                this.#strategy.diffing = 'deep'; // key + content
-            } else {
-                this.#strategy.diffing = false; // no diffing
-            }
-        }
-
-        if (this.#analysis.hasWindowFunctions) {
-            // Can't be computed client-side due to windowing
-            this.#strategy.ssr = true; // SELECT: { ssr[, key[, ord]] }
-            if (this.#strategy.requeryMode === 'selective') {
-                // Wrapped; to happen only after windowing
-                this.#strategy.requeryWrappedSelectivity = true;
-            }
-            if (this.#strategy.diffing !== false) {
-                // if not already disabled by aggr functions
-                this.#strategy.diffing = 'deep'; // key + content
-            }
-        }
-
-        if (this.#analysis.hasSubqueryExprsInSelect
-            || this.#analysis.hasSubqueryExprsInOrderBy) {
-            // Can't be computed client-side
-            this.#strategy.ssr = true; // SELECT: { ssr[, key[, ord]] }
-            if (this.#strategy.diffing !== false
-                && this.#analysis.hasSubqueryExprsInSelect) {
-                // if not already disabled by aggr functions
-                this.#strategy.diffing = 'deep'; // key + content
-            }
-        }
-
-        if (this.#analysis.hasOffsetClause
-            || (this.#analysis.hasLimitClause && this.#analysis.hasOrderByClause)) {
-            // Can't be computed client-side due to windowing
-            if (this.#strategy.requeryMode === 'selective') {
-                // Wrapped; to happen only after windowing
-                this.#strategy.requeryWrappedSelectivity = true;
-            }
-        }
-
-        // ------------------ Derive subwindowingRules rules
-
-        if (this.#strategy.ssr) {
-            // RESULT shape doesn't support client-side computing of projection & WHERE & ORDER BY
-            // so these must match
-            this.#subwindowingRules.projection = '=';
-            this.#subwindowingRules.whereClause = '=';
-            this.#subwindowingRules.ordinality = '=';
-        } else {
-            // RESULT shape supports client-side computing of projection & ORDER BY
-            // but subqueries in WHERE can't be computed client-side, so, WHERE must match
-            if (this.#analysis.hasSubqueryExprsInWhere) {
-                this.#subwindowingRules.whereClause = '=';
-            }
-        }
-
-        if (this.#analysis.hasOffsetClause
-            || (this.#analysis.hasLimitClause && this.#analysis.hasOrderByClause)) {
-            // Has OFFSET/LIMIT + ORDER BY (windowing):
-            // so everything must match including WHERE & ORDER BY (expressions + directions) due to windowing
-            this.#subwindowingRules.whereClause = '=';
-            this.#subwindowingRules.ordinality = '=';
-            this.#subwindowingRules.orderDirections = '=';
-            // - OFFSET/LIMIT may differ in subwindow but must fall within current window range
-            // - projection may differ in subwindow
-        }
-
-        // ----------- exprEngine
+        this.#options = options;
 
         const self = this;
         this.#exprEngine = new ExprEngine(
@@ -267,16 +267,143 @@ export class QueryWindow extends SimpleEmitter {
             },
             this.#options
         );
+
+        // ------------------ analysis & strategy
+
+        const analysis = this.constructor.analyseQuery(query);
+        this.#analysis = analysis;
+        const strategy = this.#strategy;
+
+        if (analysis.hasAggrFunctions || analysis.hasGroupByClause) {
+            // Can't be computed client-side due to windowing
+            strategy.ssr = true; // SELECT: { ssr[, key[, ord]] }
+            // Result records not mappable via keys to database records
+            strategy.requeryMode = 'wholistic';
+            if (this.#options.forceDiffing) {
+                strategy.diffing = 'deep'; // key + content
+            } else {
+                strategy.diffing = false; // no diffing
+            }
+        }
+
+        if (analysis.hasWindowFunctions) {
+            // Can't be computed client-side due to windowing
+            strategy.ssr = true; // SELECT: { ssr[, key[, ord]] }
+            if (strategy.requeryMode === 'selective') {
+                // Wrapped; to happen only after windowing
+                strategy.requeryWrappedSelectivity = true;
+            }
+            if (strategy.diffing !== false) {
+                // if not already disabled by aggr functions
+                strategy.diffing = 'deep'; // key + content
+            }
+        }
+
+        if (analysis.hasSubqueryExprsInSelect
+            || analysis.hasSubqueryExprsInOrderBy) {
+            // Can't be computed client-side
+            strategy.ssr = true; // SELECT: { ssr[, key[, ord]] }
+            if (strategy.diffing !== false
+                && analysis.hasSubqueryExprsInSelect) {
+                // if not already disabled by aggr functions
+                strategy.diffing = 'deep'; // key + content
+            }
+        }
+
+        if (analysis.hasOffsetClause
+            || (analysis.hasLimitClause && analysis.hasOrderByClause)) {
+            // Can't be computed client-side due to windowing
+            if (strategy.requeryMode === 'selective') {
+                // Wrapped; to happen only after windowing
+                strategy.requeryWrappedSelectivity = true;
+            }
+        }
+
+        // ------------------ subwindowingRules
+
+        if (strategy.ssr) {
+            // RESULT shape doesn't support client-side computing of projection & WHERE & ORDER BY
+            // so these must match
+            this.#subwindowingRules.projection = '=';
+            this.#subwindowingRules.whereClause = '=';
+            this.#subwindowingRules.ordinality = '=';
+        } else {
+            // RESULT shape supports client-side computing of projection & ORDER BY
+            // but subqueries in WHERE can't be computed client-side, so, WHERE must match
+            if (analysis.hasSubqueryExprsInWhere) {
+                this.#subwindowingRules.whereClause = '=';
+            }
+        }
+
+        if (analysis.hasOffsetClause
+            || (analysis.hasLimitClause && analysis.hasOrderByClause)) {
+            // Has OFFSET/LIMIT + ORDER BY (windowing):
+            // so everything must match including WHERE & ORDER BY (expressions + directions) due to windowing
+            this.#subwindowingRules.whereClause = '=';
+            this.#subwindowingRules.ordinality = '=';
+            this.#subwindowingRules.orderDirections = '=';
+            // - OFFSET/LIMIT may differ in subwindow but must fall within current window range
+            // - projection may differ in subwindow
+        }
     }
 
-    async connect() {
+    async inherit(parentWindow) {
+        await this.stop(); // abort any ongoing
+        this.#parentWindow = parentWindow;
+        
+        // Reset inheritance
+        if (parentWindow === null) {
+            this.#subwindowConstraints = {
+                selectMapping: [],
+                filters: [],
+                offset: 0,
+            };
+            this.#inheritanceDepth = 0;
+            return;
+        }
+        if (!(parentWindow instanceof QueryWindow)) {
+            throw new Error(`Parent window must be instance of QueryWindow or null`);
+        }
+        // Process intersection
+        if (!_eq(this.#subwindowingRules, parentWindow.#subwindowingRules)) return false;
+        const result = this.constructor.intersectQueries(parentWindow.#query, this.#query, this.#subwindowingRules);
+        if (result === false) return false;
 
+        // Ready...
+        this.#subwindowConstraints = result;
+        this.#inheritanceDepth = parentWindow.inheritanceDepth + 1;
+    }
+
+    // -------------
+
+    async start() {
+        await this.stop();
+        if (this.#parentWindow) {
+            await this.#initializeAsSub();
+        } else await this.#initializeAsRoot();
+        this.#status = 1;
+    }
+
+    async stop() {
+        this.#abortLine?.();
+        this.#abortLine = null;
+        this.#status = 0;
+    }
+
+    // -------------
+
+    async #initializeAsRoot() {
+        const analysis = this.#analysis;
+        const strategy = this.#strategy;
+
+        // Construct FromItem schemas
+        // off analysis.fromItemsByAlias & query.originSchemas()
         const getJson = (node) => {
             const value = node.value();
             const delim = node._get('delim');
             return { value: delim ? value : value.toLowerCase(), delim };
         };
-        for (const [alias, relationHashes] of Object.entries(this.#analysis.fromItemsByAlias)) {
+        for (const [alias, relationHashes] of Object.entries(analysis.fromItemsByAlias)) {
             const originSchema = this.#query.originSchemas().find((os) => {
                 if (os instanceof registry.JSONSchema) return alias === '';
                 return os.identifiesAs(alias);
@@ -300,7 +427,7 @@ export class QueryWindow extends SimpleEmitter {
             const relation = relationHashes.size === 1
                 ? (([schema, name]) => ({ schema, name }))(JSON.parse([...relationHashes][0]))
                 : null;
-            this.#originSchemasLite.set(alias, {
+            this.#originSchemas.set(alias, {
                 relation,
                 relationHashes: relationHashes,
                 columns: $columns.map((c) => c.value),
@@ -312,21 +439,22 @@ export class QueryWindow extends SimpleEmitter {
             const delim = alias !== alias.toLowerCase()
                 || /^\d/.test(alias)
                 || !/^(\*|[\w]+)$/.test(alias);
-            this.#aliases.push({ value: alias, delim });
+            this.#originAliases.push({ value: alias, delim });
         }
 
-        // ----------- Compose newQueryHead
+        // ----------- newQueryHead
 
-        // Reconstruct the query's head for internal use
-        let newQueryHead = this.#aliases.reduce((acc, aliasJson) => {
-            const originSchema = this.#originSchemasLite.get(aliasJson.value);
+        // Generate a new head for the query
+        // This is for internal computation
+        let newQueryHead = this.#originAliases.reduce((acc, aliasJson) => {
+            const originSchema = this.#originSchemas.get(aliasJson.value);
 
             // Column key/value construction
             const createColKeyValJson = (colJson) => {
                 const keyJson = { nodeName: 'STRING_LITERAL', ...colJson };
                 let colRefJson = { nodeName: 'COLUMN_REF1', ...colJson, qualifier: { nodeName: 'TABLE_REF1', ...aliasJson } };
                 // Format for strategy.aggrMode === 2?
-                if (this.#analysis.hasAggrFunctions) {
+                if (analysis.hasAggrFunctions) {
                     const fnName = this.#driver.dialect === 'mysql' ? 'JSON_STRINGAGG' : 'JSON_AGG';
                     colRefJson = { nodeName: 'CALL_EXPR', name: fnName, arguments: [colRefJson] };
                 }
@@ -334,13 +462,13 @@ export class QueryWindow extends SimpleEmitter {
             };
             // Compose the cols JSON
             const fnName = this.#driver.dialect === 'mysql' ? 'JSON_OBJECT' : 'JSON_BUILD_OBJECT';
-            const fnArgs = (this.#strategy.ssr ? originSchema.$keyColumns : originSchema.$columns)
+            const fnArgs = (strategy.ssr ? originSchema.$keyColumns : originSchema.$columns)
                 .reduce((colKeyValJsons, colJson) => ([...colKeyValJsons, ...createColKeyValJson(colJson)]), []);
             const aliasColsExpr = { nodeName: 'CALL_EXPR', name: fnName, arguments: fnArgs };
 
             // Format for strategy.ssr?
             // SELECT: { ssr: {...}, key: {...}[, ord] }
-            if (this.#strategy.ssr) {
+            if (strategy.ssr) {
                 const aliasKeyJson = { nodeName: 'STRING_LITERAL', ...aliasJson };
                 return acc.concat(aliasKeyJson, aliasColsExpr);
             }
@@ -357,7 +485,7 @@ export class QueryWindow extends SimpleEmitter {
 
         // Format for strategy.ssr?
         // SELECT: { ssr: {...}, key: {...}[, ord] }
-        if (this.#strategy.ssr) {
+        if (strategy.ssr) {
             // 1. Whole original query head as a select item
             const originalsArgs = this.#queryJson.select_list.reduce((acc, si) => {
                 return acc.concat({ ...si.alias, nodeName: 'STRING_LITERAL' }, si.expr);
@@ -368,10 +496,10 @@ export class QueryWindow extends SimpleEmitter {
             const keysJson = { nodeName: 'CALL_EXPR', name: fnName, arguments: newQueryHead };
             // Final newQueryHead
             newQueryHead = [{ nodeName: 'SELECT_ITEM', alias: { nodeName: 'SELECT_ITEM_ALIAS', value: 'ssr' }, expr: originalsJson }];
-            if (this.#strategy.diffing) {
+            if (strategy.diffing) {
                 newQueryHead.push({ nodeName: 'SELECT_ITEM', alias: { nodeName: 'SELECT_ITEM_ALIAS', value: 'key' }, expr: keysJson });
                 // Oh ... with ordinality?
-                if (this.#analysis.hasOrderByClause) {
+                if (analysis.hasOrderByClause) {
                     const fnName = this.#driver.dialect === 'mysql' ? 'JSON_ARRAY' : 'JSON_BUILD_ARRAY';
                     const ordsJson = { nodeName: 'CALL_EXPR', name: fnName, entries: this.#queryJson.order_by_clause.entries.map((oi) => oi.expr) };
                     newQueryHead.push({ nodeName: 'SELECT_ITEM', alias: { nodeName: 'SELECT_ITEM_ALIAS', value: 'ord' }, expr: ordsJson });
@@ -380,133 +508,28 @@ export class QueryWindow extends SimpleEmitter {
         }
 
         // Declare this.#logicalQueryJson
+        // SELECT: { t1: {...}[, t2: {...}[, ...]] }
         this.#logicalQueryJson = { ...this.#queryJson, select_list: { entries: newQueryHead } };
-        this.#logicalQuery = subwindowWheres.length || subwindowOffset
-            ? this.resetFrame(subwindowWheres, subwindowOffset)
-            : this.#query.constructor.fromJSON(this.#logicalQueryJson, { dialect: this.#driver.dialect });
+        this.#logicalQuery = this.#query.constructor.fromJSON(this.#logicalQueryJson, { dialect: this.#driver.dialect });
 
-        // ----------- effectiveLimit
+        // ----------- connect
 
-        if (this.#analysis.hasLimitClause) {
-            this.#effectiveLimit = await this.#exprEngine.evaluate(this.#query.limitClause().expr(), {}, this.#queryCtx);
-        }
-
-        // ----------- Subscription
-
-        await this.disconnect();
-        this.#generatorDisconnect = this.#driver.subscribe(this.#analysis.fromItemsBySchema, (events) => {
+        // Connect to WAL events or equivalent
+        // Drivers must implement the interface
+        this.#abortLine = this.#driver.subscribe(analysis.fromItemsBySchema, (events) => {
             this.#handleEvents(events).catch((e) => this.emit('error', e));
         });
     }
 
-    async disconnect() {
-        // Unsubscribe to WAL events...
-        this.#generatorDisconnect?.();
-        this.#inheritanceDepth = 0;
-    }
-
-    // --------------------------
-
-    matchBase(query) {
-        const clauses_a = new Set(this.#query._keys());
-        const clauses_b = new Set(query._keys());
-        clauses_a.delete('where_clause');
-        clauses_b.delete('where_clause');
-        if (clauses_a.size !== clauses_b.size) {
-            // Clauses mismatch
-            return false;
-        }
-        // Match all other clauses
-        for (const clauseName of new Set([...clauses_a, ...clauses_b])) {
-            if (!clauses_a.has(clauseName) || !clauses_b.has(clauseName)) {
-                // Clauses mismatch
-                return false;
-            }
-            if (clauseName === 'select_list') {
-                // This is handled separately
-                continue;
-            }
-            if (clauseName === 'having_clause') {
-                const filters_a = splitLogicalExpr(this.#query._get(clauseName).expr());
-                const filters_b = splitLogicalExpr(query._get(clauseName).expr());
-                if (matchLogicalExprs(filters_a, filters_b)?.size !== 0) {
-                    // Clauses mismatch
-                    return false;
-                }
-            } else {
-                if (!matchExpr(this.#query._get(clauseName), query._get(clauseName))) {
-                    // Clauses mismatch
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    matchProjection(selectList) {
-        const selectItems_a = this.#query.selectList().entries();
-        const selectItems_b = selectList.entries();
-        if (selectItems_b.length !== selectItems_a.length) {
-            // Projection mismatch
-            return false;
-        }
-        for (let i = 0; i < selectItems_a.length; i++) {
-            if (!matchExpr(selectItems_a[1].alias(), selectItems_b[1].alias())
-                || !matchExpr(selectItems_a[1].expr(), selectItems_b[1].expr())) {
-                // Projection mismatch
-                return false;
-            }
-        }
-        return true;
-    }
-
-    matchFrame(subwindowWheres, subwindowOffset = 0, frameLimit = 0) {
-        return (!this.#subwindowOffset || subwindowOffset > this.#subwindowOffset)
-        return matchLogicalExprs(this.#subwindowWheres, subwindowWheres);
-    }
-
-    resetFrame(subwindowWheres, subwindowOffset = 0) {
-        this.#subwindowWheres = subwindowWheres;
-        this.#subwindowOffset = subwindowOffset;
-        // Rewrite as logical expression
-        const _subwindowWheres = subwindowWheres.slice(0);
-        const headlessWhereExpr = _subwindowWheres.reduce((left, right) => {
-            return { nodeName: 'BINARY_EXPR', left: left.jsonfy(), operator: 'AND', right: right.jsonfy() };
-        }, _subwindowWheres.shift());
-        // Patch logicalQueryJson
-        this.#logicalQueryJson = {
-            ...this.#logicalQueryJson,
-            where_clause: headlessWhereExpr ? {
-                nodeName: 'WHERE_CLAUSE',
-                expr: headlessWhereExpr,
-            } : undefined,
-            offset_clause: subwindowOffset ? {
-                nodeName: 'OFFSET_CLAUSE',
-                expr: { nodeName: 'NUMBER_LITERAL', value: subwindowOffset }
-            } : undefined,
-        };
-        // Instantiate logicalQueryJson
-        this.#query.constructor.fromJSON(
-            this.#logicalQueryJson,
-            { dialect: this.#driver.dialect }
-        );
-    }
-
-    // --------------------------
-
-    inherit(parentWindow) {
-        this.#generatorDisconnect?.();
-        if (!parentWindow) return;
-
-        this.#parentWindow = parentWindow;
-        this.#inheritanceDepth = parentWindow.inheritanceDepth + 1;
-
-        const abortLine1 = parentWindow.on('rawresult', async (resultRecords) => {
+    async #initializeAsSub() {
+        // Handle "rawresult"
+        const abortLine1 = this.#parentWindow.on('rawresult', async (resultRecords) => {
             resultRecords = await this.#applySubwindowConstraints(resultRecords);
             await this.#commitResult(resultRecords, true);
         });
 
-        const abortLine2 = parentWindow.on('rawdiff', async (diffEvents) => {
+        // Handle "rawdiff"
+        const abortLine2 = this.#parentWindow.on('rawdiff', async (diffEvents) => {
             const _diffEvents = new Set;
 
             for (let diffEvent of diffEvents) {
@@ -526,42 +549,48 @@ export class QueryWindow extends SimpleEmitter {
                 }
                 _diffEvents.add(diffEvent);
             }
-
             await this.#commitDiffs(_diffEvents);
         });
 
-        this.#generatorDisconnect = () => {
+        // Set abortLine
+        this.#abortLine = () => {
             abortLine1();
             abortLine2();
         };
     }
 
+    // -------------
+
     async #applySubwindowConstraints(resultRecords) {
+        const analysis = this.#analysis;
+        const strategy = this.#strategy;
+
         let resultEntries = [];
         for (const [logicalHash, logicalRecord] of resultRecords.entries()) {
             if (await this.#applySubwindowWheres(logicalRecord)) {
                 resultEntries.push([logicalHash, logicalRecord]);
             }
         }
-        if (this.#strategy.diffing && this.#analysis.hasOrderByClause && (
+        if (strategy.diffing && analysis.hasOrderByClause && (
             this.#subwindowingRules.ordinality === '~' || this.#subwindowingRules.orderDirections === '~')) {
             resultEntries = await this.#applySorting(resultEntries);
         }
-        if (this.#analysis.hasOffsetClause || this.#effectiveLimit) {
-            resultEntries = resultEntries.slice(this.#subwindowOffset, this.#effectiveLimit);
+        if (analysis.hasOffsetClause || analysis.hasLimitClause) {
+            const effectiveLimit = await this.#exprEngine.evaluate(this.#query.limitClause().expr(), {}, this.#queryCtx);
+            resultEntries = resultEntries.slice(this.#subwindowConstraints.offset, effectiveLimit);
         }
         return new Map(resultEntries);
     }
 
     async #applySubwindowWheres(logicalRecord) {
-        for (const expr of this.#subwindowWheres) {
+        for (const expr of this.#subwindowConstraints.filters) {
             const _eval = await this.#exprEngine.evaluate(expr, logicalRecord, this.#queryCtx);
             if (!_eval) return false;
         }
         return true;
     }
 
-    // --------------------------
+    // -------------
 
     async currentRendering() {
         const resultRecords = await this.currentRecords();
@@ -590,9 +619,10 @@ export class QueryWindow extends SimpleEmitter {
     }
 
     async #queryHeadless(extraWhere = null) {
+        const strategy = this.#strategy;
         let logicalQuery = this.#logicalQuery;
 
-        if (extraWhere && this.#strategy.requeryWrappedSelectivity) {
+        if (extraWhere && strategy.requeryWrappedSelectivity) {
             const deriveSelectItem = (si) => ({ ...si, expr: { ...si.expr, qualifier: undefined } });
             const logicalQueryJson = {
                 nodeName: 'BASIC_SELECT_STMT',
@@ -617,7 +647,7 @@ export class QueryWindow extends SimpleEmitter {
 
         const resultMap = new Map;
         for (const [i, logicalRecord] of result.rows.entries()) {
-            const logicalHash = this.#strategy.diffing
+            const logicalHash = strategy.diffing
                 ? this.#deriveLogicalHash(logicalRecord)
                 : i;
             resultMap.set(logicalHash, logicalRecord);
@@ -626,7 +656,7 @@ export class QueryWindow extends SimpleEmitter {
         return resultMap;
     }
 
-    // --------------------------
+    // -------------
 
     #getKeyValue(logicalRecord, alias, k) {
         return this.#strategy.ssr
@@ -635,7 +665,7 @@ export class QueryWindow extends SimpleEmitter {
     }
 
     #deriveLogicalHash(logicalRecord) {
-        const newKeysList = [...this.#originSchemasLite.entries()].map(([alias, originSchema]) => {
+        const newKeysList = [...this.#originSchemas.entries()].map(([alias, originSchema]) => {
             const _newKeys = originSchema.keyColumns.map((k) => this.#getKeyValue(logicalRecord, alias, k));
             if (_newKeys.every((s) => s === null)) {
                 return null; // IMPORTANT
@@ -669,10 +699,19 @@ export class QueryWindow extends SimpleEmitter {
     }
 
     async #renderLogicalRecord(logicalRecord) {
-        if (this.#strategy.ssr) {
-            return logicalRecord.ssr;
-        }
         const row = Object.create(null);
+
+        if (this.#strategy.ssr) {
+            if (!this.#subwindowConstraints.filters.length) return logicalRecord.ssr;
+            const renderedValues = Object.values(logicalRecord.ssr);
+            for (const [i, si] of this.#query.selectList().entries().entries()) {
+                const value = renderedValues[i];
+                const alias = si.alias()?.value() || '?column?';
+                row[alias] = value;
+            }
+            return row;
+        }
+
         for (const selectItem of this.#query.selectList()) {
             const { alias, value } = await this.#exprEngine.evaluate(selectItem, logicalRecord, this.#queryCtx);
             row[alias] = value;
@@ -680,7 +719,7 @@ export class QueryWindow extends SimpleEmitter {
         return row;
     }
 
-    // --------------------------
+    // -------------
 
     #normalizeEvents(events) {
         const normalizedEventsMap = new Map;
@@ -691,7 +730,7 @@ export class QueryWindow extends SimpleEmitter {
             if (!(e.type === 'insert' || e.type === 'update' || e.type === 'delete')) continue;
             const relationHash = JSON.stringify([e.relation.schema, e.relation.name]);
 
-            const affectedAliasesEntries = [...this.#originSchemasLite.entries()].filter(([, originSchema]) => originSchema.relationHashes.has(relationHash));
+            const affectedAliasesEntries = [...this.#originSchemas.entries()].filter(([, originSchema]) => originSchema.relationHashes.has(relationHash));
 
             if (!affectedAliasesEntries.length
                 || affectedAliasesEntries.find(([, originSchema]) => originSchema.relationHashes.size > 1)) {
@@ -770,7 +809,9 @@ export class QueryWindow extends SimpleEmitter {
     }
 
     async #handleEvents(events) {
-        if (this.#strategy.requeryMode === 'wholistic') {
+        const analysis = this.#analysis;
+        const strategy = this.#strategy;
+        if (strategy.requeryMode === 'wholistic') {
             // Aggr functions in the house
             return await this.#diffWithOrigin_Wholistic();
         }
@@ -778,7 +819,7 @@ export class QueryWindow extends SimpleEmitter {
         if (normalizeEvents === true) {
             return await this.#diffWithOrigin_Wholistic();
         }
-        if (this.#analysis.isSingleTable) {
+        if (analysis.isSingleTable) {
             const [normalizedEventsMap] = normalizeEvents;
             return await this.#diffWithLocal(normalizedEventsMap);
         }
@@ -831,6 +872,7 @@ export class QueryWindow extends SimpleEmitter {
     }
 
     async #diffWithOrigin_Selective(normalizedEventsMap, keyHistoryMap, allAffectedAliases) {
+        const strategy = this.#strategy;
 
         const composeSelectionLogic = (alias, keyColumns, keyValues, nullTest = 0) => {
             if (keyColumns.length > 1) {
@@ -843,7 +885,7 @@ export class QueryWindow extends SimpleEmitter {
                 }), operands.shift());
             }
             // Compose...
-            const columnRef = this.#strategy.requeryWrappedSelectivity
+            const columnRef = strategy.requeryWrappedSelectivity
                 // key -> alias -> keyColumn
                 ? { nodeName: 'BINARY_EXPR', left: { nodeName: 'COLUMN_REF1', value: 'key' }, operator: '->', right: { nodeName: 'BINARY_EXPR', left: { nodeName: 'COLUMN_REF1', value: alias }, operator: '->>', right: { nodeName: 'COLUMN_REF1', value: keyColumns[0] } } }
                 // alias.keyColumn
@@ -932,7 +974,7 @@ export class QueryWindow extends SimpleEmitter {
                 return registry.BinaryExpr.fromJSON({ nodeName: 'BINARY_EXPR', left, operator: 'OR', right });
             }, remoteDiffingFilters.shift());
             // Wrap the logic?
-            if (!this.#strategy.requeryWrappedSelectivity) {
+            if (!strategy.requeryWrappedSelectivity) {
                 diffingFilters_allEvents = registry.RowConstructor.fromJSON({
                     nodeName: 'ROW_CONSTRUCTOR',
                     entries: [_diffingFilters_allEvents],
@@ -945,7 +987,7 @@ export class QueryWindow extends SimpleEmitter {
         const resolveTransition = (oldHash, matches) => {
             const oldHash_parsed = this.#parseLogicalHash(oldHash);
             let i;
-            for (const [alias, originSchema] of this.#originSchemasLite.entries()) {
+            for (const [alias, originSchema] of this.#originSchemas.entries()) {
                 if (allAffectedAliases.has(alias)) {
                     const relation = originSchema.relation;
                     // An event happen of this alias?
@@ -1031,12 +1073,16 @@ export class QueryWindow extends SimpleEmitter {
 
     async #commitDiffs(diffEvents) {
         if (!diffEvents?.size) return false;
+        const analysis = this.#analysis;
 
         const _diffEvents = new Set;
         const deferredInserts = new Set;
         const idChanges = new Map;
         const outputEvents = new Set;
 
+        const effectiveLimit = analysis.hasLimitClause
+            ? await this.#exprEngine.evaluate(this.#query.limitClause().expr(), {}, this.#queryCtx)
+            : 0;
         const render = async (diffEvent) => {
             const row = await this.#renderLogicalRecord(diffEvent.logicalRecord);
             const outputEvent = {
@@ -1064,8 +1110,8 @@ export class QueryWindow extends SimpleEmitter {
                 && diffEvent.newHash !== diffEvent.oldHash) {
                 idChanges.set(diffEvent.oldHash, diffEvent.newHash);
             } else if (diffEvent.type === 'insert'
-                && this.#effectiveLimit
-                && this.#localRecords.size === this.#effectiveLimit) {
+                && effectiveLimit
+                && this.#localRecords.size === effectiveLimit) {
                 deferredInserts.add(diffEvent);
                 continue;
             }
@@ -1076,7 +1122,7 @@ export class QueryWindow extends SimpleEmitter {
 
         // Re-attempt INSERTs
         for (const diffEvent of deferredInserts) {
-            if (this.#localRecords.size === this.#effectiveLimit) break;
+            if (this.#localRecords.size === effectiveLimit) break;
             this.#localSet(diffEvent.newHash, diffEvent.logicalRecord);
             _diffEvents.add(diffEvent);
             outputEvents.add(await render(diffEvent));
@@ -1086,7 +1132,7 @@ export class QueryWindow extends SimpleEmitter {
         if (_diffEvents.size) this.emit('rawdiff', _diffEvents);
         if (outputEvents.size) this.emit('diff', [...outputEvents]);
 
-        if (this.#analysis.hasOrderByClause) {
+        if (analysis.hasOrderByClause) {
             const reorderedLocalRecords = await this.#applySorting(this.#localRecords, true);
             await this.#commitResult(reorderedLocalRecords);
         }

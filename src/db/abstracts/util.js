@@ -1,3 +1,5 @@
+import { AbstractNode } from '../../lang/abstracts/AbstractNode.js';
+import { AbstractNodeList } from '../../lang/abstracts/AbstractNodeList.js';
 import { _eq } from '../../lang/abstracts/util.js';
 import { registry } from '../../lang/registry.js';
 
@@ -69,43 +71,43 @@ export function normalizeQueryArgs(...args) {
     return [query, options];
 }
 
-export function splitLogicalExpr(expr) {
-    if (expr instanceof registry.BinaryExpr) {
-        if (expr.operator() === 'OR') return null;
-        if (expr.operator() === 'AND') {
-            const right = splitLogicalExpr(expr.right());
-            if (!right) return null;
-            return [expr.left()].concat(right);
-        }
-    }
-    return [expr];
-}
-
-export function matchLogicalExprs(a, b) {
-    const _filters = new Set(b);
-    top: for (const _a of a) {
-        for (const _b of b) {
-            if (matchExpr(_a, _b)) {
-                _filters.delete(_b);
-                continue top;
-            }
-        }
-        return null;
-    }
-    return _filters;
-}
+// ------------------------
 
 export function matchExpr(a, b) {
+
+    if (Array.isArray(a) && Array.isArray(b)) {
+        if (a.length !== b.length) return false;
+        for (const [i, _a] of a.entries()) {
+            if (!matchExpr(_a, b[i])) return false;
+        }
+        return true;
+    }
+
+    if (!(a instanceof AbstractNode) || !(b instanceof AbstractNode)) {
+        return _eq(a, b);
+    }
+
     if (!(a instanceof b.constructor)
         && !(b instanceof a.constructor)) return false;
+
     if (a instanceof registry.BinaryExpr) {
         const matchOperators = (ops) => [a, b].every((x) => ops.includes(x.operator()));
+
+        let logicalOp;
+        if (matchOperators([logicalOp = 'AND'])
+            || matchOperators([logicalOp = 'OR'])) {
+            const aSplit = splitLogicalExpr(a, logicalOp);
+            const bSplit = splitLogicalExpr(b, logicalOp);
+            return matchLogicalSplits(aSplit, bSplit, logicalOp);
+        }
+
         if (matchOperators(['=', '=='])
             || matchOperators(['!=', '<>'])
             || (a.operator() === b.operator() && ['IS', 'IS NOT', 'DISTINCT FROM'].includes(a.operator()))) {
             return matchExpr(a.left(), b.left()) && matchExpr(a.right(), b.right())
                 || matchExpr(a.right(), b.left()) && matchExpr(a.left(), b.right());
         }
+
         if (a.operator() === '<' && b.operator() === '>'
             || a.operator() === '<=' && b.operator() === '>='
             || a.operator() === '>' && b.operator() === '<'
@@ -113,5 +115,44 @@ export function matchExpr(a, b) {
             return matchExpr(a.right(), b.left()) && matchExpr(a.left(), b.right());
         }
     }
-    return _eq(a.jsonfy(), b.jsonfy());
+
+    const aKeys = new Set(a._keys().filter((k) => a._get(k) !== undefined));
+    const bKeys = new Set(b._keys().filter((k) => b._get(k) !== undefined));
+    if (aKeys.size !== bKeys.size) return false;
+    for (const k of new Set([...aKeys, ...bKeys])) {
+        if (!aKeys.has(k) || !bKeys.has(k)) return false;
+        if (!matchExpr(a._get(k), b._get(k))) return false;
+    }
+
+    return true;
+}
+
+export function matchLogicalSplits(a, b, op = 'AND') {
+    if (op === 'OR') {
+        for (const [i, _a] of a.entries()) {
+            if (!matchExpr(_a, b[i])) return false;
+        }
+        return true;
+    }
+    const bSplit = new Set(b);
+    top: for (const _a of a) {
+        for (const _b of bSplit) {
+            if (matchExpr(_a, _b)) {
+                bSplit.delete(_b);
+                continue top;
+            }
+        }
+        return false;
+    }
+    if (op === 'AND~') return bSplit;
+    return bSplit.size === 0;
+}
+
+export function splitLogicalExpr(expr, op = 'AND') {
+    if (expr instanceof registry.BinaryExpr
+        && expr.operator() === op) {
+        const right = splitLogicalExpr(expr.right(), op);
+        return [expr.left()].concat(right);
+    }
+    return [expr];
 }
