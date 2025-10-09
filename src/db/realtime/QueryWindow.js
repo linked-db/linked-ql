@@ -225,6 +225,7 @@ export class QueryWindow extends SimpleEmitter {
 
     #localRecords = new Map;
     #firstRun = false;
+    #fromJsonOpts;
 
     get driver() { return this.#driver; }
 
@@ -250,6 +251,8 @@ export class QueryWindow extends SimpleEmitter {
         this.#query = query;
         this.#queryJson = this.#query.jsonfy({ resultSchemas: false, originSchemas: false });
         this.#options = options;
+
+        this.#fromJsonOpts = { dialect: this.#driver.dialect, assert: true };;
 
         const self = this;
         this.#exprEngine = new ExprEngine(
@@ -348,9 +351,6 @@ export class QueryWindow extends SimpleEmitter {
     }
 
     async inherit(parentWindow) {
-        await this.stop(); // abort any ongoing
-        this.#parentWindow = parentWindow;
-        
         // Reset inheritance
         if (parentWindow === null) {
             this.#subwindowConstraints = {
@@ -359,19 +359,29 @@ export class QueryWindow extends SimpleEmitter {
                 offset: 0,
             };
             this.#inheritanceDepth = 0;
+            if (this.#parentWindow) {
+                this.#parentWindow = null;
+                await this.stop();
+            }
             return;
         }
+        // Process intersection
         if (!(parentWindow instanceof QueryWindow)) {
             throw new Error(`Parent window must be instance of QueryWindow or null`);
         }
-        // Process intersection
         if (!_eq(this.#subwindowingRules, parentWindow.#subwindowingRules)) return false;
-        const result = this.constructor.intersectQueries(parentWindow.#query, this.#query, this.#subwindowingRules);
+        const result = this.constructor.intersectQueries(
+            parentWindow.#query,
+            this.#query,
+            this.#subwindowingRules
+        );
         if (result === false) return false;
-
-        // Ready...
+        // Success...
         this.#subwindowConstraints = result;
         this.#inheritanceDepth = parentWindow.inheritanceDepth + 1;
+        this.#parentWindow = parentWindow;
+        await this.start();
+        return true;
     }
 
     // -------------
@@ -510,7 +520,7 @@ export class QueryWindow extends SimpleEmitter {
         // Declare this.#logicalQueryJson
         // SELECT: { t1: {...}[, t2: {...}[, ...]] }
         this.#logicalQueryJson = { ...this.#queryJson, select_list: { entries: newQueryHead } };
-        this.#logicalQuery = this.#query.constructor.fromJSON(this.#logicalQueryJson, { dialect: this.#driver.dialect });
+        this.#logicalQuery = this.#query.constructor.fromJSON(this.#logicalQueryJson, this.#fromJsonOpts);
 
         // ----------- connect
 
@@ -630,7 +640,7 @@ export class QueryWindow extends SimpleEmitter {
                 from_clause: { entries: [{ nodeName: 'FROM_ITEM', expr: { nodeName: 'DERIVED_QUERY', expr: this.#logicalQueryJson } }] },
                 where_clause: { expr: extraWhere },
             };
-            logicalQuery = this.#query.constructor.fromJSON(logicalQueryJson, { dialect: this.#driver.dialect });
+            logicalQuery = this.#query.constructor.fromJSON(logicalQueryJson, this.#fromJsonOpts);
         } else if (extraWhere) {
             let logicalQueryJson = this.#logicalQueryJson;
             const finalWhereJson = logicalQueryJson.where_clause?.expr
@@ -640,7 +650,7 @@ export class QueryWindow extends SimpleEmitter {
                 ...logicalQueryJson,
                 where_clause: { nodeName: 'WHERE_CLAUSE', expr: finalWhereJson },
             };
-            logicalQuery = this.#query.constructor.fromJSON(logicalQueryJson, { dialect: this.#driver.dialect });
+            logicalQuery = this.#query.constructor.fromJSON(logicalQueryJson, this.#fromJsonOpts);
         }
 
         const result = await this.#driver.query(logicalQuery);
@@ -882,7 +892,7 @@ export class QueryWindow extends SimpleEmitter {
                     left,
                     operator: 'AND',
                     right,
-                }), operands.shift());
+                }, this.#fromJsonOpts), operands.shift());
             }
             // Compose...
             const columnRef = strategy.requeryWrappedSelectivity
@@ -897,7 +907,7 @@ export class QueryWindow extends SimpleEmitter {
                 left: columnRef,
                 operator: 'IS',
                 right: nullLiteral,
-            });
+            }, this.#fromJsonOpts);
             if (nullTest === 0) {
                 return isNullExpr;
             }
@@ -908,7 +918,7 @@ export class QueryWindow extends SimpleEmitter {
                 left: columnRef,
                 operator: '=',
                 right: valueLiteral
-            });
+            }, this.#fromJsonOpts);
             // Compose?: (<keyColumn> IS NULL OR <keyColumn> = <keyValue>)
             if (nullTest === 2) {
                 const orExpr = {
@@ -917,7 +927,7 @@ export class QueryWindow extends SimpleEmitter {
                     operator: 'OR',
                     right: eqExpr,
                 };
-                return registry.RowConstructor.fromJSON({ nodeName: 'ROW_CONSTRUCTOR', entries: [orExpr] });
+                return registry.RowConstructor.fromJSON({ nodeName: 'ROW_CONSTRUCTOR', entries: [orExpr] }, this.#fromJsonOpts);
             }
             return eqExpr;
         };

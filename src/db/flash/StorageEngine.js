@@ -189,21 +189,28 @@ export class StorageEngine extends SimpleEmitter {
                 }
                 values.push(v);
             }
-            return JSON.stringify(values);
+            const hash = JSON.stringify(values);
+            return [hash, keyColumns];
         }
 
         // no primary key → fallback to whole record
-        return JSON.stringify(Object.values(record));
+        const hash = JSON.stringify(Object.values(record));
+        return [hash, keyColumns];
     }
 
     async insert(tableName, record, schemaName = this.#defaultSchemaName, { txId } = {}) {
         const tableStorage = await this.tableStorage(tableName, schemaName);
         const stored = { ...record };
-        const key = await this.#computeKey(schemaName, tableName, stored, true);
-        const existing = await tableStorage.get(key);
-        if (existing) throw new ConflictError(`Duplicate key for "${tableName}": ${key}`, existing);
+        const [_key, _keyColumns] = await this.#computeKey(schemaName, tableName, stored, true);
+        let key = _key;
+        const existing = await tableStorage.get(_key);
+        if (existing) {
+            if (_keyColumns.length) throw new ConflictError(`Duplicate key for "${tableName}": ${key}`, existing);
+            let i = 0;
+            while(await tableStorage.get(key = `${_key}${i}`)) i++;
+        }
         await tableStorage.set(key, stored);
-        const keyColumns = (await this.tableKeyColumns(tableName, schemaName)).map((k) => k.name().value());
+        const keyColumns = _keyColumns.map((k) => k.name().value());
         this.emit('changefeed', { type: 'insert', relation: { schema: schemaName, name: tableName, keyColumns }, new: { ...stored }, txId });
         if (txId) return Object.defineProperty({ ...stored }, 'XMAX', { value: 0 }); // Must be 0
         return stored;
@@ -212,11 +219,11 @@ export class StorageEngine extends SimpleEmitter {
     async update(tableName, record, schemaName = this.#defaultSchemaName, { txId } = {}) {
         const tableStorage = await this.tableStorage(tableName, schemaName);
         const stored = { ...record };
-        const key = await this.#computeKey(schemaName, tableName, stored, false);
+        const [key, _keyColumns] = await this.#computeKey(schemaName, tableName, stored, false);
         const old = await tableStorage.get(key);
         if (!old) throw new Error(`Record not found in "${tableName}" for key ${key}`);
         await tableStorage.set(key, stored);
-        const keyColumns = (await this.tableKeyColumns(tableName, schemaName)).map((k) => k.name().value());
+        const keyColumns = _keyColumns.map((k) => k.name().value());
         const _key = Object.fromEntries(keyColumns.map((k) => [k, old[k]]));
         this.emit('changefeed', { type: 'update', relation: { schema: schemaName, name: tableName, keyColumns }, key: _key, old, new: { ...stored }, txId });
         if (txId) return Object.defineProperty({ ...stored }, 'XMAX', { value: txId });
@@ -225,11 +232,11 @@ export class StorageEngine extends SimpleEmitter {
 
     async delete(tableName, keyOrRecord, schemaName = this.#defaultSchemaName, { txId } = {}) {
         const tableStorage = await this.tableStorage(tableName, schemaName);
-        const key = await this.#computeKey(schemaName, tableName, { ...keyOrRecord }, false);
+        const [key, _keyColumns] = await this.#computeKey(schemaName, tableName, { ...keyOrRecord }, false);
         const old = await tableStorage.get(key);
         if (!old) throw new Error(`Record not found in "${tableName}" for key ${key}`);
         await tableStorage.delete(key);
-        const keyColumns = (await this.tableKeyColumns(tableName, schemaName)).map((k) => k.name().value());
+        const keyColumns = _keyColumns.map((k) => k.name().value());
         const _key = Object.fromEntries(keyColumns.map((k) => [k, old[k]]));
         this.emit('changefeed', { type: 'delete', relation: { schema: schemaName, name: tableName, keyColumns }, key: _key, old, txId });
         if (txId) return Object.defineProperty({ ...old }, 'XMAX', { value: txId });
@@ -245,7 +252,7 @@ export class StorageEngine extends SimpleEmitter {
             key = keyOrRecord;
         } else if (typeof keyOrRecord === 'object' && keyOrRecord !== null) {
             // compute key from record-like object
-            key = await this.#computeKey(schemaName, tableName, { ...keyOrRecord }, false);
+            [key] = await this.#computeKey(schemaName, tableName, { ...keyOrRecord }, false);
         } else {
             throw new Error(`Invalid keyOrRecord type for fetch(): ${typeof keyOrRecord}`);
         }

@@ -1,6 +1,7 @@
-import { AbstractStmt } from '../abstracts/AbstractStmt.js';
+import { AbstractNonDDLStmt } from '../abstracts/AbstractNonDDLStmt.js';
+import { registry } from '../registry.js';
 
-export class TableStmt extends AbstractStmt {
+export class TableStmt extends AbstractNonDDLStmt {
 
     /* SYNTAX RULES */
 
@@ -23,14 +24,18 @@ export class TableStmt extends AbstractStmt {
 
     pgStarRef() { return this._get('pg_star_ref'); }
 
-    /* SCHEMA API */
+    /* JSON API */
 
-    querySchemas() {
-        const tableRef = this.tableRef();
-
-        const alias = registry.Identifier.fromJSON({ value: tableRef.value() });
-        const tableSchema = tableRef.resultSchema(transformer).clone({ renameTo: alias });
-        
-        return new Set([tableSchema]);
+    jsonfy(options = {}, transformer = null, schemaInference = null) {
+        let resultJson = super.jsonfy({ ...options, forceDeSugar: options.deSugar }, transformer, schemaInference);
+        if (options.deSugar) {
+            const tableSchema = resultJson.table_ref.result_schema;
+            resultJson = {
+                ...resultJson,
+                result_schema: registry.JSONSchema.fromJSON({ entries: tableSchema.jsonfy().entries }),
+                origin_schemas: [tableSchema], // or this.getOriginSchemas(transformer)
+            };
+        }
+        return resultJson;
     }
 }

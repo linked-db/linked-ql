@@ -141,8 +141,8 @@ describe('StorageEngine - Basic CRUD', () => {
     });
 });
 
-const createClient = async (defaultSchemaName = undefined) => {
-    const client = new FlashClient({ defaultSchemaName });
+const createClient = async (defaultSchemaName = undefined, otherOptions = {}) => {
+    const client = new FlashClient({ defaultSchemaName, ...otherOptions });
     await client.connect();
     return client;
 };
@@ -1829,5 +1829,201 @@ describe("ROW_NUMBER ordering", () => {
             { id: 1, val: "apple", rn: 4 },
             { id: 2, val: "apple", rn: 5 }
         ]);
+    });
+});
+
+describe("SET OPERATIONS - UNION / INTERSECT / EXCEPT", () => {
+    let client, schemaName = 'lq_test_setops', tblA = "tbl_a", tblB = "tbl_b";
+
+    before(async () => {
+        client = await createClient(schemaName, { defaultPrimaryKey: null });
+        await client.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+
+        await client.query(`DROP TABLE IF EXISTS ${tblA}`);
+        await client.query(`DROP TABLE IF EXISTS ${tblB}`);
+
+        await client.query(`CREATE TABLE ${tblA} (id INT, val TEXT)`);
+        await client.query(`CREATE TABLE ${tblB} (id INT, val TEXT)`);
+
+        await client.query(`
+            INSERT INTO ${tblA} (id, val)
+            VALUES (1, 'a'), (2, 'b'), (3, 'c'), (3, 'c'), (1, 'a')
+        `);
+
+        await client.query(`
+            INSERT INTO ${tblB} (id, val)
+            VALUES (2, 'b'), (3, 'c'), (4, 'd'), (3, 'c')
+        `);
+    });
+
+    it("UNION DISTINCT should deduplicate combined results", async () => {
+        const { rows } = await client.query(`
+            SELECT id, val FROM ${tblA}
+            UNION
+            SELECT id, val FROM ${tblB}
+            ORDER BY id;
+        `);
+
+        expect(rows).to.deep.eq([
+            { id: 1, val: "a" },
+            { id: 2, val: "b" },
+            { id: 3, val: "c" },
+            { id: 4, val: "d" }
+        ]);
+    });
+
+    it("UNION ALL should preserve duplicates", async () => {
+        const { rows } = await client.query(`
+            SELECT id, val FROM ${tblA}
+            UNION ALL
+            SELECT id, val FROM ${tblB}
+            WHERE id <= 3
+            ORDER BY id, val;
+        `);
+
+        expect(rows).to.have.length(8);
+        expect(rows.filter(r => r.id === 3)).to.have.length(4);
+    });
+
+    it("INTERSECT DISTINCT should keep only shared rows", async () => {
+        const { rows } = await client.query(`
+            SELECT id, val FROM ${tblA}
+            INTERSECT
+            SELECT id, val FROM ${tblB}
+            ORDER BY id;
+        `);
+
+        expect(rows).to.deep.eq([
+            { id: 2, val: "b" },
+            { id: 3, val: "c" }
+        ]);
+    });
+
+    it("INTERSECT ALL should retain multiplicities", async () => {
+        const { rows } = await client.query(`
+            SELECT id, val FROM ${tblA}
+            INTERSECT ALL
+            SELECT id, val FROM ${tblB}
+            WHERE id IN (3)
+            ORDER BY id;
+        `);
+
+        expect(rows).to.deep.eq([
+            { id: 3, val: 'c' },
+            { id: 3, val: 'c' }
+        ]);
+    });
+
+    it("EXCEPT DISTINCT should remove right-hand matches", async () => {
+        const { rows } = await client.query(`
+            SELECT id, val FROM ${tblA}
+            EXCEPT
+            SELECT id, val FROM ${tblB}
+            ORDER BY id;
+        `);
+
+        expect(rows).to.deep.eq([
+            { id: 1, val: "a" }
+        ]);
+    });
+
+    it("EXCEPT ALL should subtract multiplicities", async () => {
+        const { rows } = await client.query(`
+            SELECT id, val FROM ${tblA}
+            EXCEPT ALL
+            SELECT id, val FROM ${tblB}
+            WHERE id = 3
+            ORDER BY id;
+        `);
+
+        // After removing two (3,'c') from both, left still has one (1,'a'), one (2,'b')
+        expect(rows.some(r => r.id === 1)).to.be.true;
+    });
+
+    it("UNION with VALUES operand", async () => {
+        const { rows } = await client.query(`
+            SELECT id, val FROM ${tblA} WHERE id < 2
+            UNION
+            (VALUES (2, 'b'), (5, 'e'))
+            ORDER BY id;
+        `);
+
+        expect(rows).to.deep.eq([
+            { id: 1, val: "a" },
+            { id: 2, val: "b" },
+            { id: 5, val: "e" }
+        ]);
+    });
+
+    it("EXCEPT between TABLE and VALUES", async () => {
+        const { rows } = await client.query(`
+            TABLE ${tblB}
+            EXCEPT
+            (VALUES (3, 'c'))
+            ORDER BY id;
+        `);
+
+        expect(rows).to.deep.eq([
+            { id: 2, val: "b" },
+            { id: 4, val: "d" }
+        ]);
+    });
+
+    it("ORDER BY ordinal should work after UNION", async () => {
+        globalThis._ = 3;
+        const { rows } = await client.query(`
+            SELECT 1 AS id, 'x' AS val
+            UNION
+            SELECT 3, 'z'
+            UNION
+            SELECT 2, 'y'
+            ORDER BY 1 DESC;
+        `);
+        globalThis._ = 0;
+
+        expect(rows.map(r => r.id)).to.deep.eq([3, 2, 1]);
+    });
+
+    it("ORDER BY alias should work on composite results", async () => {
+        const { rows } = await client.query(`
+            SELECT 1 AS id, 'x' AS val
+            UNION
+            SELECT 2, 'y'
+            ORDER BY val DESC;
+        `);
+
+        expect(rows.map(r => r.val)).to.deep.eq(['y', 'x']);
+    });
+
+    it("LIMIT and OFFSET should apply after ORDER BY", async () => {
+        const { rows } = await client.query(`
+            SELECT 1 AS id UNION SELECT 2 UNION SELECT 3
+            ORDER BY id
+            LIMIT 2 OFFSET 1;
+        `);
+
+        expect(rows).to.deep.eq([
+            { id: 2 },
+            { id: 3 }
+        ]);
+    });
+
+    it("Parenthesized set operations should nest correctly", async () => {
+        const { rows } = await client.query(`
+            (SELECT 1 AS id UNION SELECT 2)
+            INTERSECT
+            (SELECT 2 UNION SELECT 3)
+            ORDER BY id;
+        `);
+
+        expect(rows).to.deep.eq([{ id: 2 }]);
+    });
+
+    it("Should throw error on column count mismatch", async () => {
+        await expect(client.query(`
+            SELECT 1 AS a
+            UNION
+            SELECT 1, 2;
+        `)).to.be.rejectedWith(/column mismatch/i);
     });
 });

@@ -6,7 +6,7 @@ export class Expr extends AbstractClassicExpr {
     /* SYNTAX RULES */
 
     static get syntaxRules() {
-        return { type: ExprNamesInOrder, expression: true };
+        return { type: ExprNamesInOrder, expression: 1 };
     }
 
     /* API */

@@ -42,7 +42,7 @@ export class ClassicClient extends AbstractClient {
             const tbls = objectNames.filter((s) => s !== '*');
             if (!tbls.length) return cases;
             if (schemaName === '*') {
-                return cases.concat(`tbl.table_name IN '${tbls.join("', '")}'`);
+                return cases.concat(`tbl.table_name IN ('${tbls.join("', '")}')`);
             }
             return cases.concat(`CASE
                 WHEN ${utils.matchSchemaSelector('db.schema_name', [schemaName]) || 'TRUE'
@@ -159,9 +159,12 @@ export class ClassicClient extends AbstractClient {
         };
         $parts.fields.push('db.schema_name');
         if ($parts.depth) $parts.fields.push(`(${buildTable($parts.depth > 1)}) AS tables`);
-        const sql = `SELECT ${$parts.fields.join(', ')}
+        let sql = `SELECT ${$parts.fields.join(', ')}
             FROM information_schema.schemata AS db
-            ${$parts.dbWhere}${$parts.orderBy};`;
+            ${$parts.dbWhere}${$parts.orderBy}`;
+        if (!$parts.dbWhere) {
+            sql = `SELECT * FROM (${sql}) AS q WHERE q.tables IS NOT NULL`;
+        }
         return sql;
     }
 

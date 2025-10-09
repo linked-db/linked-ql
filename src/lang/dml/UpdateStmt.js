@@ -81,7 +81,7 @@ export class UpdateStmt extends PayloadStmtMixin/* Must be outer as can morph to
     jsonfy(options = {}, transformer = null, schemaInference = null) {
         if (!options.deSugar) return super.jsonfy(options, transformer, schemaInference);
 
-        let deferedTransforms = {};
+        const deferedTransforms = { set_clause: null };
         transformer = new Transformer((node, defaultTransform) => {
             // Defer SelectItem resolution
             if (node instanceof registry.SetClause) {

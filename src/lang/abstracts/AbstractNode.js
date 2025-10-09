@@ -650,7 +650,7 @@ export class AbstractNode {
 		let result, rulesArray;
 		if ((rulesArray = [].concat(syntaxRules)).length === 1 && Array.isArray(rulesArray[0].type) && !rulesArray[0].as) {
 			if (rulesArray[0].expression) {
-				result = await this._parseAsExpression(tokenStream, rulesArray[0].type, { left, minPrecedence, trail: trail.concat(this.NODE_NAME), ...options });
+				result = await this._parseAsExpression(tokenStream, rulesArray[0].type, { exprClass: rulesArray[0].expression, left, minPrecedence, trail: trail.concat(this.NODE_NAME), ...options });
 			} else {
 				result = await this._parseFromTypes(tokenStream, rulesArray[0].type, { left, minPrecedence, trail: trail.concat(this.NODE_NAME), ...options });
 			}
@@ -665,13 +665,14 @@ export class AbstractNode {
 		return result;
 	}
 
-	static async _parseAsExpression(tokenStream, types, { left = undefined, minPrecedence, trail, ...options }) {
+	static async _parseAsExpression(tokenStream, types, { exprClass = 1, left = undefined, minPrecedence, trail, ...options }) {
 		if (left) throw new Error(`TODO`);
 		left = await this._parseFromTypes(tokenStream, types, { minPrecedence, trail, ...options });
 		while (left) {
 			// Compose binary expressions (e.g., col + 2)
 			const operator = await tokenStream.match('operator');
 			if (!operator || operator.prec < minPrecedence) break;
+			if (operator.isSetOp && exprClass !== 2) break;
 			const newLeft = await this._parseFromTypes(tokenStream, types, {
 				left,
 				minPrecedence,

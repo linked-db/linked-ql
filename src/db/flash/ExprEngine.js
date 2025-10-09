@@ -215,17 +215,98 @@ export class ExprEngine {
             case '>':
             case '>=':
             case 'LIKE': return res(compare(L, R));
+            
             // Arithmetic
             case '+': return Number(L) + Number(R);
             case '-': return Number(L) - Number(R);
             case '/': return Number(L) / Number(R);
             case '*': return Number(L) * Number(R);
             case '%': return Number(L) % Number(R);
+            
             // String
             case '||': return String(L ?? '') + String(R ?? '');
+            
             // Logical
             case 'AND': return res(Boolean(L) && Boolean(R));
             case 'OR': return res(Boolean(L) || Boolean(R));
+            
+            // JSON
+            case '->':
+            case '->>': {
+                // JSON path accessors
+                if (L == null) return null;
+                let val;
+                if (typeof R === 'number') {
+                    val = Array.isArray(L) ? L[R] : undefined;
+                } else if (typeof R === 'string') {
+                    if (typeof L === 'object' && !Array.isArray(L)) val = L[R];
+                    else if (Array.isArray(L) && !isNaN(R)) val = L[Number(R)];
+                }
+                return op === '->' ? val : (val == null ? null : String(val));
+            }
+            case '#>':
+            case '#>>': {
+                // JSON path extraction (Postgres)
+                // L #> R, where R is array of keys
+                if (L == null || !Array.isArray(R)) return null;
+                let val = L;
+                for (const key of R) {
+                    if (val == null) return null;
+                    if (Array.isArray(val) && !isNaN(key)) val = val[Number(key)];
+                    else if (typeof val === 'object') val = val[key];
+                    else return null;
+                }
+                return op === '#>' ? val : (val == null ? null : String(val));
+            }
+            case '@>': {
+                // JSON contains (Postgres)
+                if (L == null || R == null) return false;
+                if (typeof L !== 'object' || typeof R !== 'object') return false;
+                // Simple deep contains check
+                const contains = (a, b) => {
+                    if (typeof b !== 'object' || b == null) return a === b;
+                    if (Array.isArray(b)) {
+                        if (!Array.isArray(a)) return false;
+                        return b.every((v, i) => contains(a[i], v));
+                    }
+                    return Object.keys(b).every((k) => contains(a[k], b[k]));
+                };
+                return contains(L, R);
+            }
+            case '<@': {
+                // JSON is contained by (Postgres)
+                if (L == null || R == null) return false;
+                if (typeof L !== 'object' || typeof R !== 'object') return false;
+                // Simple deep contains check
+                const contains = (a, b) => {
+                    if (typeof b !== 'object' || b == null) return a === b;
+                    if (Array.isArray(b)) {
+                        if (!Array.isArray(a)) return false;
+                        return b.every((v, i) => contains(a[i], v));
+                    }
+                    return Object.keys(b).every((k) => contains(a[k], b[k]));
+                };
+                return contains(R, L);
+            }
+            case '?': {
+                // JSON key exists (Postgres)
+                if (L == null || typeof L !== 'object') return false;
+                if (Array.isArray(L)) return L.includes(R);
+                return Object.prototype.hasOwnProperty.call(L, R);
+            }
+            case '?|': {
+                // JSON key exists any (Postgres)
+                if (L == null || typeof L !== 'object' || !Array.isArray(R)) return false;
+                if (Array.isArray(L)) return R.some((key) => L.includes(key));
+                return R.some((key) => Object.prototype.hasOwnProperty.call(L, key));
+            }
+            case '?&': {
+                // JSON key exists all (Postgres)
+                if (L == null || typeof L !== 'object' || !Array.isArray(R)) return false;
+                if (Array.isArray(L)) return R.every((key) => L.includes(key));
+                return R.every((key) => Object.prototype.hasOwnProperty.call(L, key));
+            }
+
             default: throw new Error(`ExprEngine: Unsupported binary operator ${op}`);
         }
     }

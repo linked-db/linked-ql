@@ -21,24 +21,4 @@ export class CompleteSelectStmt extends BasicSelectStmt {
     // -- Postgres
 
     pgFetchClause() { return this._get('pg_fetch_clause'); }
-
-    /* Custom parse */
-
-    static async parse(input, { left = undefined, minPrecedence = 0, trail = [], ...options } = {}) {
-        if (left) return;
-
-        const tokenStream = await this.toStream(input, options);
-
-        const result = await super.parse(tokenStream, { minPrecedence, trail, ...options });
-        if (await tokenStream.match('operator', ['INTERSECT', 'UNION', 'EXCEPT'])) {
-            if (result.orderByClause() || result.offsetClause() || result.limitClause() || result.forClause()) {
-                const current = tokenStream.current();
-                const message = `[${this.NODE_NAME}] Unexpected ${current.type} token:${typeof current.value === 'string' ? ` "${current.value}"` : ''} at <line ${current.line}, column ${current.column}>`;
-                throw new SyntaxError(message);
-            }
-            return BasicSelectStmt.fromJSON({ ...result.jsonfy(), nodeName: undefined });
-        }
-
-        return result;
-    }
 }

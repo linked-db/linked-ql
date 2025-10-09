@@ -393,9 +393,9 @@ export const operators = {
     ['AND', { prec: 40, assoc: 'left', resultType: 'boolean' }],
     ['OR', { prec: 30, assoc: 'left', resultType: 'boolean' }],
     // Set operators
-    ['INTERSECT', { prec: 20, assoc: 'left', resultType: 'set' }],
-    ['UNION', { prec: 10, assoc: 'left', resultType: 'set' }],
-    ['EXCEPT', { prec: 10, assoc: 'left', resultType: 'set' }]
+    ['INTERSECT', { prec: 20, assoc: 'left', resultType: 'set', isSetOp: true }],
+    ['UNION', { prec: 10, assoc: 'left', resultType: 'set', isSetOp: true }],
+    ['EXCEPT', { prec: 10, assoc: 'left', resultType: 'set', isSetOp: true }]
   ],
   postgres: [
     ['COLLATE', { prec: 83, assoc: 'left', resultType: 'string' }],

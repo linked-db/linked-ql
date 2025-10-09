@@ -52,7 +52,7 @@ export class QueryEngine extends SimpleEmitter {
 
     async query(scriptNode, options = {}) {
         const events = [];
-        
+
         const txId = `$tx${(0 | Math.random() * 9e6).toString(36)}`;
         const queryCtx = {
             options: { ...this.#options, ...options },
@@ -100,6 +100,7 @@ export class QueryEngine extends SimpleEmitter {
                 case 'TABLE_STMT': returnValue = await this.#evaluateTABLE_STMT(stmtNode, queryCtx); break;
                 case 'BASIC_SELECT_STMT':
                 case 'COMPLETE_SELECT_STMT': returnValue = await this.#evaluateSELECT_STMT(stmtNode, queryCtx); break;
+                case 'COMPOSITE_SELECT_STMT': returnValue = await this.#evaluateCOMPOSITE_SELECT_STMT(stmtNode, queryCtx); break;
                 default: throw new Error(`Unknown statement type: ${stmtNode.NODE_NAME}`);
             }
         }
@@ -252,7 +253,7 @@ export class QueryEngine extends SimpleEmitter {
             const _queryCtx = { ...queryCtx, depth: queryCtx.depth + 1 };
             const stream = _.myTableClause
                 ? this.#evaluateTABLE_STMT(_.myTableClause, _queryCtx)
-                : this.#evaluateSELECT_STMT(_.selectClause, _queryCtx);
+                : await this.#evaluateSTMT(_.selectClause, _queryCtx); // Can be any of the three SELECT_STMT types
             for await (const _record of stream) {
                 const record = { ...defaultRecord };
                 for (const [colIdx, colValue] of Object.values(_record).entries()) {
@@ -555,7 +556,7 @@ export class QueryEngine extends SimpleEmitter {
         }
 
         // 5. ORDER BY (materialize) then LIMIT
-        const orderByClause = stmtNode.orderByClause();
+        const orderByClause = stmtNode.orderByClause?.(); // Not implemented by BasicSelectStmt
         if (orderByClause) {
             const orderElements = this.#resolveScopedRefsInClause(orderByClause, selectList);
             stream = this.evaluateOrderByClause(orderElements, stream, queryCtx);
@@ -565,8 +566,8 @@ export class QueryEngine extends SimpleEmitter {
         stream = this.evaluateSelectList(selectList, stream, queryCtx);
 
         // 6. LIMIT + OFFSET
-        const limitClause = stmtNode.limitClause();
-        const offsetClause = stmtNode.offsetClause();
+        const limitClause = stmtNode.limitClause?.(); // Not implemented by BasicSelectStmt
+        const offsetClause = stmtNode.offsetClause?.(); // Not implemented by BasicSelectStmt
         if (limitClause || offsetClause) stream = this.evaluateLimitClause(limitClause, offsetClause, stream, queryCtx);
 
         yield* stream;
@@ -1417,5 +1418,228 @@ export class QueryEngine extends SimpleEmitter {
             if (limit && yielded++ >= limit) break;
             yield r;
         }
+    }
+
+    // -------- Composite select (UNION / INTERSECT / EXCEPT) support
+
+    async * #evaluateCOMPOSITE_SELECT_STMT(stmtNode, queryCtx) {
+
+        const self = this;
+        async function* evaluateOperand(operand) {
+            if (operand instanceof registry.SelectStmt) {
+                yield* await self.#evaluateSTMT(operand, { ...queryCtx, depth: queryCtx.depth + 1 });
+                return;
+            }
+            if (operand instanceof registry.TableStmt) {
+                yield* self.#evaluateTABLE_STMT(operand, { ...queryCtx, depth: queryCtx.depth + 1 });
+                return;
+            }
+            const resultSchema = operand.resultSchema();
+            let operandJson = operand.jsonfy();
+            if (operand instanceof registry.ValuesConstructor) {
+                operandJson = { ...operandJson, nodeName: 'VALUES_TABLE_LITERAL' };
+            }
+            const fromItem = registry.FromItem.fromJSON({ nodeName: 'FROM_ITEM', expr: operandJson }, { dialect: self.#options.dialect, assert: true });
+            stmtNode._adoptNodes(fromItem);
+            const result = self.evaluateFromItem(fromItem, resultSchema, queryCtx);
+            for await (const r of result) yield r[''];
+        };
+
+        const leftStream = await evaluateOperand(stmtNode.left());
+        const rightStream = await evaluateOperand(stmtNode.right());
+
+        // Normalize
+
+        const leftRows = [];
+        const rightRows = [];
+        for await (const r of leftStream) leftRows.push(r);
+        for await (const r of rightStream) rightRows.push(r);
+
+        const leftOutputCols = stmtNode.left().resultSchema?.().entries() || [];
+        const rightOutputCols = stmtNode.right().resultSchema?.().entries() || [];
+        if (leftOutputCols.length !== rightOutputCols.length) {
+            throw new Error(`Set operation column mismatch: left has ${leftOutputCols.length} columns, right has ${rightOutputCols.length}`);
+        }
+
+        const mappers = leftOutputCols.map((leftCol, i) => {
+            const rightCol = rightOutputCols[i];
+            const leftType = leftCol.dataType().value();
+            const rightType = rightCol.dataType().value();
+            const coercedType = this.#resolveCommonType(leftType, rightType);
+            const name = leftCol.name().value() ?? `col${i + 1}`;
+            return { name, coercedType };
+        });
+
+        const coercedLeft = [];
+        const coercedRight = [];
+        for (const r of leftRows) coercedLeft.push(this.#coerceRowToAliases(r, mappers));
+        for (const r of rightRows) coercedRight.push(this.#coerceRowToAliases(r, mappers));
+
+        // Perform set operation
+
+        const operator = stmtNode.operator();
+        const modifier = stmtNode.allOrDistinct() || 'DISTINCT';
+
+        let resultRows = [];
+        const rowHash = (row) => {
+            // Create a stable row key where:
+            // - null and undefined are treated the same
+            // - NaN becomes the string '__NaN__'
+            // - objects/arrays are stringified consistently
+            return JSON.stringify(Object.values(row), (k, v) => {
+                if (v === undefined || v === null) return { __sql_null__: true };
+                if (typeof v === 'number' && Number.isNaN(v)) return { __sql_NaN__: true };
+                return v;
+            });
+        };
+
+        const hashSymbol = Symbol('hash');
+        const count = (arr) => {
+            const counts = new Map();
+            for (const r of arr) {
+                const k = r[hashSymbol] ?? (r[hashSymbol] = rowHash(r));
+                counts.set(k, (counts.get(k) || 0) + 1);
+            }
+            return counts;
+        };
+
+        if (operator === 'UNION') {
+            if (modifier === 'ALL') {
+                resultRows = [...coercedLeft, ...coercedRight];
+            } else {
+                // DISTINCT: merge left then right deduping by key (left wins)
+                const map = new Map();
+                for (const r of coercedLeft) map.set(rowHash(r), r);
+                for (const r of coercedRight) {
+                    const k = rowHash(r);
+                    if (!map.has(k)) map.set(k, r);
+                }
+                resultRows = Array.from(map.values());
+            }
+        } else if (operator === 'INTERSECT') {
+            // INTERSECT keeps only rows present on both sides.
+            // For ALL, we must preserve multiplicities: produce as many occurrences as min(countLeft, countRight)
+            const leftCount = count(coercedLeft);
+            const rightCount = count(coercedRight);
+
+            if (modifier === 'ALL') {
+                for (const [k, nLeft] of leftCount.entries()) {
+                    const nRight = rightCount.get(k) || 0;
+                    const times = Math.min(nLeft, nRight);
+                    const exemplar = coercedLeft.find(r => rowHash(r) === k);
+                    for (let i = 0; i < times; i++) resultRows.push({ ...exemplar });
+                }
+            } else {
+                // DISTINCT INTERSECT
+                for (const k of leftCount.keys()) {
+                    if (rightCount.has(k)) {
+                        const exemplar = coercedLeft.find(r => rowHash(r) === k);
+                        resultRows.push({ ...exemplar });
+                    }
+                }
+            }
+        } else if (operator === 'EXCEPT') {
+            // EXCEPT: rows in left not in right.
+            // For ALL: multiplicity = max(0, countLeft - countRight)
+            const leftCount = count(coercedLeft);
+            const rightCount = count(coercedRight);
+
+            if (modifier === 'ALL') {
+                for (const [k, nLeft] of leftCount.entries()) {
+                    const nRight = rightCount.get(k) || 0;
+                    const times = Math.max(0, nLeft - nRight);
+                    const exemplar = coercedLeft.find(r => rowHash(r) === k);
+                    for (let i = 0; i < times; i++) resultRows.push({ ...exemplar });
+                }
+            } else {
+                // DISTINCT EXCEPT
+                for (const k of leftCount.keys()) {
+                    if (!rightCount.has(k)) {
+                        const exemplar = coercedLeft.find(r => rowHash(r) === k);
+                        resultRows.push({ ...exemplar });
+                    }
+                }
+            }
+        }
+
+        // ORDER BY / LIMIT / OFFSET
+
+        const orderByClause = stmtNode.orderByClause();
+        if (orderByClause) resultRows = await this.evaluateSetOpOrderByClause(orderByClause.entries(), resultRows, queryCtx);
+
+        const limitClause = stmtNode.limitClause();
+        const offsetClause = stmtNode.offsetClause();
+        if (limitClause || offsetClause) resultRows = await this.evaluateSetOpLimitClause(limitClause, offsetClause, resultRows, queryCtx);
+
+        yield* resultRows;
+    }
+
+    #coerceRowToAliases(row, mappers) {
+        // Coerce a projected row (object with aliases) into canonical object with mappers order.
+        // Uses Object.values(row) to respect projection order emitted by evaluateSelectList.
+        const values = Object.values(row);
+        const coerced = Object.create(null);
+        for (let i = 0; i < mappers.length; i++) {
+            const { name, coercedType } = mappers[i];
+            let val = values[i];
+            // Minimal coercion rules (extend this as you add type metadata)
+            if (coercedType === 'numeric') {
+                if (typeof val === 'string' && val !== '' && !isNaN(+val)) val = +val;
+            } else if (coercedType === 'text') {
+                if (val != null && typeof val !== 'string') val = String(val);
+            }
+            // Normalize undefined -> null for consistent equality semantics
+            if (val === undefined) val = null;
+            coerced[name] = val;
+        }
+        return coerced;
+    }
+
+    #resolveCommonType(leftType, rightType) {
+        // Minimal common type resolver
+        if (!leftType && !rightType) return null;
+        if (!leftType) return rightType;
+        if (!rightType) return leftType;
+        if (leftType === rightType) return leftType;
+
+        const numeric = new Set(['smallint', 'integer', 'bigint', 'numeric', 'decimal', 'float', 'double']);
+        if (numeric.has(leftType) && numeric.has(rightType)) return 'numeric';
+        if (leftType === 'text' || rightType === 'text') return 'text';
+        if (leftType === 'boolean' && rightType === 'boolean') return 'boolean';
+        // fallback to leftType (conservative)
+        return leftType;
+    }
+
+    async evaluateSetOpOrderByClause(orderElements, resultRows, queryCtx) {
+        // Precompute keys
+        const decorated = await Promise.all(resultRows.map(async (row) => {
+            const keys = await Promise.all(orderElements.map(orderElement => {
+                let refedValue;
+                const throwRefError = () => { throw new Error(`[ORDER BY] The reference by offset ${orderElement.expr()} does not resolve to a select list entry`); };
+                if (orderElement.expr() instanceof registry.NumberLiteral) {
+                    const values = Object.values(row);
+                    const index = orderElement.expr().value() - 1;
+                    if (index < 0 || index >= values.length) throwRefError();
+                    return values[index];
+                }
+                if (orderElement.expr()?.resolution?.() === 'scope') {
+                    if ((refedValue = row[orderElement.expr().value()]) === undefined) throwRefError();
+                    return refedValue;
+                }
+                return this.#exprEngine.evaluate(orderElement.expr(), { ...(queryCtx.lateralCtx || {}), [' ']: row }, queryCtx)
+            }));
+            return { row, keys };
+        }));
+        // Sort synchronously
+        this.#exprEngine.applySorting(decorated, orderElements, queryCtx);
+        return decorated.map((e) => e.row);
+    }
+
+    async evaluateSetOpLimitClause(limitClause, offsetClause, resultRows, queryCtx) {
+        const limit = limitClause ? await this.#exprEngine.evaluate(limitClause.expr(), {}, queryCtx) : 0;
+        const offset = offsetClause ? await this.#exprEngine.evaluate(offsetClause.expr(), {}, queryCtx) : (
+            limitClause.myOffset() ? await this.#exprEngine.evaluate(limitClause.myOffset(), {}, queryCtx) : 0
+        );
+        return resultRows.slice(offset, limit ? offset + limit : undefined);
     }
 }

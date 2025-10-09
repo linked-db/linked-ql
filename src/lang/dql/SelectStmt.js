@@ -5,7 +5,7 @@ export class SelectStmt extends AbstractNonDDLStmt {
 
     /* SYNTAX RULES */
 
-    static get syntaxRules() { return { type: ['CompleteSelectStmt', 'CompositeSelectStmt'], expression: true }; }
+    static get syntaxRules() { return { type: ['CompleteSelectStmt', 'CompositeSelectStmt'], expression: 2 }; }
 
     static buildSyntaxRules(part = null) {
         const part1 = (extRules = []) => [
@@ -17,7 +17,7 @@ export class SelectStmt extends AbstractNonDDLStmt {
                 syntax: [
                     { type: 'FromClause', as: 'from_clause', autoSpacing: '\n' },
                     { type: 'JoinClause', as: 'join_clauses', arity: Infinity, optional: true, autoSpacing: '\n' },
-					{ type: 'MYPartitionClause', as: 'my_partition_clause', optional: true, autoSpacing: '\n' },
+                    { type: 'MYPartitionClause', as: 'my_partition_clause', optional: true, autoSpacing: '\n' },
                     { type: 'WhereClause', as: 'where_clause', optional: true, autoSpacing: '\n' },
                     {
                         optional: true,

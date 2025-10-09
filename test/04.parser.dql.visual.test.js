@@ -441,7 +441,7 @@ $describe('Parser - DQL Statements', () => {
 
         $it('should parse a set operation with SELECT and arbitray set-expressions', async () => {
             await testParseAndStringify('CompositeSelectStmt', `(VALUES (x), (y)) UNION (SELECT id FROM users)`);
-            await testParseAndStringify('CompositeSelectStmt', `generate_series(x, y) UNION ALL (SELECT id FROM users)`);
+            await testParseAndStringify('CompositeSelectStmt', `SELECT * FROM generate_series(x, y) UNION ALL (SELECT id FROM users)`);
         });
 
         $describe('CompositeSelectStmt - post-set ORDER BY/LIMIT', () => {
