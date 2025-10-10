@@ -225,6 +225,8 @@ export class QueryWindow extends SimpleEmitter {
 
     #localRecords = new Map;
     #firstRun = false;
+
+    #resolvedOrderElements = [];
     #fromJsonOpts;
 
     get driver() { return this.#driver; }
@@ -253,7 +255,7 @@ export class QueryWindow extends SimpleEmitter {
         }
         this.#query = query;
         this.#queryJson = this.#query.jsonfy({ resultSchemas: false, originSchemas: false });
-        this.#options = options;
+        this.#options = options; // { noOffsetRevalidate, forceDiffing }
 
         this.#fromJsonOpts = { dialect: this.#driver.dialect, assert: true };;
 
@@ -273,6 +275,13 @@ export class QueryWindow extends SimpleEmitter {
             },
             this.#options
         );
+
+        if (this.#query.orderByClause()) {
+            this.#resolvedOrderElements = this.#exprEngine.resolveScopedRefsInClause(
+                this.#query.orderByClause(),
+                this.#query.selectList()
+            );
+        }
 
         // ------------------ analysis & strategy
 
@@ -314,6 +323,11 @@ export class QueryWindow extends SimpleEmitter {
                 // if not already disabled by aggr functions
                 strategy.diffing = 'deep'; // key + content
             }
+        }
+
+        if (analysis.hasOffsetClause
+            && !this.#options.noOffsetRevalidate) {
+            strategy.requeryMode = 'wholistic';
         }
 
         if (analysis.hasOffsetClause
@@ -451,7 +465,7 @@ export class QueryWindow extends SimpleEmitter {
             });
             const delim = alias !== alias.toLowerCase()
                 || /^\d/.test(alias)
-                || !/^(\*|[\w]+)$/.test(alias);                
+                || !/^(\*|[\w]+)$/.test(alias);
             this.#originAliases.push({ value: alias, delim: delim && '"' || '' });
         }
 
@@ -459,6 +473,7 @@ export class QueryWindow extends SimpleEmitter {
 
         // Generate a new head for the query
         // This is for internal computation
+        const newOrderElementsJson = this.#resolvedOrderElements.map((oi) => oi.jsonfy());
         let newQueryHead = this.#originAliases.reduce((acc, aliasJson) => {
             const originSchema = this.#originSchemas.get(aliasJson.value);
 
@@ -514,7 +529,7 @@ export class QueryWindow extends SimpleEmitter {
                 // Oh ... with ordinality?
                 if (analysis.hasOrderByClause) {
                     const fnName = this.#driver.dialect === 'mysql' ? 'JSON_ARRAY' : 'JSON_BUILD_ARRAY';
-                    const ordsJson = { nodeName: 'CALL_EXPR', name: fnName, entries: this.#queryJson.order_by_clause.entries.map((oi) => oi.expr) };
+                    const ordsJson = { nodeName: 'CALL_EXPR', name: fnName, entries: newOrderElementsJson.map((oi) => oi.expr) };
                     newQueryHead.push({ nodeName: 'SELECT_ITEM', alias: { nodeName: 'SELECT_ITEM_ALIAS', value: 'ord' }, expr: ordsJson });
                 }
             }
@@ -522,7 +537,9 @@ export class QueryWindow extends SimpleEmitter {
 
         // Declare this.#logicalQueryJson
         // SELECT: { t1: {...}[, t2: {...}[, ...]] }
-        this.#logicalQueryJson = { ...this.#queryJson, select_list: { entries: newQueryHead } };
+        const select_list = { entries: newQueryHead };
+        const order_by_clause = newOrderElementsJson.length ? { entries: newOrderElementsJson } : undefined;
+        this.#logicalQueryJson = { ...this.#queryJson, select_list, order_by_clause };
         this.#logicalQuery = this.#query.constructor.fromJSON(this.#logicalQueryJson, this.#fromJsonOpts);
 
         // ----------- connect
@@ -662,7 +679,7 @@ export class QueryWindow extends SimpleEmitter {
         for (const [i, logicalRecord] of result.rows.entries()) {
             const logicalHash = strategy.diffing
                 ? this.#deriveLogicalHash(logicalRecord)
-                : i;
+                : `$${i}`;
             resultMap.set(logicalHash, logicalRecord);
         }
 
@@ -1087,15 +1104,15 @@ export class QueryWindow extends SimpleEmitter {
     async #commitDiffs(diffEvents) {
         if (!diffEvents?.size) return false;
         const analysis = this.#analysis;
-
-        const _diffEvents = new Set;
-        const deferredInserts = new Set;
+        const _diffEvents = new Map;
+        const outputEvents = new Map;
         const idChanges = new Map;
-        const outputEvents = new Set;
+        const deferredInserts = new Set;
 
         const effectiveLimit = analysis.hasLimitClause
             ? await this.#exprEngine.evaluate(this.#query.limitClause().expr(), {}, this.#queryCtx)
             : 0;
+
         const render = async (diffEvent) => {
             const row = await this.#renderLogicalRecord(diffEvent.logicalRecord);
             const outputEvent = {
@@ -1108,47 +1125,120 @@ export class QueryWindow extends SimpleEmitter {
         };
 
         for (const diffEvent of diffEvents) {
+
+            // Handle deletes
             if (diffEvent.type === 'delete') {
                 const outputEvent = {
                     type: diffEvent.type,
                     oldHash: diffEvent.oldHash,
-                    old: diffEvent.old,
-                }
+                };
                 this.#localDelete(diffEvent.oldHash);
-                _diffEvents.add(diffEvent);
-                outputEvents.add(outputEvent);
+                _diffEvents.set(diffEvent.oldHash, diffEvent);
+                outputEvents.set(diffEvent.oldHash, outputEvent);
                 continue;
             }
+            // Handle updates & inserts
             if (diffEvent.type === 'update'
                 && diffEvent.newHash !== diffEvent.oldHash) {
                 idChanges.set(diffEvent.oldHash, diffEvent.newHash);
             } else if (diffEvent.type === 'insert'
                 && effectiveLimit
+                && !analysis.hasOrderByClause
                 && this.#localRecords.size === effectiveLimit) {
                 deferredInserts.add(diffEvent);
                 continue;
             }
-            this.#localSet(diffEvent.oldHash, diffEvent.logicalRecord);
-            _diffEvents.add(diffEvent);
-            outputEvents.add(await render(diffEvent));
-        }
 
-        // Re-attempt INSERTs
-        for (const diffEvent of deferredInserts) {
-            if (this.#localRecords.size === effectiveLimit) break;
-            this.#localSet(diffEvent.newHash, diffEvent.logicalRecord);
-            _diffEvents.add(diffEvent);
-            outputEvents.add(await render(diffEvent));
+            // Add to logicalRecords
+            const effectiveHash = diffEvent.oldHash || diffEvent.newHash;
+            this.#localSet(effectiveHash, diffEvent.logicalRecord);
+
+            // Enque events
+            _diffEvents.set(effectiveHash, diffEvent);
+            outputEvents.set(effectiveHash, await render(diffEvent));
         }
 
         if (idChanges.size) this.#localReindex(idChanges);
-        if (_diffEvents.size) this.emit('rawdiff', _diffEvents);
-        if (outputEvents.size) this.emit('diff', [...outputEvents]);
 
+        let swaps = [];
         if (analysis.hasOrderByClause) {
-            const reorderedLocalRecords = await this.#applySorting(this.#localRecords, true);
+            const [
+                reorderedLocalRecords,
+                sortedEntries,
+                originalEntires
+            ] = await this.#applySorting(this.#localRecords, true);
             await this.#commitResult(reorderedLocalRecords);
+
+            // Apply limit
+            const splicedHashes = [];
+            if (effectiveLimit && this.#localRecords.size >= effectiveLimit) {
+                const excess = sortedEntries.slice(effectiveLimit);
+                for (const [logicalHash, logicalRecord] of excess) {
+
+                    // Remove from localRecords
+                    this.#localRecords.delete(logicalHash);
+                    splicedHashes.push(logicalHash);
+
+                    // If part of events queue, remove
+                    if (_diffEvents.get(logicalHash)?.type === 'insert') {
+                        // Simply remove
+                        _diffEvents.delete(logicalHash);
+                        outputEvents.delete(logicalHash);
+                    } else {
+                        // Change updates to deletes
+                        _diffEvents.set(logicalHash, {
+                            type: 'delete',
+                            oldHash: logicalHash,
+                            old: logicalRecord,
+                        });
+                        outputEvents.set(logicalHash, {
+                            type: 'delete',
+                            oldHash: logicalHash,
+                        });
+                    }
+                }
+            }
+
+            // Generate swaps
+            const origianlLogicalKeys = originalEntires.map((e) => e[0]);
+            const reorderedLocalKeys = sortedEntries.map((e) => e[0]);
+
+            for (const [oldIdx, logicalHash] of origianlLogicalKeys.entries()) {
+
+                // Handle spliced entry case (1)
+                if (splicedHashes.includes(logicalHash)) continue;
+
+                // Where does logicalHash now map to?
+                let newIdx = reorderedLocalKeys.indexOf(logicalHash);
+                let targetHash = origianlLogicalKeys[newIdx];
+
+                // Handle spliced entry case (2)
+                if (splicedHashes.includes(targetHash)) {
+                    newIdx = reorderedLocalKeys.indexOf(targetHash);
+                    targetHash = origianlLogicalKeys[newIdx];
+                }
+                if (newIdx !== oldIdx) {
+                    swaps.push([logicalHash, targetHash]);
+                }
+            }
+        } else {
+            for (const diffEvent of deferredInserts) {
+                // Limit reached?
+                if (this.#localRecords.size === effectiveLimit) break;
+
+                // Add to logicalRecords
+                this.#localSet(diffEvent.newHash, diffEvent.logicalRecord);
+
+                // Enque events
+                _diffEvents.set(diffEvent.newHash, diffEvent);
+                outputEvents.set(diffEvent.newHash, await render(diffEvent));
+            }
         }
+
+        // Emit events
+        if (_diffEvents.size) this.emit('rawdiff', [..._diffEvents.values()]);
+        if (outputEvents.size) this.emit('diff', [...outputEvents.values()]);
+        if (swaps.length) this.emit('swap', swaps);
 
         return true;
     }
@@ -1164,40 +1254,31 @@ export class QueryWindow extends SimpleEmitter {
         }
     }
 
-    async #applySorting(logicalRecords, emit = false) {
+    async #applySorting(logicalRecords, withEntries = false) {
         const entries = !Array.isArray(logicalRecords)
             ? [...logicalRecords.entries()]
             : logicalRecords;
 
-        const orderElements = this.#query.orderByClause().entries();
         let decorated;
         if (this.#strategy.ssr) {
             decorated = decorated.map((entry) => ({ entry, keys: entry[1].ord }));
         } else {
             decorated = await Promise.all(entries.map(async (entry) => {
-                const keys = await Promise.all(orderElements.map(orderElement =>
-                    this.#exprEngine.evaluate(orderElement.expr(), entry[1], this.#queryCtx)
-                ));
+                const keys = await Promise.all(this.#resolvedOrderElements.map(orderElement => {
+                    return this.#exprEngine.evaluate(orderElement.expr(), entry[1], this.#queryCtx)
+                }));
                 return { entry, keys };
             }));
         }
-        this.#exprEngine.applySorting(decorated, orderElements, this.#queryCtx);
+        this.#exprEngine.applySorting(decorated, this.#resolvedOrderElements, this.#queryCtx);
         const _entries = decorated.map((e) => e.entry);
 
-        if (emit) {
-            const origianlLogicalKeys = entries/* original */.map((e) => e[0]);
-            const reorderedLocalKeys = _entries.map((e) => e[0]);
-            const keyRemap = [];
-            for (const [oldIdx, logicalHash] of origianlLogicalKeys.entries()) {
-                const newIdx = reorderedLocalKeys.indexOf(logicalHash);
-                if (newIdx !== oldIdx) keyRemap.push([logicalHash, origianlLogicalKeys[newIdx]]);
-            }
-            if (keyRemap.length) {
-                this.emit('swap', keyRemap);
-            }
-        }
+        const result = !Array.isArray(logicalRecords)
+            ? new Map(_entries)
+            : _entries;
 
-        if (!Array.isArray(logicalRecords)) return new Map(_entries);
-        return _entries;
+        return withEntries
+            ? [result, _entries, entries]
+            : result;
     }
 }

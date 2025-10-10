@@ -66,7 +66,7 @@ export class RealtimeResult extends Result {
         if (eventName === 'result') {
             this.#hashes = eventData.hashes;
             Observer.batch(this.#$rows, () => {
-                const maxLen = Math.max(this.#$rows.length, eventData.rows);
+                const maxLen = Math.max(this.#$rows.length, eventData.rows.length);
                 for (let i = 0; i < maxLen; i ++) {
                     if (!eventData.rows[i]) {
                         this.#$rows.splice(i);

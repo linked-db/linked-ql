@@ -1,8 +1,8 @@
 import { _eq } from '../../lang/abstracts/util.js';
 import { registry } from '../../lang/registry.js';
 
-export const GROUPING_META = Symbol.for('grouping_meta');
-export const WINDOW_META = Symbol.for('window_meta');
+const GROUPING_META = Symbol.for('grouping_meta');
+const WINDOW_META = Symbol.for('window_meta');
 
 export class ExprEngine {
 
@@ -711,6 +711,24 @@ export class ExprEngine {
     async NULL_LITERAL() { return null; }
 
     // -------------
+
+    resolveScopedRefsInClause(clause, selectList) {
+        return clause.entries().map((entry) => {
+            let refedExpr;
+            if (entry.expr() instanceof registry.NumberLiteral) {
+                if (!(refedExpr = selectList.entries()[parseInt(entry.expr().value()) - 1]?.expr())) {
+                    throw new Error(`[${clause}] The reference by offset ${entry.expr().value()} does not resolve to a select list entry`);
+                }
+            } else if (entry.expr()?.resolution?.() === 'scope') {
+                refedExpr = selectList.entries().find((si, i) => si.alias()?.identifiesAs(entry.expr()))?.expr();
+            }
+            if (refedExpr) {
+                entry = entry.constructor.fromJSON({ ...entry.jsonfy(), expr: refedExpr.jsonfy() }, { assert: true });
+                clause._adoptNodes(entry);
+            }
+            return entry;
+        });
+    }
 
     applySorting(decorated, orderElements, queryCtx = {}) {
         // Sort synchronously

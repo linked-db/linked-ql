@@ -3,8 +3,8 @@ import { ConflictError } from './ConflictError.js';
 import { ExprEngine } from './ExprEngine.js';
 import { registry } from '../../lang/registry.js';
 
-export const GROUPING_META = Symbol.for('grouping_meta');
-export const WINDOW_META = Symbol.for('window_meta');
+const GROUPING_META = Symbol.for('grouping_meta');
+const WINDOW_META = Symbol.for('window_meta');
 
 export class QueryEngine extends SimpleEmitter {
 
@@ -66,14 +66,15 @@ export class QueryEngine extends SimpleEmitter {
         });
 
         const returnValue = await this.#evaluateSTMT(scriptNode, queryCtx);
+        eventsAbortLine();
+        if (events.length) this.emit('changefeed', events);
+        
         if (returnValue && typeof returnValue?.[Symbol.asyncIterator] === 'function' && options.bufferResultRows !== false) {
             const rows = [];
             for await (const r of returnValue) rows.push(r);
             return rows;
         }
 
-        eventsAbortLine();
-        if (events.length) this.emit('changefeed', events);
         return returnValue;
     }
 
@@ -543,7 +544,7 @@ export class QueryEngine extends SimpleEmitter {
         const selectList = stmtNode.selectList();
 
         if (groupByClause?.length) {
-            const groupingElements = this.#resolveScopedRefsInClause(groupByClause, selectList);
+            const groupingElements = this.#exprEngine.resolveScopedRefsInClause(groupByClause, selectList);
             stream = this.evaluateGroupByClause(groupingElements, havingClause, stream, queryCtx);
         } else if (aggrFunctions.length) {
             stream = this.evaluateGlobalGroup(stream);
@@ -558,7 +559,7 @@ export class QueryEngine extends SimpleEmitter {
         // 5. ORDER BY (materialize) then LIMIT
         const orderByClause = stmtNode.orderByClause?.(); // Not implemented by BasicSelectStmt
         if (orderByClause) {
-            const orderElements = this.#resolveScopedRefsInClause(orderByClause, selectList);
+            const orderElements = this.#exprEngine.resolveScopedRefsInClause(orderByClause, selectList);
             stream = this.evaluateOrderByClause(orderElements, stream, queryCtx);
         }
 
@@ -911,9 +912,9 @@ export class QueryEngine extends SimpleEmitter {
     }
 
     async * evaluateGroupByClause(groupingElements, havingClause, upstream, queryCtx) {
-
+        
         // -----------Utils:
-
+        
         function flattenRowConstructor(expr) {
             if (expr instanceof registry.RowConstructor) {
                 // Flatten each entry recursively
@@ -921,7 +922,6 @@ export class QueryEngine extends SimpleEmitter {
             }
             return [expr];
         }
-
         function expandElement(elem) {
             if (elem.groupingSets()) return elem.groupingSets().flatMap(expandElement);
             if (elem.rollupSet()) {
@@ -944,7 +944,6 @@ export class QueryEngine extends SimpleEmitter {
             if (elem.expr()) return [flattenRowConstructor(elem.expr())];
             return [[]]; // fallback
         }
-
         function getAtomicExprs(elem) {
             if (elem.groupingSets()) return elem.groupingSets().flatMap(getAtomicExprs);
             if (elem.rollupSet()) return [...elem.rollupSet().entries()];
@@ -1368,24 +1367,6 @@ export class QueryEngine extends SimpleEmitter {
             }
             yield projected;
         }
-    }
-
-    #resolveScopedRefsInClause(clause, selectList) {
-        return clause.entries().map((entry) => {
-            let refedExpr;
-            if (entry.expr() instanceof registry.NumberLiteral) {
-                if (!(refedExpr = selectList.entries()[parseInt(entry.expr().value()) - 1]?.expr())) {
-                    throw new Error(`[${clause}] The reference by offset ${entry.expr().value()} does not resolve to a select list entry`);
-                }
-            } else if (entry.expr()?.resolution?.() === 'scope') {
-                refedExpr = selectList.entries().find((si, i) => si.alias()?.identifiesAs(entry.expr()))?.expr();
-            }
-            if (refedExpr) {
-                entry = entry.constructor.fromJSON({ ...entry.jsonfy(), expr: refedExpr.jsonfy() }, { assert: true });
-                clause._adoptNodes(entry);
-            }
-            return entry;
-        });
     }
 
     async * evaluateOrderByClause(orderElements, upstream, queryCtx, withKeys = false) {
