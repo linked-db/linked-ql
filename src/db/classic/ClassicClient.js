@@ -1,40 +1,15 @@
 import { normalizeSchemaSelectorArg, parseSchemaSelectors } from '../abstracts/util.js';
 import { AbstractClient } from '../abstracts/AbstractClient.js';
-import { RealtimeClient } from '../realtime/RealtimeClient.js';
 import { registry } from '../../lang/registry.js';
-import { Result } from '../Result.js';
 
 export class ClassicClient extends AbstractClient {
 
-    #realtimeClient;
-
-    constructor() {
-        super();
-        this.#realtimeClient = new RealtimeClient(this);
-    }
-
-    // ---------Query
-
-    async query(...args) {
-        const [query, options] = await this._normalizeQueryArgs(...args);
-        // Realtime query?
-        if (options.live && query.fromClause?.()) {
-            return await this.#realtimeClient.query(query, options);
-        }
-        const result = await this.driver.query(query + '', options.values);
-        return new Result({ rows: result.rows, rowCount: result.rowCount });
-    }
-
-    // ---------Schemas
-
-    async showCreate(selector, schemaWrapped = false) {
+    async _showCreate(selector, schemaWrapped = false) {
         selector = normalizeSchemaSelectorArg(selector);
         const sql = this._composeShowCreateSQL(selector);
         const result = await this.driver.query(sql);
         return await this._formatShowCreateResult(result.rows || result, schemaWrapped);
     }
-
-    // ----------------------
 
     _composeShowCreateSQL(selector) {
         const utils = this._createCommonSQLUtils();

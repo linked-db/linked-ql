@@ -1,6 +1,6 @@
 import Observer from '@webqit/observer';
-import { Result } from '../Result.js';
 import { _eq } from '../../lang/abstracts/util.js';
+import { Result } from '../Result.js';
 
 export class RealtimeResult extends Result {
 

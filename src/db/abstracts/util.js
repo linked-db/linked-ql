@@ -73,7 +73,7 @@ export function normalizeQueryArgs(...args) {
 
 // ------------------------
 
-export function matchExpr(a, b) {
+export function matchExpr(a, b, _op = null) {
 
     if (Array.isArray(a) && Array.isArray(b)) {
         if (a.length !== b.length) return false;
@@ -95,10 +95,11 @@ export function matchExpr(a, b) {
 
         let logicalOp;
         if (matchOperators([logicalOp = 'AND'])
-            || matchOperators([logicalOp = 'OR'])) {
+            || matchOperators([logicalOp = 'OR'])
+            || _op === 'AND~' && (a.operator() === 'AND' || b.operator() === 'AND') && (logicalOp = 'AND')) {
             const aSplit = splitLogicalExpr(a, logicalOp);
             const bSplit = splitLogicalExpr(b, logicalOp);
-            return matchLogicalSplits(aSplit, bSplit, logicalOp);
+            return matchLogicalSplits(aSplit, bSplit, _op || logicalOp);
         }
 
         if (matchOperators(['=', '=='])
@@ -151,8 +152,8 @@ export function matchLogicalSplits(a, b, op = 'AND') {
 export function splitLogicalExpr(expr, op = 'AND') {
     if (expr instanceof registry.BinaryExpr
         && expr.operator() === op) {
-        const right = splitLogicalExpr(expr.right(), op);
-        return [expr.left()].concat(right);
+        const lefts = splitLogicalExpr(expr.left(), op);
+        return lefts.concat(expr.right());
     }
     return [expr];
 }

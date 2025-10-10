@@ -2,33 +2,91 @@ import '../../lang/index.js';
 import { normalizeQueryArgs, normalizeSchemaSelectorArg } from './util.js';
 import { AbstractStmt } from '../../lang/abstracts/AbstractStmt.js';
 import { SchemaInference } from '../../lang/SchemaInference.js';
+import { RealtimeClient } from '../realtime/RealtimeClient.js';
 import { SimpleEmitter } from './SimpleEmitter.js';
 import { registry } from '../../lang/registry.js';
+import { Result } from '../Result.js';
 
 export class AbstractClient extends SimpleEmitter {
 
-    // ---------Contract
-
     get dialect() { throw new Error('Not implemented'); }
-    get enableLive() { throw new Error('Not implemented'); }
-    async connect() { throw new Error('Not implemented'); }
-    async disconnect() { throw new Error('Not implemented'); }
-    async query(ast, schemaName = 'public') { throw new Error('Not implemented'); }
-    async showCreate(selector, schemaWrapped = false) { throw new Error('Not implemented'); }
 
-    // ---------Implementeds
-
-    #schemaInference;
     #subscribers = new Map;
 
-    get schemaInference() { return this.#schemaInference; }
+    #schemaInference;
+    #realtimeClient;
 
-    constructor() {
+    #capabilityOverride;
+    #workingCapability;
+
+    get schemaInference() { return this.#schemaInference; }
+    get realtimeClient() { return this.#realtimeClient; }
+
+    constructor({ capability = {} } = {}) {
         super();
+        this.#capabilityOverride = capability;
+        this.#workingCapability = capability;
         this.#schemaInference = new SchemaInference({ driver: this });
+        this.#realtimeClient = new RealtimeClient(this);
     }
 
-    // ---------Queries
+    async connect() { }
+
+    async disconnect() {
+        await this.setCapability({ realtime: false });
+    }
+
+    async query(...args) {
+        const [query, options] = await this._normalizeQueryArgs(...args);
+        // Realtime query?
+        if (options.live && query.fromClause?.()) {
+            return await this.#realtimeClient.query(query, options);
+        }
+        const result = await this._query(query, options);
+        return new Result({ rows: result.rows, rowCount: result.rowCount });
+    }
+
+    async showCreate(selector, schemaWrapped = false) {
+        return await this._showCreate(selector, schemaWrapped);
+    }
+
+    async subscribe(selector, callback) {
+        await this.setCapability({ realtime: true });
+
+        if (typeof selector === 'function') {
+            callback = selector;
+            selector = '*';
+        }
+        
+        const flattenedSelectorSet = normalizeSchemaSelectorArg(selector, true);
+        this.#subscribers.set(callback, flattenedSelectorSet);
+
+        return async () => {
+            this.#subscribers.delete(callback);
+            if (!this.#subscribers.size) {
+                await this.setCapability({ realtime: false });
+            }
+        };
+    }
+
+    async setCapability(capMap) {
+        const _capMap = Object.fromEntries(Object.entries(capMap).filter(([k, v]) => {
+            return !v || this.#capabilityOverride[k] !== false;
+        }));
+        // realtime?
+        if (_capMap.realtime === false) {
+            await this._teardownRealtime();
+        } else if (_capMap.realtime) {
+            await this._setupRealtime();
+        }
+        // Publish...
+        this.#workingCapability = {
+            ...this.#workingCapability,
+            ..._capMap,
+        };
+    }
+
+    // ---------
 
     async _normalizeQueryArgs(...args) {
         let [query, options] = normalizeQueryArgs(...args);
@@ -71,24 +129,13 @@ export class AbstractClient extends SimpleEmitter {
                 schemaSelector[schemaName].push(tableName);
                 anyFound = true;
             }
-        });
+        }, true);
+
         if (anyFound) await this.#schemaInference.provide(schemaSelector);
 
         // DeSugaring...
         query = query.deSugar(true, {}, null, this.#schemaInference);
         return [query, options];
-    }
-
-    // ---------Subscriptions
-
-    subscribe(selector, callback) {
-        if (typeof selector === 'function') {
-            callback = selector;
-            selector = '*';
-        }
-        const flattenedSelectorSet = normalizeSchemaSelectorArg(selector, true);
-        this.#subscribers.set(callback, flattenedSelectorSet);
-        return () => this.#subscribers.delete(callback);
     }
 
     _fanout(events) {

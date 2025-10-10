@@ -1,14 +1,16 @@
 import '../../lang/index.js';
 import { AbstractClient } from '../abstracts/AbstractClient.js';
+import { normalizeQueryArgs } from '../abstracts/util.js';
 import { RealtimeResult } from './RealtimeResult.js';
 import { QueryWindow } from './QueryWindow.js';
 import { registry } from '../../lang/registry.js';
-import { normalizeQueryArgs } from '../abstracts/util.js';
 
 export class RealtimeClient {
 
     #windows = new Set;
     #driver;
+
+    get size() { return this.#windows.size; }
 
     constructor(driver) {
         if (!(driver instanceof AbstractClient)) {
@@ -49,7 +51,7 @@ export class RealtimeClient {
             if (await newWindow.inherit(potentialParentWindow)) break;
             potentialSubWindows.unshift(potentialParentWindow);
         }
-
+        
         // 2. No parent window found. We run as root
         if (!newWindow.parentWindow) {
             await newWindow.start();

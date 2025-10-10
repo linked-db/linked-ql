@@ -60,19 +60,22 @@ export class QueryEngine extends SimpleEmitter {
             cteRegistry: new Map,
             depth: 0,
         };
-        const eventsAbortLine = this.#storageEngine.on('changefeed', (event) => {
+        const _eventsAbortLine = this.#storageEngine.on('changefeed', (event) => {
             if (event.txId !== txId) return;
             events.push(event);
         });
 
         const returnValue = await this.#evaluateSTMT(scriptNode, queryCtx);
-        eventsAbortLine();
+        _eventsAbortLine();
         if (events.length) this.emit('changefeed', events);
-        
+
         if (returnValue && typeof returnValue?.[Symbol.asyncIterator] === 'function' && options.bufferResultRows !== false) {
             const rows = [];
             for await (const r of returnValue) rows.push(r);
-            return rows;
+            return { rows };
+        }
+        if (typeof returnValue === 'number' && options.bufferResultRows !== false) {
+            return  { rowCount: returnValue };
         }
 
         return returnValue;
@@ -912,9 +915,9 @@ export class QueryEngine extends SimpleEmitter {
     }
 
     async * evaluateGroupByClause(groupingElements, havingClause, upstream, queryCtx) {
-        
+
         // -----------Utils:
-        
+
         function flattenRowConstructor(expr) {
             if (expr instanceof registry.RowConstructor) {
                 // Flatten each entry recursively

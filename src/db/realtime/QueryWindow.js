@@ -80,7 +80,7 @@ export class QueryWindow extends SimpleEmitter {
                     && n.expr().resolution() === 'default') {
                     acquireTableRef(n.expr(), fromItemsBySchema, relationHashes);
                 } else return n;
-            });
+            }, true);
         }
 
         function acquireTableRef(tableRef, fromItemsBySchema, relationHashes = null) {
@@ -141,9 +141,13 @@ export class QueryWindow extends SimpleEmitter {
         const bWhere = query2.whereClause()?.expr();
         if (aWhere || bWhere) {
             if (subwindowingRules.whereClause === '>=') {
-                const _effectiveWhere = matchExpr(aWhere, bWhere, 'AND~');
-                if (_effectiveWhere === false) return false;
-                effectiveWhere.push(..._effectiveWhere);
+                if (!aWhere) {
+                    effectiveWhere.push(bWhere);
+                } else {
+                    const _effectiveWhere = matchExpr(aWhere, bWhere, 'AND~');
+                    if (_effectiveWhere === false) return false;
+                    effectiveWhere.push(..._effectiveWhere);
+                }
             } else if (!matchExpr(aWhere, bWhere)) return false;
         }
 
@@ -155,7 +159,7 @@ export class QueryWindow extends SimpleEmitter {
             if (subwindowingRules.orderDirections === '=') {
                 if (!aOrd.every((a, i) => matchExpr(a.dir(), bOrd[i].dir()))) return false;
             }
-        }
+        } else if (aOrd.length && !bOrd.length) return false;
 
         let effectiveOffset = 0;
         const aOffs = query1.offsetClause()?.expr();
@@ -412,7 +416,7 @@ export class QueryWindow extends SimpleEmitter {
     }
 
     async stop() {
-        this.#abortLine?.();
+        await this.#abortLine?.();
         this.#abortLine = null;
         this.#status = 0;
     }
@@ -546,8 +550,8 @@ export class QueryWindow extends SimpleEmitter {
 
         // Connect to WAL events or equivalent
         // Drivers must implement the interface
-        this.#abortLine = this.#driver.subscribe(analysis.fromItemsBySchema, (events) => {
-            this.#handleEvents(events).catch((e) => this.emit('error', e));
+        this.#abortLine = await this.#driver.subscribe(analysis.fromItemsBySchema, async (events) => {
+            await this.#handleEvents(events);
         });
     }
 
@@ -572,14 +576,15 @@ export class QueryWindow extends SimpleEmitter {
                         diffEvent = !passesWhere
                             ? { ...diffEvent, type: 'delete' } // drop
                             : { ...diffEvent }; // keep
+                        _diffEvents.add(diffEvent);
                     } else if (passesWhere) {
                         // Cast to insert; even if update
                         diffEvent = { ...diffEvent, type: 'insert' };
+                        _diffEvents.add(diffEvent);
                     }
                 }
-                _diffEvents.add(diffEvent);
             }
-            await this.#commitDiffs(_diffEvents);
+            if (_diffEvents.size) await this.#commitDiffs(_diffEvents);
         });
 
         // Set abortLine
@@ -1027,14 +1032,14 @@ export class QueryWindow extends SimpleEmitter {
                         // Find INSERTS or UPDATES that might slot in here from the right hand side
                         matches = matches.filter(([k]) => {
                             // Find an INSERT or UPDATE that might talk about this object
-                            if (k[i] !== null && (possibleEventId = JSON.parse([relation.schema, relation.name, k[i]])) && (
+                            if (k[i] !== null && (possibleEventId = JSON.stringify([relation.schema, relation.name, k[i]])) && (
                                 (normalizedEvent = normalizedEventsMap.get(possibleEventId))
                                 || keyHistoryMap.has(possibleEventId) && (normalizedEvent = normalizedEventsMap.get(possibleEventId = keyHistoryMap.get(possibleEventId)))
                             )) return true; // At least an INSERT or UPDATE is found on oldHash_parsed[i]
                         });
                     } else {
                         // Find a DELETE or UPDATE that might talk about this object
-                        if ((possibleEventId = JSON.parse([relation.schema, relation.name, oldHash_parsed[i]]))
+                        if ((possibleEventId = JSON.stringify([relation.schema, relation.name, oldHash_parsed[i]]))
                             && (normalizedEvent = normalizedEventsMap.get(possibleEventId))) {
                             matches = matches.filter(([k]) => {
                                 // Remote hash would be null on normalizedEvent.type === 'delete'
@@ -1084,7 +1089,7 @@ export class QueryWindow extends SimpleEmitter {
                 if (logicalHash_new) {
                     remoteRecords.delete(logicalHash_new);
                     remoteRecords_parsed = parseRemoteRecords(); // refresh
-                    const diffEvent = { type: 'update', oldHash: logicalHash_existing, newHash: logicalRecord_new, logicalRecord: logicalRecord_new };
+                    const diffEvent = { type: 'update', oldHash: logicalHash_existing, newHash: logicalHash_new, logicalRecord: logicalRecord_new };
                     diffEvents.add(diffEvent);
                     continue;
                 }

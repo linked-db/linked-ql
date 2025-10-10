@@ -1,67 +1,43 @@
 import { AbstractClient } from '../abstracts/AbstractClient.js';
 import { matchSchemaSelector, normalizeSchemaSelectorArg } from '../abstracts/util.js';
-import { RealtimeClient } from '../realtime/RealtimeClient.js';
 import { StorageEngine } from './StorageEngine.js';
 import { QueryEngine } from './QueryEngine.js';
 import { registry } from '../../lang/registry.js';
-import { Result } from '../Result.js';
 
 export class FlashClient extends AbstractClient {
 
     #dialect;
-    #enableLive;
+
     #storageEngine;
     #queryEngine;
-    #mutationAbortLine;
-    #realtimeClient;
+
+    #realtimeAbortLine;
 
     get dialect() { return this.#dialect; }
-    get enableLive() { return this.#enableLive; }
     get storageEngine() { return this.#storageEngine; }
 
-    constructor({ dialect = 'postgres', enableLive = false, ...options } = {}, storageEngine = null) {
-        super();
+    constructor({ dialect = 'postgres', capability = {}, ...options } = {}, storageEngine = null) {
+        super({ capability });
         this.#dialect = dialect;
-        this.#enableLive = !!enableLive;
         this.#storageEngine = storageEngine || new StorageEngine({ dialect, ...options });
         this.#queryEngine = new QueryEngine(this.#storageEngine, { dialect, ...options });
-        this.#realtimeClient = new RealtimeClient(this);
     }
 
-    // ---------Lifecycle
-
-    async connect() {
-        if (this.#enableLive) {
-            this.#mutationAbortLine = this.#queryEngine.on('changefeed', (events) => this._fanout(events));
-        }
+    async _query(query, options) {
+        return await this.#queryEngine.query(query, options);
     }
 
-    async disconnect() {
-        this.#mutationAbortLine?.();
-        this.#mutationAbortLine = null;
+    async _setupRealtime() {
+        if (this.#realtimeAbortLine) return; // Indempotency
+        this.#realtimeAbortLine = this.#queryEngine.on('changefeed', (events) => this._fanout(events));
     }
 
-    // ---------Query
-
-    async query(...args) {
-        const [query, options] = await this._normalizeQueryArgs(...args);
-        // Realtime query?
-        if (options.live && query.fromClause?.()) {
-            return await this.#realtimeClient.query(query, options);
-        }
-        const result = await this.#queryEngine.query(query, options);
-        if (Array.isArray(result) || typeof result?.[Symbol.asyncIterator] === 'function') {
-            return new Result({ rows: result });
-        }
-        if (typeof result === 'number') {
-            return new Result({ rowCount: result });
-        }
-        return new Result;
+    async _teardownRealtime() {
+        this.#realtimeAbortLine?.();
+        this.#realtimeAbortLine = null;
     }
 
-    // ---------Schemas
-
-    async showCreate(selector, schemaWrapped = false) {
+    async _showCreate(selector, schemaWrapped = false) {
         selector = normalizeSchemaSelectorArg(selector);
         const schemas = [];
         for (const schemaName of await this.#storageEngine.schemaNames()) {

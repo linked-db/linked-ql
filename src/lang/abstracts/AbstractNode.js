@@ -171,7 +171,7 @@ export class AbstractNode {
 		});
 	}
 
-	walkTree(visitor) {
+	walkTree(visitor, crossStmt = false) {
 		const visit = (value, key) => {
 			if (!(value instanceof AbstractNode)
 				&& !Array.isArray(value)) return;
@@ -181,7 +181,7 @@ export class AbstractNode {
 
 			if (Array.isArray(value)) {
 				value.map(visit);
-			} else if (value.statementNode !== value) {
+			} else if (crossStmt || value.statementNode !== value) {
 				value.walkTree(visitor);
 			}
 		};
