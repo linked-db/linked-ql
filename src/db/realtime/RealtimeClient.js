@@ -21,12 +21,14 @@ export class RealtimeClient {
 
     async query(...args) {
         const [query, { callback, signal, ...options }] = normalizeQueryArgs(...args);
+        
         if (!(query instanceof registry.BasicSelectStmt)) {
             throw new Error('Only SELECT statements are supported in live mode');
         }
         if (!query.fromClause()) {
             throw new Error('Query has no FROM clause');
         }
+
         const queryWindow = await this.createWindow(query, options);
         const resultJson = await queryWindow.currentRendering();
         const realtimeResult = new RealtimeResult(resultJson, () => abortLines.forEach((c) => c()), signal);

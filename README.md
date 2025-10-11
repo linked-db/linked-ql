@@ -4,7 +4,8 @@
 
 _**Next-generation SQL (Postgres & MySQL)** for modern apps._
 
-[![npm version][npm-version-src]][npm-version-href] [![npm downloads][npm-downloads-src]][npm-downloads-href]
+[![npm version][npm-version-src]][npm-version-href]
+[![npm downloads][npm-downloads-src]][npm-downloads-href]
 [![bundle][bundle-src]][bundle-href]
 [![License][license-src]][license-href]
 
@@ -24,98 +25,205 @@ _**Next-generation SQL (Postgres & MySQL)** for modern apps._
 
 [👉 Follow](https://x.com/LinkedQL) • [💖 Sponsor](https://github.com/sponsors/ox-harris)
 
+A **classic database client** but reimagined for modern apps:
 
-LinkedQL is a classic Postgres/MySQL client — like `node-postgres` and `mysql2` — but reimagined for modern apps! Bundling:
-_Handy syntax shorthands_ • _Out-of-the-box reactivity_ • _Automatic database versioning & painless migrations_ • _Smart workflow automation_ 
-
-**Actually...** it's less a DB client revolution, more an SQL upgrade — that brings the best of modern database tooling into SQL itself.
-
-LinkedQL is JS-based and works cross-environment: Nodejs and the browser.
+|  |  |
+|:---|:---|
+| _Universal SQL_ | [PostgreSQL](#11--postgresql) • [MySQL/MariaDB](#12--mysqlmariadb) • [FlashQL (in-memory)](#13--flashql) |
+| _Realtime DB_ | [Live Queries](#21--live-queries) • [Write Sync (Offline-first)](#22--write-sync-offline-first) • [Realtime Triggers](#23--realtime-triggers) |
+| _Syntax Niceties_ | [DeepRefs](#31--deeprefs) • [JSON shorthands](#32--json-shorthands) • [UPSERT statement](#33--the-upsert-statement) |
+| _Schema Niceties_ | [Automatic versioning](#41--automatic-database-versioning) • [Version binding](#42--version-binding) • [Diff-based migrations](#43--diff-based-migrations) |
+| _IDE Niceties_ | [Static error checking](#51--static-error-checking) • [Type safety](#52--type-safety) • [Autocompletion](#53--autocompletion) |
 
 </div>
 
-> [!IMPORTANT]  
-> This is **@linked-db/linked-ql@next** — our upcoming iteration.  
-> See [@linked-db/linked-ql@0.3.*](https://github.com/linked-db/linked-ql) for the current version (being also the version covered in the [docs](https://github.com/linked-db/linked-ql/wiki)).
-
+---
 
 ## 🚀 Quick-start
-
-1) Install
 
 ```bash
 npm i @linked-db/linked-ql@next
 ```
 
-2) Use as your regular PG or MySQL client
-
 ```js
+// Import from the relevant namespace
 import { PGClient } from '@linked-db/linked-ql/pg';
-```
 
-```js
-const client = new PGClient({
-  host: 'localhost',
-  port: 5432,
-});
+// Initialize
+const client = new PGClient({ host: 'localhost', port: 5432 });
 await client.connect();
-```
 
-```js
+
+// Run queries
 const result = await client.query(`SELECT 10`);
+console.log(result.rows);
 ```
 
-3) Do powerful things... like:
+> [!IMPORTANT]  
+> This is **@linked-db/linked-ql@next** — the upcoming iteration.  
+> See [@linked-db/linked-ql@0.3.*](https://github.com/linked-db/linked-ql) for the current stable version (also covered in the [docs](https://github.com/linked-db/linked-ql/wiki)).
+
+---
+
+## ` 1 |` Universal SQL
+
+### `1.1 |` PostgreSQL
+
+Use as a drop-in replacement for `node-postgres`, but better.
 
 ```js
-const users = await client.query(
-  `SELECT title, content, author ~> name AS author_name FROM books
-  WHERE author ~> role = $1`,
-  ['admin']
-);
+// Import from the /pg namespace
+import { PGClient } from '@linked-db/linked-ql/pg';
+
+// Initialize
+const client = new PGClient();
+await client.connect();
+
+// Run queries
+const { rows } = await client.query('SELECT 2::text');
+console.log(rows);
 ```
 
-<!--
-## ⚓ Motivation?
+> PGClient accepts same *init* options as `node-postgres`
 
-- **SQL can be painful**
-  - Often hard-to-grok syntax that goes quickly wild → unmaintainable → high-risk
-  - The classic schema drag & migration woes — being inherently manual → fragile → broken
+### `1.2 |` MySQL/MariaDB
 
-- **Plus, need reactivity?**—extra tooling & extra infra → additional moving parts → more overheads
-  <!-- Even as _realtime-first_ increasingly becomes base-line expectation for modern apps- ->
--->
+Use as a drop-in replacement for `mysql2`, but better.
 
+```js
+// Import from the /mysql namespace
+import { MySQLClient } from '@linked-db/linked-ql/mysql';
 
-## 💡 Features
+// Initialize
+const client = new MySQLClient();
+await client.connect();
 
-|  |  |
-|:---|:---|
-| _Reactivity_ | [Live queries](#11--live-queries) |
-| _Syntax Niceties_ | [DeepRefs](#21--deeprefs) • [JSON shorthands](#22--json-shorthands) • [The UPSERT statement](#23--the-upsert-statement) |
-| _Schema Niceties_ | [Automatic database versioning](#31--automatic-database-versioning) • [Version binding](#32--version-binding) • [Diff-based migrations](#33--diff-based-migrations) |
-| _IDE Niceties_ | [Static error checking](#41--static-error-checking) • [Type safety](#42--type-safety) • [Autocompletion](#43--autocompletion) |
+// Run queries
+const { rows } = await client.query('SELECT 2');
+console.log(rows);
+```
 
-### ` 1 |` Reactivity
+> MySQLClient accepts same *init* options as `mysql2`
 
-#### `1.1 |` Live queries
+### `1.3 |` FlashQL
+
+Run as a pure JavaScript, in-memory SQL engine — embeddable, dual-dialect, and lightweight.  
+Replaces SQLite or PGLite in many contexts.
+
+```js
+// Import from the /flash namespace
+import { FlashClient } from '@linked-db/linked-ql/flash';
+
+// Initialize
+const client = new FlashClient();
+await client.connect();
+
+// Run queries - understands Postgres by default: { dialect: 'postgres' }
+await client.query('SELECT 2::text');
+
+// Switch dialect per query
+await client.query('SELECT `name` FROM `users`', { dialect: 'mysql' });
+```
+
+Comes pretty robust — supporting aggregate & window functions, advanced analytics (`GROUPING`, `ROLLUP`, `CUBE`), *set* operations (`UNION`, `INTERSECT`, `EXCEPT`), CTEs (Common Table Expressions), and more.
+
+```js
+const { rows } = await client.query(`
+    WITH updated AS (
+        UPDATE ${tbl}
+        SET val = 'none'
+        WHERE id = 999
+        RETURNING id, val
+    ), sel AS (
+        SELECT 
+            id, val,
+            ROW_NUMBER() OVER () AS rn
+        FROM updated
+    )
+    SELECT * FROM sel
+`);
+```
+
+> FlashQL has planned support for a wide range of underlying storage options like IndexedDB, Redis, etc.
+
+## ` 2 |` Realtime DB
+
+### `2.1 |` Live Queries
 
 ⚡ _Turn on reactivity on arbitrary SQL with `{ live: true }`_
 
 ```js
-// Pass { live: true } to get live results
-const users = await client.query(
+// Turn on reactivity with { live: true }
+const result = await client.query(
   `SELECT title, content, users.name AS author FROM books
   LEFT JOIN users ON books.author = users.id`,
   { live: true }
 );
 ```
 
-### ` 2 |` Syntax Niceties
+_Treat result rows as "live" object:_
 
-#### `2.1 |` DeepRefs
+```js
+console.log(result.rows); // [{}, {}]
+```
 
-⮑  _Follow relationships using simple arrow notation_: `a ~> c ~> d`
+_Make changes and see them reflected in the result:_
+
+```js
+await client.query(`INSERT INTO books (title, content) VALUES ('Book 3', 'Content...')`);
+```
+
+```js
+console.log(result.rows); // [{}, {}, {}]
+```
+
+_Stop live mode at any time:_
+
+```js
+result.abort();
+```
+
+> [!TIP]
+> Ensure you have *Logical Replication* enabled on your postgres database. (Coming soon for MySQL via binlog; works automatically on FlashQL.)
+
+_Watch "live" objects like the above using the [Observer API](https://github.com/webqit/observer):_
+
+```js
+Observer.observe(result.rows, (changes) => console.log(changes));
+```
+
+_Or pass your callback along with query if prefered over the live object mode:_
+
+```js
+await client.query(`SELECT ...`, (events) => console.log(events), { live: true });
+```
+
+> [!TIP] 
+> Propagate "live" results as-is across your application stack — even over the wire — if your stack supports "live" objects.
+> As an example, return "live" results from a Webflo route and see them render "live" on the UI:
+>
+>  ```js
+>  // Return "live" results over the wire from a Webflo route
+>  export default async function(event, next) {
+>    const result = await client.query(`SELECT ...`, { live: true });
+>    return result.rows;
+>  }
+>  ```
+
+### `2.2 |` Write Sync (Offline-first)
+
+[_Coming Soon_] Automatic write synchronization for offline-first and distributed apps. (Designed to complement live queries with seamless two-way sync.)
+
+
+### `2.3 |` Realtime Triggers
+
+[_Coming Soon_] User-defined realtime hooks on database changes — perfect for automation and observability.
+
+## ` 3 |` Syntax Niceties
+
+### `3.1 |` DeepRefs
+
+⮑ Follow relationships using simple arrow notation: `a ~> c ~> d`
 
 ```js
 // DeepRefs let you access deeply nested columns
@@ -137,9 +245,9 @@ const users = await client.query(
 );
 ```
 
-#### `2.2 |` JSON shorthands
+### `3.2 |` JSON shorthands
 
-🧩 _Model shapes visually using JSON literals_: `{}`, `[]`
+🧩 Model shapes visually using JSON literals: `{}`, `[]`
 
 ```js
 // Shape your output data visually
@@ -165,9 +273,9 @@ console.log(users.rows[0]);
 */
 ```
 
-#### `2.3 |` The UPSERT statement
+### `3.3 |` The UPSERT statement
 
-📦 _Do upserts with a literal UPSERT statement_
+📦 Do upserts with a literal UPSERT statement.
 
 ```js
 // Skip the ON CONFLICT / ON DUPLICATE KEY step
@@ -180,13 +288,13 @@ const users = await client.query(
 );
 ```
 
-### ` 3 |` Schema Niceties
+## ` 4 |` Schema Niceties (Coming Soon)
 
-#### `3.1 |` Automatic database versioning
+### `4.1 |` Automatic Database Versioning  
 
-⏱ _Get automatic database versioning on every DDL operation_
+<!--⏱ Get automatic database versioning on every DDL operation-->
 
-```js
+<!--
 // A savepoint is automatically created for you on every DDL operation
 const savepoint = await client.query(
   `CREATE TABLE public.users (
@@ -196,66 +304,54 @@ const savepoint = await client.query(
   RETURNING SAVEPOINT`,
   { desc: 'Create users table' }
 );
-```
 
-```js
 // Inspect savepoint details
 console.log(savepoint.versionTag()); // 1
 console.log(savepoint.commitDesc()); // Create users table
 console.log(savepoint.commitDate()); // 2024-07-17T22:40:56.786Z
-```
 
-```js
 // Rollback at any time (drops the table above)
 await savepoint.rollback({ desc: 'Users table no more necessary' });
-```
+-->
 
-#### `3.2 |` Version binding
+### `4.2 |` Version Binding  
 
-🧷 _Bind queries to specific schema or table versions_: `<table_ref | schema_ref>@<version_number>`
+<!--🧷 Bind queries to specific schema or table versions: <table_ref | schema_ref>@<version_number>-->
 
-```js
+<!--
 // ...makes this query version-safe
 await client.query(
   `SELECT users.first_name, books.title FROM users@3
   LEFT JOIN books@2_1 ON users.id = books.author`
 );
-```
 
-```js
 // Alter your database without breaking your queries
 await client.query(
   `ALTER TABLE users
   RENAME COLUMN first_name TO fname`
 );
-```
+-->
 
-#### `3.3 |` Diff-based migrations
+### `4.3 |` Diff-based Migrations
 
-🤖 _Define and evolve schemas declaratively; put migration on autopilot_
+<!--🤖 Define and evolve schemas declaratively; put migration on autopilot-->
 
-> coming soon - with a screencast
 
-### ` 4 |` IDE Niceties
+## ` 5 |` IDE Niceties (Coming Soon)
 
-#### `4.1 |` Static error checking
+### `5.1 |` Static Error Checking  
 
-🔍 _Catch mistakes before they hit production_
+<!--🔍 Catch mistakes before they hit production-->
 
-> coming soon - with a screencast
+### `5.2 |` Type Safety  
 
-#### `4.2 |` Type safety
+<!--🛡️ Strong types, no guessing-->
 
-🛡️ _Strong types, no guessing_
+### `5.3 |` Autocompletion  
 
-> coming soon - with a screencast
+<!--💡 Smarter autocompletion in your editor-->
 
-#### `4.3 |` Autocompletion
-
-💡 _Smarter autocompletion in your editor_
-
-> coming soon - with a screencast
-
+---
 
 ## ✍️ Documentation
 
@@ -263,18 +359,20 @@ await client.query(
 
 ## ⏳ Our progress on this iteration of LinkedQL
 
-| Component              | Status      | Notes                      |
+| Component              | Status        | Notes                    |
 |:-----------------------|:--------------|:-------------------------|
-| Core Parser/Compiler   | 🟩🟩🟩🟩 `100%` | Done 🏆                  |
-| Core Transform Engine  | 🟩🟩🟩🟩 `100%` | Done 🏆                  |
-| InMemory DB Engine     | 🟩🟩🟩🟩 `99%`  | Stable but expanding     |
-| DB Drivers (PG/MySQL)  | 🟩🟩🟩🟩 `97%`  | MySQL catching up        |
-| Realtime Engine        | 🟩🟩🟩🟨 `95%`  | Core live queries working|
+| Core Parser/Compiler   | 🟩🟩🟩🟩 `100%` | Done                  🏆 |
+| Core Transform Engine  | 🟩🟩🟩🟩 `100%` | Done                  🏆 |
+| InMemory DB Engine     | 🟩🟩🟩🟩 `99%`  | Stable but expanding  🏆 |
+| DB Drivers (PG/MySQL)  | 🟩🟩🟩🟩 `97%`  | MySQL catching up     🏆 |
+| Realtime Engine        | 🟩🟩🟩🟩 `99%`  | Stable but expanding  🏆 |
 | Version Binding        | 🟩⬜⬜⬜ `20%`  | Early prototype          |
 | Auto-Versioning Engine | 🟩⬜⬜⬜ `10%`  | Deferring to v0.3.*      |
 | Migration Wizard       | 🟩⬜⬜⬜ `10%`  | Deferring to v0.3.*      |
 | IDE Tooling            | 🟩⬜⬜⬜ `10%`  | Initial hooks only       |
 | Revamped Docs          | ⬜⬜⬜⬜ `0%`   | Not started              |
+
+<!--🟨-->
 
 _Things are moving really fast; and I'm keeping the progress bars here live_
 
