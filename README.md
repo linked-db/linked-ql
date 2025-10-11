@@ -58,8 +58,8 @@ console.log(result.rows);
 ```
 
 > [!IMPORTANT]  
-> This is **@linked-db/linked-ql@next** — the upcoming iteration.  
-> See [@linked-db/linked-ql@0.3.*](https://github.com/linked-db/linked-ql) for the current stable version (also covered in the [docs](https://github.com/linked-db/linked-ql/wiki)).
+> You're viewing **@linked-db/linked-ql@next** — the upcoming iteration.  
+> See [@linked-db/linked-ql@0.3.*](https://github.com/linked-db/linked-ql) for the current version (being also the version covered in the [docs](https://github.com/linked-db/linked-ql/wiki)).
 
 ## ` 1 |` Universal SQL
 
