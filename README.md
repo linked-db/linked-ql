@@ -7,6 +7,8 @@
 [![bundle][bundle-src]][bundle-href]
 [![License][license-src]][license-href]
 
+A modern take on SQL and SQL databases
+
 </div>
 
 <br>
@@ -23,7 +25,7 @@
 
 [👉 Follow](https://x.com/LinkedQL) • [💖 Sponsor](https://github.com/sponsors/ox-harris)
 
-A modern take on SQL and SQL databases that checks all the boxes for modern apps — and essentially gives you a unified abstraction for every use case.
+LinkedQL gives you a unified database abstraction for every use case — and essentially checks all the boxes for modern apps:
 
 |  |  |
 |:---|:---|
