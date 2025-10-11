@@ -180,23 +180,24 @@ result.abort();
 ```
 
 > [!TIP]
-> Ensure you have *Logical Replication* enabled on your postgres database. (Coming soon for MySQL via binlog; works automatically on FlashQL.)
-
-_Watch "live" objects like the above using the [Observer API](https://github.com/webqit/observer):_
-
-```js
-Observer.observe(result.rows, (changes) => console.log(changes));
-```
-
-_Or pass your callback along with query if prefered over the live object mode:_
-
-```js
-await client.query(`SELECT ...`, (events) => console.log(events), { live: true });
-```
+> For postgres, ensure you have *Logical Replication* enabled on your database. (Coming soon for MySQL; works automatically with FlashQL.)
 
 > [!TIP] 
-> Propagate "live" results as-is across your application stack — even over the wire — if your stack supports "live" objects.
-> As an example, return "live" results from a Webflo route and see them render "live" on the UI:
+> Watch "live" objects like the above using the [Observer API](https://github.com/webqit/observer):
+>
+> ```js
+> Observer.observe(result.rows, (changes) => console.log(changes));
+> ```
+>
+> Or pass your callback along with query if prefered over the live object mode:
+>
+> ```js
+> await client.query(`SELECT ...`, (events) => console.log(events), { live: true });
+> ```
+
+> [!TIP] 
+> *Live objects* as default mode comes as a special love letter to newer stacks that understand live objects, letting you pass live data across your entire application stack — even over the wire — with zero boilerplate.
+> As an example, the Webflo framework would let you return "live" data from a route for automatic binding on the UI — with reactivity preserved over the wire:
 >
 >  ```js
 >  // Return "live" results over the wire from a Webflo route
