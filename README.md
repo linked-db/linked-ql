@@ -2,8 +2,6 @@
     
 # LinkedQL
 
-_**Advanced SQL** for modern apps._
-
 [![npm version][npm-version-src]][npm-version-href]
 [![npm downloads][npm-downloads-src]][npm-downloads-href]
 [![bundle][bundle-src]][bundle-href]
@@ -25,7 +23,7 @@ _**Advanced SQL** for modern apps._
 
 [👉 Follow](https://x.com/LinkedQL) • [💖 Sponsor](https://github.com/sponsors/ox-harris)
 
-A universal SQL client — Postgres, MySQL, in-mememory (FlashQL) — that gives you SQL+++
+A modern take on SQL and SQL databases that checks all the boxes for modern apps — and essentially gives you a unified abstraction for every use case.
 
 |  |  |
 |:---|:---|
