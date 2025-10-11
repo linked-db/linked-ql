@@ -7,11 +7,9 @@
 [![bundle][bundle-src]][bundle-href]
 [![License][license-src]][license-href]
 
-A modern take on SQL and SQL databases
+_A modern take on SQL and SQL databases_
 
 </div>
-
-<br>
 
 <picture>
   <source media="(max-width: 799px)" srcset="https://github.com/linked-db/linked-ql/blob/next/resources/linked-ql-mobile2.png?raw=true">
@@ -19,13 +17,19 @@ A modern take on SQL and SQL databases
   <img src="https://github.com/linked-db/linked-ql/blob/next/resources/linked-ql-main2.png?raw=true" alt="LinkedQL Banner" width="100%">
 </picture>
 
-<br>
-
 <div align="center">
 
+<!--
 [👉 Follow](https://x.com/LinkedQL) • [💖 Sponsor](https://github.com/sponsors/ox-harris)
+-->
+
+> ```bash
+> npm install @linked-db/linked-ql@next
+> ```
 
 LinkedQL gives you a unified database abstraction for every use case — and essentially checks all the boxes for modern apps:
+
+<br>
 
 |  |  |
 |:---|:---|
@@ -39,7 +43,9 @@ LinkedQL gives you a unified database abstraction for every use case — and ess
 
 ## 🚀 Quick-start
 
-```bash
+👉 _Install and use as a regular database client:_
+
+```shell
 npm i @linked-db/linked-ql@next
 ```
 
@@ -63,9 +69,11 @@ console.log(result.rows);
 
 ## ` 1 |` Universal SQL
 
+👉 Both Postgres and MySQL/mariadb; both server-side and client-side — via an embeddable version
+
 ### `1.1 |` PostgreSQL
 
-Use as a drop-in replacement for `node-postgres`, but better.
+_Use as a drop-in replacement for `node-postgres`._
 
 ```js
 // Import from the /pg namespace
@@ -80,11 +88,11 @@ const { rows } = await client.query('SELECT 2::text');
 console.log(rows);
 ```
 
-> PGClient accepts same *init* options as `node-postgres`
+> Comes as an upgrade to `node-postgres` but with same API shape and *init* options as `node-postgres`
 
 ### `1.2 |` MySQL/MariaDB
 
-Use as a drop-in replacement for `mysql2`, but better.
+_Use as a drop-in replacement for `mysql2`._
 
 ```js
 // Import from the /mysql namespace
@@ -99,12 +107,12 @@ const { rows } = await client.query('SELECT 2');
 console.log(rows);
 ```
 
-> MySQLClient accepts same *init* options as `mysql2`
+> Comes as an upgrade to `mysql2` but with same API shape and *init* options as `mysql2`
 
 ### `1.3 |` FlashQL
 
-Run as a pure JavaScript, in-memory SQL engine — embeddable, dual-dialect, and lightweight.  
-Replaces SQLite or PGLite in many contexts.
+_Run as a pure JavaScript, in-memory SQL engine — embeddable, dual-dialect, and lightweight.  
+Replaces SQLite or PGLite in many contexts._
 
 ```js
 // Import from the /flash namespace
@@ -121,7 +129,7 @@ await client.query('SELECT 2::text');
 await client.query('SELECT `name` FROM `users`', { dialect: 'mysql' });
 ```
 
-Comes pretty robust — supporting aggregate & window functions, advanced analytics (`GROUPING`, `ROLLUP`, `CUBE`), *set* operations (`UNION`, `INTERSECT`, `EXCEPT`), CTEs (Common Table Expressions), and more.
+_Comes pretty robust — supporting advanced language features, including aggregate & window functions, advanced analytics (`GROUPING`, `ROLLUP`, `CUBE`), *set* operations (`UNION`, `INTERSECT`, `EXCEPT`),  Common Table Expressions (CTEs), and more._
 
 ```js
 const { rows } = await client.query(`
@@ -144,6 +152,8 @@ const { rows } = await client.query(`
 
 ## ` 2 |` Realtime DB
 
+👉 Leverage out of the box reactivivity and sata syncing for your realtime apps; no need for GraphQL or complex infra
+
 ### `2.1 |` Live Queries
 
 ⚡ _Turn on reactivity on arbitrary SQL with `{ live: true }`_
@@ -157,7 +167,7 @@ const result = await client.query(
 );
 ```
 
-_Treat result rows as "live" object:_
+_Treat result rows as "live" data_
 
 ```js
 console.log(result.rows); // [{}, {}]
@@ -170,7 +180,9 @@ await client.query(`INSERT INTO books (title, content) VALUES ('Book 3', 'Conten
 ```
 
 ```js
-console.log(result.rows); // [{}, {}, {}]
+setTimeout(() => {
+  console.log(result.rows); // [{}, {}, {}]
+}, 300);
 ```
 
 _Stop live mode at any time:_
@@ -180,23 +192,23 @@ result.abort();
 ```
 
 > [!TIP]
-> For postgres, ensure you have *Logical Replication* enabled on your database. (Coming soon for MySQL; works automatically with FlashQL.)
+> For postgres, ensure you have *Logical Replication* [enabled](https://www.digitalocean.com/community/tutorials/how-to-set-up-logical-replication-with-postgresql-10-on-ubuntu-18-04) on your database. (Coming soon for MySQL; works automatically with FlashQL.)
 
 > [!TIP] 
-> Watch "live" objects like the above using the [Observer API](https://github.com/webqit/observer):
+> "Live" objects like the above can be observed using the [Observer API](https://github.com/webqit/observer):
 >
 > ```js
 > Observer.observe(result.rows, (changes) => console.log(changes));
 > ```
 >
-> Or pass your callback along with query if prefered over the live object mode:
+> Alternatively, you can pass a callback along with your query to manually handle raw changefeeds from the engine:
 >
 > ```js
 > await client.query(`SELECT ...`, (events) => console.log(events), { live: true });
 > ```
 
-> [!TIP] 
-> *Live objects* as default mode comes as a special love letter to newer stacks that understand live objects, letting you pass live data across your entire application stack — even over the wire — with zero boilerplate.
+> [!TIP]
+> While LinkedQL fully supports the traditional callback model for manual change handling, its real strength lies in the concept of live result objects — a cleaner, more intuitive way to reason about changing data. Built for *mutation-based* reactivity, this model integrates seamlessly with newer stacks that share the same foundation, letting you pass dynamic, ever-updating data across your entire application — even over the wire — with zero boilerplate.
 > As an example, the Webflo framework would let you return "live" data from a route for automatic binding on the UI — with reactivity preserved over the wire:
 >
 >  ```js
@@ -211,16 +223,17 @@ result.abort();
 
 [_Coming Soon_] Automatic write synchronization for offline-first and distributed apps. (Designed to complement live queries with seamless two-way sync.)
 
-
 ### `2.3 |` Realtime Triggers
 
 [_Coming Soon_] User-defined realtime hooks on database changes — perfect for automation and observability.
 
 ## ` 3 |` Syntax Niceties
 
+👉 Eliminate tons of boilrplate and external tooling with LinkedQL's set of syntax extension to SQL.
+
 ### `3.1 |` DeepRefs
 
-⮑ Follow relationships using simple arrow notation: `a ~> c ~> d`
+⮑ _Follow relationships using simple arrow notation: `a ~> c ~> d`_
 
 ```js
 // DeepRefs let you access deeply nested columns
@@ -244,7 +257,7 @@ const users = await client.query(
 
 ### `3.2 |` JSON shorthands
 
-🧩 Model shapes visually using JSON literals: `{}`, `[]`
+🧩 _Model shapes visually using JSON literals: `{}`, `[]`_
 
 ```js
 // Shape your output data visually
@@ -272,7 +285,7 @@ console.log(users.rows[0]);
 
 ### `3.3 |` The UPSERT statement
 
-📦 Do upserts with a literal UPSERT statement.
+📦 _Do upserts with a literal UPSERT statement._
 
 ```js
 // Skip the ON CONFLICT / ON DUPLICATE KEY step
