@@ -69,7 +69,7 @@ console.log(result.rows);
 
 ## ` 1 |` Universal SQL
 
-👉 Both Postgres and MySQL/mariadb; both server-side and client-side — via an embeddable version
+👉 Both Postgres and MySQL/mariadb — both server-side and client-side — via an embeddable version
 
 ### `1.1 |` PostgreSQL
 
@@ -152,7 +152,7 @@ const { rows } = await client.query(`
 
 ## ` 2 |` Realtime DB
 
-👉 Leverage out of the box reactivivity and sata syncing for your realtime apps; no need for GraphQL or complex infra
+👉 Out-of-the-box reactivity and seamless data sync for realtime apps — without the overhead of GraphQL or complex infra.
 
 ### `2.1 |` Live Queries
 
@@ -208,7 +208,9 @@ result.abort();
 > ```
 
 > [!TIP]
-> While LinkedQL fully supports the traditional callback model for manual change handling, its real strength lies in the concept of live result objects — a cleaner, more intuitive way to reason about changing data. Built for *mutation-based* reactivity, this model integrates seamlessly with newer stacks that share the same foundation, letting you pass dynamic, ever-updating data across your entire application — even over the wire — with zero boilerplate.
+> While LinkedQL fully supports the traditional callback model for manual change handling, its real strength lies in the concept of live result objects — a cleaner, more intuitive way to reason about changing data.
+> Built for *mutation-based* reactivity, this model integrates seamlessly with newer stacks that share the same foundation, letting you pass dynamic, ever-updating data across your entire application — even over the wire — with zero boilerplate.
+>
 > As an example, the Webflo framework would let you return "live" data from a route for automatic binding on the UI — with reactivity preserved over the wire:
 >
 >  ```js
