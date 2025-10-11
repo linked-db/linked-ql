@@ -2,7 +2,7 @@
     
 # LinkedQL
 
-_**Next-generation SQL (Postgres & MySQL)** for modern apps._
+_**Advanced SQL** for modern apps._
 
 [![npm version][npm-version-src]][npm-version-href]
 [![npm downloads][npm-downloads-src]][npm-downloads-href]
@@ -25,7 +25,7 @@ _**Next-generation SQL (Postgres & MySQL)** for modern apps._
 
 [👉 Follow](https://x.com/LinkedQL) • [💖 Sponsor](https://github.com/sponsors/ox-harris)
 
-A **classic database client** but reimagined for modern apps:
+A universal SQL client — Postgres, MySQL, in-mememory (FlashQL) — that gives you SQL+++
 
 |  |  |
 |:---|:---|
@@ -36,8 +36,6 @@ A **classic database client** but reimagined for modern apps:
 | _IDE Niceties_ | [Static error checking](#51--static-error-checking) • [Type safety](#52--type-safety) • [Autocompletion](#53--autocompletion) |
 
 </div>
-
----
 
 ## 🚀 Quick-start
 
@@ -62,8 +60,6 @@ console.log(result.rows);
 > [!IMPORTANT]  
 > This is **@linked-db/linked-ql@next** — the upcoming iteration.  
 > See [@linked-db/linked-ql@0.3.*](https://github.com/linked-db/linked-ql) for the current stable version (also covered in the [docs](https://github.com/linked-db/linked-ql/wiki)).
-
----
 
 ## ` 1 |` Universal SQL
 
@@ -350,8 +346,6 @@ await client.query(
 ### `5.3 |` Autocompletion  
 
 <!--💡 Smarter autocompletion in your editor-->
-
----
 
 ## ✍️ Documentation
 
