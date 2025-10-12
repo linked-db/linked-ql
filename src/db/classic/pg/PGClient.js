@@ -1,4 +1,5 @@
 import pg from 'pg';
+import Cursor from 'pg-cursor';
 import { LogicalReplicationService, PgoutputPlugin } from 'pg-logical-replication';
 import { ClassicClient } from '../ClassicClient.js';
 
@@ -42,38 +43,54 @@ export class PGClient extends ClassicClient {
             ? new pg.Pool(this.#connectionParams)
             : new pg.Client(this.#connectionParams);
 
-        this.#adminDriver = this.#poolMode
-            ? new pg.Client(this.#connectionParams)
-            : this.#driver;
-    }
-
-    async connect() {
-        await this.#driver.connect();
         this.#driver.on('error', (err) => {
             this.emit('error', new Error(`Native Client error: ${err}`));
         });
-        if (this.#adminDriver !== this.#driver) {
-            await this.#adminDriver.connect();
-            this.#adminDriver.on('error', (err) => {
-                this.emit('error', new Error(`Native Admin Client error: ${err}`));
-            });
-        }
-        await super.connect();
     }
 
-    async disconnect() {
-        await super.disconnect();
+    async _connect() {
+        const result = await this.#driver.connect();
+        this.#adminDriver = this.#poolMode
+            ? result // First available client
+            : this.#driver;
+        return result;
+    }
+
+    async _disconnect() {
         await this._teardownRealtime();
         try {
+            if (this.#poolMode) await this.#adminDriver.release();
             await this.#driver.end();
-            if (this.#adminDriver !== this.#driver) {
-                await this.#adminDriver.end();
-            }
         } catch { /* avoid hang */ }
     }
 
-    async _query(query, options) {
-        return await this.#driver.query(query + '', options.values);
+    async _query(query, { values = [], name = null }) {
+        return await this.#driver.query({
+            text: query + '',
+            values,
+            name,
+        });
+    }
+
+    async _cursor(query, { values = [], batchSize = 1000 } = {}) {
+        const pgCursor = this.#driver.query(new Cursor(query + '', values));
+        let closed = false;
+        const iterator = {
+            async *[Symbol.asyncIterator]() {
+                while (!closed) {
+                    const rows = await pgCursor.read(batchSize);
+                    if (!rows.length) break;
+                    yield* rows;
+                }
+            },
+            async close() {
+                if (!closed) {
+                    closed = true;
+                    await pgCursor.close();
+                }
+            },
+        };
+        return iterator;
     }
 
     async _setupRealtime() {

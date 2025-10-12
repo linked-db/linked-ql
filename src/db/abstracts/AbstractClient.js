@@ -30,10 +30,13 @@ export class AbstractClient extends SimpleEmitter {
         this.#realtimeClient = new RealtimeClient(this);
     }
 
-    async connect() { }
+    async connect() {
+        await this._connect();
+    }
 
     async disconnect() {
         await this.setCapability({ realtime: false });
+        await this._disconnect();
     }
 
     async query(...args) {

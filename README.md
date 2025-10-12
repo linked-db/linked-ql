@@ -78,7 +78,7 @@ _Use as a drop-in replacement for `node-postgres` or `mysql2` — same API, rich
 ```js
 // Import from the relevant namespace
 import { PGClient } from '@linked-db/linked-ql/pg';
-import { MySQLClient } from '@linked-db/linked-ql/mysql';
+import { MySQLClient } from '@linked-db/linked-ql/mysql'; // Or import { MariaDBClient } from '@linked-db/linked-ql/mariadb';
 
 // Initialize and connect
 const pg = new PGClient({ host: 'localhost', port: 5432 });

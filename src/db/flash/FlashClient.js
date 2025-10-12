@@ -23,8 +23,30 @@ export class FlashClient extends AbstractClient {
         this.#queryEngine = new QueryEngine(this.#storageEngine, { dialect, ...options });
     }
 
+    async _connect() { }
+
+    async _disconnect() { }
+
     async _query(query, options) {
         return await this.#queryEngine.query(query, options);
+    }
+    async _cursor(query, options) {
+        let closed = false;
+        return {
+            async *[Symbol.asyncIterator]() {
+                const { rows } = await this._query(query, options);
+                for await (const row of rows) {
+                    if (closed) return;
+                    yield row;
+                }
+            },
+            async close() {
+                if (!closed) {
+                    closed = true;
+                }
+            },
+        };
+        return await this._query(query, options);
     }
 
     async _setupRealtime() {
