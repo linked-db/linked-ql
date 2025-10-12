@@ -20,21 +20,21 @@ _A modern take on SQL and SQL databases_
 <div align="center">
 
 <!--
-[👉 Follow](https://x.com/LinkedQL) • [💖 Sponsor](https://github.com/sponsors/ox-harris)
+[⤷ Follow](https://x.com/LinkedQL) • [💖 Sponsor](https://github.com/sponsors/ox-harris)
 -->
 
 > ```bash
 > npm install @linked-db/linked-ql@next
 > ```
 
-LinkedQL gives you a unified database abstraction for every use case — and essentially checks all the boxes for modern apps:
+LinkedQL is one unified abstraction for your entire database universe — with all the boxes checked for modern apps:
 
 <br>
 
 |  |  |
 |:---|:---|
-| _Universal SQL_ | [PostgreSQL](#11--postgresql) • [MySQL/MariaDB](#12--mysqlmariadb) • [FlashQL (in-memory)](#13--flashql) |
-| _Realtime DB_ | [Live Queries](#21--live-queries) • [Write Sync (Offline-first)](#22--write-sync-offline-first) • [Realtime Triggers](#23--realtime-triggers) |
+| _Universal SQL_ | [PostgreSQL & MySQL/MariaDB](#11--postgresql--mysqlmariadb) • [FlashQL (in-memory)](#12--flashql) • [Query Federation](#13--query-federation) |
+| _Realtime DB_ | [Live Queries](#21--live-queries) • [Data Sync](#22--data-sync) • [Realtime Triggers](#23--realtime-triggers) |
 | _Syntax Niceties_ | [DeepRefs](#31--deeprefs) • [JSON shorthands](#32--json-shorthands) • [UPSERT statement](#33--the-upsert-statement) |
 | _Schema Niceties_ | [Automatic versioning](#41--automatic-database-versioning) • [Version binding](#42--version-binding) • [Diff-based migrations](#43--diff-based-migrations) |
 | _IDE Niceties_ | [Static error checking](#51--static-error-checking) • [Type safety](#52--type-safety) • [Autocompletion](#53--autocompletion) |
@@ -43,7 +43,7 @@ LinkedQL gives you a unified database abstraction for every use case — and ess
 
 ## 🚀 Quick-start
 
-👉 _Install and use as a regular database client:_
+⤷ _Install and use as a regular database client:_
 
 ```shell
 npm i @linked-db/linked-ql@next
@@ -69,49 +69,35 @@ console.log(result.rows);
 
 ## ` 1 |` Universal SQL
 
-👉 Both Postgres and MySQL/mariadb — both server-side and client-side — via an embeddable version
+⤷ A single abstraction that spans multiple SQL runtimes and application environments — Postgres, MySQL/MariaDB, or FlashQL (in-memory) — with native dialect fidelity.
 
-### `1.1 |` PostgreSQL
+### `1.1 |` PostgreSQL & MySQL/MariaDB
 
-_Use as a drop-in replacement for `node-postgres`._
+_Use as a drop-in replacement for `node-postgres` or `mysql2` — same API, richer capabilities._
 
 ```js
-// Import from the /pg namespace
+// Import from the relevant namespace
 import { PGClient } from '@linked-db/linked-ql/pg';
-
-// Initialize
-const client = new PGClient();
-await client.connect();
-
-// Run queries
-const { rows } = await client.query('SELECT 2::text');
-console.log(rows);
-```
-
-> Comes as an upgrade to `node-postgres` but with same API shape and *init* options as `node-postgres`
-
-### `1.2 |` MySQL/MariaDB
-
-_Use as a drop-in replacement for `mysql2`._
-
-```js
-// Import from the /mysql namespace
 import { MySQLClient } from '@linked-db/linked-ql/mysql';
 
-// Initialize
-const client = new MySQLClient();
-await client.connect();
+// Initialize and connect
+const pg = new PGClient({ host: 'localhost', port: 5432 });
+await pg.connect();
 
-// Run queries
-const { rows } = await client.query('SELECT 2');
-console.log(rows);
+const mysql = new MySQLClient({ host: 'localhost', port: 3306 });
+await mysql.connect();
+
+// Run standard queries — no DSLs, just SQL
+const res1 = await pg.query('SELECT 1::text AS result');
+const res2 = await mysql.query('SELECT 1 AS result FROM users');
+
+console.log(res1.rows);
+console.log(res2.rows);
 ```
 
-> Comes as an upgrade to `mysql2` but with same API shape and *init* options as `mysql2`
+### `1.2 |` FlashQL
 
-### `1.3 |` FlashQL
-
-_Run as a pure JavaScript, in-memory SQL engine — embeddable, dual-dialect, and lightweight.  
+_Run as a pure JavaScript, in-memory SQL engine — embeddable, dual-dialect, and lightweight — ideal for local-first, ephemeral, or browser environments.  
 Replaces SQLite or PGLite in many contexts._
 
 ```js
@@ -148,15 +134,59 @@ const { rows } = await client.query(`
 `);
 ```
 
-> FlashQL has planned support for a wide range of underlying storage options like IndexedDB, Redis, etc.
+> [!NOTE]
+> FlashQL runs anywhere JavaScript runs — Node, browser, worker, or edge — and is designed for future pluggable backend (IndexedDB, Redis, etc.).
+
+### `1.3 |` Query Federation
+
+_Query across multiple database systems in one statement — perfect for hybrid setups where data lives across local and remote sources._
+
+```js
+import { FlashClient } from '@linked-db/linked-ql/flash';
+import { PGClient } from '@linked-db/linked-ql/pg';
+
+const local = new FlashClient();
+const remote1 = new PGClient({ host: 'localhost', port: 5432 });
+const remote2 = new PGClient({ host: 'localhost', port: 5432 });
+
+// Register a Postgres origin under the alias "public"
+await local.federate({ public: ['users', 'orders'] }, remote1);
+
+// Register another origin under the alias "pg1"
+await local.federate(
+  {
+    pg1: {
+      schema: 'public',
+      tables: ['products'],
+      where: { status: 1 } // Optional filter
+    }
+  },
+  remote2
+);
+
+// Query seamlessly across local and federated tables
+const result = await local.query(`
+  SELECT users.id, orders.total, products.name
+  FROM public.users
+  JOIN public.orders ON users.id = orders.user_id
+  JOIN pg1.products ON orders.product_id = products.id
+`, { federated: true });
+```
+
+> [!TIP]
+> Federated tables appear as schema-scoped virtual tables (`pg1.products`, `public.orders`, etc.) and can be queried or joined just like native tables.
+> LinkedQL automatically routes parts of your query to their respective origins and streams results back as one unified dataset.
+
+> [!NOTE]
+> Federation is lazy — data is pulled or streamed on demand, not bulk-copied — ideal for hybrid setups where part of your data lives remotely.
 
 ## ` 2 |` Realtime DB
 
-👉 Out-of-the-box reactivity and seamless data sync for realtime apps — without the overhead of GraphQL or complex infra.
+⤷ Built-in reactivity, live data, and sync — without GraphQL servers, middleware, or complex infra.
 
 ### `2.1 |` Live Queries
 
-⚡ _Turn on reactivity on arbitrary SQL with `{ live: true }`_
+⚡ _Turn on reactivity over arbitrary SQL with `{ live: true }`_
 
 ```js
 // Turn on reactivity with { live: true }
@@ -167,16 +197,19 @@ const result = await client.query(
 );
 ```
 
-_Treat result rows as "live" data_
+_Treat result rows as "live" data — continuously self-updating as underlying data changes_
 
 ```js
 console.log(result.rows); // [{}, {}]
 ```
 
-_Make changes and see them reflected in the result:_
+_Make changes and see them reflect in the result:_
 
 ```js
-await client.query(`INSERT INTO books (title, content) VALUES ('Book 3', 'Content...')`);
+await client.query(`
+  INSERT INTO books (title, content)
+  VALUES ('Book 3', 'Content...')`
+);
 ```
 
 ```js
@@ -209,7 +242,8 @@ result.abort();
 
 > [!TIP]
 > While LinkedQL fully supports the traditional callback model for manual change handling, its real strength lies in the concept of live result objects — a cleaner, more intuitive way to reason about changing data.
-> Built for *mutation-based* reactivity, this model integrates seamlessly with newer stacks that share the same foundation, letting you pass dynamic, ever-updating data across your entire application — even over the wire — with zero boilerplate.
+>
+> Built for *mutation-based* reactivity, this model integrates seamlessly with newer stacks that share the same foundation, letting you pass dynamic, ever-updating data across your entire application — even over the wire — with zero glue code.
 >
 > As an example, the Webflo framework would let you return "live" data from a route for automatic binding on the UI — with reactivity preserved over the wire:
 >
@@ -221,17 +255,67 @@ result.abort();
 >  }
 >  ```
 
-### `2.2 |` Write Sync (Offline-first)
+### `2.2 |` Data Sync
 
-[_Coming Soon_] Automatic write synchronization for offline-first and distributed apps. (Designed to complement live queries with seamless two-way sync.)
+🔄 _Two-way data synchronization between local and remote databases — perfect for offline-first, edge-first, and distributed apps._
+
+```js
+import { FlashClient } from '@linked-db/linked-ql/flash';
+import { PGClient } from '@linked-db/linked-ql/pg';
+
+const flashql = new FlashClient();
+await flashql.connect();
+
+const pg = new PGClient({ host: 'localhost', port: 5432 });
+await pg.connect();
+
+// Materialize remote data locally
+await flashql.materialize({ public: ['users', 'orders'] }, pg);
+
+// Add filters to scope what’s pulled in (e.g. per-user)
+await flashql.materialize(
+  { public: [{ table: 'orders', where: { user_id: currentUser.id } }] },
+  pg
+);
+
+// Keep it live
+await flashql.materialize(
+  { public: [{ table: 'orders', where: { user_id: currentUser.id }, live: true }] },
+  pg
+);
+```
+
+> [!NOTE] 
+> Pulls down data from a remote database (Postgres, MySQL, or another LinkedQL instance) into FlashQL for local use — perfect for offline-first, edge-cached, or low-latency workloads.
+
+_Need full two-way replication? Use `.sync()` — it materializes and streams deltas both ways._
+
+```js
+// Two-way sync in one shot
+await flashql.sync({ public: ['users', 'orders'] }, pg);
+```
+
+> [!NOTE]
+> Does both materialization (in live mode) and reconciliation with origin — bidirectional, conflict-aware, and resilient to network instabilities.
 
 ### `2.3 |` Realtime Triggers
 
-[_Coming Soon_] User-defined realtime hooks on database changes — perfect for automation and observability.
+⚡ _Listen to row-level or table-level events as they happen — same API across all engines, perfect for e.g. cache invalidation, live analytics, or instant event-driven automation._
+
+```js
+// Subscribe to changes on specific tables
+client.subscribe({ public: ['users', 'orders'] }, (event) => {
+  console.log(event.type, event.relation.name, event.new);
+});
+```
+
+> [!NOTE]
+> 🔔 Each event includes granular metadata — `type` (`insert`/`update`/`delete`), `relation` (schema/table), and `old`/`new` row data.
+> Works consistently across FlashQL, Postgres, and MySQL (with logical replication enabled).
 
 ## ` 3 |` Syntax Niceties
 
-👉 Eliminate tons of boilrplate and external tooling with LinkedQL's set of syntax extension to SQL.
+⤷ Eliminate tons of boilrplate and external tooling with LinkedQL's set of syntax extensions to SQL.
 
 ### `3.1 |` DeepRefs
 
@@ -397,7 +481,7 @@ Here’s how you can jump in:
 
 ### 🛠️ Local Setup
 
-👉 clone → install → test
+⤷ clone → install → test
 
 ```bash
 git clone https://github.com/linked-db/linked-ql.git
