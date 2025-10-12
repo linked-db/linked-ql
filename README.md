@@ -315,7 +315,7 @@ client.subscribe({ public: ['users', 'orders'] }, (event) => {
 
 ## ` 3 |` Syntax Niceties
 
-⤷ Eliminate tons of boilrplate and external tooling with LinkedQL's set of syntax extensions to SQL.
+⤷ Eliminate tons of boilrplate and external tooling with LinkedQL's set of syntax shorthands.
 
 ### `3.1 |` DeepRefs
 
