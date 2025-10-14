@@ -1010,7 +1010,7 @@ export class QueryEngine extends SimpleEmitter {
                 }
 
                 // Execute as a cursor query
-                stream = await nsDef.client.cursor(query);
+                stream = await nsDef.client.cursor(query, renderedBindings);
             } else {
                 const namespaceObject = await this.#storageEngine.getNamespace(nsName);
                 const tableStorage = await namespaceObject.getTable(tblName);

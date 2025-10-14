@@ -86,6 +86,15 @@ export class ExprEngine {
 
     // --- EXPRESSIONS ---
 
+    async BIND_VAR(node, compositeRow, queryCtx = {}) {
+        if (!Array.isArray(queryCtx.options.values))
+            throw new Error(`there is no parameter ${node}`);
+        const value = Number(node.value());
+        if (queryCtx.options.values.length < value)
+            throw new Error(`there is no parameter ${node}`);
+        return queryCtx.options.values[value - 1];
+    }
+
     async ROW_CONSTRUCTOR(node, compositeRow, queryCtx = {}) {
         const entries = await Promise.all(node.entries().map((e) => this.evaluateToScalar(e, compositeRow, queryCtx)));
         return entries.length > 1 ? entries : entries[0];

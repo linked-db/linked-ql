@@ -80,15 +80,15 @@ export class AbstractClient extends SimpleEmitter {
         query.walkTree((v, k, scope) => {
             if (v instanceof registry.DDLStmt
                 && !v.returningClause?.()) return;
-            if ((!(v instanceof registry.TableRef2) || v.parentNode instanceof registry.ColumnIdent)
-                && (!(v instanceof registry.TableRef1) || v.parentNode instanceof registry.ColumnRef1)) {
-                return;
-            }
             if (v instanceof registry.CTEItem) {
                 const alias = v.alias()?._get('delim')
                     ? v.alias().value()
                     : v.alias()?.value().toLowerCase();
                 scope.set(alias, true);
+                return v;
+            }
+            if ((!(v instanceof registry.TableRef2) || v.parentNode instanceof registry.ColumnIdent)
+                && (!(v instanceof registry.TableRef1) || v.parentNode instanceof registry.ColumnRef1)) {
                 return v;
             }
             const schemaName = v.qualifier()?._get('delim')
