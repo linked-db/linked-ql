@@ -49,6 +49,11 @@ export class AbstractClient extends SimpleEmitter {
         return new Result({ rows: result.rows, rowCount: result.rowCount });
     }
 
+    async cursor(...args) {
+        const [query, options] = await this._normalizeQueryArgs(...args);
+        return await this._cursor(query, options);
+    }
+
     async showCreate(selector, schemaWrapped = false) {
         return await this._showCreate(selector, schemaWrapped);
     }
@@ -60,7 +65,7 @@ export class AbstractClient extends SimpleEmitter {
             callback = selector;
             selector = '*';
         }
-        
+
         const flattenedSelectorSet = normalizeSchemaSelectorArg(selector, true);
         this.#subscribers.set(callback, flattenedSelectorSet);
 
@@ -97,6 +102,8 @@ export class AbstractClient extends SimpleEmitter {
         // Parsing...
         if (typeof query === 'string') {
             query = await registry.Script.parse(query, { dialect: options.dialect || this.dialect });
+        } else if (typeof query === 'object' && query && typeof query.command === 'string') {
+            query = registry.Script.build(query, { dialect: options.dialect || this.dialect });
         } else if (!(query instanceof registry.Script) && !(query instanceof AbstractStmt)) {
             throw new TypeError('query must be a string or an instance of Script | AbstractStmt');
         }

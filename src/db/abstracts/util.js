@@ -11,11 +11,11 @@ export function normalizeSchemaSelectorArg(selector, flatten = false) {
             let keys;
             if (!(typeof s === 'object' && s)
                 || !(keys = Object.keys(s)).length
-                || keys.filter((k) => k !== 'schema' && k !== 'tables').length) {
+                || keys.filter((k) => k !== 'schema' && k !== 'tables' && k !== 'name').length) {
                 throw new SyntaxError(`Given selector ${JSON.stringify(selector)} invalid at index ${i}`);
             }
             const schema = s.schema || '*';
-            const tables = s.tables || '*';
+            const tables = s.tables || s.name || '*';
             return { ...ss, [schema]: [...new Set((ss[schema] || []).concat(tables))] };
         }, {});
     } else if (typeof selector === 'object' && selector && Object.keys(selector).length) {
@@ -54,8 +54,14 @@ export function matchSchemaSelector(ident, enums) {
 
 export function normalizeQueryArgs(...args) {
     let query, options = {};
-    if (typeof args[0] === 'object' && args[0] && args[0].text) {
+    if (typeof args[0] === 'object' && args[0] && typeof args[0].text === 'string') {
         ({ text: query, ...options } = args[0]);
+    } else if (typeof args[0] === 'object' && args[0] && typeof args[0].query === 'string') {
+        ({ query: query, ...options } = args[0]);
+    } else if (typeof args[0] === 'object' && args[0] && typeof args[0].command === 'string') {
+        const { command, table, columns, payload, where, ..._options } = args[0];
+        query = { command, table, columns, payload, where };
+        options = _options;
     } else {
         query = args.shift();
         if (Array.isArray(args[0])) {

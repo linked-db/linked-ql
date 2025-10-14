@@ -2,6 +2,7 @@ import { SimpleEmitter } from '../abstracts/SimpleEmitter.js';
 import { ConflictError } from './ConflictError.js';
 import { ExprEngine } from './ExprEngine.js';
 import { registry } from '../../lang/registry.js';
+import { Transformer } from '../../lang/Transformer.js';
 
 const GROUPING_META = Symbol.for('grouping_meta');
 const WINDOW_META = Symbol.for('window_meta');
@@ -51,23 +52,16 @@ export class QueryEngine extends SimpleEmitter {
     // -------- ENTRY
 
     async query(scriptNode, options = {}) {
-        const events = [];
-
-        const txId = `$tx${(0 | Math.random() * 9e6).toString(36)}`;
         const queryCtx = {
             options: { ...this.#options, ...options },
-            txId, lateralCtx: null,
+            transaction: await this.#storageEngine.startTransaction(),
+            lateralCtx: null,
             cteRegistry: new Map,
             depth: 0,
         };
-        const _eventsAbortLine = this.#storageEngine.on('changefeed', (event) => {
-            if (event.txId !== txId) return;
-            events.push(event);
-        });
 
         const returnValue = await this.#evaluateSTMT(scriptNode, queryCtx);
-        _eventsAbortLine();
-        if (events.length) this.emit('changefeed', events);
+        await queryCtx.transaction.done();
 
         if (returnValue && typeof returnValue?.[Symbol.asyncIterator] === 'function' && options.bufferResultRows !== false) {
             const rows = [];
@@ -75,7 +69,7 @@ export class QueryEngine extends SimpleEmitter {
             return { rows };
         }
         if (typeof returnValue === 'number' && options.bufferResultRows !== false) {
-            return  { rowCount: returnValue };
+            return { rowCount: returnValue };
         }
 
         return returnValue;
@@ -114,43 +108,44 @@ export class QueryEngine extends SimpleEmitter {
     // -------- DDL
 
     async #evaluateCREATE_SCHEMA_STMT(stmtNode, queryCtx) {
-        const schemaName = stmtNode.name().value();
-        if (!schemaName) {
+        const namespaceName = stmtNode.name().value();
+        if (!namespaceName) {
             throw new Error('Cannot create a schema with an empty name');
         }
-        const _queryCtx = { ...queryCtx, ifNotExists: !!stmtNode.ifNotExists() };
-        const returnValue = await this.#storageEngine.createSchema(schemaName, _queryCtx);
-        // Evaluate entries if any
-        if (returnValue && stmtNode.pgEntries()?.length) {
+
+        const createOpts = { ifNotExists: !!stmtNode.ifNotExists() };
+        const namespaceObject = await this.#storageEngine.createNamespace(namespaceName, createOpts, queryCtx);
+
+        if (namespaceObject && stmtNode.pgEntries()?.length) {
             if (ifNotExists) {
                 throw new Error('CREATE SCHEMA ... IF NOT EXISTS ... with entries is not supported');
             }
-            const __queryCtx = { ..._queryCtx, schemaName };
+            const __queryCtx = { ..._queryCtx, namespaceName };
             for (const entry of stmtNode.pgEntries()) {
                 await this.#evaluateSTMT(entry, __queryCtx);
             }
         }
-        return returnValue;
+
+        return true;
     }
 
     async #evaluateALTER_SCHEMA_STMT(stmtNode, queryCtx) {
         // TODO notice
         throw new Error('ALTER SCHEMA is not supported yet in the in-memory StorageEngine');
-        const schemaName = stmtNode.name().value();
-        const argument = stmtNode.argument();
-        const ifNotExists = !!stmtNode.ifNotExists();
-        return await this.#storageEngine.alterSchema(schemaName, argument, !ifNotExists, queryCtx);
     }
 
     async #evaluateDROP_SCHEMA_STMT(stmtNode, queryCtx) {
-        const schemaNames = stmtNode.myName()
+        const namespaceNames = stmtNode.myName()
             ? [stmtNode.myName().value()]
             : stmtNode.pgNames().map((n) => n.value());
-        const _queryCtx = { ...queryCtx, ifExists: !!stmtNode.ifExists(), cascade: stmtNode.pgCascadeRule() === 'CASCADE' };
+
+        const dropOpts = { ifExists: !!stmtNode.ifExists(), cascade: stmtNode.pgCascadeRule() === 'CASCADE' };
+
         let returnValue;
-        for (const schemaName of schemaNames) {
-            returnValue = await this.#storageEngine.dropSchema(schemaName, _queryCtx);
+        for (const namespaceName of namespaceNames) {
+            returnValue = !!await this.#storageEngine.dropNamespace(namespaceName, dropOpts, queryCtx);
         }
+
         return returnValue;
     }
 
@@ -158,33 +153,41 @@ export class QueryEngine extends SimpleEmitter {
         if (stmtNode.temporaryKW()) {
             throw new Error('TEMPORARY tables are not supported yet in the in-memory StorageEngine');
         }
+
         const argument = stmtNode.argument();
-        if (queryCtx.schemaName && argument.name().qualifier() && !argument.name().qualifier().identifiesAs(queryCtx.schemaName)) {
-            throw new Error(`Cannot create table ${argument.name().toString()} in schema ${queryCtx.schemaName} as it is qualified to schema ${argument.name().qualifier().toString()}`);
+        const namespaceName = argument.name().qualifier()?.value() || queryCtx.namespaceName || this.#storageEngine.defaultNamespace;
+        if (queryCtx.namespaceName && namespaceName !== queryCtx.namespaceName) {
+            throw new Error(`Cannot create table ${argument.name()} in schema ${queryCtx.namespaceName} as it is qualified to schema ${namespaceName}`);
         }
-        const _queryCtx = { ...queryCtx, ifNotExists: !!stmtNode.ifNotExists() };
-        return await this.#storageEngine.createTable(argument, queryCtx.schemaName, _queryCtx);
+
+        const namespaceObject = await this.#storageEngine.getNamespace(namespaceName);
+        const createOpts = { ifNotExists: !!stmtNode.ifNotExists() };
+
+        return !!await namespaceObject.createTable(argument, createOpts, queryCtx);
     }
 
     async #evaluateALTER_TABLE_STMT(stmtNode, queryCtx) {
         // TODO notice
         throw new Error('ALTER TABLE is not supported yet in the in-memory StorageEngine');
-        const tableName = stmtNode.name().value();
-        const argument = stmtNode.argument();
-        const ifNotExists = !!stmtNode.ifNotExists();
-        return await this.#storageEngine.alterTable(tableName, argument, !ifNotExists, queryCtx);
     }
 
     async #evaluateDROP_TABLE_STMT(stmtNode, queryCtx) {
         if (stmtNode.myTemporaryKW()) {
             throw new Error('MySQL TEMPORARY tables are not supported yet in the in-memory StorageEngine');
         }
-        const tableNames = stmtNode.names().map((n) => [n.value(), n.qualifier?.()?.value()]);
-        const _queryCtx = { ...queryCtx, ifExists: !!stmtNode.ifExists(), cascade: stmtNode.cascadeRule() === 'CASCADE' };
+
+        const tableNames = stmtNode.names().map((n) => {
+            const namespaceName = n.qualifier()?.value() || queryCtx.namespaceName || this.#storageEngine.defaultNamespace;
+            return [n.value(), namespaceName];
+        });
+        const dropOpts = { ifExists: !!stmtNode.ifExists(), cascade: stmtNode.cascadeRule() === 'CASCADE' };
+
         let returnValue;
-        for (const [tableName, schemaName] of tableNames) {
-            returnValue = await this.#storageEngine.dropTable(tableName, schemaName, _queryCtx);
+        for (const [tableName, namespaceName] of tableNames) {
+            const namespaceObject = await this.#storageEngine.getNamespace(namespaceName);
+            returnValue = !!await namespaceObject.dropTable(tableName, dropOpts, queryCtx);
         }
+
         return returnValue;
     }
 
@@ -194,16 +197,19 @@ export class QueryEngine extends SimpleEmitter {
         // Declare CTEs while inheriting super CTEs
         const cteRegistry = new Map(queryCtx.cteRegistry || []);
         queryCtx = { ...queryCtx, cteRegistry };
+
         // Evaluate...
         for (const cteItem of stmtNode.declarations()) {
             const cteName = cteItem.alias().value();
             if (cteRegistry?.has(cteName)) {
                 throw new Error(`CTE name ${cteName} already exists in the current context`);
             }
+
             const itemBody = cteItem.expr();
             const cteStream = await this.#evaluateSTMT(itemBody, queryCtx);
             cteRegistry.set(cteName, cteStream);
         }
+
         return await this.#evaluateSTMT(stmtNode.body(), queryCtx);
     }
 
@@ -212,11 +218,19 @@ export class QueryEngine extends SimpleEmitter {
     async #evaluateINSERT_STMT(stmtNode, queryCtx) {
         const _ = {};
         if (!Array.isArray(_.originSchemas = stmtNode.originSchemas())) throw new Error('Expected a pre-resolved query object with originSchemas() returning an array');
-        // Resolve schema/table spec
-        const schemaName = stmtNode.tableRef().qualifier()?.value(); // undefined defaults to defaultSchemaName in storage engine
+
+        // Resolve namespaceName
+        const namespaceName = stmtNode.tableRef().qualifier()?.value() || this.#storageEngine.defaultNamespace;
+        const namespaceObject = await this.#storageEngine.getNamespace(namespaceName);
+
+        // Resolve table
         const tableName = stmtNode.tableRef().value();
         const tableAlias = stmtNode.pgTableAlias()?.value() || tableName;
+        const tableStorage = await namespaceObject.getTable(tableName);
+
+        // Resolve table schema
         const tableSchema = _.originSchemas[0];
+
         // Resolve column names
         const definedColumns = Object.fromEntries(tableSchema.columns().map((col) => [col.name().value(), col]));
         const columnNames = stmtNode.columnList()?.entries().map((col) => col.value())
@@ -238,16 +252,20 @@ export class QueryEngine extends SimpleEmitter {
             for (const rowConstructor of _.valuesClause) {
                 const record = { ...defaultRecord };
                 const defaultContext = { [tableAlias]: record };
+
                 for (let [i, valExpr] of rowConstructor.entries().entries()) {
                     const colName = columnNames[i];
                     const colSchema = definedColumns[colName];
+
                     if (valExpr instanceof registry.DefaultLiteral) {
                         const defaultConstraint = colSchema.defaultConstraint();
                         if (defaultConstraint) valExpr = defaultConstraint.expr();
                     }
+
                     const colValue = await this.#exprEngine.evaluate(valExpr, defaultContext, queryCtx);
                     this.#acquireValue(record, colSchema, colValue);
                 }
+
                 records.push(record);
             }
         }
@@ -255,16 +273,20 @@ export class QueryEngine extends SimpleEmitter {
         else if ((_.selectClause = stmtNode.selectClause())
             || (_.myTableClause = stmtNode.myTableClause())) {
             const _queryCtx = { ...queryCtx, depth: queryCtx.depth + 1 };
+
             const stream = _.myTableClause
                 ? this.#evaluateTABLE_STMT(_.myTableClause, _queryCtx)
                 : await this.#evaluateSTMT(_.selectClause, _queryCtx); // Can be any of the three SELECT_STMT types
+
             for await (const _record of stream) {
                 const record = { ...defaultRecord };
+
                 for (const [colIdx, colValue] of Object.values(_record).entries()) {
                     const targetColName = columnNames[colIdx];
                     const colSchema = definedColumns[targetColName];
                     this.#acquireValue(record, colSchema, colValue);
                 }
+
                 records.push(record);
             }
         }
@@ -284,11 +306,12 @@ export class QueryEngine extends SimpleEmitter {
         const returnList = [];
         const conflictHandlingClause = stmtNode.conflictHandlingClause();
         const returningClause = stmtNode.returningClause();
+
         for (const record of records) {
             // Exec insert / update
             let finalizedRecord;
             try {
-                finalizedRecord = await this.#storageEngine.insert(tableName, record, schemaName, queryCtx);
+                finalizedRecord = await tableStorage.insert(record, {}, queryCtx);
             } catch (e) {
                 // TODO: Assertain conflict target
                 if (e instanceof ConflictError && conflictHandlingClause?.length) {
@@ -297,7 +320,7 @@ export class QueryEngine extends SimpleEmitter {
                         finalizedRecord = null;
                     } else {
                         const newLogicalRecord = await this.#renderSetClause({ [tableAlias]: e.existing, EXCLUDED: record }, conflictHandlingClause, _.originSchemas, queryCtx);
-                        finalizedRecord = await this.#storageEngine.update(tableName, newLogicalRecord[tableAlias], schemaName, queryCtx);
+                        finalizedRecord = await tableStorage.update(e.existing, newLogicalRecord[tableAlias], {}, queryCtx);
                     }
                 } else if (e instanceof ConflictError && conflictHandlingClause?.doNothingKW?.()) {
                     finalizedRecord = null;
@@ -308,10 +331,12 @@ export class QueryEngine extends SimpleEmitter {
                 if (finalizedRecord) {
                     const _record = Object.create(null);
                     const outputRecordContext = { [tableAlias]: finalizedRecord };
+
                     for (const selectItem of returningClause) {
                         const { alias, value } = await this.#exprEngine.evaluate(selectItem, outputRecordContext, queryCtx);
                         _record[alias] = value;
                     }
+
                     returnList.push(_record);
                 }
             } else rowCount++;
@@ -325,31 +350,39 @@ export class QueryEngine extends SimpleEmitter {
     async #evaluateUPDATE_STMT(stmtNode, queryCtx) {
         const _ = {};
         if (!Array.isArray(_.originSchemas = stmtNode.originSchemas())) throw new Error('Expected a pre-resolved query object with originSchemas() returning an array');
+
         // Derive FromItems and JoinClauses
         let fromItems, joinClauses, updateTargets;
         if (_.myUpdateList = stmtNode.myUpdateList()) {
+
             // Derive FromItems and JoinClauses
             fromItems = _.myUpdateList;
             joinClauses = stmtNode.joinClauses() || [];
+
             // Derive update targets
             updateTargets = fromItems.concat(joinClauses).map((item) => {
                 const tableRef = item.expr?.() || item.tableRef();
+
                 const tableName = tableRef.value();
                 const tableAlias = item.alias()?.value() || tableName;
-                const schemaName = tableRef.qualifier()?.value(); // undefined defaults to defaultSchemaName in storage engine
-                return [tableAlias, tableName, schemaName];
+                const namespaceName = tableRef.qualifier()?.value() || this.#storageEngine.defaultNamespace;
+
+                return [tableAlias, tableName, namespaceName];
             });
         } else {
             const tableExpr = stmtNode.tableExpr();
+
             // Derive FromItems and JoinClauses
             fromItems = [tableExpr];
             joinClauses = (stmtNode.pgFromClause()?.entries() || []).concat(stmtNode.joinClauses() || []);
+
             // Derive update targets
-            const schemaName = tableExpr.tableRef().qualifier()?.value(); // undefined defaults to defaultSchemaName in storage engine
+            const namespaceName = tableExpr.tableRef().qualifier()?.value() || this.#storageEngine.defaultNamespace;
             const tableName = tableExpr.tableRef().value();
             const tableAlias = tableExpr.alias()?.value() || tableName;
+
             updateTargets = [
-                [tableAlias, tableName, schemaName],
+                [tableAlias, tableName, namespaceName],
             ];
         }
 
@@ -364,20 +397,29 @@ export class QueryEngine extends SimpleEmitter {
         const returnList = [];
         const returningClause = stmtNode.returningClause();
         const setClause = stmtNode.setClause();
+
         for await (const logicalRecord of stream) {
             // Exec update
             const newLogicalRecord = await this.#renderSetClause(logicalRecord, setClause, _.originSchemas, queryCtx);
-            for (const [tableAlias, tableName, schemaName] of updateTargets) {
+
+            for (const [tableAlias, tableName, namespaceName] of updateTargets) {
                 if (newLogicalRecord[tableAlias] === logicalRecord[tableAlias]) continue;
-                newLogicalRecord[tableAlias] = await this.#storageEngine.update(tableName, newLogicalRecord[tableAlias], schemaName, queryCtx);
+
+                const namespaceObject = await this.#storageEngine.getNamespace(namespaceName);
+                const tableStorage = await namespaceObject.getTable(tableName);
+
+                newLogicalRecord[tableAlias] = await tableStorage.update(newLogicalRecord[tableAlias], {}, queryCtx);
             }
+
             // Process RETURNING clause
             if (returningClause) {
                 const _record = Object.create(null);
+
                 for (const selectItem of returningClause) {
                     const { alias, value } = await this.#exprEngine.evaluate(selectItem, newLogicalRecord, queryCtx);
                     _record[alias] = value;
                 }
+
                 returnList.push(_record);
             } else rowCount++;
         }
@@ -390,34 +432,43 @@ export class QueryEngine extends SimpleEmitter {
     async #evaluateDELETE_STMT(stmtNode, queryCtx) {
         const _ = {};
         if (!Array.isArray(_.originSchemas = stmtNode.originSchemas())) throw new Error('Expected a pre-resolved query object with originSchemas() returning an array');
+
         // Derive FromItems and JoinClauses
         let fromItems, joinClauses, deleteTargets;
         if (_.myDeleteList = stmtNode.myDeleteList()) {
+
             // Derive FromItems and JoinClauses
             fromItems = (stmtNode.myFromClause() || stmtNode.usingClause())?.entries() || [];
             joinClauses = stmtNode.joinClauses() || [];
+
             // Derive update targets
             const _combinedFromItems = [...fromItems, ...joinClauses];
+
             deleteTargets = _.myDeleteList.map((item) => {
                 const fromItem = _combinedFromItems.find((fi) => (fi.alias() || fi.expr()).identifiesAs(item));
                 const tableRef = fromItem.expr();
                 const tableName = tableRef.value?.();
+
                 if (!tableName) throw new Error(`Cannot delete from ${item}; ${fromItem} isn't a table reference.`);
-                const schemaName = tableRef.qualifier()?.value();
-                return [item.value(), tableName, schemaName];
+
+                const namespaceName = tableRef.qualifier()?.value() || this.#storageEngine.defaultNamespace;
+                return [item.value(), tableName, namespaceName];
             });
         } else {
             const tableExpr = stmtNode.tableExpr();
+
             // Derive FromItems and JoinClauses
             fromItems = [tableExpr];
             joinClauses = (stmtNode.pgUsingClause()?.entries() || []).concat(stmtNode.joinClauses() || []);
+
             // Derive update targets
             const tableRef = tableExpr.tableRef();
             const tableName = tableRef.value();
             const tableAlias = tableExpr.alias()?.value() || tableName;
-            const schemaName = tableRef.qualifier()?.value();
+            const namespaceName = tableRef.qualifier()?.value() || this.#storageEngine.defaultNamespace;
+
             deleteTargets = [
-                [tableAlias, tableName, schemaName],
+                [tableAlias, tableName, namespaceName],
             ];
         }
 
@@ -431,17 +482,25 @@ export class QueryEngine extends SimpleEmitter {
         let rowCount = 0;
         const returnList = [];
         const returningClause = stmtNode.returningClause();
+
         for await (let logicalRecord of stream) {
-            for (const [tableAlias, tableName, schemaName] of deleteTargets) {
-                logicalRecord[tableAlias] = await this.#storageEngine.delete(tableName, logicalRecord[tableAlias], schemaName, queryCtx);
+            for (const [tableAlias, tableName, namespaceName] of deleteTargets) {
+
+                const namespaceObject = await this.#storageEngine.getNamespace(namespaceName);
+                const tableStorage = await namespaceObject.getTable(tableName);
+
+                logicalRecord[tableAlias] = await tableStorage.delete(logicalRecord[tableAlias], {}, queryCtx);
             }
+
             // Process RETURNING clause
             if (returningClause) {
                 const _record = Object.create(null);
+
                 for (const selectItem of returningClause) {
                     const { alias, value } = await this.#exprEngine.evaluate(selectItem, logicalRecord, queryCtx);
                     _record[alias] = value;
                 }
+
                 returnList.push(_record);
             } else rowCount++;
         }
@@ -457,32 +516,41 @@ export class QueryEngine extends SimpleEmitter {
 
         const acquireValue = async (tableAlias, colName, valExpr) => {
             if (valExpr instanceof registry.DefaultLiteral) {
+
                 const colSchema = originSchemas.find((os) => os.identifiesAs(tableAlias)).columns().find((col) => col.identifiesAs(colName));
                 const defaultConstraint = colSchema.defaultConstraint();
+
                 if (defaultConstraint) valExpr = defaultConstraint.expr();
             }
+
             const colValue = await this.#exprEngine.evaluate(valExpr, logicalRecord, queryCtx);
             newLogicalRecord[tableAlias] = { ...newLogicalRecord[tableAlias], [colName]: colValue };
         };
 
         for (const assignmentExpr of setClause) {
+
             const left = assignmentExpr.left();
             const right = assignmentExpr.right();
+
             if (left instanceof registry.ColumnsConstructor) {
                 if (!(right instanceof registry.RowConstructor)) {
                     throw new Error(`Expected a RHS of type ROW_CONSTRUCTOR for a LHS of type COLUMNS_CONSTRUCTOR, but got ${right.NODE_NAME}`);
                 }
+
                 for (const [i, colNode] of left.entries().entries()) {
                     const colName = colNode.value();
                     const correspondingRight = right.entries()[i];
+
                     if (!correspondingRight) {
                         throw new Error(`Mismatched number of entries in SET clause: LHS has ${left.entries().length} but RHS has ${right.entries().length}`);
                     }
+
                     await acquireValue(baseAlias, colName, correspondingRight);
                 }
             } else {
                 const colName = left.value();
                 const qualif = left.qualifier?.()?.value() || baseAlias;
+
                 await acquireValue(qualif, colName, right);
             }
         }
@@ -508,9 +576,13 @@ export class QueryEngine extends SimpleEmitter {
         // Resolve schema/table spec
         const tableRef = stmtNode.tableRef();
         const tableName = tableRef.value();
-        const schemaName = tableRef.qualifier()?.value(); // undefined defaults to defaultSchemaName in storage engine
+        const namespaceName = tableRef.qualifier()?.value() || this.#storageEngine.defaultNamespace;
+
+        const namespaceObject = this.#storageEngine.getNamespace(namespaceName);
+        const tableStorage = await namespaceObject.getTable(tableName);
+
         // Exedute table scan
-        yield* this.#storageEngine.getCursor(tableName, schemaName);
+        yield* tableStorage;
     }
 
     async * #evaluateSELECT_STMT(stmtNode, queryCtx) {
@@ -593,33 +665,15 @@ export class QueryEngine extends SimpleEmitter {
 
         // progressively join subsequent items
         for (let idx = 1; idx < allItems.length; idx++) {
+            const leftAlias = allItems[idx - 1].alias?.()?.value();
+
             const rightItem = allItems[idx];
             const rightAlias = rightItem.alias?.()?.value();
             const rightSchema = _originSchema(rightAlias);
 
-            // buffer right side composites
-            let createRightStream;
-            const isLateral = rightItem.lateralKW?.();
-            if (isLateral) {
-                createRightStream = (_lateralCtx) => this.evaluateFromItem(rightItem, rightSchema, { ...queryCtx, lateralCtx: _lateralCtx });
-            } else {
-                const rightStream = this.evaluateFromItem(rightItem, rightSchema, { ...queryCtx, lateralCtx: null });
-                const rightBuffer = [];
-                createRightStream = async function* () {
-                    if (rightBuffer.length) {
-                        yield* rightBuffer;
-                    } else for await (const rc of rightStream) {
-                        rightBuffer.push(rc);
-                        yield rc;
-                    }
-                };
-            }
-
-            // determine join type and condition
-            const joinType = rightItem.joinType?.() || (fromEntries.includes(rightItem) ? 'CROSS' : 'INNER');
+            // Derive the condition for NATURAL JOINs
             let joinCondition = rightItem.conditionClause?.();
             if (!joinCondition && rightItem.naturalKW?.()) {
-                const leftAlias = allItems[idx - 1].alias?.()?.value();
                 const leftSchema = _originSchema(leftAlias);
                 const lCols = leftSchema.columns?.() || leftSchema.entries();
                 const rCols = rightSchema.columns?.() || rightSchema.entries();
@@ -632,11 +686,90 @@ export class QueryEngine extends SimpleEmitter {
                 }
             }
 
+            // Declare parameters for resolving remote JOINs
+            const isRemoteRef = await this.#isRemoteRef(rightItem.expr());
+            let joinConditionExpr = joinCondition;
+            const renderJoinCondition = async (_lateralCtx) => {
+                if (!joinCondition) return;
+
+                // Normalize joinCondition
+                if (joinConditionExpr instanceof registry.UsingClause) {
+                    joinConditionExpr = [].concat(joinConditionExpr.column() || joinConditionExpr.columns()).reduce((acc, ident) => {
+                        const left = { ...ident.jsonfy(), nodeName: registry.ColumnRef1.NODE_NAME, qualifier: { nodeName: registry.TableRef1.NODE_NAME, value: leftAlias } };
+                        const right = { ...ident.jsonfy(), nodeName: registry.ColumnRef1.NODE_NAME, qualifier: { nodeName: registry.TableRef1.NODE_NAME, value: rightAlias } };
+                        let logicalExpr = registry.BinaryExpr.fromJSON({ left, operator: '=', right });
+
+                        if (acc) logicalExpr = registry.BinaryExpr.fromJSON({ left: acc, operator: 'AND', right: logicalExpr });
+                        return logicalExpr;
+                    }, null);
+                } else if (joinConditionExpr instanceof registry.OnClause) {
+                    joinConditionExpr = joinConditionExpr.expr();
+                }
+
+                // Mine refs for rendering
+                const bindings = [];
+                const transformer = new Transformer((node, defaultTransform) => {
+                    if (node instanceof registry.ColumnRef1
+                        && !node.qualifier()?.identifiesAs(rightAlias)) {
+                        bindings.push(node);
+                        return { nodeName: registry.BindVar.NODE_NAME, value: bindings.size };
+                    }
+                    return defaultTransform();
+                });
+
+                // Render bith joinCondition and extracted bindings
+                const renderedJoinConditionExpr = joinConditionExpr.clone({}, transformer);
+                const renderedBindings = await Promise.all(bindings.map((b) => this.#exprEngine.evaluate(b, _lateralCtx, queryCtx)));
+
+                return [renderedJoinConditionExpr, renderedBindings];
+            };
+
+            // Determin JOIN type and lateralness
+            const joinType = rightItem.joinType?.() || (fromEntries.includes(rightItem) ? 'CROSS' : 'INNER');
+            const isLateral = rightItem.lateralKW?.();
+
+            // Determine how right stream is resolved
+            // Three cases:
+            let createRightStream;
+            if (isRemoteRef) {
+                // 1. --- Resolve JOIN condition pushed down
+                createRightStream = async (_lateralCtx) => {
+                    const upstreamLogic = await renderJoinCondition(_lateralCtx);
+                    return this.evaluateFromItem(rightItem, rightSchema, { ...queryCtx, lateralCtx: null, upstreamLogic });
+                }
+            } else if (isLateral) {
+                // 2. --- Resolve with _lateralCtx
+                createRightStream = (_lateralCtx) => this.evaluateFromItem(rightItem, rightSchema, { ...queryCtx, lateralCtx: _lateralCtx });
+            } else {
+                // 3. --- Buffer
+                const rightStream = this.evaluateFromItem(rightItem, rightSchema, { ...queryCtx, lateralCtx: null });
+                const rightBuffer = [];
+                createRightStream = async function* () {
+                    if (rightBuffer.length) {
+                        yield* rightBuffer;
+                    } else for await (const rc of rightStream) {
+                        rightBuffer.push(rc);
+                        yield rc;
+                    }
+                };
+            }
+
             // join
             leftStream = this.evaluateJoin(leftStream, { alias: rightAlias, isLateral }, createRightStream, joinType, joinCondition, originSchemas, queryCtx);
         }
 
         return leftStream;
+    }
+
+    async #isRemoteRef(fromItemExpr) {
+        if (!(fromItemExpr instanceof registry.TableRef1)
+            || fromItemExpr.resolution() !== 'default') return false;
+
+        const namespaceName = fromItemExpr.qualifier()?.value() || this.#storageEngine.defaultNamespace;
+        const namespaceObject = this.#storageEngine.getNamespace(namespaceName);
+
+        return namespaceObject.mirrored === true
+            && namespaceObject.materialized === false;
     }
 
     async * evaluateFromItem(fromItem, originSchema, queryCtx) {
@@ -646,14 +779,20 @@ export class QueryEngine extends SimpleEmitter {
             || fromItem instanceof registry.TableAbstraction1) {
             const tableRef = fromItem.tableRef();
             const tableAlias = fromItem.alias();
+
             // Part2 resolution: table scan
-            const schemaName = tableRef.qualifier()?.value(); // undefined defaults to defaultSchemaName in storage engine
             const tableName = tableRef.value();
             const aliasName = tableAlias?.value() || tableName;
-            // Consume table scan
-            for await (let row of this.#storageEngine.getCursor(tableName, schemaName)) {
+
+            const namespaceName = tableRef.qualifier()?.value() || this.#storageEngine.defaultNamespace;
+
+            const namespaceObject = this.#storageEngine.getNamespace(namespaceName);
+            const tableStorage = await namespaceObject.getTable(tableName);
+
+            for await (let row of tableStorage) {
                 yield { [aliasName]: row };
             }
+
             return;
         }
 
@@ -828,17 +967,27 @@ export class QueryEngine extends SimpleEmitter {
         }
 
         // ---------- TableRef1 | TableRef2
-        const schemaName = fromItemExpr.qualifier()?.value(); // undefined defaults to defaultSchemaName in storage engine
         const tableName = fromItemExpr.value();
 
         // CTERef?
         let stream;
         if (fromItemExpr.resolution() === 'cte') {
             stream = queryCtx.cteRegistry?.get(tableName);
+
             if (!stream) throw new Error(`Implied CTE ${tableName} does not exist in the current context`);
             if (typeof stream[Symbol.asyncIterator] !== 'function') throw new Error(`Implied CTE ${tableName} does not return a record set`);
         } else {
-            stream = this.#storageEngine.getCursor(tableName, schemaName);
+            const namespaceName = fromItemExpr.qualifier()?.value() || this.#storageEngine.defaultNamespace;
+            const namespaceObject = this.#storageEngine.getNamespace(namespaceName);
+            const tableStorage = await namespaceObject.getTable(tableName);
+
+            if (namespaceObject.mirrored === true
+                && namespaceObject.materialized === false) {
+                const upstreamLogic = queryCtx.upstreamLogic;
+                const querySpec = tableStorage.querySpec;
+            }
+
+            stream = tableStorage;
         }
 
         // Consume stream
@@ -846,13 +995,16 @@ export class QueryEngine extends SimpleEmitter {
         for await (const row of stream) {
             const entries = Object.entries(row);
             const actualColWidth = entries.length;
+
             if (actualColWidth !== expectedColWidth) {
                 throw new Error(`Expected number of columns from ${aliasName} to be ${expectedColWidth} but got ${actualColWidth}`);
             }
+
             const _row = Object.create(null);
             for (const [key, value] of entries) {
                 this.#acquireValue(_row, originSchema._get('entries', key), value);
             }
+
             yield { ...(queryCtx.lateralCtx || {}), [aliasName]: _row };
         }
     }
@@ -925,6 +1077,7 @@ export class QueryEngine extends SimpleEmitter {
             }
             return [expr];
         }
+
         function expandElement(elem) {
             if (elem.groupingSets()) return elem.groupingSets().flatMap(expandElement);
             if (elem.rollupSet()) {
@@ -933,6 +1086,7 @@ export class QueryEngine extends SimpleEmitter {
                 for (let i = entries.length; i >= 0; i--) sets.push(entries.slice(0, i).flatMap(flattenRowConstructor));
                 return sets;
             }
+
             if (elem.cubeSet()) {
                 const entries = elem.cubeSet().entries();
                 const n = entries.length;
@@ -944,6 +1098,7 @@ export class QueryEngine extends SimpleEmitter {
                 }
                 return sets;
             }
+
             if (elem.expr()) return [flattenRowConstructor(elem.expr())];
             return [[]]; // fallback
         }
@@ -1564,6 +1719,7 @@ export class QueryEngine extends SimpleEmitter {
         const values = Object.values(row);
         const coerced = Object.create(null);
         for (let i = 0; i < mappers.length; i++) {
+
             const { name, coercedType } = mappers[i];
             let val = values[i];
             // Minimal coercion rules (extend this as you add type metadata)
@@ -1572,8 +1728,10 @@ export class QueryEngine extends SimpleEmitter {
             } else if (coercedType === 'text') {
                 if (val != null && typeof val !== 'string') val = String(val);
             }
+
             // Normalize undefined -> null for consistent equality semantics
             if (val === undefined) val = null;
+
             coerced[name] = val;
         }
         return coerced;

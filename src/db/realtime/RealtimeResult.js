@@ -8,7 +8,7 @@ export class RealtimeResult extends Result {
     #hashes;
     #abortLine;
 
-    get _hashes() { return this.#hashes; }
+    get hashes() { return this.#hashes; }
     
     constructor({ rows = [], hashes = [] } = {}, abortLine = (() => undefined), signal = undefined) {
         super({ rows });

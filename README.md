@@ -34,7 +34,7 @@ LinkedQL is one unified abstraction for your entire database universe — with a
 |  |  |
 |:---|:---|
 | _Universal SQL_ | [PostgreSQL & MySQL/MariaDB](#11--postgresql--mysqlmariadb) • [FlashQL (in-memory)](#12--flashql) • [Query Federation](#13--query-federation) |
-| _Realtime DB_ | [Live Queries](#21--live-queries) • [Data Sync](#22--data-sync) • [Realtime Triggers](#23--realtime-triggers) |
+| _Realtime SQL_ | [Live Queries](#21--live-queries) • [Data Sync](#22--data-sync) • [Realtime Triggers](#23--realtime-triggers) |
 | _Syntax Niceties_ | [DeepRefs](#31--deeprefs) • [JSON shorthands](#32--json-shorthands) • [UPSERT statement](#33--the-upsert-statement) |
 | _Schema Niceties_ | [Automatic versioning](#41--automatic-database-versioning) • [Version binding](#42--version-binding) • [Diff-based migrations](#43--diff-based-migrations) |
 | _IDE Niceties_ | [Static error checking](#51--static-error-checking) • [Type safety](#52--type-safety) • [Autocompletion](#53--autocompletion) |
@@ -180,7 +180,7 @@ const result = await local.query(`
 > [!NOTE]
 > Federation is lazy — data is pulled or streamed on demand, not bulk-copied — ideal for hybrid setups where part of your data lives remotely.
 
-## ` 2 |` Realtime DB
+## ` 2 |` Realtime SQL
 
 ⤷ Built-in reactivity, live data, and sync — without GraphQL servers, middleware, or complex infra.
 
