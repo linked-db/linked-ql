@@ -4,11 +4,11 @@ import { registry } from '../../lang/registry.js';
 
 export class ClassicClient extends AbstractClient {
 
-    async _showCreate(selector, schemaWrapped = false) {
+    async _showCreate(selector, structured = false) {
         selector = normalizeSchemaSelectorArg(selector);
         const sql = this._composeShowCreateSQL(selector);
         const result = await this.driver.query(sql);
-        return await this._formatShowCreateResult(result.rows || result, schemaWrapped);
+        return await this._formatShowCreateResult(result.rows || result, structured);
     }
 
     _composeShowCreateSQL(selector) {
@@ -174,7 +174,7 @@ export class ClassicClient extends AbstractClient {
         return utils;
     }
 
-    async _formatShowCreateResult(result, schemaWrapped) {
+    async _formatShowCreateResult(result, structured) {
         // Util:
         const formatRelation = async (cons) => {
             const consSchema = {
@@ -322,12 +322,12 @@ export class ClassicClient extends AbstractClient {
                     }
                 }
 
-                (schemaWrapped ? schemaSchemaJson.entries : schemas).push(
+                (structured ? schemaSchemaJson.entries : schemas).push(
                     registry.TableSchema.fromJSON(tableSchemaJson, { dialect: this.dialect })
                 );
             }
 
-            if (schemaWrapped) {
+            if (structured) {
                 schemas.push(registry.SchemaSchema.fromJSON(schemaSchemaJson, { dialect: this.dialect }));
             }
         }

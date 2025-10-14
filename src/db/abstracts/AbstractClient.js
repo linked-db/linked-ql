@@ -40,7 +40,7 @@ export class AbstractClient extends SimpleEmitter {
     }
 
     async query(...args) {
-        const [query, options] = await this._normalizeQueryArgs(...args);
+        const [query, options] = await this.resolveQuery(...args);
         // Realtime query?
         if (options.live && query.fromClause?.()) {
             return await this.#realtimeClient.query(query, options);
@@ -50,12 +50,72 @@ export class AbstractClient extends SimpleEmitter {
     }
 
     async cursor(...args) {
-        const [query, options] = await this._normalizeQueryArgs(...args);
+        const [query, options] = await this.resolveQuery(...args);
         return await this._cursor(query, options);
     }
 
-    async showCreate(selector, schemaWrapped = false) {
-        return await this._showCreate(selector, schemaWrapped);
+    async resolveQuery(...args) {
+        let [query, options] = normalizeQueryArgs(...args);
+
+        // Parsing...
+        if (typeof query === 'string') {
+            query = await registry.Script.parse(query, { dialect: options.dialect || this.dialect });
+        } else if (typeof query === 'object' && query && typeof query.command === 'string') {
+            query = registry.Script.build(query, { dialect: options.dialect || this.dialect });
+        } else if (!(query instanceof registry.Script) && !(query instanceof AbstractStmt)) {
+            throw new TypeError('query must be a string or an instance of Script | AbstractStmt');
+        }
+        if (query instanceof registry.Script && query.length === 1) {
+            query = query.entries()[0];
+        }
+
+        // Determine by heuristics if desugaring needed
+        if ((query instanceof registry.DDLStmt && !query.returningClause?.()) // Desugaring not applicable
+            || query.originSchemas?.()?.length // Desugaring already done
+        ) return [query, options];
+
+        // Schema inference...
+        const schemaSelector = {};
+        let anyFound = false;
+        query.walkTree((v, k, scope) => {
+            if (v instanceof registry.DDLStmt
+                && !v.returningClause?.()) return;
+            if ((!(v instanceof registry.TableRef2) || v.parentNode instanceof registry.ColumnIdent)
+                && (!(v instanceof registry.TableRef1) || v.parentNode instanceof registry.ColumnRef1)) {
+                return;
+            }
+            if (v instanceof registry.CTEItem) {
+                const alias = v.alias()?._get('delim')
+                    ? v.alias().value()
+                    : v.alias()?.value().toLowerCase();
+                scope.set(alias, true);
+                return v;
+            }
+            const schemaName = v.qualifier()?._get('delim')
+                ? v.qualifier().value()
+                : v.qualifier()?.value().toLowerCase() || '*';
+            const tableName = v._get('delim')
+                ? v.value()
+                : v.value().toLowerCase();
+            if (schemaName === '*' && scope.has(tableName)) return;
+            if (!(schemaName in schemaSelector)) {
+                schemaSelector[schemaName] = [];
+            }
+            if (!schemaSelector[schemaName].includes(tableName)) {
+                schemaSelector[schemaName].push(tableName);
+                anyFound = true;
+            }
+        }, true);
+
+        if (anyFound) await this.#schemaInference.provide(schemaSelector);
+
+        // DeSugaring...
+        query = query.deSugar(true, {}, null, this.#schemaInference);
+        return [query, options];
+    }
+
+    async showCreate(selector, structured = false) {
+        return await this._showCreate(selector, structured);
     }
 
     async subscribe(selector, callback) {
@@ -95,58 +155,6 @@ export class AbstractClient extends SimpleEmitter {
     }
 
     // ---------
-
-    async _normalizeQueryArgs(...args) {
-        let [query, options] = normalizeQueryArgs(...args);
-
-        // Parsing...
-        if (typeof query === 'string') {
-            query = await registry.Script.parse(query, { dialect: options.dialect || this.dialect });
-        } else if (typeof query === 'object' && query && typeof query.command === 'string') {
-            query = registry.Script.build(query, { dialect: options.dialect || this.dialect });
-        } else if (!(query instanceof registry.Script) && !(query instanceof AbstractStmt)) {
-            throw new TypeError('query must be a string or an instance of Script | AbstractStmt');
-        }
-        if (query instanceof registry.Script && query.length === 1) {
-            query = query.entries()[0];
-        }
-
-        // Determine by heuristics if desugaring needed
-        if ((query instanceof registry.DDLStmt && !query.returningClause?.()) // Desugaring not applicable
-            || query.originSchemas?.()?.length // Desugaring already done
-        ) return [query, options];
-
-        // Schema inference...
-        const schemaSelector = {};
-        let anyFound = false;
-        query.walkTree((v) => {
-            if (v instanceof registry.DDLStmt
-                && !v.returningClause?.()) return;
-            if ((!(v instanceof registry.TableRef2) || v.parentNode instanceof registry.ColumnIdent)
-                && (!(v instanceof registry.TableRef1) || v.parentNode instanceof registry.ColumnRef1)) {
-                return v;
-            }
-            const schemaName = v.qualifier()?._get('delim')
-                ? v.qualifier().value()
-                : v.qualifier()?.value().toLowerCase() || '*';
-            const tableName = v._get('delim')
-                ? v.value()
-                : v.value().toLowerCase();
-            if (!(schemaName in schemaSelector)) {
-                schemaSelector[schemaName] = [];
-            }
-            if (!schemaSelector[schemaName].includes(tableName)) {
-                schemaSelector[schemaName].push(tableName);
-                anyFound = true;
-            }
-        }, true);
-
-        if (anyFound) await this.#schemaInference.provide(schemaSelector);
-
-        // DeSugaring...
-        query = query.deSugar(true, {}, null, this.#schemaInference);
-        return [query, options];
-    }
 
     _fanout(events) {
         const eventsAndPatterns = [];

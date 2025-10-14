@@ -45,16 +45,27 @@ export class StorageEngine extends SimpleEmitter {
         };
     }
 
-    async namespaceNames() {
+    async namespaceNames(selector = {}) {
         await this.#init;
-        return [...(this.#catalog.keys())];
+        let list = [...this.#catalog.keys()];
+
+        if ('mirrored' in selector) {
+            list = list.filter((ns) => {
+                const nsObj = this.#catalog.get(ns);
+                if (/*'mirrored' in selector
+                    && */Boolean(selector.mirrored) !== Boolean(nsObj.mirrored)) return false;
+                return true;
+            });
+        }
+
+        return list;
     }
 
     async createNamespace(namespaceName, { ifNotExists = false, ...namespaceOptions } = {}) {
         await this.#init;
 
         if (this.#catalog.has(namespaceName)) {
-            if (ifNotExists) return false;
+            if (ifNotExists) return this.#catalog.get(namespaceName);
             throw new ConflictError(`Schema/namespace ${namespaceName} already exists`);
         }
 
@@ -84,8 +95,27 @@ export class StorageEngine extends SimpleEmitter {
     async getNamespace(namespaceName) {
         await this.#init;
 
-        const namespaceObject = await this.#catalog.get(namespaceName);
+        const namespaceObject = this.#catalog.get(namespaceName);
         if (!namespaceObject) throw new Error(`Schema/namespace ${namespaceName} does not exist`);
         return namespaceObject;
+    }
+
+    async showMirrors(selector = {}) {
+        const mirroredNamespaces = await this.namespaceNames({ mirrored: true });
+        const mirroredNamespacesEntries = mirroredNamespaces.map(async (namespaceName) => {
+
+            const namespaceObject = await this.getNamespace(namespaceName);
+            const tables = await namespaceObject.tableNames(selector);
+
+            const tablesEntries = tables.map(async (tableName) => {
+                const tableStorage = await namespaceObject.getTable(tableName);
+
+                return [tableName, { materialized: tableStorage.materialized, querySpec: tableStorage.querySpec }];
+            });
+
+            return [namespaceName, { origin: namespaceObject.origin, tables: new Map(await Promise.all(tablesEntries)) }];
+        });
+
+        return new Map(await Promise.all(mirroredNamespacesEntries));
     }
 }

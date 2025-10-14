@@ -6,6 +6,7 @@ import '../src/lang/index.js';
 import { matchSchemaSelector, normalizeSchemaSelectorArg } from '../src/db/abstracts/util.js';
 import { StorageEngine } from '../src/db/flash/StorageEngine.js';
 import { FlashClient } from '../src/db/flash/FlashClient.js';
+import { TableStorage } from '../src/db/flash/TableStorage.js';
 
 describe('Util', () => {
 
@@ -60,67 +61,64 @@ describe('Util', () => {
 });
 
 describe('StorageEngine - Basic CRUD', () => {
-    let storageEngine;
+    let storageEngine, lq_test_public, tbl1;
 
     describe('SCHEMA', () => {
         it('should create basic table schema', async () => {
-            storageEngine = new StorageEngine({ defaultSchemaName: 'lq_test_public' });
-            await storageEngine.createSchema('lq_test_public');
+            storageEngine = new StorageEngine({ defaultNamespace: 'lq_test_public' });
+            lq_test_public = await storageEngine.getNamespace('lq_test_public');
 
-            const createTableSuccess = await storageEngine.createTable('tbl1');
-            expect(createTableSuccess).to.be.true;
+            tbl1 = await lq_test_public.createTable('tbl1');
+            expect(tbl1).to.be.instanceOf(TableStorage);
         });
 
         it('should reject creating an existing table schema', async () => {
-            expect(storageEngine.createTable('tbl1')).to.be.rejected;
+            expect(lq_test_public.createTable('tbl1')).to.be.rejected;
         });
 
         it('should retrieve just-created table schema', async () => {
-            const tableNames = await storageEngine.tableNames();
+            const tableNames = await lq_test_public.tableNames();
             expect(tableNames).to.include('tbl1');
 
-            const tblSchema = await storageEngine.tableSchema('tbl1');
+            const tblSchema = tbl1.schema;
             expect(tblSchema).to.be.an('object');
-
-            const pkCols = await storageEngine.tableKeyColumns('tbl1');
-            expect(pkCols).to.be.an('array').with.length(1);
         });
     });
 
     describe('INSERT', () => {
         it('should do basic INSERT', async () => {
-            const row = await storageEngine.insert('tbl1', { id: 34, name: 'John' });
+            const row = await tbl1.insert({ id: 34, name: 'John' });
             expect(row).to.deep.eq({ id: 34, name: 'John' });
         });
 
         it('should reject duplicate-key INSERT', async () => {
-            expect(storageEngine.insert('tbl1', { id: 34, name: 'John' })).to.be.rejected;
+            expect(tbl1.insert({ id: 34, name: 'John' })).to.be.rejected;
         });
 
         it('should do auto-increment', async () => {
-            const row1 = await storageEngine.insert('tbl1', { name: 'John' });
+            const row1 = await tbl1.insert({ name: 'John' });
             expect(row1).to.deep.eq({ name: 'John', id: 1 });
 
-            const row2 = await storageEngine.insert('tbl1', { name: 'John' });
+            const row2 = await tbl1.insert({ name: 'John' });
             expect(row2).to.deep.eq({ name: 'John', id: 2 });
         });
     });
 
     describe('UPDATE', () => {
         it('should do basic UPDATE', async () => {
-            const row = await storageEngine.update('tbl1', { id: 34, name: 'John2' });
+            const row = await tbl1.update({ id: 34 }, { id: 34, name: 'John2' });
             expect(row).to.deep.eq({ id: 34, name: 'John2' });
         });
     });
 
     describe('READ', () => {
         it('should do basic READ', async () => {
-            const record = await storageEngine.fetch('tbl1', { id: 34 });
+            const record = await tbl1.get({ id: 34 });
             expect(record).to.deep.eq({ id: 34, name: 'John2' });
         });
 
         it('should do basic scan', async () => {
-            const records = await storageEngine.getCursor('tbl1');
+            const records = tbl1;
             const _records = [];
             for await (const record of records) {
                 _records.push(record);
@@ -132,17 +130,17 @@ describe('StorageEngine - Basic CRUD', () => {
 
     describe('DELETE', () => {
         it('should do basic DELETE', async () => {
-            const row = await storageEngine.delete('tbl1', { id: 34 });
+            const row = await tbl1.delete({ id: 34 });
             expect(row).to.deep.eq({ id: 34, name: 'John2' });
 
-            const record = await storageEngine.fetch('tbl1', { id: 34 });
+            const record = await tbl1.get({ id: 34 });
             expect(record).to.be.undefined;
         });
     });
 });
 
-const createClient = async (defaultSchemaName = undefined, otherOptions = {}) => {
-    const client = new FlashClient({ defaultSchemaName, ...otherOptions });
+const createClient = async (defaultNamespace = undefined, otherOptions = {}) => {
+    const client = new FlashClient({ defaultNamespace, ...otherOptions });
     await client.connect();
     return client;
 };
@@ -159,7 +157,7 @@ describe('FlashClient - Basic DDL', () => {
     });
 
     // You can always infer things:
-    // get schema names - await client.storageEngine.schemaNames(): array
+    // get schema names - await client.storageEngine.namespaceNames(): array
     // get schema - await client.storageEngine.getSchema(): { schemas: registry.SchemaSchema, storage: Map, counters: Map }
     // get table names - await client.storageEngine.tableNames(schemaName | <default schemaName>): array
     // get table storage - await client.storageEngine.tableStorage(tableName, schemaName | <default schemaName>): Map // keyed by record id/hash
@@ -172,7 +170,7 @@ describe('FlashClient - Basic DDL', () => {
         it('should create schema with IF NOT EXISTS', async () => {
             const result = await client.query('CREATE SCHEMA IF NOT EXISTS lq_test_schema');
             expect(result).to.exist;
-            const schemas = await client.storageEngine.schemaNames();
+            const schemas = await client.storageEngine.namespaceNames();
             expect(schemas).to.include('lq_test_schema');
         });
 
@@ -185,7 +183,7 @@ describe('FlashClient - Basic DDL', () => {
         it('should support CREATE SCHEMA ... AUTHORIZATION', async () => {
             const result = await client.query('CREATE SCHEMA IF NOT EXISTS lq_auth AUTHORIZATION current_user');
             expect(result).to.exist;
-            const schemas = await client.storageEngine.schemaNames();
+            const schemas = await client.storageEngine.namespaceNames();
             expect(schemas).to.include('lq_auth');
         });
     });
@@ -199,7 +197,7 @@ describe('FlashClient - Basic DDL', () => {
         it('should drop schema with IF EXISTS', async () => {
             const result = await client.query('DROP SCHEMA IF EXISTS lq_test_drop CASCADE');
             expect(result).to.exist;
-            const schemas = await client.storageEngine.schemaNames();
+            const schemas = await client.storageEngine.namespaceNames();
             expect(schemas).to.not.include('lq_test_drop');
         });
 
@@ -213,7 +211,7 @@ describe('FlashClient - Basic DDL', () => {
             await client.query('CREATE SCHEMA IF NOT EXISTS lq_multi2');
             const result = await client.query('DROP SCHEMA IF EXISTS lq_multi1, lq_multi2 CASCADE');
             expect(result).to.exist;
-            const schemas = await client.storageEngine.schemaNames();
+            const schemas = await client.storageEngine.namespaceNames();
             expect(schemas).to.not.include('lq_multi1');
             expect(schemas).to.not.include('lq_multi2');
         });
@@ -225,7 +223,7 @@ describe('FlashClient - Basic DDL', () => {
             await expect(client.query('DROP SCHEMA lq_restrict RESTRICT')).to.be.rejected;
             const result = await client.query('DROP SCHEMA lq_restrict CASCADE');
             expect(result).to.exist;
-            const schemas = await client.storageEngine.schemaNames();
+            const schemas = await client.storageEngine.namespaceNames();
             expect(schemas).to.not.include('lq_restrict');
         });
     });
@@ -237,8 +235,10 @@ describe('FlashClient - Basic DDL', () => {
 
         it('should create table in schema', async () => {
             const result = await client.query('CREATE TABLE lq_test_table.tbl1 (id INT PRIMARY KEY, name TEXT)');
+            const lq_test_table = await client.storageEngine.getNamespace('lq_test_table');
+
             expect(result).to.exist;
-            const tables = await client.storageEngine.tableNames('lq_test_table');
+            const tables = await lq_test_table.tableNames();
             expect(tables).to.include('tbl1');
         });
 
@@ -264,7 +264,8 @@ describe('FlashClient - Basic DDL', () => {
         it('should drop table with IF EXISTS', async () => {
             const result = await client.query('DROP TABLE IF EXISTS lq_test_table.tbl2');
             expect(result).to.exist;
-            const tables = await client.storageEngine.tableNames('lq_test_table');
+            const lq_test_table = await client.storageEngine.getNamespace('lq_test_table');
+            const tables = await lq_test_table.tableNames();
             expect(tables).to.not.include('tbl2');
         });
 
@@ -277,7 +278,8 @@ describe('FlashClient - Basic DDL', () => {
             await client.query('CREATE TABLE IF NOT EXISTS lq_test_table.tbl4 (id INT PRIMARY KEY)');
             const result = await client.query('DROP TABLE IF EXISTS lq_test_table.tbl3, lq_test_table.tbl4');
             expect(result).to.exist;
-            const tables = await client.storageEngine.tableNames('lq_test_table');
+            const lq_test_table = await client.storageEngine.getNamespace('lq_test_table');
+            const tables = await lq_test_table.tableNames();
             expect(tables).to.not.include('tbl3');
             expect(tables).to.not.include('tbl4');
         });
@@ -287,7 +289,8 @@ describe('FlashClient - Basic DDL', () => {
             await client.query('CREATE TABLE IF NOT EXISTS lq_test_table.parent (id INT PRIMARY KEY)');
             await client.query('CREATE TABLE IF NOT EXISTS lq_test_table.child (id INT PRIMARY KEY, pid INT REFERENCES lq_test_table.parent(id))');
             await expect(client.query('DROP TABLE lq_test_table.parent CASCADE')).to.not.be.rejected;
-            const tables = await client.storageEngine.tableNames('lq_test_table');
+            const lq_test_table = await client.storageEngine.getNamespace('lq_test_table');
+            const tables = await lq_test_table.tableNames();
             expect(tables).to.not.include('parent');
             //expect(tables).to.not.include('child'); // TODO
         });
@@ -396,15 +399,15 @@ describe('FlashClient - DDL Inference', () => {
             const b = await client.showCreate({ ['*']: ['tbl1'] }, true);
             const c = await client.showCreate({ ['*']: ['!tbl1'] }, true);
 
-            expect(b).to.have.lengthOf(3);
-            expect(c).to.have.lengthOf(3);
+            expect(b).to.have.lengthOf(4); // Plus the default "public" namespace
+            expect(c).to.have.lengthOf(4); // Plus the default "public" namespace
 
-            expect(b[0].tables()).to.have.lengthOf(1);
-            expect(b[0].tables()[0].name().value()).to.eq('tbl1');
-
-            expect(c[1].tables()).to.have.lengthOf(1);
+            expect(b[1].tables()).to.have.lengthOf(1);
             expect(b[1].tables()[0].name().value()).to.eq('tbl1');
-            expect(c[1].tables()[0].name().value()).to.eq('tbl2');
+
+            expect(c[2].tables()).to.have.lengthOf(1);
+            expect(b[2].tables()[0].name().value()).to.eq('tbl1');
+            expect(c[2].tables()[0].name().value()).to.eq('tbl2');
         });
 
         it('should showCreate() for given selector (4)', async () => {
@@ -466,14 +469,18 @@ describe('FlashClient - DML', () => {
 
     // helper to read table storage rows (values)
     async function tableRows(tableName, schema = 'lq_test_dml') {
-        const store = await client.storageEngine.tableStorage(tableName, schema);
-        return [...store.values()];
+        const namespaceObject = await await client.storageEngine.getNamespace(schema);
+        const tableStorage = await namespaceObject.getTable(tableName);
+        const rows = [];
+        for await (const row of tableStorage) rows.push(row);
+        return rows;
     }
 
     // helper to clear tables by name
     async function clearTable(tableName, schema = 'lq_test_dml') {
-        const store = await client.storageEngine.tableStorage(tableName, schema);
-        store.clear();
+        const namespaceObject = await await client.storageEngine.getNamespace(schema);
+        const tableStorage = await namespaceObject.getTable(tableName);
+        await tableStorage.truncate();
     }
 
     before(async () => {

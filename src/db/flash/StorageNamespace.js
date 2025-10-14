@@ -6,31 +6,28 @@ export class StorageNamespace extends SimpleEmitter {
 
     #name;
     #parentNode;
-    #options;
 
     #mirrored;
-    #materialized;
     #origin;
+    #options;
 
     #tables = new Map;
 
     get name() { return this.#name; }
     get parentNode() { return this.#parentNode; }
-    get options() { return this.#options; }
 
     get mirrored() { return this.#mirrored; }
-    get materialized() { return this.#materialized; }
     get origin() { return this.#origin; }
+    get options() { return this.#options; }
 
-    constructor(name, parentNode, { mirrored = false, materialized = false, origin = null, ...options } = {}) {
+    constructor(name, parentNode, { mirrored = false, origin = null, ...options } = {}) {
         super();
         this.#name = name;
         this.#parentNode = parentNode;
-        this.#options = options;
 
         this.#mirrored = mirrored;
-        this.#materialized = materialized;
         this.#origin = origin;
+        this.#options = options;
 
         this.on('changefeed', (events) => this.#parentNode?.emit('changefeed', events));
     }
@@ -41,8 +38,19 @@ export class StorageNamespace extends SimpleEmitter {
         this.#parentNode = null;
     }
 
-    async tableNames() {
-        return [this.#tables.keys()];
+    async tableNames(selector = {}) {
+        let list = [...this.#tables.keys()];
+
+        if ('materialized' in selector) {
+            list = list.filter((tableName) => {
+                const tableStorage = this.#tables.get(tableName);
+                if (/*'materialized' in selector
+                    && */Boolean(selector.materialized) !== Boolean(tableStorage.materialized)) return false;
+                return true;
+            });
+        }
+
+        return list;
     }
 
     async createTable(tableSchema, { ifNotExists = false, primaryKey = 'id', autoIncr = true, dialect = 'postgres', ...tableOptions } = {}) {
@@ -53,7 +61,7 @@ export class StorageNamespace extends SimpleEmitter {
                     nodeName: registry.ColumnSchema.NODE_NAME,
                     name: { value: primaryKey },
                     data_type: { value: 'INT' },
-                    entries: [{ nodeName: registry.ColumnPkConstraint.NODE_NAME, value: 'KEY' }],
+                    entries: [{ nodeName: registry.ColumnPKConstraint.NODE_NAME, value: 'KEY' }],
                 };
                 if (autoIncr) {
                     if (dialect === 'mysql') {
@@ -78,8 +86,9 @@ export class StorageNamespace extends SimpleEmitter {
                 throw new Error(`tableSchema must be an instance of TableSchema`);
             }
             tableSchema = tableSchema.clone();
-            if (tableSchema.name().qualifier()) {
-                schemaName = tableSchema.name().qualifier().value();
+            if (tableSchema.name().qualifier()
+                && tableSchema.name().qualifier().value() !== this.#name) {
+                throw new Error(`Cannot create table ${tableSchema.name()} at namespace ${this.#name}`);
             }
         }
 

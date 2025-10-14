@@ -3,13 +3,12 @@ import { ConflictError } from './ConflictError.js';
 
 export class TableStorage extends SimpleEmitter {
 
-    #mirrored;
-    #materialized;
-    #querySpec;
-
     #name;
     #schema;
     #parentNode;
+
+    #materialized;
+    #querySpec;
     #options;
 
     #columns = [];
@@ -20,28 +19,26 @@ export class TableStorage extends SimpleEmitter {
 
     #counters = new Map;
 
-    get mirrored() { return this.#mirrored; }
-    get materialized() { return this.#materialized; }
-    get querySpec() { return this.#querySpec; }
-
     get name() { return this.#name; }
     get schema() { return this.#schema; }
     get parentNode() { return this.#parentNode; }
+
+    get materialized() { return this.#materialized; }
+    get querySpec() { return this.#querySpec; }
     get options() { return this.#options; }
 
-    constructor(schema, parentNode, { mirrored = false, materialized = false, querySpec = null, ...options } = {}) {
+    constructor(schema, parentNode, { materialized = false, querySpec = null, ...options } = {}) {
         super();
-       
+
+        this.#name = schema.name().value();
         this.#schema = schema;
         this.#parentNode = parentNode;
-        this.#options = options;
- 
-        this.#name = schema.name().value();
-        this.#columns = schema.columns();
 
-        this.#mirrored = mirrored;
         this.#materialized = materialized;
         this.#querySpec = querySpec;
+        this.#options = options;
+
+        this.#columns = schema.columns();
 
         const pkRefs = this.#schema.pkConstraint(true)?.columns() || [];
         const pkCols = pkRefs.map((pkRef) => this.#schema.get(pkRef));
@@ -240,5 +237,10 @@ export class TableStorage extends SimpleEmitter {
         } else pKey = String(rowOrKey);
 
         return this.#rows.get(pKey);
+    }
+
+    async truncate() {
+        this.#rows.clear();
+        this.#keys.clear();
     }
 }

@@ -29,8 +29,49 @@ export class FlashClient extends AbstractClient {
     async _disconnect() { }
 
     async _query(query, options) {
-        return await this.#queryEngine.query(query, options);
+        const unmaterializedMirrors = await this.#storageEngine.showMirrors({ materialized: false });
+        const effectiveMirrorsSpec = new Map;
+
+        if (unmaterializedMirrors.size) {
+            let resolutionHint = 0;
+            query.walkTree((v) => {
+                let nsName,
+                    tblName;
+                if (v instanceof registry.TableRef1
+                    && (nsName = v.qualifier()?.value())
+                    && (tblName = v.value())) {
+                    const nsDef = unmaterializedMirrors.get(nsName);
+                    const tableDef = nsDef?.tables.get(tblName);
+                    if (!tableDef) return;
+
+                    if (!effectiveMirrorsSpec.has(nsName)) {
+                        effectiveMirrorsSpec.set(nsName, { origin: nsDef.origin, tables: new Map });
+                    }
+                    effectiveMirrorsSpec.get(nsName).tables.set(tblName, tableDef);
+
+                    if (tableDef?.querySpec.query) {
+                        resolutionHint = -1;
+                    } else if (resolutionHint !== -1) {
+                        resolutionHint = 1;
+                    }
+                } else return v;
+            }, true);
+
+            let lastClient;
+            for (const nsDef of effectiveMirrorsSpec.values()) {
+                lastClient = await this.getRemoteClient(nsDef.origin);
+                nsDef.client = lastClient;
+            }
+
+            if (resolutionHint === 1
+                && effectiveMirrorsSpec.size === 1) {
+                return await lastClient.query(query, options);
+            }
+        }
+
+        return await this.#queryEngine.query(query, { ...options, effectiveMirrorsSpec });
     }
+
     async _cursor(query, options) {
         let closed = false;
         return {
@@ -43,45 +84,45 @@ export class FlashClient extends AbstractClient {
             },
             async close() { closed = true; },
         };
-        return await this._query(query, options);
     }
 
-    async _showCreate(selector, schemaWrapped = false) {
+    async _showCreate(selector, structured = false) {
         selector = normalizeSchemaSelectorArg(selector);
-        const schemas = [];
-        for (const namespaceName of await this.#storageEngine.namespaceNames()) {
+        const namespaceSchemas = [];
+
+        for (const nsName of await this.#storageEngine.namespaceNames()) {
             const objectNames = Object.entries(selector).reduce((arr, [_namespaceName, objectNames]) => {
-                return matchSchemaSelector(namespaceName, [_namespaceName])
+                return matchSchemaSelector(nsName, [_namespaceName])
                     ? arr.concat(objectNames)
                     : arr;
             }, []);
             if (!objectNames.length) continue;
 
             // Schema def:
-            const schemaSchemaJson = {
+            const namespaceJson = {
                 nodeName: 'SCHEMA_SCHEMA',
-                name: { nodeName: 'SCHEMA_IDENT', value: namespaceName },
+                name: { nodeName: 'SCHEMA_IDENT', value: nsName },
                 entries: [],
             };
 
             // Schema tables:
-            const namespaceObject = await this.#storageEngine.getNamespace(namespaceName);
+            const namespaceObject = await this.#storageEngine.getNamespace(nsName);
             for (const tbl of await namespaceObject.tableNames()) {
                 if (!matchSchemaSelector(tbl, objectNames)) continue;
                 const tableStorage = await namespaceObject.getTable(tbl);
                 const tableSchemaJson = tableStorage.schema.jsonfy();
-                tableSchemaJson.name.qualifier = { nodeName: 'SCHEMA_REF', value: namespaceName };
-                (schemaWrapped
-                    ? schemaSchemaJson.entries
-                    : schemas).push(registry.TableSchema.fromJSON(tableSchemaJson, { dialect: this.dialect }));
+                tableSchemaJson.name.qualifier = { nodeName: 'SCHEMA_REF', value: nsName };
+                (structured
+                    ? namespaceJson.entries
+                    : namespaceSchemas).push(registry.TableSchema.fromJSON(tableSchemaJson, { dialect: this.dialect }));
             }
 
-            if (schemaWrapped) {
-                schemas.push(registry.SchemaSchema.fromJSON(schemaSchemaJson, { dialect: this.dialect }));
+            if (structured) {
+                namespaceSchemas.push(registry.SchemaSchema.fromJSON(namespaceJson, { dialect: this.dialect }));
             }
         }
 
-        return schemas;
+        return namespaceSchemas;
     }
 
     async _setupRealtime() {
@@ -96,39 +137,44 @@ export class FlashClient extends AbstractClient {
 
     // --------- FlashQL extras
 
+    async getRemoteClient(origin) {
+        return new this.constructor;
+    }
+
     async federate(...args) {
-        const [specifiers, options, remoteClient] = this._normalizeOriginSpec(true, ...args);
-        return await this._federate(specifiers, options, remoteClient);
+        const [specifiers, options, origin] = this.#normalizeMirroringSpec(true, ...args);
+        return await this.#federate(specifiers, options, origin);
     }
 
     async materialize(...args) {
-        const [specifiers, options, remoteClient] = this._normalizeOriginSpec(true, ...args);
-        return await this._materialize(specifiers, options, remoteClient);
+        const [specifiers, options, origin] = this.#normalizeMirroringSpec(true, ...args);
+        return await this.#materialize(specifiers, options, origin);
     }
 
     async sync(...args) {
-        const [specifiers, options, remoteClient] = this._normalizeOriginSpec(false, ...args);
-        return await this._sync(specifiers, options, remoteClient);
+        const [specifiers, options, origin] = this.#normalizeMirroringSpec(false, ...args);
+        return await this.#sync(specifiers, options, origin);
     }
 
     // --------- standard client hooks
 
-    async _federate(specifiers, options, remoteClient, materializeCallback = null) {
+    async #federate(specifiers, options, origin, materializeCallback = null) {
         const storageEngine = this.#storageEngine;
         const queryCtx = { transaction: await storageEngine.startTransaction('~sync~init') };
+        const remoteClient = await this.getRemoteClient(origin);
 
-        for (const [namespaceName, queryObjects] of specifiers.entries()) {
-            const namespaceObject = await storageEngine.createNamespace(namespaceName, { ifNotExists: options.ifNotExists, mirrored: true, materialized: !!materializeCallback, origin: remoteClient }, queryCtx);
+        for (const [nsName, queryObjects] of specifiers.entries()) {
+            const namespaceObject = await storageEngine.createNamespace(nsName, { ifNotExists: options.ifNotExists, mirrored: true, origin }, queryCtx);
 
             for (const querySpec of queryObjects) {
-                const [query] = await remoteClient._normalizeQueryArgs(querySpec.query || { ...querySpec, command: 'select', columns: ['*'] });
+                const [query] = await remoteClient.resolveQuery(querySpec.query || { ...querySpec, command: 'select', columns: ['*'] });
 
                 const firstFromtItem = query.fromClause().entries()[0];
-                const tableName = firstFromtItem.alias()?.value();
+                const tblName = firstFromtItem.alias()?.value();
 
-                if (!tableName) throw new Error(`Couldn't resolve ${query} to a valid local table name`);
+                if (!tblName) throw new Error(`Couldn't resolve ${query} to a valid local table name`);
 
-                const tableIdent = { nodeName: registry.Identifier.NODE_NAME, value: tableName };
+                const tableIdent = { nodeName: registry.Identifier.NODE_NAME, value: tblName };
                 const tableSchema = registry.TableSchema.fromJSON({
                     name: tableIdent,
                     entries: query.resultSchema().entries().map((e) => e.jsonfy()),
@@ -136,11 +182,11 @@ export class FlashClient extends AbstractClient {
 
                 const tableStorage = await namespaceObject.createTable(
                     tableSchema,
-                    { ifNotExists: options.ifNotExists, mirrored: true, materialized: !!materializeCallback, querySpec },
+                    { ifNotExists: options.ifNotExists, materialized: !!materializeCallback, querySpec },
                     queryCtx
                 );
                 if (materializeCallback) {
-                    await materializeCallback(tableStorage, query, queryCtx);
+                    await materializeCallback(tableStorage, query, queryCtx, remoteClient);
                 }
             }
         }
@@ -148,17 +194,17 @@ export class FlashClient extends AbstractClient {
         await queryCtx.transaction.done();
     }
 
-    async _materialize(specifiers, options, remoteClient) {
+    async #materialize(specifiers, options, origin) {
         const keyOpts = { keyName: '~sync' };
         const abortLines = [];
 
-        await this._federate(specifiers, options, remoteClient, async (tableStorage, query, queryCtx) => {
+        await this.#federate(specifiers, options, origin, async (tableStorage, query, queryCtx, remoteClient) => {
             // Inser records
             let stream, hashes = [];
             if (options.live) {
                 const result = await remoteClient.query(
                     query,
-                    (eventName, eventData) => this._handleInSync(tableStorage, eventName, eventData),
+                    (eventName, eventData) => this.#handleInSync(tableStorage, eventName, eventData),
                     { live: true }
                 );
                 ({ rows: stream, hashes } = result);
@@ -183,15 +229,15 @@ export class FlashClient extends AbstractClient {
         return () => abortLines.forEach((c) => c());
     }
 
-    async _sync(specifiers, options, remoteClient) {
-        const syncInAbortLine = await this._materialize(specifiers, { ...options, live: true }, remoteClient);
-        const abortLines = [syncInAbortLine];
+    async #sync(specifiers, options, origin) {
+        const inSyncAbortLine = await this.#materialize(specifiers, { ...options, live: true }, origin);
+        const abortLines = [inSyncAbortLine];
 
-        for (const [namespaceName, queryObjects] of specifiers.entries()) {
+        for (const [nsName, queryObjects] of specifiers.entries()) {
             for (const querySpec of queryObjects) {
                 abortLines.push(await this.subscribe(
-                    { [namespaceName]: [querySpec.table.name] },
-                    (events) => this._handleOutSync(events, querySpec, remoteClient)
+                    { [nsName]: [querySpec.table.name] },
+                    (events) => this.#handleOutSync(events, querySpec, origin)
                 ));
             }
         }
@@ -199,7 +245,7 @@ export class FlashClient extends AbstractClient {
         return () => abortLines.forEach((c) => c());
     }
 
-    async _handleInSync(tableStorage, eventName, eventData) {
+    async #handleInSync(tableStorage, eventName, eventData) {
         const storageEngine = this.#storageEngine;
         const queryCtx = { transaction: await storageEngine.startTransaction('~sync~in') };
         const keyOpts = { keyName: '~sync' };
@@ -260,7 +306,7 @@ export class FlashClient extends AbstractClient {
         await queryCtx.transaction.done();
     }
 
-    async _handleOutSync(events, querySpec, remoteClient) {
+    async #handleOutSync(events, querySpec, origin) {
         const outQueryObjects = [];
 
         for (const event of events) {
@@ -279,18 +325,19 @@ export class FlashClient extends AbstractClient {
                 }
             }
 
-            outQueryObjects.push(registry.Script.build(outQueryObject, { dialect: remoteClient.dialect }));
+            outQueryObjects.push(registry.Script.build(outQueryObject, { dialect: origin.dialect }));
         }
 
         if (outQueryObjects.length) {
             // TODO: implement an outbound queue for these quesries and handle failures
+            const remoteClient = await this.getRemoteClient(origin);
             const result = await remoteClient.query(outQueryObjects.join(';'));
         }
     }
 
-    _normalizeOriginSpec(allowQueries, ...args) {
+    #normalizeMirroringSpec(allowQueries, ...args) {
         const spec = args.shift();
-        const remoteClient = args.pop(); // Last arg
+        const origin = args.pop(); // Last arg
         const options = args.pop() || {}; // Middle, optional arg
 
         if (!(typeof spec === 'object' && spec) || Array.isArray(spec)) {
@@ -302,15 +349,15 @@ export class FlashClient extends AbstractClient {
 
         const specifiers = new Map;
 
-        for (const namespaceName in spec) {
-            specifiers.set(namespaceName, new Set);
+        for (const nsName in spec) {
+            specifiers.set(nsName, new Set);
 
-            for (const subSpec of [].concat(spec[namespaceName])) {
+            for (const subSpec of [].concat(spec[nsName])) {
                 const tableSpec = {};
                 let query, where;
                 if (typeof subSpec === 'string') {
-                    specifiers.get(namespaceName).add({
-                        table: { schema: namespaceName, name: subSpec },
+                    specifiers.get(nsName).add({
+                        table: { schema: nsName, name: subSpec },
                     });
                 } else {
                     let keys;
@@ -326,13 +373,13 @@ export class FlashClient extends AbstractClient {
                         if (subSpec.schema || subSpec.name || subSpec.where)
                             throw new SyntaxError(`Mutually-exclusive attributes detected in ${JSON.stringify(tableSpec)}`);
 
-                        specifiers.get(namespaceName).add({ query });
+                        specifiers.get(nsName).add({ query });
                     } else {
                         if (subSpec.where && typeof subSpec.where !== 'object')
                             throw new SyntaxError(`Given where spec ${JSON.stringify(tableSpec)} invalid`);
 
-                        specifiers.get(namespaceName).add({
-                            table: { schema: subSpec.schema || namespaceName, name: subSpec.name },
+                        specifiers.get(nsName).add({
+                            table: { schema: subSpec.schema || nsName, name: subSpec.name },
                             where: subSpec.where
                         });
                     }
@@ -340,6 +387,6 @@ export class FlashClient extends AbstractClient {
             }
         }
 
-        return [specifiers, options, remoteClient];
+        return [specifiers, options, origin];
     }
 }

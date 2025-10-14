@@ -171,22 +171,23 @@ export class AbstractNode {
 		});
 	}
 
-	walkTree(visitor, crossStmt = false) {
-		const visit = (value, key) => {
+	walkTree(visitor, crossStmt = false, scope = null) {
+		const visit = (value, key, scope) => {
 			if (!(value instanceof AbstractNode)
 				&& !Array.isArray(value)) return;
 
-			const result = visitor(value, key);
+			const _scope = new Map(scope || []);
+			const result = visitor(value, key, _scope);
 			if (result !== value) return;
 
 			if (Array.isArray(value)) {
-				value.map(visit);
+				value.map((v, k) => visit(v, k, _scope));
 			} else if (crossStmt || value.statementNode !== value) {
-				value.walkTree(visitor);
+				value.walkTree(visitor, crossStmt, _scope);
 			}
 		};
 		for (const [key, value] of Object.entries(this.#ast)) {
-			visit(value, key);
+			visit(value, key, scope);
 		}
 	}
 
