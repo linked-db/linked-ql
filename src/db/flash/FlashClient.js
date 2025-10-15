@@ -384,7 +384,7 @@ export class FlashClient extends AbstractClient {
                 }
             }
 
-            outQueryObjects.push(registry.Script.build(outQueryObject, { dialect: origin.dialect }));
+            outQueryObjects.push(registry.Script.parseSpec(outQueryObject, { dialect: origin.dialect }));
         }
 
         if (outQueryObjects.length) {
