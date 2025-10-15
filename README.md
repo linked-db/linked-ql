@@ -493,6 +493,7 @@ await client.query(
 | Core Parser/Compiler   | 🟩🟩🟩🟩 `100%` | Done                  🏆 |
 | Core Transform Engine  | 🟩🟩🟩🟩 `100%` | Done                  🏆 |
 | InMemory DB Engine     | 🟩🟩🟩🟩 `99%`  | Stable but expanding  🏆 |
+| DB Mirroring Engine    | 🟩🟩🟩🟩 `99%`  | Done, but `.sync()` in alpha  🏆 |
 | DB Drivers (PG/MySQL)  | 🟩🟩🟩🟩 `97%`  | MySQL catching up     🏆 |
 | Realtime Engine        | 🟩🟩🟩🟩 `99%`  | Stable but expanding  🏆 |
 | Version Binding        | 🟩⬜⬜⬜ `20%`  | Early prototype          |
