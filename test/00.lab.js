@@ -10,7 +10,7 @@ const d = () => new Promise((r) => setTimeout(r, 600));
 const client1 = new PGClient;
 await client1.connect();
 
-const client2 = new FlashClient({ remoteClientCallback: () => client1 });
+const client2 = new FlashClient({ onCreateRemoteClient: () => client1 });
 await client2.connect();
 
 // ------- INIT

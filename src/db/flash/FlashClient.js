@@ -12,7 +12,7 @@ export class FlashClient extends AbstractClient {
     #storageEngine;
     #queryEngine;
 
-    #remoteClientCallback;
+    #onCreateRemoteClient;
     #remoteClients = new Map;
 
     #realtimeAbortLine;
@@ -20,12 +20,12 @@ export class FlashClient extends AbstractClient {
     get dialect() { return this.#dialect; }
     get storageEngine() { return this.#storageEngine; }
 
-    constructor({ dialect = 'postgres', capability = {}, remoteClientCallback = null, ...options } = {}, storageEngine = null) {
+    constructor({ dialect = 'postgres', capability = {}, onCreateRemoteClient = null, ...options } = {}, storageEngine = null) {
         super({ capability });
         this.#dialect = dialect;
         this.#storageEngine = storageEngine || new StorageEngine({ dialect, ...options });
         this.#queryEngine = new QueryEngine(this.#storageEngine, { dialect, ...options });
-        this.#remoteClientCallback = remoteClientCallback;
+        this.#onCreateRemoteClient = onCreateRemoteClient;
     }
 
     async _connect() { }
@@ -177,7 +177,7 @@ export class FlashClient extends AbstractClient {
                 abortLines.push(await super.subscribe(localMap, callback));
             }
             for (const nsName in remoteMapMap) {
-                const remoteClient = await this.#remoteClientCallback(unmaterializedMirrors.get(nsName).origin);
+                const remoteClient = await this.#onCreateRemoteClient(unmaterializedMirrors.get(nsName).origin);
                 abortLines.push(await remoteClient.subscribe(remoteMapMap[nsName], (events) => {
                     events = events.map((e) => ({ ...e, relation: { ...e.relation, schema: nsName }}));
                     callback(events);
@@ -206,10 +206,10 @@ export class FlashClient extends AbstractClient {
     }
 
     async getRemoteClient(origin) {
-        if (!this.#remoteClientCallback)
-            throw new Error(`Cannot process remote operation; missing options.remoteClientCallback`);
+        if (!this.#onCreateRemoteClient)
+            throw new Error(`Cannot process remote operation; missing options.onCreateRemoteClient`);
         if (!this.#remoteClients.has(origin)) { // TODO: derive stable hashing
-            this.#remoteClients.set(origin, await this.#remoteClientCallback(origin));
+            this.#remoteClients.set(origin, await this.#onCreateRemoteClient(origin));
         }
         return this.#remoteClients.get(origin);
     }

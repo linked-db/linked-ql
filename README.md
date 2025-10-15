@@ -126,12 +126,10 @@ const { rows } = await client.query(`
         WHERE id = 999
         RETURNING id, val
     ), sel AS (
-        SELECT 
-            id, val,
-            ROW_NUMBER() OVER () AS rn
+        SELECT val, ROW_NUMBER() OVER () AS rn
         FROM updated
     )
-    SELECT * FROM sel
+    SELECT * FROM sel LEFT JOIN ROWS FROM (unnest(ARRAY['a','b']), generate_series(1, 2)) AS t(c1, c2)
 `);
 ```
 
@@ -147,7 +145,7 @@ import { FlashClient } from '@linked-db/linked-ql/flash';
 import { PGClient } from '@linked-db/linked-ql/pg';
 
 const local = new FlashClient({
-  remoteClientCallback: async (remoteClientOpts) => {
+  onCreateRemoteClient: async (remoteClientOpts) => {
     const remote1 = new PGClient(remoteClientOpts);
     await remote1.connect();
     return remote1;
@@ -276,7 +274,7 @@ import { FlashClient } from '@linked-db/linked-ql/flash';
 import { PGClient } from '@linked-db/linked-ql/pg';
 
 const local = new FlashClient({
-  remoteClientCallback: async (remoteClientOpts) => {
+  onCreateRemoteClient: async (remoteClientOpts) => {
     const remote1 = new PGClient(remoteClientOpts);
     await remote1.connect();
     return remote1;
