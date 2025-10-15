@@ -59,13 +59,16 @@ export class Script extends AbstractNodeList {
         const tableRefJson = { nodeName: registry.TableRef1.NODE_NAME, value: tblName, qualifier: schemaName && { nodeName: registry.SchemaRef.NODE_NAME, value: schemaName } };
 
         const whereClauseJson = typeof querySpec.where === 'object' && querySpec.where
-            ? Object.keys(querySpec.where).reduce((acc, key) => {
-                const left = { nodeName: registry.ColumnRef1.NODE_NAME, value: key };
-                const right = toExpr(querySpec.where[key]);
-                const exprJson = { nodeName: registry.BinaryExpr.NODE_NAME, left, operator: '=', right };
-                if (!acc) return exprJson;
-                return { nodeName: registry.BinaryExpr.NODE_NAME, left: acc, operator: 'AND', right: exprJson };
-            }, null)
+            ? {
+                nodeName: registry.WhereClause.NODE_NAME,
+                expr: Object.keys(querySpec.where).reduce((acc, key) => {
+                    const left = { nodeName: registry.ColumnRef1.NODE_NAME, value: key };
+                    const right = toExpr(querySpec.where[key]);
+                    const exprJson = { nodeName: registry.BinaryExpr.NODE_NAME, left, operator: '=', right };
+                    if (!acc) return exprJson;
+                    return { nodeName: registry.BinaryExpr.NODE_NAME, left: acc, operator: 'AND', right: exprJson };
+                }, null)
+            }
             : undefined;
 
         let resultJson;
@@ -166,7 +169,7 @@ export class Script extends AbstractNodeList {
                 break;
         }
 
-        return this.fromJSON({ entries: [resultJson] }, { dialect: options.dialect, assert: true });
+        return this.fromJSON({ entries: [resultJson] }, { dialect: options.dialect, assert: true }).entries()[0];
     }
 
     stringify(options = {}) { return `${super.stringify(options)};`; }
