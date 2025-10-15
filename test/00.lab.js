@@ -95,7 +95,7 @@ if (0) {
 
 
     //await client2.federate({ public2: { query: `SELECT * FROM t2 WHERE id < 3` } }, { url: 3 });
-    await client2.materialize({ public2: { schema: 'public', name: 't2', where: { id: 2 } } }, { url: 3 });
+    await client2.federate({ public2: { schema: 'public', name: 't2', where: { id: 2 } } }, { url: 3 });
     console.log((await client2.query(`SELECT t3.id, t2.col3 FROM t3 LEFT JOIN t2 ON t3.id = t2.id`, [2])).rows);
 }
 

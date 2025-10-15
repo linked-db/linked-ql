@@ -53,7 +53,8 @@ export class FlashClient extends AbstractClient {
                     }
                     effectiveMirrorsSpec.get(nsName).tables.set(tblName, tableDef);
 
-                    if (tableDef?.querySpec.query) {
+                    if (tableDef?.querySpec.query
+                        || tableDef?.querySpec.table.schema && tableDef.querySpec.table.schema !== nsName) {
                         resolutionHint = -1;
                     } else if (resolutionHint !== -1) {
                         resolutionHint = 1;
@@ -69,7 +70,7 @@ export class FlashClient extends AbstractClient {
 
             if (resolutionHint === 1
                 && effectiveMirrorsSpec.size === 1) {
-                //return await lastClient.query(query, options);
+                return await lastClient.query(query, options);
             }
         }
 
