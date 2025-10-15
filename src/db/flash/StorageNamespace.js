@@ -86,7 +86,7 @@ export class StorageNamespace extends SimpleEmitter {
                 throw new Error(`tableSchema must be an instance of TableSchema`);
             }
             tableSchema = tableSchema.clone();
-            if (tableSchema.name().qualifier()
+            if (tableSchema.name().qualifier?.()
                 && tableSchema.name().qualifier().value() !== this.#name) {
                 throw new Error(`Cannot create table ${tableSchema.name()} at namespace ${this.#name}`);
             }

@@ -60,8 +60,8 @@ export class AbstractClient extends SimpleEmitter {
         // Parsing...
         if (typeof query === 'string') {
             query = await registry.Script.parse(query, { dialect: options.dialect || this.dialect });
-        } else if (typeof query === 'object' && query && typeof query.command === 'string') {
-            query = registry.Script.build(query, { dialect: options.dialect || this.dialect });
+        } else if (typeof query === 'object' && query && (typeof query.query === 'string' || typeof query.command === 'string')) {
+            query = await registry.Script.parseSpec(query, { dialect: options.dialect || this.dialect });
         } else if (!(query instanceof registry.Script) && !(query instanceof AbstractStmt)) {
             throw new TypeError('query must be a string or an instance of Script | AbstractStmt');
         }

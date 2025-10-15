@@ -40,7 +40,13 @@ export class Script extends AbstractNodeList {
         return result;
     }
 
-    static build(queryObject, options = {}) {
+    static async parseSpec(querySpec, options = {}) {
+        if (querySpec.query) {
+            const result = await this.parse(querySpec.query, options);
+            if (result.length === 1) return result.entries()[0];
+            return result;
+        }
+
         function toExpr(val) {
             if (typeof val === 'number') {
                 return { nodeName: registry.NumberLiteral.NODE_NAME, value: val };
@@ -48,14 +54,14 @@ export class Script extends AbstractNodeList {
             return { nodeName: registry.StringLiteral.NODE_NAME, value: val + '' };
         }
 
-        const tblName = typeof queryObject.table === 'object' ? queryObject.table.name + '' : queryObject.table + '';
-        const schemaName = typeof queryObject.table === 'object' ? queryObject.table.schema : undefined;
+        const tblName = typeof querySpec.table === 'object' ? querySpec.table.name + '' : querySpec.table + '';
+        const schemaName = typeof querySpec.table === 'object' ? querySpec.table.schema : undefined;
         const tableRefJson = { nodeName: registry.TableRef1.NODE_NAME, value: tblName, qualifier: schemaName && { nodeName: registry.SchemaRef.NODE_NAME, value: schemaName } };
 
-        const whereClauseJson = typeof queryObject.where === 'object' && queryObject.where
-            ? Object.keys(queryObject.where).reduce((acc, key) => {
+        const whereClauseJson = typeof querySpec.where === 'object' && querySpec.where
+            ? Object.keys(querySpec.where).reduce((acc, key) => {
                 const left = { nodeName: registry.ColumnRef1.NODE_NAME, value: key };
-                const right = toExpr(queryObject.where[key]);
+                const right = toExpr(querySpec.where[key]);
                 const exprJson = { nodeName: registry.BinaryExpr.NODE_NAME, left, operator: '=', right };
                 if (!acc) return exprJson;
                 return { nodeName: registry.BinaryExpr.NODE_NAME, left: acc, operator: 'AND', right: exprJson };
@@ -63,10 +69,10 @@ export class Script extends AbstractNodeList {
             : undefined;
 
         let resultJson;
-        switch (queryObject.command) {
+        switch (querySpec.command) {
 
             case 'insert':
-                const payload = [].concat(queryObject.payload);
+                const payload = [].concat(querySpec.payload);
                 if (!(typeof payload[0] === 'object' && payload[0])) {
                     throw new Error('Invalid insert row format. Expected a non-null object.');
                 }
@@ -103,7 +109,7 @@ export class Script extends AbstractNodeList {
                 break;
 
             case 'update':
-                const _payload = queryObject.payload;
+                const _payload = querySpec.payload;
 
                 if (Array.isArray(_payload)) {
                     throw new Error('Batch update is not supported. Please provide a single payload object for update.');
@@ -142,7 +148,7 @@ export class Script extends AbstractNodeList {
                 break;
 
             case 'select':
-                const selectItems = queryObject.columns.map((colName) => {
+                const selectItems = querySpec.columns.map((colName) => {
                     return {
                         nodeName: registry.SelectItem.NODE_NAME,
                         expr: colName === '*'
@@ -151,11 +157,11 @@ export class Script extends AbstractNodeList {
                     };
                 });
                 resultJson = {
-                    nodeName: registry.BasicSelectStmt.NODE_NAME,
+                    nodeName: registry.CompleteSelectStmt.NODE_NAME,
                     select_list: { nodeName: registry.SelectList.NODE_NAME, entries: selectItems },
                     from_clause: { nodeName: registry.FromClause.NODE_NAME, entries: [{ nodeName: registry.FromItem.NODE_NAME, expr: tableRefJson }] },
                     where_clause: whereClauseJson,
-                }
+                };
 
                 break;
         }

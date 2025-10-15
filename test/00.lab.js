@@ -2,15 +2,22 @@ import { FlashClient } from '../src/db/flash/FlashClient.js';
 import { PGClient } from '../src/db/classic/pg/PGClient.js';
 import Observer from '@webqit/observer';
 
+const d = () => new Promise((r) => setTimeout(r, 300));
 
-const client = new FlashClient;
-await client.connect();
 
-const d = () => new Promise((r) => setTimeout(r, 1000));
-const options = { forceDiffing: true, noOffsetRevalidate: false };
+// ------- clients
 
-await client.query('CREATE TABLE IF NOT EXISTS t2 (id INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY, col1 TEXT, col2 TEXT, col3 TEXT)');
-await client.query('CREATE TABLE IF NOT EXISTS t1 (id INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY, rel INT REFERENCES t2 (id), col3 TEXT)');
+const client1 = new PGClient;
+await client1.connect();
+
+const client2 = new FlashClient({ remoteClientCallback: () => client1 });
+await client2.connect();
+
+// ------- INIT
+
+await client1.query('CREATE TABLE IF NOT EXISTS t2 (id INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY, col1 TEXT, col2 TEXT, col3 TEXT)');
+await client1.query('CREATE TABLE IF NOT EXISTS t1 (id INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY, rel INT REFERENCES t2 (id), col3 TEXT)');
+
 let sql = `
 INSERT INTO t2 (col1, col2, col3)
 VALUES
@@ -24,17 +31,23 @@ VALUES
     (2, 'one'),
     (3, 'two'),
     (4, 'two')`;
-await client.query(sql);
+await client1.query(sql);
 
-await d();
 
+await client2.query('CREATE TABLE IF NOT EXISTS t3 (id INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY, rel INT, col3 TEXT)');
+sql = `
+    INSERT INTO t3 (col3)
+    VALUES
+        ('threeeeeeee-111'),
+        ('threeeeeeee--222')`;
+await client2.query(sql);
 
 
 
 
 if (0) {
-    //const result = await client.query('TABLE t1');
-    //const result = await client.query('SELECT MAX(id) FROM t1', { live: true, forceDiffing: false });
+    //const result = await client1.query('TABLE t1');
+    //const result = await client1.query('SELECT MAX(id) FROM t1', { live: true, forceDiffing: false });
     sql = `SELECT id FROM t1 ORDER BY 1 DESC LIMIT 3 OFFSET 1`;
     sql = `SELECT MAX(id) FROM t1 GROUP BY col3`;
 
@@ -47,12 +60,13 @@ if (0) {
 
 
 
-    const realtimeClient = client.realtimeClient;
+    const options = { forceDiffing: true, noOffsetRevalidate: false };
+    const realtimeClient = client1.realtimeClient;
 
-    const result1 = await client.query(sql, { live: true, ...options });
+    const result1 = await client1.query(sql, { live: true, ...options });
     console.log(realtimeClient.size, result1.rows);
 
-    const result2 = await client.query(sql2, { live: true, ...options });
+    const result2 = await client1.query(sql2, { live: true, ...options });
     console.log(realtimeClient.size, result2.rows);
 
     Observer.observe(result1.rows, Observer.subtree(), (e) => {
@@ -69,7 +83,7 @@ if (0) {
     sql = `
     UPDATE t1 SET rel = 1 WHERE id = 1;
     `;
-    await client.query(sql);
+    await client1.query(sql);
 
 
 
@@ -78,17 +92,18 @@ if (0) {
     console.log('-----------', result1.rows);
     console.log('-----------', result2.rows);
 } else {
-    const client2 = new PGClient;
-    await client2.connect();
 
-    console.log((await client2.query(`SELECT $1`, [2])).rows);
+
+    await client2.federate({ public2: { query: `SELECT * FROM t2 WHERE id < 3` } }, { url: 3 });
+    //await client2.federate({ public2: { schema: 'public', name: 't2' } }, { url: 3 });
+    console.log((await client2.query(`SELECT * FROM t3 LEFT JOIN t2 ON t3.id = t2.id`, [2])).rows);
 }
 
 
 
 
 
-await client.query('DROP TABLE IF EXISTS t1 CASCADE');
-await client.query('DROP TABLE IF EXISTS t2 CASCADE');
-await client.disconnect();
+await client1.query('DROP TABLE IF EXISTS t1 CASCADE');
+await client1.query('DROP TABLE IF EXISTS t2 CASCADE');
+await client1.disconnect();
 process.exit();
