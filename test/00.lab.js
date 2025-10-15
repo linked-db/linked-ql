@@ -2,7 +2,7 @@ import { FlashClient } from '../src/db/flash/FlashClient.js';
 import { PGClient } from '../src/db/classic/pg/PGClient.js';
 import Observer from '@webqit/observer';
 
-const d = () => new Promise((r) => setTimeout(r, 300));
+const d = () => new Promise((r) => setTimeout(r, 600));
 
 
 // ------- clients
@@ -95,8 +95,17 @@ if (0) {
 
 
     //await client2.federate({ public2: { query: `SELECT * FROM t2 WHERE id < 3` } }, { url: 3 });
-    await client2.federate({ public2: { schema: 'public', name: 't2', where: { id: 2 } } }, { url: 3 });
-    console.log((await client2.query(`SELECT t3.id, t2.col3 FROM t3 LEFT JOIN t2 ON t3.id = t2.id`, [2])).rows);
+    await client2.federate({ public2: { schema: 'public', name: 't2'/*, where: { id: 2 }*/ } }, { live: true }, { url: 3 });
+    const result = await client2.query(`SELECT t3.id, t2.col3 FROM t3 LEFT JOIN t2 ON t3.id = t2.id AND t2.col3 <> '0'`, [], { live: true });
+    console.log('::::', result.rows);
+
+    sql = `
+    UPDATE t2 SET col3 = '0' WHERE id = 1;
+    `;
+    await client1.query(sql);
+    await d();
+
+    console.log('::::', result.rows);
 }
 
 

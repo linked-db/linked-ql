@@ -1,5 +1,4 @@
 import { AbstractNode } from '../../lang/abstracts/AbstractNode.js';
-import { AbstractNodeList } from '../../lang/abstracts/AbstractNodeList.js';
 import { _eq } from '../../lang/abstracts/util.js';
 import { registry } from '../../lang/registry.js';
 

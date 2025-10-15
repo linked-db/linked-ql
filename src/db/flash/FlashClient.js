@@ -133,7 +133,7 @@ export class FlashClient extends AbstractClient {
 
     async _setupRealtime() {
         if (this.#realtimeAbortLine) return; // Indempotency
-        this.#realtimeAbortLine = this.#queryEngine.on('changefeed', (events) => this._fanout(events));
+        this.#realtimeAbortLine = this.#storageEngine.on('changefeed', (events) => this._fanout(events));
     }
 
     async _teardownRealtime() {
@@ -142,6 +142,53 @@ export class FlashClient extends AbstractClient {
     }
 
     // --------- FlashQL extras
+
+    async subscribe(selector, callback) {
+        if (typeof selector === 'function') return super.subscribe(selector);
+
+        const unmaterializedMirrors = await this.#storageEngine.showMirrors({ materialized: false });
+        if (unmaterializedMirrors.size) {
+
+            const abortLines = [];
+            const schemaSelector = normalizeSchemaSelectorArg(selector);
+
+            const localMap = {}, remoteMapMap = {};
+            for (const [nsName, tblNames] of Object.entries(schemaSelector)) {
+                const remoteTablesMap = unmaterializedMirrors.get(nsName)?.tables;
+                if (remoteTablesMap) {
+                    for (const tblName of tblNames) {
+                        const remoteNsName = remoteTablesMap.get(tblName)?.querySpec.table?.schema;
+                        // querySpec.query explocitly excluded from here
+                        if (remoteNsName) {
+                            if (!remoteMapMap[nsName]) remoteMapMap[nsName] = {};
+                            if (!remoteMapMap[nsName][remoteNsName]) remoteMapMap[nsName][remoteNsName] = [];
+                            remoteMapMap[nsName][remoteNsName].push(tblName);
+                        } else {
+                            if (!localMap[nsName]) localMap[nsName] = [];
+                            localMap[nsName].push(tblName);
+                        }
+                    }
+                } else {
+                    localMap[nsName] = tblNames;
+                }
+            }
+
+           if (Object.keys(localMap).length) {
+                abortLines.push(await super.subscribe(localMap, callback));
+            }
+            for (const nsName in remoteMapMap) {
+                const remoteClient = await this.#remoteClientCallback(unmaterializedMirrors.get(nsName).origin);
+                abortLines.push(await remoteClient.subscribe(remoteMapMap[nsName], (events) => {
+                    events = events.map((e) => ({ ...e, relation: { ...e.relation, schema: nsName }}));
+                    callback(events);
+                }));
+            }
+ 
+            return () => abortLines.forEach((c) => c());
+        }
+
+        return super.subscribe(selector, callback);
+    }
 
     async federate(...args) {
         const [specifiers, options, origin] = this.#normalizeMirroringSpec(true, ...args);
@@ -210,6 +257,7 @@ export class FlashClient extends AbstractClient {
         const abortLines = [];
 
         await this.#federate(specifiers, options, origin, async (tableStorage, query, queryCtx, remoteClient) => {
+            await tableStorage.createKey(keyOpts.keyName);
             // Inser records
             let stream, hashes = [];
             if (options.live) {
