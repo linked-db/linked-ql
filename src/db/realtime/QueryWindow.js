@@ -1266,7 +1266,7 @@ export class QueryWindow extends SimpleEmitter {
 
         let decorated;
         if (this.#strategy.ssr) {
-            decorated = decorated.map((entry) => ({ entry, keys: entry[1].ord }));
+            decorated = entries.map((entry) => ({ entry, keys: entry[1].ord }));
         } else {
             decorated = await Promise.all(entries.map(async (entry) => {
                 const keys = await Promise.all(this.#resolvedOrderElements.map(orderElement => {

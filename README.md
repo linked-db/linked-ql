@@ -145,25 +145,35 @@ _Query across multiple database systems in one statement — perfect for hybrid 
 import { FlashClient } from '@linked-db/linked-ql/flash';
 import { PGClient } from '@linked-db/linked-ql/pg';
 
-const remote1 = new PGClient({ host: 'localhost', port: 5432 });
-const remote2 = new PGClient({ host: 'localhost', port: 5432 });
+const local = new FlashClient({
+  remoteClientCallback: async (remoteClientOpts) => {
+    const remote1 = new PGClient(remoteClientOpts);
+    await remote1.connect();
+    return remote1;
+  },
+});
 
-const local = new FlashClient({ remoteClientCallback: (remoteConnectionParams) => remote1 });
+// federate a Postgres origin under the local namespace "public" (same as remote namespace)
+const remoteClientOpts1 = { host: 'localhost', port: 5432 };
+await local.federate({ public: ['users', 'orders'] }, remoteClientOpts1);
 
-// Register a Postgres origin under the alias "public"
-const remoteConnectionParams
-await local.federate({ public: ['users', 'orders'] }, remoteConnectionParams);
-
-// Register another origin under the alias "pg1"
+// federate another origin under the local namespace "pg1" (different from remote namespace)
+const remoteClientOpts2 = { connectionString: '...' };
 await local.federate(
   {
     pg1: {
       schema: 'public',
-      tables: ['products'],
+      name: 'products',
       where: { status: 1 } // Optional filter
     }
   },
-  remoteConnectionParams
+  remoteClientOpts2
+);
+
+// Or just write plain SQL if u need more power
+await local.federate(
+  { pg1: { query: 'SELECT * FROM public.products WHERE status = 1' } },
+  remoteClientOpts2
 );
 
 // Query seamlessly across local and federated tables
@@ -172,14 +182,14 @@ const result = await local.query(`
   FROM public.users
   JOIN public.orders ON users.id = orders.user_id
   JOIN pg1.products ON orders.product_id = products.id
-`;
+`);
 ```
 
 > [!TIP]
-> LinkedQL automatically routes parts of your query to their respective origins and streams results back as one unified dataset.
+> LinkedQL automatically routes the relevant parts of your query to their respective origins and streams results back into the working dataset.
 
 > [!NOTE]
-> Federation is lazy — data is pulled or streamed on demand, not bulk-copied — ideal for hybrid setups where part of your data lives remotely.
+> Federation is lazy — data is streamed on demand, not bulk-copied — ideal for hybrid setups where part of your data lives remotely.
 
 ## ` 2 |` Realtime SQL
 
@@ -198,7 +208,7 @@ const result = await client.query(
 );
 ```
 
-_Treat result rows as "live" data — continuously self-updating as underlying data changes_
+_Result rows comes as "live" data — continuously self-updating as underlying data changes_
 
 ```js
 console.log(result.rows); // [{}, {}]
@@ -246,7 +256,7 @@ result.abort();
 >
 > Built for *mutation-based* reactivity, this model integrates seamlessly with newer stacks that share the same foundation, letting you pass dynamic, ever-updating data across your entire application — even over the wire — with zero glue code.
 >
-> As an example, the Webflo framework would let you return "live" data from a route for automatic binding on the UI — with reactivity preserved over the wire:
+> As an example, the Webflo framework would let you return "live" data from a route for automatic binding on the UI — with reactivity preserved through the wire:
 >
 >  ```js
 >  // Return "live" results over the wire from a Webflo route
@@ -264,45 +274,69 @@ result.abort();
 import { FlashClient } from '@linked-db/linked-ql/flash';
 import { PGClient } from '@linked-db/linked-ql/pg';
 
-const pg = new PGClient({ host: 'localhost', port: 5432 });
-await pg.connect();
+const local = new FlashClient({
+  remoteClientCallback: async (remoteClientOpts) => {
+    const remote1 = new PGClient(remoteClientOpts);
+    await remote1.connect();
+    return remote1;
+  },
+});
 
-const flashql = new FlashClient({ remoteClientCallback: (remoteConnectionParams) => pg });
-await flashql.connect();
+// materialize a Postgres origin under the local namespace "public" (same as remote namespace)
+const remoteClientOpts1 = { host: 'localhost', port: 5432 };
+await local.materialize({ public: ['users', 'orders'] }, remoteClientOpts1);
 
-// Materialize remote data locally
-await flashql.materialize({ public: ['users', 'orders'] }, remoteConnectionParams);
-
-// Add filters to scope what’s pulled in (e.g. per-user)
-await flashql.materialize(
-  { public: [{ table: 'orders', where: { user_id: currentUser.id } }] },
-  remoteConnectionParams
+// materialize another origin under the local namespace "pg1" (different from remote namespace)
+const remoteClientOpts2 = { connectionString: '...' };
+await local.materialize(
+  {
+    pg1: {
+      schema: 'public',
+      name: 'products',
+      where: { status: 1 } // Optional filter
+    }
+  },
+  remoteClientOpts2
 );
 
-// Keep it live
-await flashql.materialize(
-  { public: [{ table: 'orders', where: { user_id: currentUser.id } }] },
-  { live: true },
-  remoteConnectionParams
+// Or just write plain SQL if u need more power
+await local.materialize(
+  { pg1: { query: 'SELECT * FROM public.products WHERE status = 1' } },
+  remoteClientOpts2
 );
 ```
 
-> [!NOTE] 
-> Pulls down data from a remote database (Postgres, MySQL, or another LinkedQL instance) into FlashQL for local use — perfect for offline-first, edge-cached, or low-latency workloads.
+_Add `{ live: true }` to materialize in "live" mode._
 
-_Need full two-way replication? Use `.sync()` — it materializes and streams deltas both ways._
+```js
+// Keep it live
+await flashql.materialize(
+  { public: [{ name: 'orders', where: { user_id: currentUser.id } }] },
+  { live: true },
+  remoteClientOpts1
+);
+```
+
+_Need full two-way live sync? Use `.sync()` — it materializes and streams deltas both ways._
 
 ```js
 // Two-way sync in one shot
-await flashql.sync({ public: ['users', 'orders'] }, remoteConnectionParams);
+await flashql.sync({ public: ['users', 'orders'] }, remoteClientOpts);
 ```
 
 > [!NOTE]
-> Does both materialization (in live mode) and reconciliation with origin — bidirectional, conflict-aware, and resilient to network instabilities.
+> Does both materialization (in live mode) and reconciliation with origin — bidirectional, conflict-aware, and resilient to network instabilities. `.sync()` is in _alpha_.
 
 ### `2.3 |` Realtime Triggers
 
 ⚡ _Listen to row-level or table-level events as they happen — same API across all engines, perfect for e.g. cache invalidation, live analytics, or instant event-driven automation._
+
+```js
+// Subscribe to changes on all tables
+client.subscribe((event) => {
+  console.log(event.type, event.relation.name, event.new);
+});
+```
 
 ```js
 // Subscribe to changes on specific tables
