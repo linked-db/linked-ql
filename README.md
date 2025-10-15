@@ -145,12 +145,14 @@ _Query across multiple database systems in one statement — perfect for hybrid 
 import { FlashClient } from '@linked-db/linked-ql/flash';
 import { PGClient } from '@linked-db/linked-ql/pg';
 
-const local = new FlashClient();
 const remote1 = new PGClient({ host: 'localhost', port: 5432 });
 const remote2 = new PGClient({ host: 'localhost', port: 5432 });
 
+const local = new FlashClient({ remoteClientCallback: (remoteConnectionParams) => remote1 });
+
 // Register a Postgres origin under the alias "public"
-await local.federate({ public: ['users', 'orders'] }, remote1);
+const remoteConnectionParams
+await local.federate({ public: ['users', 'orders'] }, remoteConnectionParams);
 
 // Register another origin under the alias "pg1"
 await local.federate(
@@ -161,7 +163,7 @@ await local.federate(
       where: { status: 1 } // Optional filter
     }
   },
-  remote2
+  remoteConnectionParams
 );
 
 // Query seamlessly across local and federated tables
@@ -170,11 +172,10 @@ const result = await local.query(`
   FROM public.users
   JOIN public.orders ON users.id = orders.user_id
   JOIN pg1.products ON orders.product_id = products.id
-`, { federated: true });
+`;
 ```
 
 > [!TIP]
-> Federated tables appear as schema-scoped virtual tables (`pg1.products`, `public.orders`, etc.) and can be queried or joined just like native tables.
 > LinkedQL automatically routes parts of your query to their respective origins and streams results back as one unified dataset.
 
 > [!NOTE]
@@ -263,25 +264,26 @@ result.abort();
 import { FlashClient } from '@linked-db/linked-ql/flash';
 import { PGClient } from '@linked-db/linked-ql/pg';
 
-const flashql = new FlashClient();
-await flashql.connect();
-
 const pg = new PGClient({ host: 'localhost', port: 5432 });
 await pg.connect();
 
+const flashql = new FlashClient({ remoteClientCallback: (remoteConnectionParams) => pg });
+await flashql.connect();
+
 // Materialize remote data locally
-await flashql.materialize({ public: ['users', 'orders'] }, pg);
+await flashql.materialize({ public: ['users', 'orders'] }, remoteConnectionParams);
 
 // Add filters to scope what’s pulled in (e.g. per-user)
 await flashql.materialize(
   { public: [{ table: 'orders', where: { user_id: currentUser.id } }] },
-  pg
+  remoteConnectionParams
 );
 
 // Keep it live
 await flashql.materialize(
-  { public: [{ table: 'orders', where: { user_id: currentUser.id }, live: true }] },
-  pg
+  { public: [{ table: 'orders', where: { user_id: currentUser.id } }] },
+  { live: true },
+  remoteConnectionParams
 );
 ```
 
@@ -292,7 +294,7 @@ _Need full two-way replication? Use `.sync()` — it materializes and streams de
 
 ```js
 // Two-way sync in one shot
-await flashql.sync({ public: ['users', 'orders'] }, pg);
+await flashql.sync({ public: ['users', 'orders'] }, remoteConnectionParams);
 ```
 
 > [!NOTE]
