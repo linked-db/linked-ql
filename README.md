@@ -137,7 +137,7 @@ const { rows } = await client.query(`
 > [!NOTE]
 > FlashQL runs anywhere JavaScript runs — Node, browser, worker, or edge — and is designed for future pluggable backend (IndexedDB, Redis, etc.).
 
-### `1.3 |` Query Federation (Coming Soon)
+### `1.3 |` Query Federation
 
 _Query across multiple database systems in one statement — perfect for hybrid setups where data lives across local and remote sources._
 
