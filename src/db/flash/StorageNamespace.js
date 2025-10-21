@@ -7,6 +7,7 @@ export class StorageNamespace extends SimpleEmitter {
     #name;
     #parentNode;
 
+    #type;
     #mirrored;
     #origin;
     #options;
@@ -16,15 +17,17 @@ export class StorageNamespace extends SimpleEmitter {
     get name() { return this.#name; }
     get parentNode() { return this.#parentNode; }
 
+    get type() { return this.#type; }
     get mirrored() { return this.#mirrored; }
     get origin() { return this.#origin; }
     get options() { return this.#options; }
 
-    constructor(name, parentNode, { mirrored = false, origin = null, ...options } = {}) {
+    constructor(name, parentNode, { type = null, mirrored = false, origin = null, ...options } = {}) {
         super();
         this.#name = name;
         this.#parentNode = parentNode;
 
+        this.#type = type;
         this.#mirrored = mirrored;
         this.#origin = origin;
         this.#options = options;

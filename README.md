@@ -499,7 +499,7 @@ await client.query(
 | Version Binding        | 🟩⬜⬜⬜ `20%`  | Early prototype          |
 | Auto-Versioning Engine | 🟩⬜⬜⬜ `10%`  | Deferring to v0.3.*      |
 | Migration Wizard       | 🟩⬜⬜⬜ `10%`  | Deferring to v0.3.*      |
-| IDE Tooling            | 🟩⬜⬜⬜ `10%`  | Initial hooks only       |
+| IDE Tooling            | 🟩⬜⬜⬜ `5%`  | Initial hooks only       |
 | Revamped Docs          | ⬜⬜⬜⬜ `0%`   | Not started              |
 
 <!--🟨-->

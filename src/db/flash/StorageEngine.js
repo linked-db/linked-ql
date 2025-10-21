@@ -113,7 +113,7 @@ export class StorageEngine extends SimpleEmitter {
                 return [tableName, { materialized: tableStorage.materialized, querySpec: tableStorage.querySpec }];
             });
 
-            return [namespaceName, { origin: namespaceObject.origin, tables: new Map(await Promise.all(tablesEntries)) }];
+            return [namespaceName, { type: namespaceObject.type, origin: namespaceObject.origin, tables: new Map(await Promise.all(tablesEntries)) }];
         });
 
         return new Map(await Promise.all(mirroredNamespacesEntries));

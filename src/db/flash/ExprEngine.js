@@ -1,6 +1,8 @@
+import { AbstractNode } from '../../lang/abstracts/AbstractNode.js';
 import { _eq } from '../../lang/abstracts/util.js';
 import { registry } from '../../lang/registry.js';
 
+const TBL_PLACEHOLDER = Symbol.for('tbl_placeholder');
 const GROUPING_META = Symbol.for('grouping_meta');
 const WINDOW_META = Symbol.for('window_meta');
 
@@ -55,10 +57,19 @@ export class ExprEngine {
             return rows.map((r) => Object.values(r)[0]);
         }
         if (expr instanceof registry.RowConstructor) {
-            return await Promise.all(expr.entries().map((e) => this.evaluateToScalar(e, compositeRow, queryCtx)));
+            const entries = await Promise.all(expr.entries().map((e) => this.evaluateToScalar(e, compositeRow, queryCtx)));
+            // ----------- asPartial
+            if (entries.some((x) => x instanceof AbstractNode)) {
+                return registry.RowConstructor.fromJSON(
+                    { nodeName: registry.RowConstructor.NODE_NAME, entries: entries.map(toNode) },
+                    { assert: true, dialect: queryCtx.options?.dialect }
+                );
+            }
+            // -----------
+            return entries;
         }
         const result = await this.evaluate(expr, compositeRow, queryCtx);
-        if (!Array.isArray(result)) throw new Error(`[${expr}] Not a list`);
+        if (!Array.isArray(result) && !(result instanceof AbstractNode)) throw new Error(`[${expr}] Not a list`);
         return result;
     }
 
@@ -71,7 +82,8 @@ export class ExprEngine {
     }
 
     async ON_CLAUSE(node, compositeRow, queryCtx = {}) {
-        return await this.evaluate(node.expr(), compositeRow, queryCtx);
+        const result = await this.evaluate(node.expr(), compositeRow, queryCtx);
+        return result;
     }
 
     async USING_CLAUSE(node, compositeRow) {
@@ -86,18 +98,18 @@ export class ExprEngine {
 
     // --- EXPRESSIONS ---
 
-    async BIND_VAR(node, compositeRow, queryCtx = {}) {
-        if (!Array.isArray(queryCtx.options.values))
-            throw new Error(`there is no parameter ${node}`);
-        const value = Number(node.value());
-        if (queryCtx.options.values.length < value)
-            throw new Error(`there is no parameter ${node}`);
-        return queryCtx.options.values[value - 1];
-    }
-
     async ROW_CONSTRUCTOR(node, compositeRow, queryCtx = {}) {
         const entries = await Promise.all(node.entries().map((e) => this.evaluateToScalar(e, compositeRow, queryCtx)));
-        return entries.length > 1 ? entries : entries[0];
+        if (entries.length === 1) return entries[0];
+        // ----------- asPartial
+        if (entries.some((x) => x instanceof AbstractNode)) {
+            return registry.RowConstructor.fromJSON(
+                { nodeName: registry.RowConstructor.NODE_NAME, entries: entries.map(toNode) },
+                { assert: true, dialect: queryCtx.options?.dialect }
+            );
+        }
+        // -----------
+        return entries;
     }
 
     async TYPED_ROW_CONSTRUCTOR(node, compositeRow, queryCtx = {}) {
@@ -105,19 +117,64 @@ export class ExprEngine {
     }
 
     async PG_TYPED_ARRAY_LITERAL(node, compositeRow, queryCtx = {}) {
-        return await Promise.all(node.entries().map((a) => this.evaluate(a, compositeRow, queryCtx)));
+        const entries = await Promise.all(node.entries().map((a) => this.evaluate(a, compositeRow, queryCtx)));
+        // ----------- asPartial
+        if (entries.some((x) => x instanceof AbstractNode)) {
+            return registry.PGTypedArrayLiteral.fromJSON(
+                { nodeName: registry.PGTypedArrayLiteral.NODE_NAME, entries: entries.map(toNode) },
+                { assert: true, dialect: queryCtx.options?.dialect }
+            );
+        }
+        // -----------
+        return entries;
     }
 
     async CASE_EXPR(node, compositeRow, queryCtx = {}) {
         const subject = node.subject()
             ? await this.evaluate(node.subject(), compositeRow, queryCtx)
             : undefined;
+
+        const partialModeBranches = [];
+
         for (const branch of node) {
             const condition = await this.evaluate(branch.condition(), compositeRow, queryCtx);
+            // ----------- asPartial
+            if (subject instanceof AbstractNode || condition instanceof AbstractNode) {
+                partialModeBranches.push({
+                    nodeName: registry.CaseBranch.NODE_NAME,
+                    condition: toNode(condition),
+                    consequent: toNode(await this.evaluate(branch.consequent(), compositeRow, queryCtx)),
+                });
+                continue;
+            }
+            // -----------
             const test = subject === undefined ? !!condition : _eq(subject, condition);
-            if (test) return await this.evaluate(branch.consequent(), compositeRow, queryCtx);
+            if (test) {
+                const result = await this.evaluate(branch.consequent(), compositeRow, queryCtx);
+                if (!partialModeBranches.length) return result; // Whether or not resolved
+                // ----------- asPartial
+                partialModeBranches.push({
+                    nodeName: registry.CaseBranch.NODE_NAME,
+                    condition: toNode(condition),
+                    consequent: toNode(result),
+                });
+                continue;
+            }
         }
-        if (node.alternate()) return await this.evaluate(node.alternate(), compositeRow, queryCtx);
+
+        let alternate;
+        if (node.alternate()) {
+            alternate = await this.evaluate(node.alternate(), compositeRow, queryCtx);
+            if (!partialModeBranches.length) return alternate; // Whether or not resolved
+        }
+        // ----------- asPartial
+        if (partialModeBranches.length) {
+            return registry.CaseExpr.fromJSON(
+                { nodeName: registry.CaseExpr.NODE_NAME, subject: toNode(subject), entries: partialModeBranches, alternate: toNode(alternate) },
+                { assert: true, dialect: queryCtx.options?.dialect }
+            );
+        }
+        // -----------
         return null;
     }
 
@@ -131,6 +188,14 @@ export class ExprEngine {
 
     async _CAST_EXPR(expr, dataType, compositeRow, queryCtx = {}) {
         const L = await this.evaluateToScalar(expr, compositeRow, queryCtx);
+        // ----------- asPartial
+        if (L instanceof AbstractNode) {
+            return registry.CastExpr.fromJSON(
+                { nodeName: registry.CastExpr.NODE_NAME, expr: toNode(L), data_type: dataType.jsonfy() },
+                { assert: true, dialect: queryCtx.options?.dialect }
+            );
+        }
+        // -----------
         const DT = dataType.value();
         switch (DT) {
             case 'INT': return parseInt(L);
@@ -141,9 +206,19 @@ export class ExprEngine {
     }
 
     async PREDICATE_EXPR(node, compositeRow, queryCtx = {}) {
-        switch (node.predicate()) {
+        const predicate = node.predicate();
+        switch (predicate) {
             case 'EXISTS':
-                const result = (await (await this.evaluate(node.expr(), compositeRow, queryCtx)).next()).value;
+                const expr = await this.evaluate(node.expr(), compositeRow, queryCtx);
+                // ----------- asPartial
+                if (expr instanceof AbstractNode) {
+                    return registry.PredicateExpr.fromJSON(
+                        { nodeName: registry.PredicateExpr.NODE_NAME, predicate, expr },
+                        { assert: true, dialect: queryCtx.options?.dialect }
+                    );
+                }
+                // -----------
+                const result = (await expr.next()).value;
                 return !!result;
             default: throw new Error(`ExprEngine: Unimplemented predicate ${node.predicate()}`);
         }
@@ -153,6 +228,14 @@ export class ExprEngine {
         const L = await this.evaluateToScalar(node.left(), compositeRow, queryCtx);
         const R = await this.evaluateToList(node.right(), compositeRow, queryCtx);
         const negation = node.negation();
+        // ----------- asPartial
+        if (L instanceof AbstractNode || R instanceof AbstractNode) {
+            return registry.InExpr.fromJSON(
+                { nodeName: registry.InExpr.NODE_NAME, left: toNode(L), negation, operator: 'IN', right: toNode(R) },
+                { assert: true, dialect: queryCtx.options?.dialect }
+            );
+        }
+        // -----------
         const res = (val) => negation ? !val : val;
         return res(R.some((v) => _eq(L, v)));
     }
@@ -161,6 +244,14 @@ export class ExprEngine {
         const L = await this.evaluateToScalar(node.left(), compositeRow, queryCtx);
         const R = await Promise.all(node.right().map((e) => this.evaluateToScalar(e, compositeRow, queryCtx)));
         const negation = node.negation();
+        // ----------- asPartial
+        if (L instanceof AbstractNode || R.some((x) => x instanceof AbstractNode)) {
+            return registry.BetweenExpr.fromJSON(
+                { nodeName: registry.BetweenExpr.NODE_NAME, left: toNode(L), negation, operator: 'BETWEEN', right: R.map(toNode) },
+                { assert: true, dialect: queryCtx.options?.dialect }
+            );
+        }
+        // -----------
         const res = (val) => negation ? !val : val;
         return res(L >= R[0] && L <= R[1]);
     }
@@ -168,7 +259,16 @@ export class ExprEngine {
     async DISTINCT_FROM_EXPR(node, compositeRow, queryCtx = {}) {
         const L = await this.evaluate(node.left(), compositeRow, queryCtx);
         const R = await this.evaluate(node.right(), compositeRow, queryCtx);
-        const negation = node.logic() === 'IS NOT';
+        const logic = node.logic();
+        // ----------- asPartial
+        if (L instanceof AbstractNode || R instanceof AbstractNode) {
+            return registry.DistinctFromExpr.fromJSON(
+                { nodeName: registry.DistinctFromExpr.NODE_NAME, left: toNode(L), logic, operator: 'DISTINCT FROM', right: toNode(R) },
+                { assert: true, dialect: queryCtx.options?.dialect },
+            );
+        }
+        // -----------
+        const negation = logic === 'IS NOT';
         const res = (val) => negation ? !val : val;
         return res(!_eq(L, R));
     }
@@ -176,6 +276,13 @@ export class ExprEngine {
     async BINARY_EXPR(node, compositeRow, queryCtx = {}) {
         const op = node.operator().toUpperCase();
         const negation = node.negation();
+
+        const asPartial = (L, R) => {
+            return registry.BinaryExpr.fromJSON(
+                { nodeName: registry.BinaryExpr.NODE_NAME, operator: op, left: toNode(L), right: toNode(R) },
+                { assert: true, dialect: queryCtx.options?.dialect }
+            );
+        };
 
         const res = (val) => negation ? !val : val;
 
@@ -201,6 +308,14 @@ export class ExprEngine {
             const quantifier = node.right().quantifier();
             const L = await this.evaluateToScalar(node.left(), compositeRow, queryCtx);
             const R = await this.evaluateToList(node.right().expr(), compositeRow, queryCtx);
+            // ----------- asPartial
+            if (L instanceof AbstractNode || R instanceof AbstractNode) {
+                return asPartial(L, registry.QuantitativeExpr.fromJSON(
+                    { nodeName: registry.QuantitativeExpr.NODE_NAME, quantifier, expr: toNode(R) },
+                    { assert: true, dialect: queryCtx.options?.dialect }
+                ));
+            }
+            // -----------
             switch (quantifier) {
                 case 'ALL': return res(R.every((R) => compare(L, R)));
                 case 'ANY':
@@ -211,6 +326,15 @@ export class ExprEngine {
         const L = await this.evaluateToScalar(node.left(), compositeRow, queryCtx);
         const R = await this.evaluateToScalar(node.right(), compositeRow, queryCtx);
 
+        // Logical - before asPartial
+        if (op === 'AND') return res(L && R);
+        if (op === 'OR') return res(L || R);
+
+        // ----------- asPartial
+        if (L instanceof AbstractNode || R instanceof AbstractNode) {
+            return asPartial(L, R);
+        }
+        // -----------
         switch (op) {
             // Comparison
             case '=':
@@ -223,21 +347,17 @@ export class ExprEngine {
             case '>':
             case '>=':
             case 'LIKE': return res(compare(L, R));
-            
+
             // Arithmetic
             case '+': return Number(L) + Number(R);
             case '-': return Number(L) - Number(R);
             case '/': return Number(L) / Number(R);
             case '*': return Number(L) * Number(R);
             case '%': return Number(L) % Number(R);
-            
+
             // String
             case '||': return String(L ?? '') + String(R ?? '');
-            
-            // Logical
-            case 'AND': return res(Boolean(L) && Boolean(R));
-            case 'OR': return res(Boolean(L) || Boolean(R));
-            
+
             // JSON
             case '->':
             case '->>': {
@@ -322,6 +442,14 @@ export class ExprEngine {
     async UNARY_EXPR(node, compositeRow, queryCtx = {}) {
         const op = node.operator().toUpperCase();
         const v = await this.evaluateToScalar(node.operand(), compositeRow, queryCtx);
+        // ----------- asPartial
+        if (v instanceof AbstractNode) {
+            return registry.UnaryExpr.fromJSON(
+                { nodeName: registry.UnaryExpr.NODE_NAME, operand: v },
+                { assert: true, dialect: queryCtx.options?.dialect }
+            );
+        }
+        // -----------
         switch (op) {
             case 'NOT': return !Boolean(v);
             case '-': return -v;
@@ -400,7 +528,14 @@ export class ExprEngine {
         // Classic functions
 
         const args = await Promise.all(node.arguments().map((a) => this.evaluate(a, compositeRow, queryCtx)));
-
+        // ----------- asPartial
+        if (args.some((x) => x instanceof AbstractNode)) {
+            return registry.CallExpr.fromJSON(
+                { nodeName: registry.CallExpr.NODE_NAME, name: fn, arguments: args.map(toNode) },
+                { assert: true, dialect: queryCtx.options?.dialect }
+            );
+        }
+        // -----------
         switch (fn) {
             case 'LOWER': return String(args[0] ?? '').toLowerCase();
 
@@ -702,6 +837,9 @@ export class ExprEngine {
 
         if (qualName) {
             const table = compositeRow[qualName];
+            if (table === TBL_PLACEHOLDER) {
+                return node.clone();
+            }
             if (!table) throw new Error(`Table alias ${qualName} not found in the current context`);
             return table[colName];
         }
@@ -713,10 +851,19 @@ export class ExprEngine {
         throw new Error(`Column ${colName} not found in the current context`);
     }
 
+    async BIND_VAR(node, compositeRow, queryCtx = {}) {
+        if (!Array.isArray(queryCtx.options.values))
+            throw new Error(`there is no parameter ${node}`);
+        const value = Number(node.value());
+        if (queryCtx.options.values.length < value)
+            throw new Error(`there is no parameter ${node}`);
+        return queryCtx.options.values[value - 1];
+    }
+
     async DEFAULT_LITERAL(node) { return null; }
     async STRING_LITERAL(node) { return node.value(); }
     async NUMBER_LITERAL(node) { return Number(node.value()); }
-    async BOOL_LITERAL(node) { return Boolean(node.value()); }
+    async BOOL_LITERAL(node) { return node.value() === 'TRUE'; }
     async NULL_LITERAL() { return null; }
 
     // -------------
@@ -783,6 +930,16 @@ export class ExprEngine {
             return 0;
         });
     }
+}
+
+function toNode(x) {
+    if (x === undefined
+        || x instanceof AbstractNode) return x;
+    if (typeof x === 'number') return registry.NumberLiteral.fromJSON({ value: x });
+    if (typeof x === 'string') return registry.StringLiteral.fromJSON({ value: x });
+    if (typeof x === 'boolean') return registry.BoolLiteral.fromJSON({ value: x });
+    if (x === null) return registry.NullLiteral.fromJSON({ value: x });
+    throw new Error(`Cannot convert value to AST node: ${x}`);
 }
 
 function likeCompare(str, pattern) {

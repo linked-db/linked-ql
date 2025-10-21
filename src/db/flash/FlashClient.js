@@ -45,16 +45,17 @@ export class FlashClient extends AbstractClient {
                     && (nsName = v.qualifier()?.value())
                     && (tblName = v.value())) {
                     const nsDef = unmaterializedMirrors.get(nsName);
-                    const tableDef = nsDef?.tables.get(tblName);
-                    if (!tableDef) return;
+                    const tblDef = nsDef?.tables.get(tblName);
+                    if (!tblDef) return;
 
                     if (!effectiveMirrorsSpec.has(nsName)) {
-                        effectiveMirrorsSpec.set(nsName, { origin: nsDef.origin, tables: new Map });
+                        effectiveMirrorsSpec.set(nsName, { type: nsDef.type, origin: nsDef.origin, tables: new Map });
                     }
-                    effectiveMirrorsSpec.get(nsName).tables.set(tblName, tableDef);
+                    effectiveMirrorsSpec.get(nsName).tables.set(tblName, tblDef);
 
-                    if (tableDef?.querySpec.query
-                        || tableDef?.querySpec.table.schema && tableDef.querySpec.table.schema !== nsName) {
+                    if (nsDef.type === 'API'
+                        || tblDef?.querySpec.query
+                        || tblDef?.querySpec.table.schema && tblDef.querySpec.table.schema !== nsName) {
                         resolutionHint = -1;
                     } else if (resolutionHint !== -1) {
                         resolutionHint = 1;
@@ -222,7 +223,7 @@ export class FlashClient extends AbstractClient {
         const remoteClient = await this.getRemoteClient(origin);
 
         for (const [nsName, queryObjects] of specifiers.entries()) {
-            const namespaceObject = await storageEngine.createNamespace(nsName, { ifNotExists: options.ifNotExists, mirrored: true, origin }, queryCtx);
+            const namespaceObject = await storageEngine.createNamespace(nsName, { ifNotExists: options.ifNotExists, type: options.type, mirrored: true, origin }, queryCtx);
 
             for (const querySpec of queryObjects) {
                 const [query] = await remoteClient.resolveQuery(querySpec);
@@ -384,13 +385,13 @@ export class FlashClient extends AbstractClient {
                 }
             }
 
-            outQueryObjects.push(registry.Script.parseSpec(outQueryObject, { dialect: origin.dialect }));
+            outQueryObjects.push(outQueryObject);
         }
 
         if (outQueryObjects.length) {
             // TODO: implement an outbound queue for these quesries and handle failures
-            const remoteClient = await this.getRemoteClient(origin);
-            const result = await remoteClient.query(outQueryObjects.join(';'));
+            //const remoteClient = await this.getRemoteClient(origin);
+            //const result = await remoteClient.query(outQueryObjects.join(';'));
         }
     }
 
@@ -422,26 +423,30 @@ export class FlashClient extends AbstractClient {
                     let keys;
                     if (!(typeof subSpec === 'object' && subSpec)
                         || !(keys = Object.keys(subSpec)).length
-                        || keys.filter((k) => k !== 'schema' && k !== 'name' && k !== 'query' && k !== 'where').length
+                        || keys.filter((k) => k !== 'schema' && k !== 'name' && k !== 'query' && k !== 'where' && k !== 'joinStrategy').length
                         || (!subSpec.query && !subSpec.name)) {
-                        throw new SyntaxError(`Given table spec ${JSON.stringify(tableSpec)} invalid`);
+                        throw new SyntaxError(`Given table spec ${JSON.stringify(subSpec)} invalid`);
                     }
 
                     if (subSpec.query) {
                         if (!allowQueries) throw new SyntaxError(`Arbitrary queries found in ${JSON.stringify(tableSpec)} but not supported on this operation`);
                         if (subSpec.schema || subSpec.name || subSpec.where)
-                            throw new SyntaxError(`Mutually-exclusive attributes detected in ${JSON.stringify(tableSpec)}`);
+                            throw new SyntaxError(`Mutually-exclusive attributes detected in ${JSON.stringify(subSpec)}`);
 
-                        specifiers.get(nsName).add({ query: subSpec.query });
+                        specifiers.get(nsName).add({
+                            query: subSpec.query,
+                            joinStrategy: subSpec.joinStrategy
+                        });
                     } else {
                         if (subSpec.where && typeof subSpec.where !== 'object')
-                            throw new SyntaxError(`Given where spec ${JSON.stringify(tableSpec)} invalid`);
+                            throw new SyntaxError(`Given where spec ${JSON.stringify(subSpec)} invalid`);
 
                         specifiers.get(nsName).add({
                             command: 'select',
                             table: { schema: subSpec.schema || nsName, name: subSpec.name },
                             columns: ['*'],
-                            where: subSpec.where
+                            where: subSpec.where,
+                            joinStrategy: subSpec.joinStrategy
                         });
                     }
                 }

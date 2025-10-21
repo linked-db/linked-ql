@@ -3,7 +3,9 @@ import { ConflictError } from './ConflictError.js';
 import { ExprEngine } from './ExprEngine.js';
 import { registry } from '../../lang/registry.js';
 import { Transformer } from '../../lang/Transformer.js';
+import { AbstractNode } from '../../lang/abstracts/AbstractNode.js';
 
+const TBL_PLACEHOLDER = Symbol.for('tbl_placeholder');
 const GROUPING_META = Symbol.for('grouping_meta');
 const WINDOW_META = Symbol.for('window_meta');
 
@@ -73,20 +75,6 @@ export class QueryEngine extends SimpleEmitter {
         }
 
         return returnValue;
-    }
-
-    #isRemoteRef(fromItemExpr, options) {
-        if (!(fromItemExpr instanceof registry.TableRef1)
-            || fromItemExpr.resolution() !== 'default') return false;
-        if (!options.effectiveMirrorsSpec) return false;
-
-        const nsName = fromItemExpr.qualifier()?.value() || this.#storageEngine.defaultNamespace;
-        const tblName = fromItemExpr.value();
-
-        const nsDef = options.effectiveMirrorsSpec.get(nsName);
-        const tblDef = nsDef?.tables.get(tblName);
-
-        return tblDef ? [nsDef, tblDef] : null;
     }
 
     // -------- DISPATCHER
@@ -671,11 +659,21 @@ export class QueryEngine extends SimpleEmitter {
     async evaluateFromItems(fromEntries, joinClauses, originSchemas, queryCtx) {
         // combine base from entries then join clauses in order
         const allItems = [...fromEntries, ...(joinClauses || [])];
+        const _originSchema = (aliasName) => originSchemas.find((os) => !aliasName ? !os.name?.() : os.identifiesAs(aliasName));
+
         // start with first item
         const firstItem = allItems[0];
         const firstItemAlias = firstItem.alias?.()?.value();
-        const _originSchema = (aliasName) => originSchemas.find((os) => !aliasName ? !os.name?.() : os.identifiesAs(aliasName));
-        let leftStream = this.evaluateFromItem(firstItem, _originSchema(firstItemAlias), queryCtx);
+
+        // Pre-resolve remote calls
+        const [nsDef, tblDef] = this.#isRemoteRef(firstItem.expr?.(), queryCtx.options);
+        let remoteStream;
+        if (tblDef) {
+            const remoteQuery = await nsDef.client.parseQuery(tblDef.querySpec);
+            remoteStream = await nsDef.client.cursor(remoteQuery, []);
+        }
+
+        let leftStream = this.evaluateFromItem(firstItem, _originSchema(firstItemAlias), { ...queryCtx, remoteStream });
 
         // progressively join subsequent items
         for (let idx = 1; idx < allItems.length; idx++) {
@@ -684,6 +682,10 @@ export class QueryEngine extends SimpleEmitter {
             const rightItem = allItems[idx];
             const rightAlias = rightItem.alias?.()?.value();
             const rightSchema = _originSchema(rightAlias);
+
+            // Determin JOIN type and lateralness
+            const joinType = rightItem.joinType?.() || (fromEntries.includes(rightItem) ? 'CROSS' : 'INNER');
+            const isLateral = !!rightItem.lateralKW?.();
 
             let joinCondition = rightItem.conditionClause?.();
 
@@ -697,50 +699,40 @@ export class QueryEngine extends SimpleEmitter {
                     return all.concat({ value: rc.name().value(), delim: rc._get('delim') });
                 }, []);
                 if (columns.length) {
-                    joinCondition = registry.UsingClause.fromJSON({ columns }, { assert: true });
+                    joinCondition = registry.OnClause.fromJSON(
+                        { expr: this.#usingToExpr_Transform(columns, leftAlias, rightAlias) },
+                        { assert: true }
+                    );
                 }
             }
-
-            const isRemoteRef = !!this.#isRemoteRef(rightItem.expr?.(), queryCtx.options);
-            let pushDownLogic;
-
-            // Declare parameters for resolving remote JOINs
-            if (isRemoteRef) {
-                if (joinCondition instanceof registry.UsingClause) {
-                    pushDownLogic = [].concat(joinCondition.column() || joinCondition.columns()).reduce((acc, ident) => {
-                        const left = { ...ident.jsonfy(), nodeName: registry.ColumnRef1.NODE_NAME, qualifier: { nodeName: registry.TableRef1.NODE_NAME, value: leftAlias } };
-                        const right = { ...ident.jsonfy(), nodeName: registry.ColumnRef1.NODE_NAME, qualifier: { nodeName: registry.TableRef1.NODE_NAME, value: rightAlias } };
-                        let logicalExpr = registry.BinaryExpr.fromJSON({ left, operator: '=', right });
-
-                        if (acc) logicalExpr = registry.BinaryExpr.fromJSON({ left: acc, operator: 'AND', right: logicalExpr });
-                        return logicalExpr;
-                    }, null);
-                } else if (joinCondition instanceof registry.OnClause) {
-                    pushDownLogic = joinCondition.expr();
-                }
-            }
-
-            // Determin JOIN type and lateralness
-            const joinType = rightItem.joinType?.() || (fromEntries.includes(rightItem) ? 'CROSS' : 'INNER');
-            const isLateral = rightItem.lateralKW?.();
-            let createRightStream;
 
             // Determine how right stream is resolved
-            if (isRemoteRef) {
-                createRightStream = (_lateralCtx) => this.evaluateFromItem(rightItem, rightSchema, { ...queryCtx, lateralCtx: _lateralCtx, pushDownLogic });
+            let createRightStream;
+
+            // Pre-resolve remote calls
+            const [nsDef, tblDef] = this.#isRemoteRef(rightItem.expr?.(), queryCtx.options);
+            if (tblDef) {
+                let createRemoteStream;
+                // Resolve remote stream
+                [leftStream, createRemoteStream, joinCondition] = await this.#deriveCreateRemoteStream(
+                    leftStream,
+                    nsDef,
+                    tblDef,
+                    joinCondition,
+                    leftAlias,
+                    rightAlias,
+                    queryCtx
+                );
+                // Declare the streaming handler
+                createRightStream = async (lateralCtx, i) => {
+                    const remoteStream = await createRemoteStream(lateralCtx, i);
+                    return this.evaluateFromItem(rightItem, rightSchema, { ...queryCtx, lateralCtx: null, remoteStream });
+                };
             } else if (isLateral) {
-                createRightStream = (_lateralCtx) => this.evaluateFromItem(rightItem, rightSchema, { ...queryCtx, lateralCtx: _lateralCtx });
+                createRightStream = (lateralCtx) => this.evaluateFromItem(rightItem, rightSchema, { ...queryCtx, lateralCtx });
             } else {
                 const rightStream = this.evaluateFromItem(rightItem, rightSchema, { ...queryCtx, lateralCtx: null });
-                const rightBuffer = [];
-                createRightStream = async function* () {
-                    if (rightBuffer.length) {
-                        yield* rightBuffer;
-                    } else for await (const rc of rightStream) {
-                        rightBuffer.push(rc);
-                        yield rc;
-                    }
-                };
+                createRightStream = this.#memoizeStream(rightStream);
             }
 
             // join
@@ -749,6 +741,147 @@ export class QueryEngine extends SimpleEmitter {
 
         return leftStream;
     }
+
+    // ---------- begin util
+
+    async #deriveCreateRemoteStream(leftStream, nsDef, tblDef, joinCondition, leftAlias, rightAlias, queryCtx) {
+        let createRemoteStream;
+
+        const joinStrategy = tblDef.querySpec.joinStrategy || { memoization: false, pushdownSize: 0 };
+
+        if (joinCondition && joinStrategy.pushdownSize) {
+            // Normalize to Expr
+            let conditionExpr;
+            if (joinCondition instanceof registry.UsingClause) {
+                const columns = [].concat(joinCondition.column() || joinCondition.columns());
+                conditionExpr = this.#usingToExpr_Transform(columns, leftAlias, rightAlias);
+            } else {
+                conditionExpr = joinCondition.expr();
+            }
+
+            // Compile
+            const remoteQuery_Where = await nsDef.client.parseQuery(tblDef.querySpec, {
+                alias: rightAlias,
+                dynamicWhereMode: true,
+            });
+
+            if (Number(joinStrategy.pushdownSize) > 1) {
+                const pushdownSize = joinStrategy.pushdownSize;
+
+                // Tee the stream
+                let memo = this.#memoizeStream(leftStream);;
+                const masterLeftStream = memo(); // Must be #1
+                leftStream = memo(); // Must be #2
+
+                let $i = 0;
+                const concatWhere = async () => {
+                    let $pushDownLogic;
+                    let someTruthy = false;
+                    for await (const leftComp of masterLeftStream) {
+                        $i++;
+                        const pushDownLogic = await this.#exprEngine.evaluate(conditionExpr, { ...leftComp, [rightAlias]: TBL_PLACEHOLDER }, queryCtx);
+                        // Concat logic
+                        if (pushDownLogic instanceof AbstractNode) {
+                            $pushDownLogic = $pushDownLogic
+                                ? registry.BinaryExpr.fromJSON(
+                                    { nodeName: registry.BinaryExpr.NODE_NAME, left: $pushDownLogic, operator: 'OR', right: pushDownLogic },
+                                    { assert: true }
+                                )
+                                : pushDownLogic;
+                        } else if (pushDownLogic) {
+                            someTruthy = true;
+                        }
+                        if ($i > 1 && $i % pushdownSize === 0) {
+                            break;
+                        }
+                    }
+                    if (!$pushDownLogic && !someTruthy) return;
+                    return remoteQuery_Where($pushDownLogic);
+                };
+
+                // Initialize process
+                let remoteQuery = await concatWhere();
+                let remoteStream;
+
+                // Stream with at pushdownSize chunks
+                createRemoteStream = async (_, i) => {
+                    if (i === 0 || i > $i) {
+                        if (i > $i) remoteQuery = await concatWhere(); // lazily
+                        if (remoteQuery) {
+                            remoteStream = await nsDef.client.cursor(remoteQuery);
+                        } else remoteStream = (async function* () { })();
+                    }
+                    return remoteStream;
+                };
+            } else {
+                // Fixed WHERE structure
+                createRemoteStream = async (lateralCtx) => {
+                    let pushDownLogic = await this.#exprEngine.evaluate(conditionExpr, { ...lateralCtx, [rightAlias]: TBL_PLACEHOLDER }, queryCtx);
+                    if (pushDownLogic instanceof AbstractNode || (pushDownLogic = Boolean(pushDownLogic))) {
+                        const remoteQuery = remoteQuery_Where(pushDownLogic);
+                        return await nsDef.client.cursor(remoteQuery);
+                    }
+                    return (async function* () { })();
+                };
+                // Can be safely ommited as having been pushed down
+                joinCondition = null;
+            }
+        } else {
+            // No WHERE at all
+            const remoteQuery = await nsDef.client.parseQuery(tblDef.querySpec);
+            if (joinStrategy.memoization) {
+                const remoteStream = await nsDef.client.cursor(remoteQuery);
+                createRemoteStream = this.#memoizeStream(remoteStream);
+            } else {
+                createRemoteStream = async () => await nsDef.client.cursor(remoteQuery);
+            }
+        }
+
+        return [leftStream, createRemoteStream, joinCondition];
+    }
+
+    #isRemoteRef(fromItemExpr, options) {
+        if (!(fromItemExpr instanceof registry.TableRef1)
+            || fromItemExpr.resolution() !== 'default') return [];
+        if (!options.effectiveMirrorsSpec) return [];
+
+        const nsName = fromItemExpr.qualifier()?.value() || this.#storageEngine.defaultNamespace;
+        const tblName = fromItemExpr.value();
+
+        const nsDef = options.effectiveMirrorsSpec.get(nsName);
+        const tblDef = nsDef?.tables.get(tblName);
+
+        return [nsDef, tblDef];
+    }
+
+    #memoizeStream(stream, callback = null) {
+        const buffer = [];
+        return async function* () {
+            if (buffer.length) {
+                yield* buffer;
+            } else for await (let q of stream) {
+                if (callback) {
+                    q = callback(q);
+                }
+                buffer.push(q);
+                yield q;
+            }
+        };
+    }
+
+    #usingToExpr_Transform(columns, leftAlias, rightAlias) {
+        return columns.reduce((acc, ident) => {
+            const identJson = ident.jsonfy?.() || ident;
+            const left = { ...identJson, nodeName: registry.ColumnRef1.NODE_NAME, qualifier: { nodeName: registry.TableRef1.NODE_NAME, value: leftAlias } };
+            const right = { ...identJson, nodeName: registry.ColumnRef1.NODE_NAME, qualifier: { nodeName: registry.TableRef1.NODE_NAME, value: rightAlias } };
+            let logicalExpr = registry.BinaryExpr.fromJSON({ left, operator: '=', right });
+
+            if (acc) logicalExpr = registry.BinaryExpr.fromJSON({ left: acc, operator: 'AND', right: logicalExpr });
+            return logicalExpr;
+        }, null);
+    }
+
+    // ---------- end util
 
     async * evaluateFromItem(fromItem, originSchema, queryCtx) {
 
@@ -950,63 +1083,18 @@ export class QueryEngine extends SimpleEmitter {
 
         // CTERef?
         let stream;
-        if (fromItemExpr.resolution() === 'cte') {
+        if (queryCtx.remoteStream) {
+            stream = queryCtx.remoteStream;
+        } else if (fromItemExpr.resolution() === 'cte') {
             stream = queryCtx.cteRegistry?.get(tblName);
-            
             if (!stream) throw new Error(`Implied CTE ${tblName} does not exist in the current context`);
             if (typeof stream[Symbol.asyncIterator] !== 'function') throw new Error(`Implied CTE ${tblName} does not return a record set`);
         } else {
             const nsName = fromItemExpr.qualifier()?.value() || this.#storageEngine.defaultNamespace;
-
-            // Handle mirror refs
-            const nsDef = queryCtx.options?.effectiveMirrorsSpec?.get(nsName);
-            const tblDef = nsDef?.tables.get(tblName);
-
-            if (tblDef) {
-                let pushDownParams = [];
-                let query = await registry.Script.parseSpec(tblDef.querySpec, { dialect: nsDef.origin.dialect });
-                
-                // Patch query?
-                if (queryCtx.pushDownLogic) {
-                    const queryJson = query.jsonfy();
-                    const bindings = [];
-
-                    // Mine refs for rendering
-                    const transformer = new Transformer((node, defaultTransform) => {
-                        if (node instanceof registry.ColumnRef1
-                            && !node.qualifier()?.identifiesAs(aliasName)) {
-                            bindings.push(node);
-                            return { nodeName: registry.BindVar.NODE_NAME, value: bindings.length };
-                        }
-                        return defaultTransform();
-                    });
-
-                    const renderedpushDownLogicJson = queryCtx.pushDownLogic.jsonfy({}, transformer);
-
-                    const whereExprJson = queryJson.where_clause ? {
-                        nodeName: registry.BinaryExpr.NODE_NAME,
-                        operator: 'AND',
-                        left: renderedpushDownLogicJson,
-                        right: queryJson.where_clause.expr,
-                    } : renderedpushDownLogicJson;
-
-                    // Rewrite main query now
-                    pushDownParams = await Promise.all(bindings.map((b) => this.#exprEngine.evaluate(b, queryCtx.lateralCtx, queryCtx)));
-                    query = registry.CompleteSelectStmt.fromJSON({
-                        ...queryJson,
-                        where_clause: { nodeName: registry.WhereClause.NODE_NAME, expr: whereExprJson },
-                    }, { assert: true });
-                }
-
-                // Execute as a cursor query
-                stream = await nsDef.client.cursor(query, pushDownParams);
-            } else {
-                const namespaceObject = await this.#storageEngine.getNamespace(nsName);
-                const tableStorage = await namespaceObject.getTable(tblName);
-
-                // Whole tableStorage is stream
-                stream = tableStorage;
-            }
+            const namespaceObject = await this.#storageEngine.getNamespace(nsName);
+            const tableStorage = await namespaceObject.getTable(tblName);
+            // Whole tableStorage is stream
+            stream = tableStorage;
         }
 
         // Consume stream
@@ -1044,11 +1132,12 @@ export class QueryEngine extends SimpleEmitter {
         const rightMatches = new Map;
 
         // The JOIN
+        let i = 0;
         for await (const leftComp of leftStream) {
             for (const k of Object.keys(leftComp)) leftAliasSet.add(k);
 
             let leftMatched = false;
-            for await (const rightComp of createRightStream(leftComp)) {
+            for await (const rightComp of await createRightStream(leftComp, i)) {
                 const fullMergedComp = { ...leftComp, ...rightComp };
 
                 const rightRef = () => _rightRef || (_rightRef = isLateral ? JSON.stringify(rightComp) : rightComp);
@@ -1067,6 +1156,7 @@ export class QueryEngine extends SimpleEmitter {
             if (!leftMatched && (joinType === 'LEFT' || joinType === 'FULL')) {
                 yield nullFill({ ...leftComp }, [rightAlias]);
             }
+            i++;
         }
 
         if (joinType === 'RIGHT' || joinType === 'FULL') {
