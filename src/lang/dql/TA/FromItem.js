@@ -112,7 +112,7 @@ export class FromItem extends ResultSchemaMixin(AbstractNode) {
 
             const derivedAliasJson = resultJson.alias || this.deriveAlias()?.jsonfy();
 
-            const schemaIdent = derivedAliasJson?.value && {
+            const namespaceIdent = derivedAliasJson?.value && {
                 nodeName: registry.Identifier.NODE_NAME,
                 value: derivedAliasJson.value,
                 delim: derivedAliasJson.delim,
@@ -122,10 +122,10 @@ export class FromItem extends ResultSchemaMixin(AbstractNode) {
 
 
             if (resultSchema instanceof registry.TableSchema) {
-                resultSchema = resultSchema.clone({ renameTo: schemaIdent });
-            } else if (schemaIdent) {
+                resultSchema = resultSchema.clone({ renameTo: namespaceIdent });
+            } else if (namespaceIdent) {
                 resultSchema = registry.TableSchema.fromJSON({
-                    name: schemaIdent,
+                    name: namespaceIdent,
                     entries: resultSchema?.entries().map((s) => s.jsonfy()) || [],
                 }, { assert: true });
             }

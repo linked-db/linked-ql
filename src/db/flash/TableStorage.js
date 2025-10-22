@@ -170,7 +170,7 @@ export class TableStorage extends SimpleEmitter {
         }
 
         const outRow = { ...row };
-        transaction?.emit('changefeed', { type: 'insert', relation: { schema: this.#parentNode.name, name: this.#name, keyColumns: [...this.#keyColumns] }, new: outRow });
+        transaction?.emit('changefeed', { type: 'insert', relation: { namespace: this.#parentNode.name, name: this.#name, keyColumns: [...this.#keyColumns] }, new: outRow });
         if (transaction) return Object.defineProperty(outRow, 'XMAX', { value: 0 }); // Must be 0
 
         return outRow;
@@ -202,7 +202,7 @@ export class TableStorage extends SimpleEmitter {
         }
 
         const outRow = { ...row };
-        transaction?.emit('changefeed', { type: 'update', relation: { schema: this.#parentNode.name, name: this.#name, keyColumns: [...this.#keyColumns] }, old, new: outRow });
+        transaction?.emit('changefeed', { type: 'update', relation: { namespace: this.#parentNode.name, name: this.#name, keyColumns: [...this.#keyColumns] }, old, new: outRow });
         if (transaction) return Object.defineProperty(outRow, 'XMAX', { value: transaction.txId });
 
         return outRow;
@@ -222,7 +222,7 @@ export class TableStorage extends SimpleEmitter {
         this.#rows.delete(pKey);
 
         const outRow = { ...old };
-        transaction?.emit('changefeed', { type: 'delete', relation: { schema: this.#parentNode.name, name: this.#name, keyColumns: [...this.#keyColumns] }, old });
+        transaction?.emit('changefeed', { type: 'delete', relation: { namespace: this.#parentNode.name, name: this.#name, keyColumns: [...this.#keyColumns] }, old });
         if (transaction) return Object.defineProperty(outRow, 'XMAX', { value: transaction.txId });
 
         return outRow;

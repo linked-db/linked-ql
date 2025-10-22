@@ -49,7 +49,7 @@ const sql =
   )
 )`;
 
-const resultNode = await testParseAndStringify('SchemaSchema', sql, { prettyPrint: true, assert: false });
+const resultNode = await testParseAndStringify('NamespaceSchema', sql, { prettyPrint: true, assert: false });
 catalog.push(resultNode);
 
 const sql2 =
@@ -75,7 +75,7 @@ const sql2 =
   )
 )`;
 
-const resultNode2 = await testParseAndStringify('SchemaSchema', sql2, { prettyPrint: true });
+const resultNode2 = await testParseAndStringify('NamespaceSchema', sql2, { prettyPrint: true });
 catalog.push(resultNode2);
 
 export { catalog }

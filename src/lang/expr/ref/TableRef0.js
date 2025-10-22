@@ -5,7 +5,7 @@ export class TableRef0 extends TableRef1 {
 
     /* SYNTAX RULES */
 
-    static get _qualifierType() { return ['SchemaRef']; }
+    static get _qualifierType() { return ['NamespaceRef']; }
 
     static get syntaxRules() {
         return this.buildSyntaxRules({ type: 'operator', as: '.', value: '*', autoSpacing: false });

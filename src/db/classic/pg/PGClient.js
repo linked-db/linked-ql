@@ -1,9 +1,9 @@
 import pg from 'pg';
 import Cursor from 'pg-cursor';
 import { LogicalReplicationService, PgoutputPlugin } from 'pg-logical-replication';
-import { ClassicClient } from '../ClassicClient.js';
+import { AbstractSQL0Client } from '../../abstracts/AbstractSQL0Client.js';
 
-export class PGClient extends ClassicClient {
+export class PGClient extends AbstractSQL0Client {
 
     #driver;
     #adminDriver;
@@ -64,11 +64,11 @@ export class PGClient extends ClassicClient {
         } catch { /* avoid hang */ }
     }
 
-    async _query(query, { values = [], name = null }) {
+    async _query(query, { values = [], prepared = null }) {
         return await this.#driver.query({
             text: query + '',
             values,
-            name,
+            name: prepared,
         });
     }
 
@@ -156,7 +156,7 @@ export class PGClient extends ClassicClient {
 
                 case 'relation':
                     walRelations.set(msg.relationOid, {
-                        schema: msg.schema,
+                        namespace: msg.schema,
                         name: msg.name,
                         keyColumns: msg.keyColumns,
                     });
@@ -166,7 +166,7 @@ export class PGClient extends ClassicClient {
                 case 'update':
                 case 'delete': {
                     const rel = walRelations.get(msg.relation.relationOid) || {
-                        schema: msg.relation.schema,
+                        namespace: msg.relation.schema,
                         name: msg.relation.name,
                         keyColumns: msg.relation.keyColumns,
                     };

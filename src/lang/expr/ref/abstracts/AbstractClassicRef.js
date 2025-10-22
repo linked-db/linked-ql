@@ -15,7 +15,7 @@ export class AbstractClassicRef extends ResultSchemaMixin(TypeSysMixin(Identifie
 
     resolve(transformer, schemaInference) {
         const resultSet = this.lookup(null, transformer, schemaInference) || [];
-        const objectType = this.constructor.name.match(/schema/i) ? 'Schema' : (this.constructor.name.match(/table/i) ? 'Table' : 'Column');
+        const objectType = this.constructor.name.match(/namespace/i) ? 'Namespace' : (this.constructor.name.match(/table/i) ? 'Table' : 'Column');
         if (resultSet.length > 1) {
             throw new ErrorRefAmbiguous(`[${this.parentNode?.parentNode || this.parentNode || this}] ${objectType} ${this} is ambiguous. (Is it ${resultSet.join(' or ')}?)`);
         } else if (!resultSet.length) {

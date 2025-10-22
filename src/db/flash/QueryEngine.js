@@ -1,9 +1,9 @@
 import { SimpleEmitter } from '../abstracts/SimpleEmitter.js';
+import { AbstractNode } from '../../lang/abstracts/AbstractNode.js';
 import { ConflictError } from './ConflictError.js';
 import { ExprEngine } from './ExprEngine.js';
 import { registry } from '../../lang/registry.js';
-import { Transformer } from '../../lang/Transformer.js';
-import { AbstractNode } from '../../lang/abstracts/AbstractNode.js';
+import { AbstractAPIClient } from './api/AbstractAPIClient.js';
 
 const TBL_PLACEHOLDER = Symbol.for('tbl_placeholder');
 const GROUPING_META = Symbol.for('grouping_meta');
@@ -112,7 +112,7 @@ export class QueryEngine extends SimpleEmitter {
     async #evaluateCREATE_SCHEMA_STMT(stmtNode, queryCtx) {
         const nsName = stmtNode.name().value();
         if (!nsName) {
-            throw new Error('Cannot create a schema with an empty name');
+            throw new Error('Cannot create a namespace with an empty name');
         }
 
         const createOpts = { ifNotExists: !!stmtNode.ifNotExists() };
@@ -159,7 +159,7 @@ export class QueryEngine extends SimpleEmitter {
         const argument = stmtNode.argument();
         const nsName = argument.name().qualifier()?.value() || queryCtx.nsName || this.#storageEngine.defaultNamespace;
         if (queryCtx.nsName && nsName !== queryCtx.nsName) {
-            throw new Error(`Cannot create table ${argument.name()} in schema ${queryCtx.nsName} as it is qualified to schema ${nsName}`);
+            throw new Error(`Cannot create table ${argument.name()} in namespace ${queryCtx.nsName} as it is qualified to namespace ${nsName}`);
         }
 
         const namespaceObject = await this.#storageEngine.getNamespace(nsName);
@@ -575,7 +575,7 @@ export class QueryEngine extends SimpleEmitter {
     // -------- DQL
 
     async * #evaluateTABLE_STMT(stmtNode, queryCtx) {
-        // Resolve schema/table spec
+        // Resolve namespace/table spec
         const tableRef = stmtNode.tableRef();
         const tblName = tableRef.value();
         const nsName = tableRef.qualifier()?.value() || this.#storageEngine.defaultNamespace;
@@ -669,8 +669,10 @@ export class QueryEngine extends SimpleEmitter {
         const [nsDef, tblDef] = this.#isRemoteRef(firstItem.expr?.(), queryCtx.options);
         let remoteStream;
         if (tblDef) {
-            const remoteQuery = await nsDef.client.parseQuery(tblDef.querySpec);
-            remoteStream = await nsDef.client.cursor(remoteQuery, []);
+            const remoteQuery = await nsDef.client.parse(tblDef.querySpec);
+            remoteStream = nsDef.client instanceof AbstractAPIClient
+                ? await nsDef.client.stream(remoteQuery)
+                : await nsDef.client.cursor(remoteQuery);
         }
 
         let leftStream = this.evaluateFromItem(firstItem, _originSchema(firstItemAlias), { ...queryCtx, remoteStream });
@@ -760,7 +762,7 @@ export class QueryEngine extends SimpleEmitter {
             }
 
             // Compile
-            const remoteQuery_Where = await nsDef.client.parseQuery(tblDef.querySpec, {
+            const remoteQuery_Where = await nsDef.client.parse(tblDef.querySpec, {
                 alias: rightAlias,
                 dynamicWhereMode: true,
             });
@@ -808,7 +810,9 @@ export class QueryEngine extends SimpleEmitter {
                     if (i === 0 || i > $i) {
                         if (i > $i) remoteQuery = await concatWhere(); // lazily
                         if (remoteQuery) {
-                            remoteStream = await nsDef.client.cursor(remoteQuery);
+                            remoteStream = nsDef.client instanceof AbstractAPIClient
+                                ? await nsDef.client.stream(remoteQuery)
+                                : await nsDef.client.cursor(remoteQuery);
                         } else remoteStream = (async function* () { })();
                     }
                     return remoteStream;
@@ -819,7 +823,9 @@ export class QueryEngine extends SimpleEmitter {
                     let pushDownLogic = await this.#exprEngine.evaluate(conditionExpr, { ...lateralCtx, [rightAlias]: TBL_PLACEHOLDER }, queryCtx);
                     if (pushDownLogic instanceof AbstractNode || (pushDownLogic = Boolean(pushDownLogic))) {
                         const remoteQuery = remoteQuery_Where(pushDownLogic);
-                        return await nsDef.client.cursor(remoteQuery);
+                        return nsDef.client instanceof AbstractAPIClient
+                            ? await nsDef.client.stream(remoteQuery)
+                            : await nsDef.client.cursor(remoteQuery);
                     }
                     return (async function* () { })();
                 };
@@ -828,12 +834,16 @@ export class QueryEngine extends SimpleEmitter {
             }
         } else {
             // No WHERE at all
-            const remoteQuery = await nsDef.client.parseQuery(tblDef.querySpec);
+            const remoteQuery = await nsDef.client.parse(tblDef.querySpec);
             if (joinStrategy.memoization) {
-                const remoteStream = await nsDef.client.cursor(remoteQuery);
+                const remoteStream = nsDef.client instanceof AbstractAPIClient
+                    ? await nsDef.client.stream(remoteQuery)
+                    : await nsDef.client.cursor(remoteQuery);
                 createRemoteStream = this.#memoizeStream(remoteStream);
             } else {
-                createRemoteStream = async () => await nsDef.client.cursor(remoteQuery);
+                createRemoteStream = async () => nsDef.client instanceof AbstractAPIClient
+                    ? await nsDef.client.stream(remoteQuery)
+                    : await nsDef.client.cursor(remoteQuery);
             }
         }
 

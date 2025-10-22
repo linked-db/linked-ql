@@ -1,7 +1,7 @@
 import mysql from 'mysql2/promise';
-import { ClassicClient } from '../ClassicClient.js';
+import { AbstractSQL0Client } from '../AbstractSQL0Client.js';
 
-export class MySQLClient extends ClassicClient {
+export class MyAbstractSQLClient extends AbstractSQL0Client {
 
     #driver;
     #adminDriver;

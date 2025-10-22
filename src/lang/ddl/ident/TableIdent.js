@@ -5,5 +5,5 @@ export class TableIdent extends PathMixin(Identifier) {
 
 	/* SYNTAX RULES */
 	
-	static get _qualifierType() { return 'SchemaRef'; }
+	static get _qualifierType() { return 'NamespaceRef'; }
 }

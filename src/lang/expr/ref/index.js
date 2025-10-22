@@ -10,7 +10,7 @@ export { LQDeepDeepRef1 } from './LQDeepDeepRef1.js';
 export { LQDeepDeepRef2 } from './LQDeepDeepRef2.js';
 export { LQDeepRef1 } from './LQDeepRef1.js';
 export { LQDeepRef2 } from './LQDeepRef2.js';
-export { SchemaRef } from './SchemaRef.js';
+export { NamespaceRef } from './NamespaceRef.js';
 export { TableRef0 } from './TableRef0.js';
 export { TableRef1 } from './TableRef1.js';
 export { TableRef2 } from './TableRef2.js';

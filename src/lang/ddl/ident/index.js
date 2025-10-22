@@ -1,3 +1,3 @@
 export { ColumnIdent } from './ColumnIdent.js';
-export { SchemaIdent } from './SchemaIdent.js';
+export { NamespaceIdent } from './NamespaceIdent.js';
 export { TableIdent } from './TableIdent.js';

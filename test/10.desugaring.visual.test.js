@@ -98,10 +98,10 @@ $describe('DeSugaring - Expr DeSugaring', () => {
     });
 
     $describe('VersionSpec', () => {
-        $it('should parse an "SchemaRef" with version spec to just the SchemaRef - Postgres', async () => {
+        $it('should parse an "NamespaceRef" with version spec to just the NamespaceRef - Postgres', async () => {
             const inputSql = `schema1@3_3`;
             const outputSql = `schema1`;
-            await testParseAndStringify('SchemaRef', [inputSql, outputSql], { deSugar: true });
+            await testParseAndStringify('NamespaceRef', [inputSql, outputSql], { deSugar: true });
         });
 
         $it('should parse an "TableRef1" with version spec to just the TableRef1 - Postgres', async () => {

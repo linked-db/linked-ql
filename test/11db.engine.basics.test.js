@@ -3,7 +3,7 @@ import chaiAsPromised from 'chai-as-promised';
 use(chaiAsPromised);
 
 import '../src/lang/index.js';
-import { matchSchemaSelector, normalizeSchemaSelectorArg } from '../src/db/abstracts/util.js';
+import { matchRelationSelector, normalizeRelationSelectorArg } from '../src/db/abstracts/util.js';
 import { StorageEngine } from '../src/db/flash/StorageEngine.js';
 import { FlashClient } from '../src/db/flash/FlashClient.js';
 import { TableStorage } from '../src/db/flash/TableStorage.js';
@@ -11,49 +11,49 @@ import { TableStorage } from '../src/db/flash/TableStorage.js';
 describe('Util', () => {
 
     it('should normalize selector forms', () => {
-        expect(() => normalizeSchemaSelectorArg()).to.throw(/Given selector .* invalid/);
-        expect(() => normalizeSchemaSelectorArg(null)).to.throw(/Given selector .* invalid/);
-        expect(() => normalizeSchemaSelectorArg({})).to.throw(/Given selector .* invalid/);
+        expect(() => normalizeRelationSelectorArg()).to.throw(/Given selector .* invalid/);
+        expect(() => normalizeRelationSelectorArg(null)).to.throw(/Given selector .* invalid/);
+        expect(() => normalizeRelationSelectorArg({})).to.throw(/Given selector .* invalid/);
 
-        expect(() => normalizeSchemaSelectorArg([{ schema: 'b' }, { a: 'b' }])).to.throw(/Given selector .* invalid at index 1/);
+        expect(() => normalizeRelationSelectorArg([{ namespace: 'b' }, { a: 'b' }])).to.throw(/Given selector .* invalid at index 1/);
 
-        const a = normalizeSchemaSelectorArg('*');
+        const a = normalizeRelationSelectorArg('*');
         expect(a).to.deep.eq({ ['*']: ['*'] });
-        const b = normalizeSchemaSelectorArg({ a: 'b' });
+        const b = normalizeRelationSelectorArg({ a: 'b' });
         expect(b).to.deep.eq({ a: ['b'] });
-        const c = normalizeSchemaSelectorArg([{ schema: 'b' }]);
+        const c = normalizeRelationSelectorArg([{ namespace: 'b' }]);
         expect(c).to.deep.eq({ b: ['*'] });
     });
 
     it('should match plain db selector', () => {
-        const a = matchSchemaSelector('lq_test_public', ['lq_test_public', 'lq_test_private']);
-        const b = matchSchemaSelector('lq_test_public', ['lq_test_public2', 'lq_test_private']);
+        const a = matchRelationSelector('lq_test_public', ['lq_test_public', 'lq_test_private']);
+        const b = matchRelationSelector('lq_test_public', ['lq_test_public2', 'lq_test_private']);
         expect(a).to.be.true;
         expect(b).to.be.false;
     });
 
     it('should match negated plain db selector', () => {
-        const a = matchSchemaSelector('lq_test_public', ['!lq_test_public', 'lq_test_private']);
-        const b = matchSchemaSelector('lq_test_public', ['!lq_test_public2', 'lq_test_public']);
-        const c = matchSchemaSelector('lq_test_public', ['!lq_test_public2', '!lq_test_private']);
+        const a = matchRelationSelector('lq_test_public', ['!lq_test_public', 'lq_test_private']);
+        const b = matchRelationSelector('lq_test_public', ['!lq_test_public2', 'lq_test_public']);
+        const c = matchRelationSelector('lq_test_public', ['!lq_test_public2', '!lq_test_private']);
         expect(a).to.be.false;
         expect(b).to.be.true;
         expect(c).to.be.true;
     });
 
     it('should match wildcard db selector', () => {
-        const a = matchSchemaSelector('lq_test_public', ['%ublic', 'lq_test_private']);
-        const b = matchSchemaSelector('lq_test_public', ['publi%']);
-        const c = matchSchemaSelector('lq_test_public', ['publo%']);
+        const a = matchRelationSelector('lq_test_public', ['%ublic', 'lq_test_private']);
+        const b = matchRelationSelector('lq_test_public', ['publi%']);
+        const c = matchRelationSelector('lq_test_public', ['publo%']);
         expect(a).to.be.true;
         expect(b).to.be.true;
         expect(c).to.be.false;
     });
 
     it('should match negated wildcard db selector', () => {
-        const a = matchSchemaSelector('lq_test_public', ['!%ublic', 'lq_test_private']);
-        const b = matchSchemaSelector('lq_test_public', ['!publi%']);
-        const c = matchSchemaSelector('lq_test_public', ['!publo%']);
+        const a = matchRelationSelector('lq_test_public', ['!%ublic', 'lq_test_private']);
+        const b = matchRelationSelector('lq_test_public', ['!publi%']);
+        const c = matchRelationSelector('lq_test_public', ['!publo%']);
         expect(a).to.be.false;
         expect(b).to.be.false;
         expect(c).to.be.true;
@@ -64,7 +64,7 @@ describe('StorageEngine - Basic CRUD', () => {
     let storageEngine, lq_test_public, tbl1;
 
     describe('SCHEMA', () => {
-        it('should create basic table schema', async () => {
+        it('should create basic table namespace', async () => {
             storageEngine = new StorageEngine({ defaultNamespace: 'lq_test_public' });
             lq_test_public = await storageEngine.getNamespace('lq_test_public');
 
@@ -72,11 +72,11 @@ describe('StorageEngine - Basic CRUD', () => {
             expect(tbl1).to.be.instanceOf(TableStorage);
         });
 
-        it('should reject creating an existing table schema', async () => {
+        it('should reject creating an existing table namespace', async () => {
             expect(lq_test_public.createTable('tbl1')).to.be.rejected;
         });
 
-        it('should retrieve just-created table schema', async () => {
+        it('should retrieve just-created table namespace', async () => {
             const tableNames = await lq_test_public.tableNames();
             expect(tableNames).to.include('tbl1');
 
@@ -156,35 +156,27 @@ describe('FlashClient - Basic DDL', () => {
         await client.disconnect();
     });
 
-    // You can always infer things:
-    // get schema names - await client.storageEngine.namespaceNames(): array
-    // get schema - await client.storageEngine.getSchema(): { schemas: registry.SchemaSchema, storage: Map, counters: Map }
-    // get table names - await client.storageEngine.tableNames(schemaName | <default schemaName>): array
-    // get table storage - await client.storageEngine.tableStorage(tableName, schemaName | <default schemaName>): Map // keyed by record id/hash
-    // get table schema - await client.storageEngine.tableSchema(tableName, schemaName | <default schemaName>): registry.TableSchema
-    // get table primary key columns - await client.storageEngine.tableKeyColumns(tableName, schemaName | <default schemaName>): <registry.ColumnSchema>[]
-
     // ---------- CREATE/DROP
 
     describe('CREATE SCHEMA', () => {
-        it('should create schema with IF NOT EXISTS', async () => {
-            const result = await client.query('CREATE SCHEMA IF NOT EXISTS lq_test_schema');
+        it('should create namespace with IF NOT EXISTS', async () => {
+            const result = await client.query('CREATE SCHEMA IF NOT EXISTS lq_test_namespace');
             expect(result).to.exist;
-            const schemas = await client.storageEngine.namespaceNames();
-            expect(schemas).to.include('lq_test_schema');
+            const namespaces = await client.storageEngine.namespaceNames();
+            expect(namespaces).to.include('lq_test_namespace');
         });
 
-        it('should not create schema if already exists', async () => {
-            await client.query('CREATE SCHEMA IF NOT EXISTS lq_test_schema');
-            await expect(client.query('CREATE SCHEMA lq_test_schema')).to.be.rejected;
+        it('should not create namespace if already exists', async () => {
+            await client.query('CREATE SCHEMA IF NOT EXISTS lq_test_namespace');
+            await expect(client.query('CREATE SCHEMA lq_test_namespace')).to.be.rejected;
         });
 
-        // Advanced: create schema with AUTHORIZATION (Postgres syntax)
+        // Advanced: create namespace with AUTHORIZATION (Postgres syntax)
         it('should support CREATE SCHEMA ... AUTHORIZATION', async () => {
             const result = await client.query('CREATE SCHEMA IF NOT EXISTS lq_auth AUTHORIZATION current_user');
             expect(result).to.exist;
-            const schemas = await client.storageEngine.namespaceNames();
-            expect(schemas).to.include('lq_auth');
+            const namespaces = await client.storageEngine.namespaceNames();
+            expect(namespaces).to.include('lq_auth');
         });
     });
 
@@ -194,37 +186,37 @@ describe('FlashClient - Basic DDL', () => {
             await client.query('CREATE SCHEMA IF NOT EXISTS lq_test_drop2');
         });
 
-        it('should drop schema with IF EXISTS', async () => {
+        it('should drop namespace with IF EXISTS', async () => {
             const result = await client.query('DROP SCHEMA IF EXISTS lq_test_drop CASCADE');
             expect(result).to.exist;
-            const schemas = await client.storageEngine.namespaceNames();
-            expect(schemas).to.not.include('lq_test_drop');
+            const namespaces = await client.storageEngine.namespaceNames();
+            expect(namespaces).to.not.include('lq_test_drop');
         });
 
-        it('should not fail dropping non-existent schema', async () => {
+        it('should not fail dropping non-existent namespace', async () => {
             await expect(client.query('DROP SCHEMA IF EXISTS lq_nonexistent CASCADE')).to.not.be.rejected;
         });
 
-        // Advanced: drop multiple schemas
-        it('should drop multiple schemas in one command', async () => {
+        // Advanced: drop multiple namespaces
+        it('should drop multiple namespaces in one command', async () => {
             await client.query('CREATE SCHEMA IF NOT EXISTS lq_multi1');
             await client.query('CREATE SCHEMA IF NOT EXISTS lq_multi2');
             const result = await client.query('DROP SCHEMA IF EXISTS lq_multi1, lq_multi2 CASCADE');
             expect(result).to.exist;
-            const schemas = await client.storageEngine.namespaceNames();
-            expect(schemas).to.not.include('lq_multi1');
-            expect(schemas).to.not.include('lq_multi2');
+            const namespaces = await client.storageEngine.namespaceNames();
+            expect(namespaces).to.not.include('lq_multi1');
+            expect(namespaces).to.not.include('lq_multi2');
         });
 
-        // Advanced: RESTRICT should prevent drop if schema not empty
-        it('should reject DROP SCHEMA ... RESTRICT when schema not empty', async () => {
+        // Advanced: RESTRICT should prevent drop if namespace not empty
+        it('should reject DROP SCHEMA ... RESTRICT when namespace not empty', async () => {
             await client.query('CREATE SCHEMA IF NOT EXISTS lq_restrict');
             await client.query('CREATE TABLE IF NOT EXISTS lq_restrict.tbl1 (id INT PRIMARY KEY)');
             await expect(client.query('DROP SCHEMA lq_restrict RESTRICT')).to.be.rejected;
             const result = await client.query('DROP SCHEMA lq_restrict CASCADE');
             expect(result).to.exist;
-            const schemas = await client.storageEngine.namespaceNames();
-            expect(schemas).to.not.include('lq_restrict');
+            const namespaces = await client.storageEngine.namespaceNames();
+            expect(namespaces).to.not.include('lq_restrict');
         });
     });
 
@@ -233,7 +225,7 @@ describe('FlashClient - Basic DDL', () => {
             await client.query('CREATE SCHEMA IF NOT EXISTS lq_test_table');
         });
 
-        it('should create table in schema', async () => {
+        it('should create table in namespace', async () => {
             const result = await client.query('CREATE TABLE lq_test_table.tbl1 (id INT PRIMARY KEY, name TEXT)');
             const lq_test_table = await client.storageEngine.getNamespace('lq_test_table');
 
@@ -335,7 +327,7 @@ describe('FlashClient - DDL Inference', () => {
 
     describe('SHOW CREATE', () => {
 
-        it('should show create for schema', async () => {
+        it('should show create for namespace', async () => {
             const result = await client.showCreate({ lq_test_show: ['*'] }, true);
             expect(result).to.have.lengthOf(1);
             expect(result[0].name().value()).to.eq('lq_test_show');
@@ -356,7 +348,7 @@ describe('FlashClient - DDL Inference', () => {
             expect(result[0].tables()[0].name().value()).to.eq('tbl2');
         });
 
-        it('should show create for wildcard schema', async () => {
+        it('should show create for wildcard namespace', async () => {
             const result = await client.showCreate({ ['*']: ['tbl1'] }, true);
             expect(result.some(s => s.tables().some(t => t.name().value() === 'tbl1'))).to.be.true;
         });
@@ -368,7 +360,7 @@ describe('FlashClient - DDL Inference', () => {
             expect(a).to.have.lengthOf(1);
             expect(a[0].name().value()).to.eq('lq_test_public');
 
-            const b = await client.showCreate([{ schema: 'lq_test_public', tables: ['*'] }], true);
+            const b = await client.showCreate([{ namespace: 'lq_test_public', tables: ['*'] }], true);
             const c = await client.showCreate({ lq_test_public: ['*'] }, true);
 
             expect(b).to.have.lengthOf(1);
@@ -420,8 +412,8 @@ describe('FlashClient - DDL Inference', () => {
     });
 
     describe('PROVIDE', () => {
-        it('should provide() the specified schema', async () => {
-            const resultCode = await client.schemaInference.provide([{ schema: 'lq_test_%', tables: ['tbl1'] }]);
+        it('should provide() the specified namespace', async () => {
+            const resultCode = await client.schemaInference.provide([{ namespace: 'lq_test_%', tables: ['tbl1'] }]);
             const catalog = [...client.schemaInference.catalog];
 
             expect(resultCode).to.eq(1);
@@ -436,18 +428,18 @@ describe('FlashClient - DDL Inference', () => {
             expect(lq_test_private.tables()).to.have.lengthOf(1);
 
             // ----------------- heuristic caching
-            const resultCode2 = await client.schemaInference.provide([{ schema: 'lq_test_%', tables: ['tbl1'] }]);
+            const resultCode2 = await client.schemaInference.provide([{ namespace: 'lq_test_%', tables: ['tbl1'] }]);
             expect(resultCode2).to.eq(0);
-            const resultCode3 = await client.schemaInference.provide([{ schema: 'lq_test_private', tables: ['tbl1'] }]);
+            const resultCode3 = await client.schemaInference.provide([{ namespace: 'lq_test_private', tables: ['tbl1'] }]);
             expect(resultCode3).to.eq(0);
-            const resultCode4 = await client.schemaInference.provide([{ schema: 'lq_test_foo', tables: ['tbl1'] }]);
+            const resultCode4 = await client.schemaInference.provide([{ namespace: 'lq_test_foo', tables: ['tbl1'] }]);
             expect(resultCode4).to.eq(0);
-            const resultCode5 = await client.schemaInference.provide([{ schema: 'lq_test_%', tables: ['tbl1', 'tbl_1'] }]);
+            const resultCode5 = await client.schemaInference.provide([{ namespace: 'lq_test_%', tables: ['tbl1', 'tbl_1'] }]);
             expect(resultCode5).to.eq(2);
         });
 
-        it('should incrementally provide() the specified schema', async () => {
-            const resultCode = await client.schemaInference.provide([{ schema: 'lq_test_%', tables: ['tbl2'] }]);
+        it('should incrementally provide() the specified namespace', async () => {
+            const resultCode = await client.schemaInference.provide([{ namespace: 'lq_test_%', tables: ['tbl2'] }]);
             const catalog = [...client.schemaInference.catalog];
 
             expect(resultCode).to.eq(1);
@@ -468,8 +460,8 @@ describe('FlashClient - DML', () => {
     let client;
 
     // helper to read table storage rows (values)
-    async function tableRows(tableName, schema = 'lq_test_dml') {
-        const namespaceObject = await await client.storageEngine.getNamespace(schema);
+    async function tableRows(tableName, namespace = 'lq_test_dml') {
+        const namespaceObject = await await client.storageEngine.getNamespace(namespace);
         const tableStorage = await namespaceObject.getTable(tableName);
         const rows = [];
         for await (const row of tableStorage) rows.push(row);
@@ -477,8 +469,8 @@ describe('FlashClient - DML', () => {
     }
 
     // helper to clear tables by name
-    async function clearTable(tableName, schema = 'lq_test_dml') {
-        const namespaceObject = await await client.storageEngine.getNamespace(schema);
+    async function clearTable(tableName, namespace = 'lq_test_dml') {
+        const namespaceObject = await await client.storageEngine.getNamespace(namespace);
         const tableStorage = await namespaceObject.getTable(tableName);
         await tableStorage.truncate();
     }
@@ -486,7 +478,7 @@ describe('FlashClient - DML', () => {
     before(async () => {
         client = await createClient();
 
-        // prepare schema + tables used across the tests
+        // prepare namespace + tables used across the tests
         await client.query('CREATE SCHEMA IF NOT EXISTS lq_test_dml');
 
         // people: PK (manual), used for many tests
@@ -716,12 +708,12 @@ describe('FlashClient - DML', () => {
 describe("FlashClient - DQL", () => {
 
     describe("SELECT - Basics", () => {
-        let client, schemaName = 'lq_test_dgl', t1 = "t1";
+        let client, namespaceName = 'lq_test_dgl', t1 = "t1";
         before(async () => {
-            client = await createClient(schemaName);
+            client = await createClient(namespaceName);
 
-            // prepare schema + tables used across the tests
-            await client.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+            // prepare namespace + tables used across the tests
+            await client.query(`CREATE SCHEMA IF NOT EXISTS ${namespaceName}`);
             await client.query(`CREATE TABLE ${t1} (id INT PRIMARY KEY, val TEXT)`);
             await client.query(`INSERT INTO ${t1} (id, val) VALUES (1, 'a'), (2, 'b'), (3, NULL)`);
         });
@@ -775,12 +767,12 @@ describe("FlashClient - DQL", () => {
     });
 
     describe("SELECT - FROM Variants", () => {
-        let client, schemaName = 'lq_test_dgl', t1 = "t1";
+        let client, namespaceName = 'lq_test_dgl', t1 = "t1";
         before(async () => {
-            client = await createClient(schemaName);
+            client = await createClient(namespaceName);
 
-            // prepare schema + tables used across the tests
-            await client.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+            // prepare namespace + tables used across the tests
+            await client.query(`CREATE SCHEMA IF NOT EXISTS ${namespaceName}`);
             await client.query(`CREATE TABLE ${t1} (id INT, val TEXT)`);
             await client.query(`INSERT INTO ${t1} (id, val) VALUES (1, 'a'), (2, 'b')`);
         });
@@ -826,11 +818,11 @@ describe("FlashClient - DQL", () => {
     });
 
     describe("SELECT - Expressions & Operators", () => {
-        let client, schemaName = 'lq_test_exprs';
+        let client, namespaceName = 'lq_test_exprs';
 
         before(async () => {
-            client = await createClient(schemaName);
-            await client.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+            client = await createClient(namespaceName);
+            await client.query(`CREATE SCHEMA IF NOT EXISTS ${namespaceName}`);
             // tables
             await client.query(`CREATE TABLE expr_nums (id INT PRIMARY KEY, a INT, b INT, txt TEXT)`);
             await client.query(`INSERT INTO expr_nums (id, a, b, txt) VALUES
@@ -911,11 +903,11 @@ describe("FlashClient - DQL", () => {
     });
 
     describe("SELECT - Joins (incl. LATERAL)", () => {
-        let client, schemaName = 'lq_test_joins';
+        let client, namespaceName = 'lq_test_joins';
 
         before(async () => {
-            client = await createClient(schemaName);
-            await client.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+            client = await createClient(namespaceName);
+            await client.query(`CREATE SCHEMA IF NOT EXISTS ${namespaceName}`);
 
             // join tables
             await client.query(`CREATE TABLE ja (id INT PRIMARY KEY, aname TEXT)`);
@@ -1083,11 +1075,11 @@ describe("FlashClient - DQL", () => {
     });
 
     describe("SELECT - Ordering & Pagination", () => {
-        let client, schemaName = 'lq_test_dgl', t1 = "t1_ordering";
+        let client, namespaceName = 'lq_test_dgl', t1 = "t1_ordering";
 
         before(async () => {
-            client = await createClient(schemaName);
-            await client.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+            client = await createClient(namespaceName);
+            await client.query(`CREATE SCHEMA IF NOT EXISTS ${namespaceName}`);
             // tables
             await client.query(`CREATE TABLE ${t1} (id INT, val TEXT)`);
             await client.query(`
@@ -1155,11 +1147,11 @@ describe("FlashClient - DQL", () => {
         });
     });
     describe("SELECT - Grouping & Aggregation", () => {
-        let client, schemaName = 'lq_test_dgl', t2 = "t2_grouping";
+        let client, namespaceName = 'lq_test_dgl', t2 = "t2_grouping";
 
         before(async () => {
-            client = await createClient(schemaName);
-            await client.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+            client = await createClient(namespaceName);
+            await client.query(`CREATE SCHEMA IF NOT EXISTS ${namespaceName}`);
             // tables
             await client.query(`CREATE TABLE ${t2} (category TEXT, amount INT)`);
             await client.query(`
@@ -1316,11 +1308,11 @@ describe("FlashClient - DQL", () => {
 
 
     describe("SELECT - Subqueries", () => {
-        let client, schemaName = 'lq_test_dgl', t3 = "t3_subq", t4 = "nums";
+        let client, namespaceName = 'lq_test_dgl', t3 = "t3_subq", t4 = "nums";
 
         before(async () => {
-            client = await createClient(schemaName);
-            await client.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+            client = await createClient(namespaceName);
+            await client.query(`CREATE SCHEMA IF NOT EXISTS ${namespaceName}`);
             // tables
             await client.query(`CREATE TABLE ${t3} (id INT, val TEXT)`);
             await client.query(`INSERT INTO ${t3} (id, val) VALUES (1, 'a'), (2, 'b'), (3, 'c')`);
@@ -1395,11 +1387,11 @@ describe("FlashClient - DQL", () => {
 
 describe("FlashClient - CTEs", () => {
     describe("SELECT - CTEs", () => {
-        let client, schemaName = 'lq_test_dgl', t3 = "t3_cte", t4 = "nums_cte";
+        let client, namespaceName = 'lq_test_dgl', t3 = "t3_cte", t4 = "nums_cte";
 
         before(async () => {
-            client = await createClient(schemaName);
-            await client.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+            client = await createClient(namespaceName);
+            await client.query(`CREATE SCHEMA IF NOT EXISTS ${namespaceName}`);
 
             await client.query(`CREATE TABLE ${t3} (id INT, val TEXT)`);
             await client.query(`INSERT INTO ${t3} (id, val) VALUES (1, 'a'), (2, 'b'), (3, 'c')`);
@@ -1483,11 +1475,11 @@ describe("FlashClient - CTEs", () => {
 });
 
 describe("INSERT - SELECT", () => {
-    let client, schemaName = 'lq_test_dml_dgl', src = "src_tbl", dest = "dest_tbl";
+    let client, namespaceName = 'lq_test_dml_dgl', src = "src_tbl", dest = "dest_tbl";
 
     before(async () => {
-        client = await createClient(schemaName);
-        await client.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+        client = await createClient(namespaceName);
+        await client.query(`CREATE SCHEMA IF NOT EXISTS ${namespaceName}`);
 
         await client.query(`DROP TABLE IF EXISTS ${src}`);
         await client.query(`DROP TABLE IF EXISTS ${dest}`);
@@ -1574,11 +1566,11 @@ describe("INSERT - SELECT", () => {
 });
 
 describe("DML - RETURNING", () => {
-    let client, schemaName = 'lq_test_dgl', tbl = "tbl_ret";
+    let client, namespaceName = 'lq_test_dgl', tbl = "tbl_ret";
 
     before(async () => {
-        client = await createClient(schemaName);
-        await client.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+        client = await createClient(namespaceName);
+        await client.query(`CREATE SCHEMA IF NOT EXISTS ${namespaceName}`);
 
         await client.query(`DROP TABLE IF EXISTS ${tbl}`);
         await client.query(`CREATE TABLE ${tbl} (id INT PRIMARY KEY, val TEXT)`);
@@ -1653,11 +1645,11 @@ describe("DML - RETURNING", () => {
 });
 
 describe("DML - RETURNING with CTEs and ROW_NUMBER", () => {
-    let client, schemaName = 'lq_test_dgl', tbl = "tbl_ret";
+    let client, namespaceName = 'lq_test_dgl', tbl = "tbl_ret";
 
     before(async () => {
-        client = await createClient(schemaName);
-        await client.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+        client = await createClient(namespaceName);
+        await client.query(`CREATE SCHEMA IF NOT EXISTS ${namespaceName}`);
 
         await client.query(`DROP TABLE IF EXISTS ${tbl}`);
         await client.query(`CREATE TABLE ${tbl} (id INT PRIMARY KEY, val TEXT)`);
@@ -1771,11 +1763,11 @@ describe("DML - RETURNING with CTEs and ROW_NUMBER", () => {
     });
 });
 describe("ROW_NUMBER ordering", () => {
-    let client, schemaName = 'lq_test_rownum';
+    let client, namespaceName = 'lq_test_rownum';
 
     before(async () => {
-        client = await createClient(schemaName);
-        await client.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+        client = await createClient(namespaceName);
+        await client.query(`CREATE SCHEMA IF NOT EXISTS ${namespaceName}`);
     });
 
     it("should order rows by val DESC for ROW_NUMBER", async () => {
@@ -1840,11 +1832,11 @@ describe("ROW_NUMBER ordering", () => {
 });
 
 describe("SET OPERATIONS - UNION / INTERSECT / EXCEPT", () => {
-    let client, schemaName = 'lq_test_setops', tblA = "tbl_a", tblB = "tbl_b";
+    let client, namespaceName = 'lq_test_setops', tblA = "tbl_a", tblB = "tbl_b";
 
     before(async () => {
-        client = await createClient(schemaName, { defaultPrimaryKey: null });
-        await client.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+        client = await createClient(namespaceName, { defaultPrimaryKey: null });
+        await client.query(`CREATE SCHEMA IF NOT EXISTS ${namespaceName}`);
 
         await client.query(`DROP TABLE IF EXISTS ${tblA}`);
         await client.query(`DROP TABLE IF EXISTS ${tblB}`);

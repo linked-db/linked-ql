@@ -91,7 +91,7 @@ export class SelectItem extends ResultSchemaMixin(AbstractNode) {
 
             // ----------------
 
-            const schemaIdent = derivedAliasJson && {
+            const namespaceIdent = derivedAliasJson && {
                 nodeName: registry.Identifier.NODE_NAME,
                 value: derivedAliasJson.value,
                 delim: derivedAliasJson.delim
@@ -104,12 +104,12 @@ export class SelectItem extends ResultSchemaMixin(AbstractNode) {
 
             if (resultSchema instanceof registry.ColumnSchema) {
                 const tableSchema = resultSchema.parentNode;
-                resultSchema = resultSchema.clone({ renameTo: schemaIdent });
+                resultSchema = resultSchema.clone({ renameTo: namespaceIdent });
                 tableSchema?._adoptNodes(resultSchema);
             } else if (!(exprNode instanceof registry.LQDeepRef1)
                 && !(exprNode instanceof registry.ColumnRef0)) {
                 resultSchema = registry.ColumnSchema.fromJSON({
-                    name: schemaIdent,
+                    name: namespaceIdent,
                     data_type: this.expr().dataType().jsonfy(),
                 });
                 exprNode._adoptNodes(resultSchema);

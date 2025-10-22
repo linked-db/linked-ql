@@ -1,11 +1,11 @@
-import { normalizeSchemaSelectorArg, parseSchemaSelectors } from '../abstracts/util.js';
-import { AbstractClient } from '../abstracts/AbstractClient.js';
+import { normalizeRelationSelectorArg, parseRelationSelectors } from './util.js';
+import { AbstractSQLClient } from './AbstractSQLClient.js';
 import { registry } from '../../lang/registry.js';
 
-export class ClassicClient extends AbstractClient {
+export class AbstractSQL0Client extends AbstractSQLClient {
 
     async _showCreate(selector, structured = false) {
-        selector = normalizeSchemaSelectorArg(selector);
+        selector = normalizeRelationSelectorArg(selector);
         const sql = this._composeShowCreateSQL(selector);
         const result = await this.driver.query(sql);
         return await this._formatShowCreateResult(result.rows || result, structured);
@@ -20,19 +20,19 @@ export class ClassicClient extends AbstractClient {
             orderBy: '',
             depth: 2
         };
-        const schemaNames = Object.keys(selector).filter((s) => s !== '*');
-        if (schemaNames.length) {
-            $parts.dbWhere = `\nWHERE ${utils.matchSchemaSelector('db.schema_name', schemaNames)}`;
+        const namespaceNames = Object.keys(selector).filter((s) => s !== '*');
+        if (namespaceNames.length) {
+            $parts.dbWhere = `\nWHERE ${utils.matchRelationSelector('db.schema_name', namespaceNames)}`;
         }
-        const $tblWhere = Object.entries(selector).reduce((cases, [schemaName, objectNames]) => {
+        const $tblWhere = Object.entries(selector).reduce((cases, [namespaceName, objectNames]) => {
             const tbls = objectNames.filter((s) => s !== '*');
             if (!tbls.length) return cases;
-            if (schemaName === '*') {
+            if (namespaceName === '*') {
                 return cases.concat(`tbl.table_name IN ('${tbls.join("', '")}')`);
             }
             return cases.concat(`CASE
-                WHEN ${utils.matchSchemaSelector('db.schema_name', [schemaName]) || 'TRUE'
-                } THEN ${utils.matchSchemaSelector('tbl.table_name', tbls) || 'TRUE'
+                WHEN ${utils.matchRelationSelector('db.schema_name', [namespaceName]) || 'TRUE'
+                } THEN ${utils.matchRelationSelector('tbl.table_name', tbls) || 'TRUE'
                 } END`);
         }, []);
         $parts.tblWhere = $tblWhere.length ? ` AND (${$tblWhere.join(' OR ')})` : '';
@@ -162,8 +162,8 @@ export class ClassicClient extends AbstractClient {
             jsonBuildObject: (exprs) => this.dialect === 'mysql' ? `JSON_OBJECT(${exprs.join(', ')})` : `JSON_BUILD_OBJECT(${exprs.join(', ')})`,
             jsonAgg: (expr) => this.dialect === 'mysql' ? `JSON_ARRAYAGG(${expr})` : `JSON_AGG(${expr})`,
             anyValue: (col) => this.dialect === 'mysql' ? col : `MAX(${col})`,
-            matchSchemaSelector: (ident, enums) => {
-                const [names, _names, patterns, _patterns] = parseSchemaSelectors(enums);
+            matchRelationSelector: (ident, enums) => {
+                const [names, _names, patterns, _patterns] = parseRelationSelectors(enums);
                 const $names = names.length && !(names.length === 1 && names[0] === '*') ? `${ident} IN (${names.map(utils.str).join(', ')})` : null;
                 const $_names = _names.length ? `${ident} NOT IN (${_names.map(utils.str).join(', ')})` : null;
                 const $patterns = patterns.length ? patterns.map((p) => `${ident} ILIKE ${utils.str(p.replace(/_/g, '\\_'))} ESCAPE '\\'`).join(' AND ') : null;
@@ -178,7 +178,7 @@ export class ClassicClient extends AbstractClient {
         // Util:
         const formatRelation = async (cons) => {
             const consSchema = {
-                target_table: { nodeName: 'TABLE_REF2', value: cons.referenced_table_name, qualifier: { nodeName: 'SCHEMA_REF', value: cons.referenced_table_schema } },
+                target_table: { nodeName: 'TABLE_REF2', value: cons.referenced_table_name, qualifier: { nodeName: registry.NamespaceRef.NODE_NAME, value: cons.referenced_table_schema } },
                 target_columns: [...new Set(cons.referenced_column_name)].map((s) => ({ nodeName: 'IDENTIFIER', value: s.trim() })),
                 referential_rules: [],
             };
@@ -216,9 +216,9 @@ export class ClassicClient extends AbstractClient {
         for (const db of result) {
 
             // Schema def:
-            const schemaSchemaJson = {
-                nodeName: 'SCHEMA_SCHEMA',
-                name: { nodeName: 'SCHEMA_IDENT', value: db.schema_name },
+            const namespaceSchemaJson = {
+                nodeName: registry.NamespaceSchema.NODE_NAME,
+                name: { nodeName: registry.NamespaceIdent.NODE_NAME, value: db.schema_name },
                 entries: [],
             };
 
@@ -228,7 +228,7 @@ export class ClassicClient extends AbstractClient {
                 // Table def:
                 const tableSchemaJson = {
                     nodeName: 'TABLE_SCHEMA',
-                    name: { nodeName: 'TABLE_IDENT', value: tbl.table_name, qualifier: { nodeName: 'SCHEMA_REF', value: db.schema_name } },
+                    name: { nodeName: 'TABLE_IDENT', value: tbl.table_name, qualifier: { nodeName: registry.NamespaceRef.NODE_NAME, value: db.schema_name } },
                     entries: [],
                 }
 
@@ -322,13 +322,13 @@ export class ClassicClient extends AbstractClient {
                     }
                 }
 
-                (structured ? schemaSchemaJson.entries : schemas).push(
+                (structured ? namespaceSchemaJson.entries : schemas).push(
                     registry.TableSchema.fromJSON(tableSchemaJson, { dialect: this.dialect })
                 );
             }
 
             if (structured) {
-                schemas.push(registry.SchemaSchema.fromJSON(schemaSchemaJson, { dialect: this.dialect }));
+                schemas.push(registry.NamespaceSchema.fromJSON(namespaceSchemaJson, { dialect: this.dialect }));
             }
         }
 

@@ -1,5 +1,5 @@
 import '../../lang/index.js';
-import { AbstractClient } from '../abstracts/AbstractClient.js';
+import { AbstractSQLClient } from '../abstracts/AbstractSQLClient.js';
 import { normalizeQueryArgs } from '../abstracts/util.js';
 import { RealtimeResult } from './RealtimeResult.js';
 import { QueryWindow } from './QueryWindow.js';
@@ -13,8 +13,8 @@ export class RealtimeClient {
     get size() { return this.#windows.size; }
 
     constructor(driver) {
-        if (!(driver instanceof AbstractClient)) {
-            throw new TypeError('driver must be an instance of AbstractClient');
+        if (!(driver instanceof AbstractSQLClient)) {
+            throw new TypeError('driver must be an instance of AbstractSQLClient');
         }
         this.#driver = driver;
     }

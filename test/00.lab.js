@@ -91,11 +91,11 @@ if (0) {
     await d();
     console.log('-----------', result1.rows);
     console.log('-----------', result2.rows);
+    
 } else {
 
-
     //await client2.federate({ public2: { query: `SELECT * FROM t2 WHERE id < 3` } }, { url: 3 });
-    await client2.federate({ public2: { schema: 'public', name: 't2'/*, where: { id: 2 }*/, joinStrategy: { memoization: false, pushdownSize: 0 } } }, { live: true, type: 'API' }, { url: 3 });
+    await client2.federate({ public2: { name: 't2'/*, where: { id: 2 }*/, joinStrategy: { memoization: false, pushdownSize: 0 } } }, { live: true, type: 'API' }, { url: 3 });
     const result = await client2.query(`SELECT t3.id, d.col3 FROM t3 LEFT JOIN t2 AS d ON TRUE AND CASE 2 WHEN 12 THEN t3.id + 0 = d.id::INT ELSE d.id::BOOLEAN END AND d.col3 <> '0'`, [], { live: true });
     console.log('::::', result.rows);
 

@@ -26,7 +26,7 @@ export class AbstractSchema extends AbstractNodeList {
         const { ddl_name, ...restJson } = inputJson;
         const node = super.fromJSON(restJson, options, callback);
         if (ddl_name && node) {
-            const iddlNameIdent = [registry.SchemaIdent, registry.TableIdent, registry.ColumnIdent].reduce((prev, Class) => prev || Class.fromJSON(ddl_name), null);
+            const iddlNameIdent = [registry.NamespaceIdent, registry.TableIdent, registry.ColumnIdent].reduce((prev, Class) => prev || Class.fromJSON(ddl_name), null);
             node._set('ddl_name', iddlNameIdent);
         }
         return node;

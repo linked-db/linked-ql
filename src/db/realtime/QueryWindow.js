@@ -85,9 +85,9 @@ export class QueryWindow extends SimpleEmitter {
 
         function acquireTableRef(tableRef, fromItemsBySchema, relationHashes = null) {
             const tableName = tableRef.value();
-            const schemaName = tableRef.qualifier().value(); // Both name and qualifier are expected
-            fromItemsBySchema[schemaName] = [].concat(fromItemsBySchema[schemaName] || []).concat(tableName);
-            if (relationHashes) relationHashes.add(JSON.stringify([schemaName, tableName]));
+            const namespaceName = tableRef.qualifier().value(); // Both name and qualifier are expected
+            fromItemsBySchema[namespaceName] = [].concat(fromItemsBySchema[namespaceName] || []).concat(tableName);
+            if (relationHashes) relationHashes.add(JSON.stringify([namespaceName, tableName]));
         }
 
         if (query.groupByClause()) analysis.hasGroupByClause = true;
@@ -456,7 +456,7 @@ export class QueryWindow extends SimpleEmitter {
                 }
             }
             const relation = relationHashes.size === 1
-                ? (([schema, name]) => ({ schema, name }))(JSON.parse([...relationHashes][0]))
+                ? (([namespace, name]) => ({ namespace, name }))(JSON.parse([...relationHashes][0]))
                 : null;
             this.#originSchemas.set(alias, {
                 relation,
@@ -763,7 +763,7 @@ export class QueryWindow extends SimpleEmitter {
 
         for (const e of events) {
             if (!(e.type === 'insert' || e.type === 'update' || e.type === 'delete')) continue;
-            const relationHash = JSON.stringify([e.relation.schema, e.relation.name]);
+            const relationHash = JSON.stringify([e.relation.namespace, e.relation.name]);
 
             const affectedAliasesEntries = [...this.#originSchemas.entries()].filter(([, originSchema]) => originSchema.relationHashes.has(relationHash));
 
@@ -785,7 +785,7 @@ export class QueryWindow extends SimpleEmitter {
 
             const normalizedEvent = { ...e, keyColumns, oldKeys, newKeys, relationHash, affectedAliases };
 
-            let rowKeyHash_old = this.#stringifyLogicalHash([e.relation.schema, e.relation.name, normalizedEvent.oldKeys]);
+            let rowKeyHash_old = this.#stringifyLogicalHash([e.relation.namespace, e.relation.name, normalizedEvent.oldKeys]);
             let rowKeyHash_new, previous;
 
             if ((previous = normalizedEventsMap.get(rowKeyHash_old))
@@ -807,7 +807,7 @@ export class QueryWindow extends SimpleEmitter {
                     normalizedEventsMap.delete(rowKeyHash_old); // Don't retain old slot; must come first
                     normalizedEventsMap.set(rowKeyHash_old, _normalizedEvent);
                     // Handle key changes
-                    if ((rowKeyHash_new = this.#stringifyLogicalHash([e.relation.schema, e.relation.name, normalizedEvent.newKeys])) !== rowKeyHash_old) {
+                    if ((rowKeyHash_new = this.#stringifyLogicalHash([e.relation.namespace, e.relation.name, normalizedEvent.newKeys])) !== rowKeyHash_old) {
                         keyHistoryMap.set(rowKeyHash_new, rowKeyHash_old);
                     }
                     continue;
@@ -818,7 +818,7 @@ export class QueryWindow extends SimpleEmitter {
                     normalizedEventsMap.delete(rowKeyHash_old); // Don't retain old slot; must come first
                     normalizedEventsMap.set(rowKeyHash_old, _normalizedEvent);
                     // Handle key changes
-                    if ((rowKeyHash_new = this.#stringifyLogicalHash([e.relation.schema, e.relation.name, normalizedEvent.newKeys])) !== rowKeyHash_old) {
+                    if ((rowKeyHash_new = this.#stringifyLogicalHash([e.relation.namespace, e.relation.name, normalizedEvent.newKeys])) !== rowKeyHash_old) {
                         keyHistoryMap.set(rowKeyHash_new, rowKeyHash_old);
                     }
                     continue;
@@ -832,7 +832,7 @@ export class QueryWindow extends SimpleEmitter {
             } else {
                 if (normalizedEvent.type === 'update') {
                     // Handle key changes
-                    if ((rowKeyHash_new = this.#stringifyLogicalHash([e.relation.schema, e.relation.name, normalizedEvent.newKeys])) !== rowKeyHash_old) {
+                    if ((rowKeyHash_new = this.#stringifyLogicalHash([e.relation.namespace, e.relation.name, normalizedEvent.newKeys])) !== rowKeyHash_old) {
                         keyHistoryMap.set(rowKeyHash_new, rowKeyHash_old);
                     }
                 }
@@ -1032,14 +1032,14 @@ export class QueryWindow extends SimpleEmitter {
                         // Find INSERTS or UPDATES that might slot in here from the right hand side
                         matches = matches.filter(([k]) => {
                             // Find an INSERT or UPDATE that might talk about this object
-                            if (k[i] !== null && (possibleEventId = JSON.stringify([relation.schema, relation.name, k[i]])) && (
+                            if (k[i] !== null && (possibleEventId = JSON.stringify([relation.namespace, relation.name, k[i]])) && (
                                 (normalizedEvent = normalizedEventsMap.get(possibleEventId))
                                 || keyHistoryMap.has(possibleEventId) && (normalizedEvent = normalizedEventsMap.get(possibleEventId = keyHistoryMap.get(possibleEventId)))
                             )) return true; // At least an INSERT or UPDATE is found on oldHash_parsed[i]
                         });
                     } else {
                         // Find a DELETE or UPDATE that might talk about this object
-                        if ((possibleEventId = JSON.stringify([relation.schema, relation.name, oldHash_parsed[i]]))
+                        if ((possibleEventId = JSON.stringify([relation.namespace, relation.name, oldHash_parsed[i]]))
                             && (normalizedEvent = normalizedEventsMap.get(possibleEventId))) {
                             matches = matches.filter(([k]) => {
                                 // Remote hash would be null on normalizedEvent.type === 'delete'

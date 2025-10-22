@@ -50,7 +50,7 @@ export class CTEItem extends AbstractNonDDLStmt {
         let resultJson = super.jsonfy(options, transformer, schemaInference);
         if (options.deSugar) {
 
-            const schemaIdent = {
+            const namespaceIdent = {
                 nodeName: registry.Identifier.NODE_NAME,
                 value: resultJson.alias.value,
                 delim: resultJson.alias.delim,
@@ -59,10 +59,10 @@ export class CTEItem extends AbstractNonDDLStmt {
             let resultSchema = resultJson.expr.result_schema;
 
             if (resultSchema instanceof registry.TableSchema) {
-                resultSchema = resultSchema.clone({ renameTo: schemaIdent });
+                resultSchema = resultSchema.clone({ renameTo: namespaceIdent });
             } else {
                 resultSchema = registry.TableSchema.fromJSON({
-                    name: schemaIdent,
+                    name: namespaceIdent,
                     entries: resultSchema?.entries().map((s) => s.jsonfy()) || [],
                 });
             }

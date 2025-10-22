@@ -7,7 +7,7 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 
 	/* SYNTAX RULES */
 
-	static get _qualifierType() { return 'SchemaRef'; }
+	static get _qualifierType() { return 'NamespaceRef'; }
 
 	static get syntaxRules() {
 		return this.buildSyntaxRules({
@@ -126,16 +126,16 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 
 		// 3. Resolve normally
 		if (!deepMatchCallback/* we're not trying to qualify a column */ && (inGrepMode || !resultSet.length)) {
-			const tempSchemaRef = new registry.SchemaRef(this.qualifier()?.jsonfy() || {});
-            this._adoptNodes(tempSchemaRef);
-			resultSet = resultSet.concat(tempSchemaRef.lookup(
-				(schemaSchema) => {
+			const tempNamespaceRef = new registry.NamespaceRef(this.qualifier()?.jsonfy() || {});
+            this._adoptNodes(tempNamespaceRef);
+			resultSet = resultSet.concat(tempNamespaceRef.lookup(
+				(namespaceSchema) => {
 
-					return schemaSchema._get('entries').reduce((prev, tableSchema) => {
+					return namespaceSchema._get('entries').reduce((prev, tableSchema) => {
 						//if (prev.length && !inGrepMode) return prev;
 						const newQualifierJson = {
-							...schemaSchema.name().jsonfy({ nodeNames: false }),
-							result_schema: schemaSchema
+							...namespaceSchema.name().jsonfy({ nodeNames: false }),
+							result_schema: namespaceSchema
 						};
 						return prev.concat(resolve(tableSchema, newQualifierJson) || []);
 					}, []);

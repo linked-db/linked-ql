@@ -1,11 +1,12 @@
-import { AbstractClient } from '../abstracts/AbstractClient.js';
-import { matchSchemaSelector, normalizeSchemaSelectorArg } from '../abstracts/util.js';
+import { AbstractSQLClient } from '../abstracts/AbstractSQLClient.js';
+import { matchRelationSelector, normalizeRelationSelectorArg } from '../abstracts/util.js';
 import { StorageEngine } from './StorageEngine.js';
 import { QueryEngine } from './QueryEngine.js';
 import { registry } from '../../lang/registry.js';
 import { ConflictError } from './ConflictError.js';
+import { AbstractAPIClient } from './api/AbstractAPIClient.js';
 
-export class FlashClient extends AbstractClient {
+export class FlashClient extends AbstractSQLClient {
 
     #dialect;
 
@@ -55,7 +56,7 @@ export class FlashClient extends AbstractClient {
 
                     if (nsDef.type === 'API'
                         || tblDef?.querySpec.query
-                        || tblDef?.querySpec.table.schema && tblDef.querySpec.table.schema !== nsName) {
+                        || tblDef.querySpec.namespace !== nsName) {
                         resolutionHint = -1;
                     } else if (resolutionHint !== -1) {
                         resolutionHint = 1;
@@ -93,12 +94,12 @@ export class FlashClient extends AbstractClient {
     }
 
     async _showCreate(selector, structured = false) {
-        selector = normalizeSchemaSelectorArg(selector);
+        selector = normalizeRelationSelectorArg(selector);
         const namespaceSchemas = [];
         for (const nsName of await this.#storageEngine.namespaceNames()) {
 
             const objectNames = Object.entries(selector).reduce((arr, [_namespaceName, objectNames]) => {
-                return matchSchemaSelector(nsName, [_namespaceName])
+                return matchRelationSelector(nsName, [_namespaceName])
                     ? arr.concat(objectNames)
                     : arr;
             }, []);
@@ -106,26 +107,26 @@ export class FlashClient extends AbstractClient {
 
             // Schema def:
             const namespaceJson = {
-                nodeName: registry.SchemaSchema.NODE_NAME,
-                name: { nodeName: registry.SchemaIdent.NODE_NAME, value: nsName },
+                nodeName: registry.NamespaceSchema.NODE_NAME,
+                name: { nodeName: registry.NamespaceIdent.NODE_NAME, value: nsName },
                 entries: [],
             };
 
             // Schema tables:
             const namespaceObject = await this.#storageEngine.getNamespace(nsName);
-            for (const tbl of await namespaceObject.tableNames()) {
-                if (!matchSchemaSelector(tbl, objectNames)) continue;
-                const tableStorage = await namespaceObject.getTable(tbl);
+            for (const tblName of await namespaceObject.tableNames()) {
+                if (!matchRelationSelector(tblName, objectNames)) continue;
+                const tableStorage = await namespaceObject.getTable(tblName);
                 const tableSchemaJson = tableStorage.schema.jsonfy();
                 tableSchemaJson.name.nodeName = registry.TableIdent.NODE_NAME;
-                tableSchemaJson.name.qualifier = { nodeName: registry.SchemaRef.NODE_NAME, value: nsName };
+                tableSchemaJson.name.qualifier = { nodeName: registry.NamespaceRef.NODE_NAME, value: nsName };
                 (structured
                     ? namespaceJson.entries
                     : namespaceSchemas).push(registry.TableSchema.fromJSON(tableSchemaJson, { assert: true, dialect: this.dialect }));
             }
 
             if (structured) {
-                namespaceSchemas.push(registry.SchemaSchema.fromJSON(namespaceJson, { dialect: this.dialect }));
+                namespaceSchemas.push(registry.NamespaceSchema.fromJSON(namespaceJson, { dialect: this.dialect }));
             }
         }
 
@@ -151,14 +152,14 @@ export class FlashClient extends AbstractClient {
         if (unmaterializedMirrors.size) {
 
             const abortLines = [];
-            const schemaSelector = normalizeSchemaSelectorArg(selector);
+            const relationSelector = normalizeRelationSelectorArg(selector);
 
             const localMap = {}, remoteMapMap = {};
-            for (const [nsName, tblNames] of Object.entries(schemaSelector)) {
+            for (const [nsName, tblNames] of Object.entries(relationSelector)) {
                 const remoteTablesMap = unmaterializedMirrors.get(nsName)?.tables;
                 if (remoteTablesMap) {
                     for (const tblName of tblNames) {
-                        const remoteNsName = remoteTablesMap.get(tblName)?.querySpec.table?.schema;
+                        const remoteNsName = remoteTablesMap.get(tblName)?.querySpec.namespace || '*';
                         // querySpec.query explocitly excluded from here
                         if (remoteNsName) {
                             if (!remoteMapMap[nsName]) remoteMapMap[nsName] = {};
@@ -174,17 +175,17 @@ export class FlashClient extends AbstractClient {
                 }
             }
 
-           if (Object.keys(localMap).length) {
+            if (Object.keys(localMap).length) {
                 abortLines.push(await super.subscribe(localMap, callback));
             }
             for (const nsName in remoteMapMap) {
-                const remoteClient = await this.#onCreateRemoteClient(unmaterializedMirrors.get(nsName).origin);
+                const remoteClient = await this.getRemoteClient(unmaterializedMirrors.get(nsName).origin);
                 abortLines.push(await remoteClient.subscribe(remoteMapMap[nsName], (events) => {
-                    events = events.map((e) => ({ ...e, relation: { ...e.relation, schema: nsName }}));
+                    events = events.map((e) => ({ ...e, relation: { ...e.relation, namespace: nsName } }));
                     callback(events);
                 }));
             }
- 
+
             return () => abortLines.forEach((c) => c());
         }
 
@@ -226,16 +227,9 @@ export class FlashClient extends AbstractClient {
             const namespaceObject = await storageEngine.createNamespace(nsName, { ifNotExists: options.ifNotExists, type: options.type, mirrored: true, origin }, queryCtx);
 
             for (const querySpec of queryObjects) {
-                const [query] = await remoteClient.resolveQuery(querySpec);
-
-                const firstFromtItem = query.fromClause().entries()[0];
-                const tblName = firstFromtItem.alias()?.value();
-
-                if (!tblName) throw new Error(`Couldn't resolve ${query} to a valid local table name`);
-
-                const tableIdent = { nodeName: registry.Identifier.NODE_NAME, value: tblName };
+                const query = await remoteClient.resolve(querySpec);
                 const tableSchema = registry.TableSchema.fromJSON({
-                    name: tableIdent,
+                    name: { nodeName: registry.Identifier.NODE_NAME, value: querySpec.name },
                     entries: query.resultSchema().entries().map((e) => e.jsonfy()),
                 }, { assert: true });
 
@@ -244,6 +238,7 @@ export class FlashClient extends AbstractClient {
                     { ifNotExists: options.ifNotExists, materialized: !!materializeCallback, querySpec },
                     queryCtx
                 );
+
                 if (materializeCallback) {
                     await materializeCallback(tableStorage, query, queryCtx, remoteClient);
                 }
@@ -262,14 +257,14 @@ export class FlashClient extends AbstractClient {
             // Inser records
             let stream, hashes = [];
             if (options.live) {
-                const result = await remoteClient.query(
+                const result = await remoteClient[remoteClient instanceof AbstractAPIClient ? 'query' : 'request'](
                     query,
                     (eventName, eventData) => this.#handleInSync(tableStorage, eventName, eventData),
                     { live: true }
                 );
                 ({ rows: stream, hashes } = result);
                 abortLines.push(result.abort.bind(result));
-            } else stream = await remoteClient.cursor(query);
+            } else stream = await remoteClient[remoteClient instanceof AbstractAPIClient ? 'cursor' : 'stream'](query);
 
             let i = 0;
             for await (const row of stream) {
@@ -296,7 +291,7 @@ export class FlashClient extends AbstractClient {
         for (const [nsName, queryObjects] of specifiers.entries()) {
             for (const querySpec of queryObjects) {
                 abortLines.push(await this.subscribe(
-                    { [nsName]: [querySpec.table.name] },
+                    { [nsName]: [querySpec.name] },
                     (events) => this.#handleOutSync(events, querySpec, origin)
                 ));
             }
@@ -372,13 +367,13 @@ export class FlashClient extends AbstractClient {
         for (const event of events) {
             if (event.txId.startsWith('~sync')) continue;
 
-            const outQueryObject = { command: event.type, table: querySpec.table };
+            const outQueryObject = { ...querySpec, command: event.type };
 
             if (event.type === 'insert') {
-                outQueryObject.payload = [{ ...(querySpec.where || {}), ...event.new }];
+                outQueryObject.payload = [{ ...(querySpec.filters || {}), ...event.new }];
             } else if (event.type === 'update' || event.type === 'delete') {
                 const key = event.key || Object.fromEntries(event.relation.keyColumns.map((k) => [k, event.old[k]]));
-                outQueryObject.where = { ...(querySpec.where || {}), ...key };
+                outQueryObject.filters = { ...(querySpec.filters || {}), ...key };
 
                 if (event.type === 'update') {
                     outQueryObject.payload = event.new;
@@ -416,38 +411,60 @@ export class FlashClient extends AbstractClient {
                 const tableSpec = {};
 
                 if (typeof subSpec === 'string') {
-                    specifiers.get(nsName).add({
-                        table: { schema: nsName, name: subSpec },
-                    });
+                    if (options.type === 'API') {
+                        specifiers.get(nsName).add({
+                            name: subSpec,
+                        });
+                    } else {
+                        specifiers.get(nsName).add({
+                            namespace: nsName,
+                            name: subSpec,
+                        });
+                    }
                 } else {
                     let keys;
                     if (!(typeof subSpec === 'object' && subSpec)
                         || !(keys = Object.keys(subSpec)).length
-                        || keys.filter((k) => k !== 'schema' && k !== 'name' && k !== 'query' && k !== 'where' && k !== 'joinStrategy').length
-                        || (!subSpec.query && !subSpec.name)) {
+                        || keys.filter((k) => k !== 'namespace' && k !== 'name' && k !== 'query' && k !== 'url' && k !== 'filters' && k !== 'joinStrategy').length) {
                         throw new SyntaxError(`Given table spec ${JSON.stringify(subSpec)} invalid`);
                     }
 
-                    if (subSpec.query) {
-                        if (!allowQueries) throw new SyntaxError(`Arbitrary queries found in ${JSON.stringify(tableSpec)} but not supported on this operation`);
-                        if (subSpec.schema || subSpec.name || subSpec.where)
-                            throw new SyntaxError(`Mutually-exclusive attributes detected in ${JSON.stringify(subSpec)}`);
+                    if (!subSpec.name)
+                        throw new SyntaxError(`Missing attribute "name" in ${JSON.stringify(subSpec)}`);
 
+                    if (options.type === 'API') {
+                        if (subSpec.query)
+                            throw new SyntaxError(`Unsupported attribute "query" in API-type mirror spec: ${JSON.stringify(subSpec)}`);
+                        if (subSpec.namespace || subSpec.filters)
+                            throw new SyntaxError(`Mutually-exclusive attributes "namespace|filters" in ${JSON.stringify(subSpec)}`);
                         specifiers.get(nsName).add({
-                            query: subSpec.query,
+                            name: subSpec.name,
+                            url: subSpec.url,
                             joinStrategy: subSpec.joinStrategy
                         });
                     } else {
-                        if (subSpec.where && typeof subSpec.where !== 'object')
-                            throw new SyntaxError(`Given where spec ${JSON.stringify(subSpec)} invalid`);
-
-                        specifiers.get(nsName).add({
-                            command: 'select',
-                            table: { schema: subSpec.schema || nsName, name: subSpec.name },
-                            columns: ['*'],
-                            where: subSpec.where,
-                            joinStrategy: subSpec.joinStrategy
-                        });
+                        if (subSpec.url)
+                            throw new SyntaxError(`Unsupported attribute "url" in SQL-type mirror spec: ${JSON.stringify(subSpec)}`);
+                        if (subSpec.query) {
+                            if (!allowQueries)
+                                throw new SyntaxError(`Arbitrary queries ${JSON.stringify(tableSpec)} not supported on this operation`);
+                            if (subSpec.namespace || subSpec.filters)
+                                throw new SyntaxError(`Mutually-exclusive attributes "namespace|filters" in ${JSON.stringify(subSpec)}`);
+                            specifiers.get(nsName).add({
+                                name: subSpec.name,
+                                query: subSpec.query,
+                                joinStrategy: subSpec.joinStrategy
+                            });
+                        } else {
+                            if (subSpec.filters && typeof subSpec.filters !== 'object')
+                                throw new SyntaxError(`Invalid attribute "filter" in ${JSON.stringify(subSpec)}`);
+                            specifiers.get(nsName).add({
+                                namespace: subSpec.namespace || nsName,
+                                name: subSpec.name,
+                                filters: subSpec.filters,
+                                joinStrategy: subSpec.joinStrategy
+                            });
+                        }
                     }
                 }
             }

@@ -54,13 +54,13 @@ export class LQObjectLiteral extends AbstractLQJsonLiteral {
                 arguments: entries.reduce((args, propertyJson, i) => {
 
                     let resultSchema = propertyJson.value.result_schema;
-                    const schemaIdent = { ...propertyJson.key, nodeName: registry.Identifier.NODE_NAME };
+                    const namespaceIdent = { ...propertyJson.key, nodeName: registry.Identifier.NODE_NAME };
 
                     if (resultSchema instanceof registry.ColumnSchema) {
-                        resultSchema = resultSchema.clone({ renameTo: schemaIdent });
+                        resultSchema = resultSchema.clone({ renameTo: namespaceIdent });
                     } else {
                         resultSchema = registry.ColumnSchema.fromJSON({
-                            name: schemaIdent,
+                            name: namespaceIdent,
                             data_type: this.entries()[i].value()?.dataType().jsonfy() || { nodeName: registry.DataType.NODE_NAME, value: 'TEXT' },
                         });
                     }

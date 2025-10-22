@@ -5,7 +5,7 @@ export class CreateSchemaStmt extends DDLStmt {
     /* SYNTAX RULES */
 
     static get syntaxRules() {
-        const mameRule = { type: ['SchemaIdent', 'Identifier'/* to support mock names */], as: 'name' };
+        const mameRule = { type: ['NamespaceIdent', 'Identifier'/* to support mock names */], as: 'name' };
         const pgAuthorizationRule = {
             syntax: [
                 { type: 'keyword', value: 'AUTHORIZATION' },

@@ -51,13 +51,13 @@ export class TableAbstraction1 extends ResultSchemaMixin(AbstractNode) {
 
             const derivedAliasJson = resultJson.alias || this.deriveAlias().jsonfy();
 
-            const schemaIdent = {
+            const namespaceIdent = {
                 nodeName: registry.Identifier.NODE_NAME,
                 value: derivedAliasJson.value,
                 delim: derivedAliasJson.delim,
             };
 
-            let resultSchema = resultJson.table_ref.result_schema.clone({ renameTo: schemaIdent });
+            let resultSchema = resultJson.table_ref.result_schema.clone({ renameTo: namespaceIdent });
             if (resultJson.alias) {
                 resultSchema = resultSchema.clone({ renameTo: { nodeName: registry.Identifier.NODE_NAME, value: resultJson.alias.value, delim: resultJson.alias.delim } });
             }

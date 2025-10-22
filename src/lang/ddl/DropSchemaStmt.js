@@ -17,8 +17,8 @@ export class DropSchemaStmt extends DDLStmt {
                     { type: 'keyword', value: 'EXISTS' },
                 ]
             },
-            { type: ['SchemaIdent', 'Identifier'/* to support mock names */], as: 'pg_names', arity: { min: 1 }, itemSeparator, dialect: 'postgres' },
-            { type: ['SchemaIdent', 'Identifier'/* to support mock names */], as: 'my_name', dialect: 'mysql' },
+            { type: ['NamespaceIdent', 'Identifier'/* to support mock names */], as: 'pg_names', arity: { min: 1 }, itemSeparator, dialect: 'postgres' },
+            { type: ['NamespaceIdent', 'Identifier'/* to support mock names */], as: 'my_name', dialect: 'mysql' },
             { type: 'keyword', as: 'pg_cascade_rule', value: ['CASCADE', 'RESTRICT'], optional: true, dialect: 'postgres' },
         ];
     }

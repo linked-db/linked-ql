@@ -2,7 +2,7 @@ import { AbstractClassicRef } from './abstracts/AbstractClassicRef.js';
 import { AbstractNode } from '../../abstracts/AbstractNode.js';
 import { registry } from '../../registry.js';
 
-export class SchemaRef extends AbstractClassicRef {
+export class NamespaceRef extends AbstractClassicRef {
 
     /* SYNTAX RULES */
 
@@ -28,24 +28,24 @@ export class SchemaRef extends AbstractClassicRef {
         const inGrepMode = !name && !deepMatchCallback;
         let resultSet = [];
 
-        const resolve = (schemaSchema) => {
-            if (!(schemaSchema instanceof registry.SchemaSchema)) return false;
-            if (name && !schemaSchema.identifiesAs(this)) return false;
+        const resolve = (namespaceSchema) => {
+            if (!(namespaceSchema instanceof registry.NamespaceSchema)) return false;
+            if (name && !namespaceSchema.identifiesAs(this)) return false;
             let result;
-            if (deepMatchCallback && !(result = deepMatchCallback(schemaSchema))) return false;
+            if (deepMatchCallback && !(result = deepMatchCallback(namespaceSchema))) return false;
             if (result instanceof AbstractNode || Array.isArray(result)) return result;
 
-            const resolvedSchemaRef1 = ColumnRef2.fromJSON({
-                ...schemaSchema.name().jsonfy({ nodeNames: false }),
-                ddl_schema: schemaSchema
+            const resolvedNamespaceRef1 = ColumnRef2.fromJSON({
+                ...namespaceSchema.name().jsonfy({ nodeNames: false }),
+                result_schema: namespaceSchema
             });
-            this.parentNode._adoptNodes(resolvedSchemaRef1);
+            this.parentNode._adoptNodes(resolvedNamespaceRef1);
 
-            return resolvedSchemaRef1;
+            return resolvedNamespaceRef1;
         };
 
-        for (const schemaSchema of schemaInference.catalog) {
-            resultSet = resultSet.concat(resolve(schemaSchema) || []);
+        for (const namespaceSchema of schemaInference.catalog) {
+            resultSet = resultSet.concat(resolve(namespaceSchema) || []);
             if (!inGrepMode && resultSet.length) break; // Matching current instance only
         }
 

@@ -353,14 +353,14 @@ $describe('Parser - References and Identifiers', () => {
             await testParseAndStringify('TableRef1', 'my_table @\'2_1\'', { stripSpaces: true, stripQuotes: true });
         });
 
-        $it('should parse a database reference (SchemaRef)', async () => {
-            await testParseAndStringify('SchemaRef', 'my_database');
+        $it('should parse a database reference (NamespaceRef)', async () => {
+            await testParseAndStringify('NamespaceRef', 'my_database');
         });
 
-        $it('should parse a database reference with version spec (SchemaRef)', async () => {
-            await testParseAndStringify('SchemaRef', 'my_database@2_1');
-            await testParseAndStringify('SchemaRef', 'my_database @2_1', { stripSpaces: true });
-            await testParseAndStringify('SchemaRef', 'my_database @\'2_1\'', { stripSpaces: true, stripQuotes: true });
+        $it('should parse a database reference with version spec (NamespaceRef)', async () => {
+            await testParseAndStringify('NamespaceRef', 'my_database@2_1');
+            await testParseAndStringify('NamespaceRef', 'my_database @2_1', { stripSpaces: true });
+            await testParseAndStringify('NamespaceRef', 'my_database @\'2_1\'', { stripSpaces: true, stripQuotes: true });
         });
     });
 

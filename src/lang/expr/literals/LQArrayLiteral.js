@@ -32,13 +32,13 @@ export class LQArrayLiteral extends AbstractLQJsonLiteral {
                 arguments: resultJson.entries.map((e, i) => {
 
                     let resultSchema = e.result_schema;
-                    const schemaIdent = { value: i, nodeName: registry.Identifier.NODE_NAME };
+                    const namespaceIdent = { value: i, nodeName: registry.Identifier.NODE_NAME };
 
                     if (resultSchema instanceof registry.ColumnSchema) {
-                        resultSchema = resultSchema.clone({ renameTo: schemaIdent });
+                        resultSchema = resultSchema.clone({ renameTo: namespaceIdent });
                     } else {
                         resultSchema = registry.ColumnSchema.fromJSON({
-                            name: schemaIdent,
+                            name: namespaceIdent,
                             data_type: this.entries()[i].dataType().jsonfy(),
                         });
                     }

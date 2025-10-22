@@ -1,14 +1,14 @@
 import { AbstractSchema } from '../../abstracts/AbstractSchema.js';
 import { registry } from '../../registry.js';
 
-export class SchemaSchema extends AbstractSchema {
+export class NamespaceSchema extends AbstractSchema {
 
     /* SYNTAX RULES */
 
     static get syntaxRules() {
         const itemSeparator = { type: 'punctuation', value: ',' };
         return [
-            { type: 'SchemaIdent', as: 'name', assert: true },
+            { type: 'NamespaceIdent', as: 'name', assert: true },
             {
                 type: 'paren_block',
                 syntax: { type: 'TableSchema', as: 'entries', arity: Infinity, itemSeparator, singletons: 'BY_KEY', autoIndent: true },

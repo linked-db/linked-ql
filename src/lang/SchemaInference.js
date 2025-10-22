@@ -1,5 +1,5 @@
-import { SchemaSchema } from './ddl/schema/SchemaSchema.js';
-import { matchSchemaSelector, normalizeSchemaSelectorArg } from '../db/abstracts/util.js';
+import { NamespaceSchema } from './ddl/namespace/NamespaceSchema.js';
+import { matchRelationSelector, normalizeRelationSelectorArg } from '../db/abstracts/util.js';
 
 export class SchemaInference {
 
@@ -33,7 +33,7 @@ export class SchemaInference {
             // If incoming is a pattern... no matching
             if (/^!|^%|%$|^\*$/.test(a)) return false;
             // If a IN b
-            return matchSchemaSelector(a, b);
+            return matchRelationSelector(a, b);
         };
         const order = (x, a, b) => {
             // Exact match should come first
@@ -44,20 +44,20 @@ export class SchemaInference {
             if (b[0] === '*') return -1;
             return 0;
         };
-        const admit = (schemaName, tables) => {
-            diffedSelectors[schemaName] = tables;
+        const admit = (namespaceName, tables) => {
+            diffedSelectors[namespaceName] = tables;
             // Create or update a record for the selector
-            const newTableList = [].concat(this.#queryHistory.get(schemaName)?.tables || []).concat(tables);
-            const newRecord = { schema: schemaName, tables: newTableList, fulfilment: null };
-            this.#queryHistory.set(schemaName, newRecord);
+            const newTableList = [].concat(this.#queryHistory.get(namespaceName)?.tables || []).concat(tables);
+            const newRecord = { namespace: namespaceName, tables: newTableList, fulfilment: null };
+            this.#queryHistory.set(namespaceName, newRecord);
             newRecords.push(newRecord);
         };
-        const diff = (schemaName, tables) => {
-            if (!currentEntries.length) return admit(schemaName, tables);
-            const currentEntries_sorted = currentEntries.sort((a, b) => order(schemaName, a, b));
-            for (const [schemaNameSpec, existingRecord] of currentEntries_sorted) {
-                // See if intersects with schemaNameSpec & currentEntries_sorted
-                if (match(schemaName, [schemaNameSpec])) {
+        const diff = (namespaceName, tables) => {
+            if (!currentEntries.length) return admit(namespaceName, tables);
+            const currentEntries_sorted = currentEntries.sort((a, b) => order(namespaceName, a, b));
+            for (const [namespaceNameSpec, existingRecord] of currentEntries_sorted) {
+                // See if intersects with namespaceNameSpec & currentEntries_sorted
+                if (match(namespaceName, [namespaceNameSpec])) {
                     const diffedTables = tables.filter((t) => !match(t, existingRecord.tables));
                     // If intersects with existingRecord's tables... wait for fulfilment
                     if (diffedTables.length < tables.length) {
@@ -67,18 +67,18 @@ export class SchemaInference {
                         }
                     }
                     if (diffedTables.length) {
-                        admit(schemaName, diffedTables);
+                        admit(namespaceName, diffedTables);
                     }
                 } else {
-                    admit(schemaName, tables);
+                    admit(namespaceName, tables);
                 }
             }
         };
         // -----------------------------
         // Pre-process selector
-        selector = normalizeSchemaSelectorArg(selector);
-        for (const [schemaName, objectNames] of Object.entries(selector)) {
-            diff(schemaName, objectNames);
+        selector = normalizeRelationSelectorArg(selector);
+        for (const [namespaceName, objectNames] of Object.entries(selector)) {
+            diff(namespaceName, objectNames);
         }
         // -----------------------------
         // Build final fulfilment list
@@ -105,21 +105,21 @@ export class SchemaInference {
         if (resultSchemas?.length) {
             for (const resultSchema of resultSchemas) {
                 // Instantiate...
-                const newSchemaSchema = SchemaSchema.fromJSON(resultSchema, { dialect: this.#driver.dialect });
-                for (const existingSchemaSchema of this.#catalog) {
-                    if (existingSchemaSchema.name().identifiesAs(newSchemaSchema.name())) {
-                        // Inherit existing tables from existingSchemaSchema
-                        for (const existingTableSchema of existingSchemaSchema.tables()) {
-                            if (!newSchemaSchema.has(existingTableSchema.name())) {
-                                newSchemaSchema.add(existingTableSchema.clone());
+                const newNamespaceSchema = NamespaceSchema.fromJSON(resultSchema, { dialect: this.#driver.dialect });
+                for (const existingNamespaceSchema of this.#catalog) {
+                    if (existingNamespaceSchema.name().identifiesAs(newNamespaceSchema.name())) {
+                        // Inherit existing tables from existingNamespaceSchema
+                        for (const existingTableSchema of existingNamespaceSchema.tables()) {
+                            if (!newNamespaceSchema.has(existingTableSchema.name())) {
+                                newNamespaceSchema.add(existingTableSchema.clone());
                             }
                         }
-                        // Delete existingSchemaSchema
-                        this.#catalog.delete(existingSchemaSchema);
+                        // Delete existingNamespaceSchema
+                        this.#catalog.delete(existingNamespaceSchema);
                     }
                 }
-                // Register newSchemaSchema
-                this.#catalog.add(newSchemaSchema);
+                // Register newNamespaceSchema
+                this.#catalog.add(newNamespaceSchema);
             }
         }
         return await totalFulfilment;

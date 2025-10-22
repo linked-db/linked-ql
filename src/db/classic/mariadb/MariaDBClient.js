@@ -1,7 +1,7 @@
 import mariadb from 'mariadb';
-import { ClassicClient } from '../ClassicClient.js';
+import { AbstractSQL0Client } from '../AbstractSQL0Client.js';
 
-export class MariaDBClient extends ClassicClient {
+export class MariaDBClient extends AbstractSQL0Client {
 
     #driver;
     #adminDriver;

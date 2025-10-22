@@ -2,7 +2,7 @@ import { AbstractNode } from '../../lang/abstracts/AbstractNode.js';
 import { _eq } from '../../lang/abstracts/util.js';
 import { registry } from '../../lang/registry.js';
 
-export function normalizeSchemaSelectorArg(selector, flatten = false) {
+export function normalizeRelationSelectorArg(selector, flatten = false) {
     if (selector === '*') {
         selector = { ['*']: ['*'] };
     } else if (Array.isArray(selector) && selector.length) {
@@ -10,12 +10,12 @@ export function normalizeSchemaSelectorArg(selector, flatten = false) {
             let keys;
             if (!(typeof s === 'object' && s)
                 || !(keys = Object.keys(s)).length
-                || keys.filter((k) => k !== 'schema' && k !== 'tables' && k !== 'name').length) {
+                || keys.filter((k) => k !== 'namespace' && k !== 'tables' && k !== 'name').length) {
                 throw new SyntaxError(`Given selector ${JSON.stringify(selector)} invalid at index ${i}`);
             }
-            const schema = s.schema || '*';
+            const namespace = s.namespace || '*';
             const tables = s.tables || s.name || '*';
-            return { ...ss, [schema]: [...new Set((ss[schema] || []).concat(tables))] };
+            return { ...ss, [namespace]: [...new Set((ss[namespace] || []).concat(tables))] };
         }, {});
     } else if (typeof selector === 'object' && selector && Object.keys(selector).length) {
         selector = Object.fromEntries(Object.entries(selector).map(([k, v]) => [k, [].concat(v)]));
@@ -23,14 +23,14 @@ export function normalizeSchemaSelectorArg(selector, flatten = false) {
         throw new SyntaxError(`Given selector ${JSON.stringify(selector)} invalid`);
     }
     if (flatten) {
-        selector = new Set(Object.entries(selector).reduce((all, [schema, tables]) => {
-            return all.concat([].concat(tables).map((table) => JSON.stringify([schema, table])));
+        selector = new Set(Object.entries(selector).reduce((all, [namespace, tables]) => {
+            return all.concat([].concat(tables).map((table) => JSON.stringify([namespace, table])));
         }, []));
     }
     return selector;
 }
 
-export function parseSchemaSelectors(enums) {
+export function parseRelationSelectors(enums) {
     const [names, _names, patterns, _patterns] = enums.reduce(([names, _names, patterns, _patterns], e) => {
         if (/^!%|^!.+%$/.test(e)) return [names, _names, patterns, _patterns.concat(e.slice(1))];
         if (/^%|%$/.test(e)) return [names, _names, patterns.concat(e), _patterns];
@@ -40,8 +40,8 @@ export function parseSchemaSelectors(enums) {
     return [names, _names, patterns, _patterns];
 }
 
-export function matchSchemaSelector(ident, enums) {
-    const [names, _names, patterns, _patterns] = parseSchemaSelectors(enums);
+export function matchRelationSelector(ident, enums) {
+    const [names, _names, patterns, _patterns] = parseRelationSelectors(enums);
     const $names = names.length ? names.includes(ident) || (names.length === 1 && names[0] === '*') : false;
     const $_names = _names.length ? !_names.includes(ident) : false;
     const $patterns = patterns.length ? patterns.some((s) => (new RegExp(s.replace('%', '.+?')).test(ident))) : false;
@@ -53,14 +53,12 @@ export function matchSchemaSelector(ident, enums) {
 
 export function normalizeQueryArgs(...args) {
     let query, options = {};
-    if (typeof args[0] === 'object' && args[0] && typeof args[0].text === 'string') {
-        ({ text: query, ...options } = args[0]);
-    } else if (typeof args[0] === 'object' && args[0] && typeof args[0].query === 'string') {
+    if (typeof args[0] === 'object' && args[0] && typeof args[0].query === 'string') {
         ({ query: query, ...options } = args[0]);
-    } else if (typeof args[0] === 'object' && args[0] && typeof args[0].command === 'string') {
-        const { command, table, columns, payload, where, ..._options } = args[0];
-        query = { command, table, columns, payload, where };
-        options = _options;
+    } else if (typeof args[0] === 'object' && args[0] && typeof args[0].text/* node_postgres compat */ === 'string') {
+        ({ text: query, ...options } = args[0]);
+    } else if (typeof args[0] === 'object' && args[0] && typeof args[0].url/* AbstractAPIClient compat */ === 'string') {
+        ({ url: query, ...options } = args[0]);
     } else {
         query = args.shift();
         if (Array.isArray(args[0])) {
