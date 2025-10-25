@@ -81,7 +81,6 @@ await client.disconnect();
 > You're viewing **@linked-db/linked-ql@next** — the upcoming iteration.  
 > See [@linked-db/linked-ql@0.3.*](https://github.com/linked-db/linked-ql) for the current version (being also the version covered in the [docs](https://github.com/linked-db/linked-ql/wiki)).
 
----
 
 <br>
 <br>
@@ -96,7 +95,7 @@ The result is a single data interface for a wide range of application types and 
 
 <div>
 
-### ⤷ Overview:
+### 🗂️ Overview:
 
 |  |  |
 |:---|:---|
@@ -296,8 +295,6 @@ console.log(result.rowCount); // 1
 console.log(result.rows); // []
 ```
 
----
-
 <br>
 <br>
 
@@ -313,7 +310,7 @@ The result is a smarter, more powerful database abstraction layer for modern app
 
 <div>
 
-### ⤷ Overview:
+### 🗂️ Overview:
 
 |  |  |
 |:---|:---|
@@ -627,9 +624,10 @@ await client.query(
 );
 -->
 
----
-
 <!--
+<br>
+<br>
+
 ## Features
 
 
@@ -637,7 +635,7 @@ This section moves from engine capabilities to **developer tools** and workflow.
 
 <div>
 
-### ⤷ Overview:
+### 🗂️ Overview:
 
 |  |  |
 |:---|:---|
@@ -648,8 +646,6 @@ This section moves from engine capabilities to **developer tools** and workflow.
 <br>
 -->
 
----
-
 <br>
 <br>
 
@@ -659,7 +655,7 @@ FlashQL is LinkedQL's embeddable database engine — complete in-memory database
 
 <div>
 
-### ⤷ Overview:
+### 🗂️ Overview:
 
 |  |  |
 |:---|:---|
