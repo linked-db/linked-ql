@@ -27,8 +27,8 @@ _A modern take on SQL and SQL databases_
 > npm install @linked-db/linked-ql@next
 > ```
 
-LinkedQL is a unified database abstraction for modern apps.<br>
-It comes as a classic query client — `client.query()` — but adds the right set of language and runtime capabilities that lets you do more.
+LinkedQL is a unified database abstraction for modern apps.
+It comes as a classic query client — `client.query()` — but adds the right set of language and runtime capabilities that lets you do more with SQL.
 
 LinkedQL is designed for a wide range of application types and deployment models: traditional server-side apps and microservices, client-side apps/PWAs, edge computing, offline-first apps, and real-time collaborative apps.
 
@@ -46,9 +46,9 @@ LinkedQL is designed for a wide range of application types and deployment models
 
 ## ⚡ Quick-Start
 
-_Install and use as a regular database client:_
+Install and use as a regular database client:
 
-> [!IMPORTANT]  
+> [!Note]  
 > You're viewing **@linked-db/linked-ql@next** — the upcoming iteration.  
 > See [@linked-db/linked-ql@0.3.*](https://github.com/linked-db/linked-ql) for the current version (being also the version covered in the [docs](https://github.com/linked-db/linked-ql/wiki)).
 
@@ -92,7 +92,7 @@ The result is a single data interface for a wide range of application types and 
 
 <div>
 
-### 🔍 Overview:
+### 🔍 Overview
 
 |  |  |
 |:---|:---|
@@ -307,7 +307,7 @@ The result is a smarter, more powerful database abstraction layer for modern app
 
 <div>
 
-### 🔍 Overview:
+### 🔍 Overview
 
 |  |  |
 |:---|:---|
@@ -632,7 +632,7 @@ This section moves from engine capabilities to **developer tools** and workflow.
 
 <div>
 
-### 🔍 Overview:
+### 🔍 Overview
 
 |  |  |
 |:---|:---|
@@ -652,7 +652,7 @@ FlashQL is LinkedQL's embeddable database engine — complete in-memory database
 
 <div>
 
-### 🔍 Overview:
+### 🔍 Overview
 
 |  |  |
 |:---|:---|
