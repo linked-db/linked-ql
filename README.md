@@ -27,7 +27,7 @@ _A modern take on SQL and SQL databases_
 > npm install @linked-db/linked-ql@next
 > ```
 
-LinkedQL is a unified database abstraction for modern apps.
+LinkedQL is a unified database abstraction for modern apps.<br>
 It comes as a classic query client — `client.query()` — but adds the right set of language and runtime capabilities that lets you do more with SQL.
 
 LinkedQL is designed for a wide range of application types and deployment models: traditional server-side apps and microservices, client-side apps/PWAs, edge computing, offline-first apps, and real-time collaborative apps.
@@ -38,6 +38,8 @@ LinkedQL is designed for a wide range of application types and deployment models
 <div align="center">
 
 **[⚡ Quick-Start](#-quick-start)** • **[🏗️ Design](#️-design)** • **[🚀 Capabilities](#-capabilities)** • **[💾 FlashQL](#-flashql)**
+
+[Documentation](#-documentation) • [Progress](#-development-progress) • [Contributing](#-contributing) • [License](#-license)
 
 </div>
 
@@ -111,7 +113,7 @@ FlashQL is a standalone SQL engine and speaks both dialects.
 
 #### `1.1 |` PostgreSQL
 
-Use as a drop-in replacement for [`node-postgres`](https://www.npmjs.com/package/pg).<br>
+Use as a drop-in replacement for [`node-postgres`](https://www.npmjs.com/package/pg). 
 (Speaks native `PostgreSQL`)
 
 ```js
@@ -142,7 +144,7 @@ await client.disconnect();
 
 #### `1.2 |` MySQL
 
-Use in place of [`mysql2`](https://www.npmjs.com/package/mysql2).<br>
+Use in place of [`mysql2`](https://www.npmjs.com/package/mysql2). 
 (Speaks native `MySQL`)
 
 ```js
@@ -173,7 +175,7 @@ await client.disconnect();
 
 #### `1.3 |` MariaDB
 
-Use in place of [`mariadb`](https://www.npmjs.com/package/mariadb).<br>
+Use in place of [`mariadb`](https://www.npmjs.com/package/mariadb). 
 (Speaks native `MySQL/MariaDB`)
 
 ```js
@@ -203,7 +205,7 @@ await client.disconnect();
 
 #### `1.4 |` FlashQL
 
-Use in place of [`SQLite`](https://sqlite.org/)/[`PGLite`](https://pglite.dev/).<br>
+Use in place of [`SQLite`](https://sqlite.org/)/[`PGLite`](https://pglite.dev/). 
 (Speaks both `PostgreSQL` and `MySQL`)
 
 ```js
@@ -238,7 +240,7 @@ LinkedQL offers a **unified** query interface across all dialects and clients.
 
 #### `2.1 |` `client.query()`
 
-The primary query API.<br>
+The primary query API. 
 (Supports multiple input shapes for flexibility.)
 
 ```js
@@ -263,7 +265,7 @@ const result = await client.query('SELECT * FROM users WHERE name = $1', { value
 
 #### `2.2 |` `Result`
 
-The `result` object.<br>
+The `result` object. 
 (Exposes `.rows`, `.rowCount` (alias `.affectedRows`))
 
 ```js
