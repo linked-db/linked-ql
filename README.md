@@ -47,7 +47,7 @@ LinkedQL is one unified abstraction for your entire database universe — with a
 
 ## ⚡ Quick-Start
 
-⤷ _Install and use as a regular database client:_
+_Install and use as a regular database client:_
 
 ```shell
 npm i @linked-db/linked-ql@next
@@ -82,6 +82,9 @@ await client.disconnect();
 
 ---
 
+<br>
+<br>
+
 ## 🏗️ Design
 
 LinkedQL is designed as a classic database query client — `client.query()` — but this time, one that _keeps the looks_ but _changes the scope_ to meet the new definition of modern database abstraction. This means, _not trading_ the simplicity of an ordinary query client, and yet expanding in capability to support modern apps.
@@ -92,7 +95,7 @@ The result is a single data interface for a wide range of application types and 
 
 <div>
 
-### ⤷ _Overview_
+### ⤷ Overview:
 
 |  |  |
 |:---|:---|
@@ -100,6 +103,8 @@ The result is a single data interface for a wide range of application types and 
 | **Query Interface** | [client.query()](#21--clientquery) • [Result](#22--result) |
 
 </div>
+
+<br>
 
 ### ` 1 |` Dialects & Clients
 
@@ -267,7 +272,8 @@ The `result` object.<br>
 const result = await client.query('SELECT id, name, email FROM users');
 console.log(result.rows);     // [{ id: 1, name: 'John', email: 'john@example.com' }]
 
-console.log(result.rowCount); // 0 (Not applicable to this kind of query)
+// Note that ".rowCount" is not applicable to this kind of query and always returns 0
+console.log(result.rowCount); // 0
 ```
 
 ```js
@@ -275,23 +281,28 @@ console.log(result.rowCount); // 0 (Not applicable to this kind of query)
 const result = await client.query('INSERT INTO users (name) VALUES ($1) RETURNING *', ['Alice']);
 console.log(result.rows);     // [{ id: 2, name: 'Alice', email: null }]
 
-console.log(result.rowCount); // 0 (Not applicable to this kind of query)
+// Note that ".rowCount" is not applicable to this kind of query and always returns 0
+console.log(result.rowCount); // 0
 ```
 ```js
 // result.rowCount
 const result = await client.query('INSERT INTO users (name) VALUES ($1)', ['Alice']);
 console.log(result.rowCount); // 1 
 
-console.log(result.rows);     // [] (Not applicable to this kind of query)
+// Note that ".rowCount" is not applicable to this kind of query and always returns an empty array
+console.log(result.rows); // []
 ```
 
 ---
+
+<br>
+<br>
 
 ## 🚀 Capabilities
 
 The most exciting part of LinkedQL is its language and runtime capabilities — where it stops being an ordinary query client and becomes a modern take on SQL and SQL databases.
 
-At the language level, you get an advanced form of SQL that lets you do far more within your queries than was previously possible even with additional tooling. It comes not just as a more powerful query language, but also a more declarative one — saving you months of wrangling with SQL and ORMs.
+At the language level, you get an advanced form of SQL that lets you do far more within your queries than was previously possible even with additional tooling. It comes as not just a more powerful query language, but also a more declarative one — saving you months of wrangling with SQL and ORMs.
 
 At the runtime level, LinkedQL extends your database with a new query execution model: reactivity, and a new versioning model: automatic versioning, and semantic version control. These new capabilities mark a shift in how we think about database interactions.
 
@@ -299,18 +310,20 @@ The result is a smarter, more powerful database abstraction layer for modern app
 
 <div>
 
-### ⤷ _Overview_
+### ⤷ Overview:
 
 |  |  |
 |:---|:---|
 | **Language Capabilities** | [DeepRefs](#11--deeprefs) • [JSON Shorthands](#12--json-shorthands) • [UPSERT Statement](#13--the-upsert-statement) |
-| **Runtime Capabilities** | [Live Queries](#21--live-queries) • [Realtime Triggers](#22--realtime-triggers) <br>• [Automatic Versioning](#23--automatic-database-versioning-coming-soon) • [Semantic Version Binding](#24--semantic-version-binding-coming-soon) |
+| **Runtime Capabilities** | [Live Queries](#21--live-queries) • [Realtime Triggers](#22--realtime-triggers) • [Automatic Versioning](#23--automatic-database-versioning-coming-soon) <br>• [Semantic Version Binding](#24--semantic-version-binding-coming-soon) |
 
 </div>
 
+<br>
+
 ### ` 1 |` Language Capabilities
 
-Eliminate tons of boilerplate and external tooling with LinkedQL's set of syntax shorthands. Here, LinkedQL gives you optional syntax shorthands that let you do more with the language, and less by hand.
+Here, LinkedQL extends SQL to give you optional syntax shorthands. These let you do more with the language, and less by hand.
 
 LinkedQL bundles a lightweight compiler that expands each shorthand to its plain SQL form for the underlying database.
 
@@ -352,7 +365,7 @@ console.log(result.rowCount); // Number of inserted rows
 
 Model shapes visually using JSON literals: `{}`, `[]`
 
-_a) Basic JSON object and array creation_
+_(a) A basic output structure_
 
 ```js
 // Shape your output data visually with JSON literals
@@ -370,9 +383,20 @@ const users = await client.query(
   FROM users AS u
   WHERE u.active = true`
 );
+
+console.log(users.rows[0]);
+/*
+{
+  id: 1,
+  first_name: 'John',
+  last_name: 'Doe',
+  name: { first: 'John', last: 'Doe', full: 'John Doe' },
+  contact: ['john@example.com', '+1234567890', 'johndoe.com']
+}
+*/
 ```
 
-_b) Add nested objects for complex data structures_
+_(b) A more complex structure_
 
 ```js
 // Include nested objects for addresses and preferences
@@ -439,7 +463,6 @@ const result = await client.query(
 );
 
 console.log(result.rowCount); // Number of upserted rows
-console.log(result.rows); // Returned rows (if RETURNING clause is used)
 ```
 
 ---
@@ -452,7 +475,7 @@ Here, LinkedQL extends your database at runtime to solve the toughest parts of t
 
 Turn on reactivity over arbitrary SQL with `{ live: true }`
 
-_a) Query_
+_(a) Query_
 
 ```js
 // Turn on reactivity with { live: true }
@@ -472,7 +495,7 @@ const result = await client.query(
 console.log(result.rows); // [{ title: '...', content: '...', author: '...', created_at: '...' }]
 ```
 
-_b) Make changes and see them reflect automatically_
+_(b) Make changes and see them reflect automatically_
 
 ```js
 // Make changes and see them reflect in the result
@@ -487,7 +510,7 @@ setTimeout(() => {
 }, 100);
 ```
 
-_c) Stop live mode when done_
+_(c) Stop live mode when done_
 
 ```js
 // Stop live mode at any time
@@ -611,16 +634,21 @@ This section moves from engine capabilities to **developer tools** and workflow.
 
 <div>
 
-### ⤷ _Overview_
+### ⤷ Overview:
 
 |  |  |
 |:---|:---|
 | **Coming Soon** | [Schema Niceties](#schema-niceties-coming-soon) • [IDE Niceties](#ide-niceties-coming-soon) |
 
 </div>
+
+<br>
 -->
 
 ---
+
+<br>
+<br>
 
 ## 💾 FlashQL
 
@@ -628,7 +656,7 @@ FlashQL is LinkedQL's embeddable database engine — complete in-memory database
 
 <div>
 
-### ⤷ _Overview_
+### ⤷ Overview:
 
 |  |  |
 |:---|:---|
@@ -637,10 +665,12 @@ FlashQL is LinkedQL's embeddable database engine — complete in-memory database
 
 </div>
 
+<br>
+
 ### ` 1 |` Usage
 
-_Run as a pure JavaScript, in-memory SQL engine — embeddable, dual-dialect, and lightweight — ideal for local-first, ephemeral, or browser environments.  
-Replaces SQLite or PGLite in many contexts._
+Run as a pure JavaScript, in-memory SQL engine — embeddable, dual-dialect, and lightweight — ideal for local-first, ephemeral, or browser environments.  
+Replaces SQLite or PGLite in many contexts.
 
 ```js
 // Import from the /flash namespace
@@ -662,7 +692,7 @@ console.log(result2.rows); // [{ name: '...' }]
 await client.disconnect();
 ```
 
-_Comes pretty robust — supporting advanced language features, including aggregate & window functions, advanced analytics (`GROUPING`, `ROLLUP`, `CUBE`), *set* operations (`UNION`, `INTERSECT`, `EXCEPT`),  Common Table Expressions (CTEs), and more._
+Comes pretty robust — supporting advanced language features, including aggregate & window functions, advanced analytics (`GROUPING`, `ROLLUP`, `CUBE`), *set* operations (`UNION`, `INTERSECT`, `EXCEPT`),  Common Table Expressions (CTEs), and more.
 
 ```js
 // Advanced FlashQL example with CTEs and window functions
@@ -703,7 +733,7 @@ Seamlessly work with data across multiple sources — federate queries, material
 
 Query across multiple database systems in one statement — perfect for hybrid setups where data lives across local and remote sources.
 
-_a) Setup: Initialize client with remote connection factory_
+_(a) Setup: Initialize client with remote connection factory_
 
 ```js
 import { FlashClient } from '@linked-db/linked-ql/flash';
@@ -721,7 +751,7 @@ const local = new FlashClient({
 await local.connect();
 ```
 
-_b) Federate your first remote dataset_
+_(b) Federate your first remote dataset_
 
 ```js
 // Use this connection
@@ -734,7 +764,7 @@ const remoteClientOpts1 = {
 await local.federate({ public: ['users', 'orders'] }, remoteClientOpts1);
 ```
 
-_c) Federate another dataset — with filtering, this time_
+_(c) Federate another dataset — with filtering, this time_
 
 ```js
 // Use this connection
@@ -754,7 +784,7 @@ await local.federate(
 );
 ```
 
-_d) Federate a third dataset - using raw SQL for complex querying, this time_
+_(d) Federate a third dataset - using raw SQL for complex querying, this time_
 
 ```js
 // Federate under the local namespace "analytics" (and from whatever remote namespaces the query touches)
@@ -768,7 +798,7 @@ await local.federate(
 );
 ```
 
-_e) Query across all federated sources on the fly_
+_(e) Query across all federated sources on the fly_
 
 > LinkedQL automatically routes the relevant parts of your query to their respective origins and streams results back into the working dataset. 
 
@@ -802,7 +832,7 @@ await local.disconnect();
 
 Materialize remote datasets locally for offline-first, edge-first, and distributed apps.
 
-_a) Setup: Initialize client with remote connection factory_
+_(a) Setup: Initialize client with remote connection factory_
 
 ```js
 import { FlashClient } from '@linked-db/linked-ql/flash';
@@ -820,7 +850,7 @@ const local = new FlashClient({
 await local.connect();
 ```
 
-_b) Materialize your first remote dataset_
+_(b) Materialize your first remote dataset_
 
 > Executes immediately and materializes the data locally
 
@@ -835,7 +865,7 @@ const remoteClientOpts1 = {
 await local.materialize({ public: ['users', 'orders'] }, remoteClientOpts1);
 ```
 
-_c) Materialize another dataset - with filtering, this time_
+_(c) Materialize another dataset - with filtering, this time_
 
 > Executes immediately and materializes the data locally
 
@@ -857,7 +887,7 @@ await local.materialize(
 );
 ```
 
-_d) Materialize a third dataset - using raw SQL for complex querying, this time_
+_(d) Materialize a third dataset - using raw SQL for complex querying, this time_
 
 > Executes immediately and materializes the data locally
 
@@ -873,7 +903,7 @@ await local.materialize(
 );
 ```
 
-_e) Query materialized data from the local DB_
+_(e) Query materialized data from the local DB_
 
 > This time, works even in offline (no network) node
 
@@ -907,7 +937,7 @@ await local.disconnect();
 
 Two-way data synchronization between local and remote databases — perfect for offline-first, edge-first, and distributed apps.
 
-_a) Setup: Initialize client with remote connection factory_
+_(a) Setup: Initialize client with remote connection factory_
 
 ```js
 import { FlashClient } from '@linked-db/linked-ql/flash';
@@ -925,7 +955,7 @@ const local = new FlashClient({
 await local.connect();
 ```
 
-_b) Sync with your first remote dataset_
+_(b) Sync with your first remote dataset_
 
 > Materializes data immediately and activates two-way synchronization between local and remote
 
@@ -943,7 +973,7 @@ await local.sync(
 );
 ```
 
-_c) Make local changes and see them sync back automatically_
+_(c) Make local changes and see them sync back automatically_
 
 ```js
 // Create new record in dataset
