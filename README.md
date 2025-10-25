@@ -36,10 +36,10 @@ LinkedQL is one unified abstraction for your entire database universe — with a
 
 |  |  |
 |:---|:---|
-| **[⚡ Quick-Start](#-quick-start)** | (_basic guide_) |
-| **[🏗️ Design](#%EF%B8%8F-design)** | [Dialects & Clients](#-1--dialects--clients) • [Query Interface](#-2--query-interface) |
-| **[🚀 Capabilities](#-capabilities)** | [Language Capabilities](#-1--language-capabilities) • [Runtime Capabilities](#-2--runtime-capabilities) |
-| **[💾 FlashQL](#-flashql)** | [Usage](#-1--usage) • [Data Orchestration](#-2--data-orchestration) |
+| **⚡ Quick-Start** | (_basic guide_) |
+| **🏗️ Design** | [Dialects & Clients](#-1--dialects--clients) • [Query Interface](#-2--query-interface) |
+| **🚀 Capabilities** | [Language Capabilities](#-1--language-capabilities) • [Runtime Capabilities](#-2--runtime-capabilities) |
+| **💾 FlashQL** | [Usage](#-1--usage) • [Data Orchestration](#-2--data-orchestration) |
 
 </div>
 
@@ -86,7 +86,7 @@ await client.disconnect();
 
 LinkedQL is designed as a classic database query client — `client.query()` — but this time, one that _keeps the looks_ but _changes the scope_ to meet the new definition of modern database abstraction. This means, _not trading_ the simplicity of an ordinary query client, and yet expanding in capability to support modern apps.
 
-LinkedQL speaks two dialects: PostgreSQL and MySQL — thus, supporting any PostgreSQL, or MySQL/MariaDB database backend. It additionally ships as a complete embeddable database engine — FlashQL (detailed just ahead) — which runs essentially anywhere JavaScript runs: client, server, edge.
+LinkedQL speaks two dialects: PostgreSQL and MySQL — supporting any PostgreSQL, or MySQL/MariaDB database backend. It additionally ships as a complete embeddable database engine — FlashQL (detailed just ahead) — which runs essentially anywhere JavaScript runs: client, server, edge.
 
 The result is a single data interface for a wide range of application types and deployment models: traditional server-side applications, client-side apps/PWAs, microservices, edge computing, offline-first apps, and real-time collaborative apps.
 
@@ -96,8 +96,8 @@ The result is a single data interface for a wide range of application types and 
 
 |  |  |
 |:---|:---|
-| **[Dialects & Clients](#-1--dialects--clients)** | [PostgreSQL](#11--postgresql) • [MySQL](#12--mysql) • [MariaDB](#13--mariadb) • [FlashQL](#14--flashql) |
-| **[Query Interface](#-2--query-interface)** | [client.query()](#21--clientquery) • [Result](#22--result) |
+| **Dialects & Clients** | [PostgreSQL](#11--postgresql) • [MySQL](#12--mysql) • [MariaDB](#13--mariadb) • [FlashQL](#14--flashql) |
+| **Query Interface** | [client.query()](#21--clientquery) • [Result](#22--result) |
 
 </div>
 
@@ -303,8 +303,8 @@ The result is a smarter, more powerful database abstraction layer for modern app
 
 |  |  |
 |:---|:---|
-| **[Language Capabilities](#-1--language-capabilities)** | [DeepRefs](#11--deeprefs) • [JSON Shorthands](#12--json-shorthands) • [UPSERT Statement](#13--the-upsert-statement) |
-| **[Runtime Capabilities](#-2--runtime-capabilities)** | [Live Queries](#21--live-queries) • [Realtime Triggers](#22--realtime-triggers) • [Automatic Versioning](#23--automatic-database-versioning-coming-soon) • [Semantic Version Binding](#24--semantic-version-binding-coming-soon) |
+| **Language Capabilities** | [DeepRefs](#11--deeprefs) • [JSON Shorthands](#12--json-shorthands) • [UPSERT Statement](#13--the-upsert-statement) |
+| **Runtime Capabilities** | [Live Queries](#21--live-queries) • [Realtime Triggers](#22--realtime-triggers) <br>• [Automatic Versioning](#23--automatic-database-versioning-coming-soon) • [Semantic Version Binding](#24--semantic-version-binding-coming-soon) |
 
 </div>
 
@@ -615,7 +615,7 @@ This section moves from engine capabilities to **developer tools** and workflow.
 
 |  |  |
 |:---|:---|
-| **[Coming Soon](#coming-soon)** | [Schema Niceties](#schema-niceties-coming-soon) • [IDE Niceties](#ide-niceties-coming-soon) |
+| **Coming Soon** | [Schema Niceties](#schema-niceties-coming-soon) • [IDE Niceties](#ide-niceties-coming-soon) |
 
 </div>
 -->
@@ -632,8 +632,8 @@ FlashQL is LinkedQL's embeddable database engine — complete in-memory database
 
 |  |  |
 |:---|:---|
-| **[Usage](#-1--usage)** | (_basic guide_) |
-| **[Data Orchestration](#-2--data-orchestration)** | [Query Federation](#21--query-federation) • [Data Materialization](#22--data-materialization) • [Data Sync](#23--data-sync) |
+| **Usage** | (_basic guide_) |
+| **Data Orchestration** | [Query Federation](#21--query-federation) • [Data Materialization](#22--data-materialization) • [Data Sync](#23--data-sync) |
 
 </div>
 
