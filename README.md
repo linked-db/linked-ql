@@ -43,7 +43,8 @@ LinkedQL is one unified abstraction for your entire database universe — with a
 
 </div>
 
----
+<br>
+<br>
 
 ## ⚡ Quick-Start
 
@@ -232,6 +233,8 @@ console.log(res.rows); // [{ result: 1 }]
 // Free resources
 await client.disconnect();
 ```
+
+<br>
 
 ### ` 2 |` Query Interface
 
@@ -465,7 +468,7 @@ const result = await client.query(
 console.log(result.rowCount); // Number of upserted rows
 ```
 
----
+<br>
 
 ### ` 2 |` Runtime Capabilities
 
@@ -724,6 +727,8 @@ console.log(rows); // Processed inactive users with ranking
 
 > [!NOTE]
 > FlashQL runs anywhere JavaScript runs — Node.js, browser, worker, or edge — and is designed for future pluggable backends (IndexedDB, Redis, etc.).
+
+<br>
 
 ### ` 2 |` Data Orchestration
 
