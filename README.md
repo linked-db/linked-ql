@@ -30,19 +30,14 @@ _A modern take on SQL and SQL databases_
 LinkedQL is a unified database abstraction for modern apps.<br>
 It comes as a classic query client — `client.query()` — but adds the right set of language and runtime capabilities that lets you do more.
 
-LinkedQL is designed for a wide range of application types and deployment models: traditional server-side applications, client-side apps/PWAs, microservices, edge computing, offline-first apps, and real-time collaborative apps.
+LinkedQL is designed for a wide range of application types and deployment models: traditional server-side apps and microservices, client-side apps/PWAs, edge computing, offline-first apps, and real-time collaborative apps.
 
 </div>
 
 
 <div align="center">
 
-|  |  |
-|:---|:---|
-| **⚡ Quick-Start** | (_basic guide_) |
-| **🏗️ Design** | [Dialects & Clients](#-1--dialects--clients) • [Query Interface](#-2--query-interface) |
-| **🚀 Capabilities** | [Language Capabilities](#-1--language-capabilities) • [Runtime Capabilities](#-2--runtime-capabilities) |
-| **💾 FlashQL** | [Usage](#-1--usage) • [Data Orchestration](#-2--data-orchestration) |
+**[⚡ Quick-Start](#-quick-start)** • **[🏗️ Design](#️-design)** • **[🚀 Capabilities](#-capabilities)** • **[💾 FlashQL](#-flashql)**
 
 </div>
 
@@ -52,6 +47,10 @@ LinkedQL is designed for a wide range of application types and deployment models
 ## ⚡ Quick-Start
 
 _Install and use as a regular database client:_
+
+> [!IMPORTANT]  
+> You're viewing **@linked-db/linked-ql@next** — the upcoming iteration.  
+> See [@linked-db/linked-ql@0.3.*](https://github.com/linked-db/linked-ql) for the current version (being also the version covered in the [docs](https://github.com/linked-db/linked-ql/wiki)).
 
 ```shell
 npm i @linked-db/linked-ql@next
@@ -79,11 +78,6 @@ console.log(result.rows); // [{ value: 10 }]
 // Don't forget to close the connection
 await client.disconnect();
 ```
-
-> [!IMPORTANT]  
-> You're viewing **@linked-db/linked-ql@next** — the upcoming iteration.  
-> See [@linked-db/linked-ql@0.3.*](https://github.com/linked-db/linked-ql) for the current version (being also the version covered in the [docs](https://github.com/linked-db/linked-ql/wiki)).
-
 
 <br>
 <br>
