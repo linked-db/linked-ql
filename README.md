@@ -65,7 +65,6 @@ console.log(result.rows); // [{ value: 10 }]
 await client.disconnect();
 ```
 
-
 ## 🗄️ Clients & Dialects
 
 LinkedQL ships with native clients for all major SQL dialects — each built as a thin extension of the database’s own driver.
@@ -77,7 +76,9 @@ LinkedQL ships with native clients for all major SQL dialects — each built as 
 | MariaDB             | `@linked-db/linked-ql/mariadb` | [Read → MariaDB Docs](https://github.com/linked-db/linked-ql/wiki/Clients-and-Dialects#mariadb) |
 | FlashQL (In-Memory) | `@linked-db/linked-ql/flash`   | [Read → FlashQL Docs](https://github.com/linked-db/linked-ql/wiki/Clients-and-Dialects#flashql) |
 
----
+
+<br>
+<br>
 
 <!----->
 
@@ -101,7 +102,8 @@ Rather than extend that layer with yet another prosthetic arm for a missing limb
 
 All of that comes built-in with the classic client API — giving your database an **automatic upgrade** in both **language** and **runtime capabilities**.
 
----
+<br>
+<br>
 
 ## `1 |` Language Capabilities
 
@@ -140,8 +142,6 @@ UPSERT INTO users (name, email) VALUES ('Jane', 'jane@example.com');
 
 </details>
 
----
-
 ## `2 |` Runtime Capabilities
 
 LinkedQL brings live reactivity and structural versioning to your database —
@@ -177,8 +177,6 @@ SELECT * FROM users@2_3; -- Query against schema version 2.3
 <details name="runtime-capab"><summary><b>(c)</b></summary>
 
 </details>
-
----
 
 ## `3 |` Offline Capabilities
 
@@ -222,7 +220,9 @@ await client.sync({ public: ['users'] }, remoteConfig);
 
 </details>
 
----
+
+<br>
+<br>
 
 ## 📚 Documentation
 
@@ -238,7 +238,9 @@ await client.sync({ public: ['users'] }, remoteConfig);
 | **RealtimeSQL**   | [RealtimeSQL →](https://github.com/linked-db/linked-ql/wiki/RealtimeSQL)     |
 | **FlashQL**       | [FlashQL →](https://github.com/linked-db/linked-ql/wiki/FlashQL)             |
 
----
+
+<br>
+<br>
 
 ## ⏳ Development Progress
 
@@ -256,7 +258,9 @@ await client.sync({ public: ['users'] }, remoteConfig);
 
 > 💡 Status Legend: 🟩 Complete | 🟨 In Progress | ⬜ Not Started
 
----
+
+<br>
+<br>
 
 ## 🤝 Contributing
 
@@ -274,7 +278,9 @@ npm test
 * Open [issues](https://github.com/linked-db/linked-ql/issues) or [discussions](https://github.com/linked-db/linked-ql/discussions).
 * Pull requests for fixes, docs, or new ideas are appreciated.
 
----
+
+<br>
+<br>
 
 ## 🔑 License
 
@@ -289,14 +295,4 @@ MIT — see [LICENSE](https://github.com/linked-db/linked-ql/blob/next/LICENSE)
 [license-src]: https://img.shields.io/github/license/linked-db/linked-ql.svg?style=flat&colorA=18181B&colorB=F0DB4F
 [license-href]: https://github.com/linked-db/linked-ql/blob/next/LICENSE
 
-```
-
----
-
-This version finally ties your product-pitch clarity to the philosophical spine:  
-- “What is LinkedQL?” — product definition.  
-- “Why LinkedQL?” — the engineering thesis.  
-- Ends with a payoff line that loops back to the practical: *“All of that comes built-in with the classic client API.”*  
-
-It’s succinct, developer-natural, and consistent with the tone across your feature docs.
 ```
