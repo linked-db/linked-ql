@@ -82,10 +82,10 @@ For PostgreSQL, MySQL, and MariaDB, it adapts seamlessly to each database throug
 <th align="left">Package</th>
 <th align="left">Docs</th>
 </tr>
-<tr><td>PostgreSQL</td><td><code>@linked-db/linked-ql/pg</code></td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/Entry-Points#postgresql">Read → PG Docs</a></td></tr>
-<tr><td>MySQL</td><td><code>@linked-db/linked-ql/mysql</code></td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/Entry-Points#mysql">Read → MySQL Docs</a></td></tr>
-<tr><td>MariaDB</td><td><code>@linked-db/linked-ql/mariadb</code></td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/Entry-Points#mariadb">Read → MariaDB Docs</a></td></tr>
-<tr><td>FlashQL (In-Memory)</td><td><code>@linked-db/linked-ql/flash</code></td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/Entry-Points#flashql">Read → FlashQL Docs</a></td></tr>
+<tr><td>PostgreSQL</td><td><code>@linked-db/linked-ql/pg</code></td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/Entry-Points#11--postgresql">Read → PG Docs</a></td></tr>
+<tr><td>MySQL</td><td><code>@linked-db/linked-ql/mysql</code></td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/Entry-Points#12--mysql">Read → MySQL Docs</a></td></tr>
+<tr><td>MariaDB</td><td><code>@linked-db/linked-ql/mariadb</code></td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/Entry-Points#13--mariadb">Read → MariaDB Docs</a></td></tr>
+<tr><td>FlashQL (In-Memory)</td><td><code>@linked-db/linked-ql/flash</code></td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/Entry-Points#14--flashql">Read → FlashQL Docs</a></td></tr>
 </table>
 
 ---
