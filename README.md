@@ -26,7 +26,7 @@ _A modern take on SQL and SQL databases_
 
 </div>
 
-<br><br>
+<br>
 
 <div align="center">
 
@@ -38,7 +38,7 @@ _A modern take on SQL and SQL databases_
 
 </div>
 
-<br>
+<br><br>
 
 
 ## ⚡ Quick Start
