@@ -22,19 +22,17 @@
 > npm install @linked-db/linked-ql@next
 > ```
 
-**LinkedQL** is a database client that solves the modern database capability problem in a single interface — `client.query()` — and in under `80 KiB min | zip`; **bringing relational queries, live queries, a versioning system, and more.**
+**LinkedQL** is a database client that solves the modern database capability problem in a single interface — `client.query()` — and in under `80 KiB min | zip`
 
 </div>
 
 <div align="center">
 
-[⚡ Quick-Start](#-quick-start) • [🗄️ Clients & Dialects](#️-clients--dialects)
-
-[What is LinkedQL](#️-what-is-linkedql)  • [Why LinkedQL](#-why-linkedql)
-
-**[Language Capabilities](#1--language-capabilities) • [Runtime Capabilities](#2--runtime-capabilities) • [💾 FlashQL](#-flashql)**
-
-[Documentation](#-documentation) • [Progress](#-development-progress) • [Contributing](#-contributing) • [License](#-license)
+| | About | Capabilities | |
+|:--|:--|:--|:--|
+| [Quick-Start](#-quick-start) | [What is LinkedQL](#️-what-is-linkedql) | [Language Capabilities](#1--language-capabilities) | [Documentation](#-documentation) |
+| [Clients & Dialects](#️-clients--dialects) | [Why LinkedQL](#-why-linkedql) | [Runtime Capabilities](#2--runtime-capabilities) | [Progress](#-development-progress) |
+| | | [Offline Capabilities](#3--offline-capabilities) | |
 
 </div>
 
@@ -116,7 +114,7 @@ You write declaratively; LinkedQL handles the translation.
 | **JSON Literals** | Model JSON shapes directly in SQL using `{}` and `[]`.       | [Read → JSON Literals](https://github.com/linked-db/linked-ql/wiki/JSON-Literals) |
 | **UPSERTS**       | Perform insert-or-update operations with a literal `UPSERT`. | [Read → UPSERTS](https://github.com/linked-db/linked-ql/wiki/UPSERTS)             |
 
-<details open><summary><b>(a)</b> Basic Example</summary>
+<details name="lang-capab" open><summary><b>(a)</b> Basic Example</summary>
 
 ```sql
 SELECT { name, email } AS user FROM users;
@@ -126,7 +124,7 @@ SELECT { name, email } AS user FROM users;
 
 </details>
 
-<details><summary><b>(b)</b> Relationship Traversal</summary>
+<details name="lang-capab"><summary><b>(b)</b> Relationship Traversal</summary>
 
 ```sql
 SELECT posts.author ~> { id, name } AS author FROM posts;
@@ -134,7 +132,7 @@ SELECT posts.author ~> { id, name } AS author FROM posts;
 
 </details>
 
-<details><summary><b>(c)</b> Upsert Shortcut</summary>
+<details name="lang-capab"><summary><b>(c)</b> Upsert Shortcut</summary>
 
 ```sql
 UPSERT INTO users (name, email) VALUES ('Jane', 'jane@example.com');
@@ -155,7 +153,7 @@ These capabilities run entirely at the client layer.
 | **Realtime Engine** | Live queries that continuously self-update as data changes.                      | [Read → RealtimeSQL](https://github.com/linked-db/linked-ql/wiki/RealtimeSQL) |
 | **Timeline Engine** | Schema history & rollback — version-bound queries and time-travel introspection. | (coming soon)                                                                 |
 
-<details open><summary><b>(a)</b> Live Query</summary>
+<details name="runtime-capab" open><summary><b>(a)</b> Live Query</summary>
 
 ```js
 const result = await client.query(
@@ -167,7 +165,7 @@ console.log(result.rows); // auto-updates as rows change
 
 </details>
 
-<details><summary><b>(b)</b> Version Binding</summary>
+<details name="runtime-capab"><summary><b>(b)</b> Version Binding</summary>
 
 ```sql
 SELECT * FROM users@2_3; -- Query against schema version 2.3
@@ -175,9 +173,14 @@ SELECT * FROM users@2_3; -- Query against schema version 2.3
 
 </details>
 
+
+<details name="runtime-capab"><summary><b>(c)</b></summary>
+
+</details>
+
 ---
 
-## 💾 FlashQL
+## `3 |` Offline Capabilities
 
 FlashQL is LinkedQL’s **portable, in-memory SQL engine** —
 a full runtime that brings SQL to the client, the edge, and offline environments.
@@ -189,7 +192,7 @@ and adds built-in support for **federation**, **materialization**, and **sync** 
 | :---------- | :-------------------------------------------------------------- | :-------------------------------------------------------------------- |
 | **FlashQL** | In-memory SQL runtime supporting PostgreSQL and MySQL dialects. | [Read → FlashQL](https://github.com/linked-db/linked-ql/wiki/FlashQL) |
 
-<details open><summary><b>(a)</b> Basic Example</summary>
+<details name="offline-capab" open><summary><b>(a)</b> Basic Example</summary>
 
 ```js
 import { FlashClient } from '@linked-db/linked-ql/flash';
@@ -202,7 +205,7 @@ console.log(res.rows);
 
 </details>
 
-<details><summary><b>(b)</b> Federation Example</summary>
+<details name="offline-capab"><summary><b>(b)</b> Federation Example</summary>
 
 ```js
 await client.federate({ public: ['users', 'orders'] }, remoteConfig);
@@ -211,7 +214,7 @@ const res = await client.query(`SELECT * FROM public.users`);
 
 </details>
 
-<details><summary><b>(c)</b> Sync Example</summary>
+<details name="offline-capab"><summary><b>(c)</b> Sync Example</summary>
 
 ```js
 await client.sync({ public: ['users'] }, remoteConfig);
