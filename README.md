@@ -65,6 +65,8 @@ console.log(result.rows); // [{ value: 10 }]
 await client.disconnect();
 ```
 
+---
+
 ## 🗄️ Clients & Dialects
 
 LinkedQL ships with native clients for all major SQL dialects — each built as a thin extension of the database’s own driver.
@@ -90,7 +92,7 @@ Same familiar API, but **advanced SQL over your database** — bringing relation
 Need SQL locally too? LinkedQL also runs as an **embeddable, in-memory database** — codenamed **FlashQL**.
 Use it as a lighter replacement for SQLite or PGLite, with all of LinkedQL’s power built in.
 
-
+---
 
 ## 🧭 Why LinkedQL
 
@@ -115,6 +117,8 @@ You write declaratively; LinkedQL handles the translation.
 | **DeepRefs**      | Follow relationships using arrow notation (`a ~> b ~> c`).   | [Read → DeepRefs](https://github.com/linked-db/linked-ql/wiki/DeepRefs)           |
 | **JSON Literals** | Model JSON shapes directly in SQL using `{}` and `[]`.       | [Read → JSON Literals](https://github.com/linked-db/linked-ql/wiki/JSON-Literals) |
 | **UPSERTS**       | Perform insert-or-update operations with a literal `UPSERT`. | [Read → UPSERTS](https://github.com/linked-db/linked-ql/wiki/UPSERTS)             |
+
+### Examples
 
 <details name="lang-capab" open><summary><b>(a)</b> Basic Example</summary>
 
@@ -142,6 +146,8 @@ UPSERT INTO users (name, email) VALUES ('Jane', 'jane@example.com');
 
 </details>
 
+---
+
 ## `2 |` Runtime Capabilities
 
 LinkedQL brings live reactivity and structural versioning to your database —
@@ -152,6 +158,8 @@ These capabilities run entirely at the client layer.
 | :------------------ | :------------------------------------------------------------------------------- | :---------------------------------------------------------------------------- |
 | **Realtime Engine** | Live queries that continuously self-update as data changes.                      | [Read → RealtimeSQL](https://github.com/linked-db/linked-ql/wiki/RealtimeSQL) |
 | **Timeline Engine** | Schema history & rollback — version-bound queries and time-travel introspection. | (coming soon)                                                                 |
+
+### Examples
 
 <details name="runtime-capab" open><summary><b>(a)</b> Live Query</summary>
 
@@ -178,6 +186,8 @@ SELECT * FROM users@2_3; -- Query against schema version 2.3
 
 </details>
 
+---
+
 ## `3 |` Offline Capabilities
 
 FlashQL is LinkedQL’s **portable, in-memory SQL engine** —
@@ -189,6 +199,8 @@ and adds built-in support for **federation**, **materialization**, and **sync** 
 | Engine      | Description                                                     | Docs                                                                  |
 | :---------- | :-------------------------------------------------------------- | :-------------------------------------------------------------------- |
 | **FlashQL** | In-memory SQL runtime supporting PostgreSQL and MySQL dialects. | [Read → FlashQL](https://github.com/linked-db/linked-ql/wiki/FlashQL) |
+
+### Examples
 
 <details name="offline-capab" open><summary><b>(a)</b> Basic Example</summary>
 
@@ -238,9 +250,7 @@ await client.sync({ public: ['users'] }, remoteConfig);
 | **RealtimeSQL**   | [RealtimeSQL →](https://github.com/linked-db/linked-ql/wiki/RealtimeSQL)     |
 | **FlashQL**       | [FlashQL →](https://github.com/linked-db/linked-ql/wiki/FlashQL)             |
 
-
-<br>
-<br>
+---
 
 ## ⏳ Development Progress
 
@@ -278,9 +288,7 @@ npm test
 * Open [issues](https://github.com/linked-db/linked-ql/issues) or [discussions](https://github.com/linked-db/linked-ql/discussions).
 * Pull requests for fixes, docs, or new ideas are appreciated.
 
-
-<br>
-<br>
+---
 
 ## 🔑 License
 
