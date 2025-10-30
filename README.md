@@ -3,12 +3,12 @@
 
 # LinkedQL  
 
+_A modern take on SQL and SQL databases_
+
 [![npm version][npm-version-src]][npm-version-href]
 [![npm downloads][npm-downloads-src]][npm-downloads-href]
 [![bundle][bundle-src]][bundle-href]
 [![License][license-src]][license-href]
-
-_A modern take on SQL and SQL databases_
 
 </div>
 
@@ -18,7 +18,7 @@ _A modern take on SQL and SQL databases_
   <img src="https://github.com/linked-db/linked-ql/blob/next/resources/linked-ql-main2.png?raw=true" alt="LinkedQL Banner" width="100%">
 </picture>
 
-<br>
+<br><br>
 
 <div align="center">
 
