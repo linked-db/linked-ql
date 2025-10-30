@@ -22,15 +22,21 @@
 > npm install @linked-db/linked-ql@next
 > ```
 
-**LinkedQL is a database client that solves the modern database capability problem in a single interface — `client.query()` — and in under `80 KiB min | zip`.**  
-It keeps the same familiar API but brings advanced SQL to your database — supporting relational queries, live queries, schema awareness, and more.
-
-Need SQL locally too? LinkedQL also runs as an **embeddable, in-memory database** — codenamed **FlashQL**.  
-Use it as a lighter replacement for SQLite or PGLite, with all of LinkedQL’s power built in.
+**LinkedQL** is a database client that solves the modern database capability problem in a single interface — `client.query()` — and in under `80 KiB min | zip`; **bringing relational queries, live queries, a versioning system, and more.**
 
 </div>
 
----
+<div align="center">
+
+[⚡ Quick-Start](#-quick-start) • [🗄️ Clients & Dialects](#️-clients--dialects)
+
+[What is LinkedQL](#️-what-is-linkedql)  • [Why LinkedQL](#-why-linkedql)
+
+**[Language Capabilities](#1--language-capabilities) • [Runtime Capabilities](#2--runtime-capabilities) • [💾 FlashQL](#-flashql)**
+
+[Documentation](#-documentation) • [Progress](#-development-progress) • [Contributing](#-contributing) • [License](#-license)
+
+</div>
 
 ## ⚡ Quick Start
 
@@ -75,7 +81,8 @@ LinkedQL ships with native clients for all major SQL dialects — each built as 
 
 ---
 
-<!--
+<!----->
+
 ## 🏗️ What is LinkedQL
 
 **LinkedQL is a database client that solves the modern database capability problem in a single interface — `client.query()` — and in under `80 KiB min | zip`.**
@@ -84,7 +91,7 @@ Same familiar API, but **advanced SQL over your database** — bringing relation
 Need SQL locally too? LinkedQL also runs as an **embeddable, in-memory database** — codenamed **FlashQL**.
 Use it as a lighter replacement for SQLite or PGLite, with all of LinkedQL’s power built in.
 
---->
+
 
 ## 🧭 Why LinkedQL
 
@@ -95,6 +102,8 @@ Modern applications built around them have to wade through layers of **external 
 Rather than extend that layer with yet another prosthetic arm for a missing limb in SQL, **LinkedQL extends SQL itself** to close the gaps at their level — **syntax gaps at the language layer**, and **runtime problems at the runtime layer.**
 
 All of that comes built-in with the classic client API — giving your database an **automatic upgrade** in both **language** and **runtime capabilities**.
+
+---
 
 ## `1 |` Language Capabilities
 
