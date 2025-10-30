@@ -78,6 +78,7 @@ LinkedQL ships with native clients for all major SQL dialects — each built as 
 | MariaDB             | `@linked-db/linked-ql/mariadb` | [Read → MariaDB Docs](https://github.com/linked-db/linked-ql/wiki/Clients-and-Dialects#mariadb) |
 | FlashQL (In-Memory) | `@linked-db/linked-ql/flash`   | [Read → FlashQL Docs](https://github.com/linked-db/linked-ql/wiki/Clients-and-Dialects#flashql) |
 
+---
 
 <br>
 <br>
@@ -103,6 +104,8 @@ Modern applications built around them have to wade through layers of **external 
 Rather than extend that layer with yet another prosthetic arm for a missing limb in SQL, **LinkedQL extends SQL itself** to close the gaps at their level — **syntax gaps at the language layer**, and **runtime problems at the runtime layer.**
 
 All of that comes built-in with the classic client API — giving your database an **automatic upgrade** in both **language** and **runtime capabilities**.
+
+---
 
 <br>
 <br>
@@ -232,6 +235,7 @@ await client.sync({ public: ['users'] }, remoteConfig);
 
 </details>
 
+---
 
 <br>
 <br>
@@ -268,6 +272,7 @@ await client.sync({ public: ['users'] }, remoteConfig);
 
 > 💡 Status Legend: 🟩 Complete | 🟨 In Progress | ⬜ Not Started
 
+---
 
 <br>
 <br>
