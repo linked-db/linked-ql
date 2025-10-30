@@ -8,6 +8,8 @@
 [![bundle][bundle-src]][bundle-href]
 [![License][license-src]][license-href]
 
+_A modern take on SQL and SQL databases_
+
 </div>
 
 <picture>
@@ -16,15 +18,15 @@
   <img src="https://github.com/linked-db/linked-ql/blob/next/resources/linked-ql-main2.png?raw=true" alt="LinkedQL Banner" width="100%">
 </picture>
 
-<div align="center">
+<br>
 
-> ```bash
-> npm install @linked-db/linked-ql@next
-> ```
+<div align="center">
 
 **LinkedQL** is a database client that solves the modern database capability problem in a single interface — `client.query()` — and in under `80 KiB min | zip`.
 
 </div>
+
+<br><br>
 
 <div align="center">
 
@@ -36,9 +38,8 @@
 
 </div>
 
-<br><br>
+<br>
 
----
 
 ## ⚡ Quick Start
 
@@ -74,7 +75,7 @@ await client.disconnect();
 LinkedQL ships with native clients for major SQL dialects —
 each built as a thin extension of its database’s native driver.
 
-<table width="100%">
+<table style="width:100%">
 <tr>
 <th align="left">Dialect</th>
 <th align="left">Package</th>
@@ -121,7 +122,7 @@ All of that comes built-in with the classic client API — giving your database 
 LinkedQL extends SQL with optional **syntactic shorthands** — new forms that **compile into standard SQL** for your database.
 You write declaratively; LinkedQL handles the translation.
 
-<table width="100%">
+<table style="width:100%">
 <tr><th align="left">Feature</th><th align="left">Summary</th><th align="left">Docs</th></tr>
 <tr><td><b>DeepRefs</b></td><td>Follow relationships using arrow notation (<code>a ~> b ~> c</code>).</td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/DeepRefs">Read →</a></td></tr>
 <tr><td><b>JSON Literals</b></td><td>Model JSON shapes directly in SQL using <code>{}</code> and <code>[]</code>.</td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/JSON-Literals">Read →</a></td></tr>
@@ -165,7 +166,7 @@ await client.query(`UPSERT INTO users (name, email) VALUES ('Jane', 'jane@exampl
 LinkedQL brings live reactivity and structural versioning to your database —
 **without patching it or installing extensions.**
 
-<table width="100%">
+<table style="width:100%">
 <tr><th align="left">Feature</th><th align="left">Summary</th><th align="left">Docs</th></tr>
 <tr><td><b>Realtime Engine</b></td><td>Live queries that continuously self-update as data changes.</td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/RealtimeSQL">Read →</a></td></tr>
 <tr><td><b>Timeline Engine</b></td><td>Schema history & rollback — version-bound queries and time-travel introspection.</td><td align="left">(coming soon)</td></tr>
@@ -201,7 +202,7 @@ console.log(result.rows); // Query against schema version 2.3
 Offline capabilities are powered by **FlashQL** — LinkedQL’s in-memory SQL engine that brings the full database runtime to the client, edge, and offline environments.
 It fills another familiar gap: running full SQL locally — and adds built-in support for **federation**, **materialization**, and **sync** between remote databases and local state.
 
-<table width="100%">
+<table style="width:100%">
 <tr><th align="left">Capability</th><th align="left">Description</th><th align="left">Docs</th></tr>
 <tr><td><b>Federation</b></td><td>Query across remote and local databases as a single surface.</td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/FlashQL">Read →</a></td></tr>
 <tr><td><b>Materialization</b></td><td>Materialize remote datasets locally for offline queries.</td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/FlashQL">Read →</a></td></tr>
