@@ -1,14 +1,15 @@
 
+
 <div align="center">
 
 # LinkedQL  
-
-_A modern take on SQL and SQL databases_
 
 [![npm version][npm-version-src]][npm-version-href]
 [![npm downloads][npm-downloads-src]][npm-downloads-href]
 [![bundle][bundle-src]][bundle-href]
 [![License][license-src]][license-href]
+
+_A modern take on SQL and SQL databases_
 
 </div>
 
@@ -72,8 +73,8 @@ await client.disconnect();
 
 ## 🗄️ Clients & Dialects
 
-LinkedQL ships with native clients for major SQL dialects —
-each built as a thin extension of its database’s native driver.
+LinkedQL ships with clients for each major SQL dialect.<br>
+For PostgreSQL, MySQL, and MariaDB, it adapts seamlessly to each database through their respective native connectors.
 
 <table style="width:100%">
 <tr>
@@ -81,10 +82,10 @@ each built as a thin extension of its database’s native driver.
 <th align="left">Package</th>
 <th align="left">Docs</th>
 </tr>
-<tr><td>PostgreSQL</td><td><code>@linked-db/linked-ql/pg</code></td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/Clients-and-Dialects#postgresql">Read → PG Docs</a></td></tr>
-<tr><td>MySQL</td><td><code>@linked-db/linked-ql/mysql</code></td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/Clients-and-Dialects#mysql">Read → MySQL Docs</a></td></tr>
-<tr><td>MariaDB</td><td><code>@linked-db/linked-ql/mariadb</code></td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/Clients-and-Dialects#mariadb">Read → MariaDB Docs</a></td></tr>
-<tr><td>FlashQL (In-Memory)</td><td><code>@linked-db/linked-ql/flash</code></td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/Clients-and-Dialects#flashql">Read → FlashQL Docs</a></td></tr>
+<tr><td>PostgreSQL</td><td><code>@linked-db/linked-ql/pg</code></td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/Entry-Points#postgresql">Read → PG Docs</a></td></tr>
+<tr><td>MySQL</td><td><code>@linked-db/linked-ql/mysql</code></td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/Entry-Points#mysql">Read → MySQL Docs</a></td></tr>
+<tr><td>MariaDB</td><td><code>@linked-db/linked-ql/mariadb</code></td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/Entry-Points#mariadb">Read → MariaDB Docs</a></td></tr>
+<tr><td>FlashQL (In-Memory)</td><td><code>@linked-db/linked-ql/flash</code></td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/Entry-Points#flashql">Read → FlashQL Docs</a></td></tr>
 </table>
 
 ---
