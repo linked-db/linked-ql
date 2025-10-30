@@ -1,1037 +1,254 @@
 <div align="center">
-    
-# LinkedQL
+
+# LinkedQL  
+*SQL, evolved.*
 
 [![npm version][npm-version-src]][npm-version-href]
 [![npm downloads][npm-downloads-src]][npm-downloads-href]
 [![bundle][bundle-src]][bundle-href]
 [![License][license-src]][license-href]
 
-_A modern take on SQL and SQL databases_
-
 </div>
 
 <picture>
-  <source media="(max-width: 799px)" srcset="https://github.com/linked-db/linked-ql/blob/next/resources/linked-ql-mobile2.png?raw=true">
-  <source media="(min-width: 800px)" srcset="https://github.com/linked-db/linked-ql/blob/next/resources/linked-ql-main2.png?raw=true">
+  <source media="(max-width:799px)" srcset="https://github.com/linked-db/linked-ql/blob/next/resources/linked-ql-mobile2.png?raw=true">
+  <source media="(min-width:800px)" srcset="https://github.com/linked-db/linked-ql/blob/next/resources/linked-ql-main2.png?raw=true">
   <img src="https://github.com/linked-db/linked-ql/blob/next/resources/linked-ql-main2.png?raw=true" alt="LinkedQL Banner" width="100%">
 </picture>
 
 <div align="center">
 
-<!--
-[⤷ Follow](https://x.com/LinkedQL) • [💖 Sponsor](https://github.com/sponsors/ox-harris)
--->
-
 > ```bash
 > npm install @linked-db/linked-ql@next
 > ```
 
-LinkedQL is a unified database abstraction for modern apps.<br>
-It comes as a classic query client — `client.query()` — but adds the right set of language and runtime capabilities that lets you do more with SQL.
+**LinkedQL is a database client that solves the modern database capability problem in a single interface — `client.query()` — and in under `80 KiB min | zip`.**  
+It keeps the same familiar API but brings advanced SQL to your database — supporting relational queries, live queries, schema awareness, and more.
 
-LinkedQL is designed for a wide range of application types and deployment models: traditional server-side apps and microservices, client-side apps/PWAs, edge computing, offline-first apps, and real-time collaborative apps.
-
-</div>
-
-
-<div align="center">
-
-**[⚡ Quick-Start](#-quick-start)** • **[🏗️ Design](#️-design)** • **[🚀 Capabilities](#-capabilities)** • **[💾 FlashQL](#-flashql)**
-
-[Documentation](#-documentation) • [Progress](#-development-progress) • [Contributing](#-contributing) • [License](#-license)
+Need SQL locally too? LinkedQL also runs as an **embeddable, in-memory database** — codenamed **FlashQL**.  
+Use it as a lighter replacement for SQLite or PGLite, with all of LinkedQL’s power built in.
 
 </div>
 
-<br>
-<br>
+---
 
-## ⚡ Quick-Start
+## ⚡ Quick Start
 
-Install and use as a regular database client:
+> [!NOTE]
+> You’re viewing **@linked-db/linked-ql@next** — the upcoming iteration.
+> For the stable 0.3.x branch, see [linked-db/linked-ql@0.3.*](https://github.com/linked-db/linked-ql).
 
-> [!Note]  
-> You're viewing **@linked-db/linked-ql@next** — the upcoming iteration.  
-> See [@linked-db/linked-ql@0.3.*](https://github.com/linked-db/linked-ql) for the current version (being also the version covered in the [docs](https://github.com/linked-db/linked-ql/wiki)).
-
-```shell
+```bash
 npm i @linked-db/linked-ql@next
 ```
 
 ```js
-// Import from the relevant namespace
 import { PGClient } from '@linked-db/linked-ql/pg';
 
-// Initialize and connect
-const client = new PGClient({ 
-  host: 'localhost', 
+const client = new PGClient({
+  host: 'localhost',
   port: 5432,
-  database: 'myapp',
   user: 'postgres',
-  password: 'password'
+  password: 'password',
+  database: 'myapp'
 });
 
 await client.connect();
 
-// Run queries
-const result = await client.query(`SELECT 10 as value`);
+const result = await client.query(`SELECT 10 AS value`);
 console.log(result.rows); // [{ value: 10 }]
 
-// Don't forget to close the connection
 await client.disconnect();
 ```
 
-<br>
-<br>
 
-## 🏗️ Design
+## 🗄️ Clients & Dialects
 
-LinkedQL is designed as a classic database query client — `client.query()` — but this time, one that _keeps the looks_ but _changes the scope_ to meet the new definition of modern database abstraction. This means, _not trading_ the simplicity of an ordinary query client, and yet expanding in capability to support modern apps.
+LinkedQL ships with native clients for all major SQL dialects — each built as a thin extension of the database’s own driver.
 
-LinkedQL speaks two dialects: PostgreSQL and MySQL — supporting any PostgreSQL, or MySQL/MariaDB database backend. It additionally ships as a complete embeddable database engine — FlashQL (detailed just ahead) — which runs essentially anywhere JavaScript runs: client, server, edge.
+| Dialect             | Package                        | Docs                                                                                            |
+| :------------------ | :----------------------------- | :---------------------------------------------------------------------------------------------- |
+| PostgreSQL          | `@linked-db/linked-ql/pg`      | [Read → PG Docs](https://github.com/linked-db/linked-ql/wiki/Clients-and-Dialects#postgresql)   |
+| MySQL               | `@linked-db/linked-ql/mysql`   | [Read → MySQL Docs](https://github.com/linked-db/linked-ql/wiki/Clients-and-Dialects#mysql)     |
+| MariaDB             | `@linked-db/linked-ql/mariadb` | [Read → MariaDB Docs](https://github.com/linked-db/linked-ql/wiki/Clients-and-Dialects#mariadb) |
+| FlashQL (In-Memory) | `@linked-db/linked-ql/flash`   | [Read → FlashQL Docs](https://github.com/linked-db/linked-ql/wiki/Clients-and-Dialects#flashql) |
 
-The result is a single data interface for a wide range of application types and deployment models: traditional server-side applications, client-side apps/PWAs, microservices, edge computing, offline-first apps, and real-time collaborative apps.
+---
 
-<div>
+<!--
+## 🏗️ What is LinkedQL
 
-### 🔍 Overview
+**LinkedQL is a database client that solves the modern database capability problem in a single interface — `client.query()` — and in under `80 KiB min | zip`.**
+Same familiar API, but **advanced SQL over your database** — bringing relational queries, live queries, and schema awareness together in one place.
 
-|  |  |
-|:---|:---|
-| **Dialects & Clients** | [PostgreSQL](#11--postgresql) • [MySQL](#12--mysql) • [MariaDB](#13--mariadb) • [FlashQL](#14--flashql) |
-| **Query Interface** | [client.query()](#21--clientquery) • [Result](#22--result) |
+Need SQL locally too? LinkedQL also runs as an **embeddable, in-memory database** — codenamed **FlashQL**.
+Use it as a lighter replacement for SQLite or PGLite, with all of LinkedQL’s power built in.
 
-</div>
+--->
 
-<br>
+## 🧭 Why LinkedQL
 
-### ` 1 |` Dialects & Clients
+SQL and SQL databases have a **capability problem.**
+Modern applications built around them have to wade through layers of **external tooling** as a consequence.
+(For example, need relational queries and realtime data? → ORMs + GraphQL layers.)
 
-Below are the corresponding clients for the supported dialects. The PostgreSQL, MySQL, and MariaDB clients are each an extension of their respective native connector; each accepting the same *init* options as those.
+Rather than extend that layer with yet another prosthetic arm for a missing limb in SQL, **LinkedQL extends SQL itself** to close the gaps at their level — **syntax gaps at the language layer**, and **runtime problems at the runtime layer.**
 
-FlashQL is a standalone SQL engine and speaks both dialects.
+All of that comes built-in with the classic client API — giving your database an **automatic upgrade** in both **language** and **runtime capabilities**.
 
-#### `1.1 |` PostgreSQL
+## `1 |` Language Capabilities
 
-Use as a drop-in replacement for [`node-postgres`](https://www.npmjs.com/package/pg). 
-(Speaks native `PostgreSQL`)
+LinkedQL extends SQL with optional **syntactic shorthands** — new forms that **compile into standard SQL** for your database.
+You write declaratively; LinkedQL handles the translation.
 
-```js
-// Import from the "pg" namespace
-import { PGClient } from '@linked-db/linked-ql/pg';
+| Feature           | Summary                                                      | Docs                                                                              |
+| :---------------- | :----------------------------------------------------------- | :-------------------------------------------------------------------------------- |
+| **DeepRefs**      | Follow relationships using arrow notation (`a ~> b ~> c`).   | [Read → DeepRefs](https://github.com/linked-db/linked-ql/wiki/DeepRefs)           |
+| **JSON Literals** | Model JSON shapes directly in SQL using `{}` and `[]`.       | [Read → JSON Literals](https://github.com/linked-db/linked-ql/wiki/JSON-Literals) |
+| **UPSERTS**       | Perform insert-or-update operations with a literal `UPSERT`. | [Read → UPSERTS](https://github.com/linked-db/linked-ql/wiki/UPSERTS)             |
 
-// Initialize and connect
-const client = new PGClient({
-  // Same init options as node-postgres's
-  host: 'localhost', 
-  port: 5432,
-  // Whether to run on: pg.Pool or pg.Client
-  poolMode: true | false, // default: false, pg.Client
-});
-await client.connect();
+<details open><summary><b>(a)</b> Basic Example</summary>
+
+```sql
+SELECT { name, email } AS user FROM users;
+-- Desugars to:
+-- SELECT JSON_BUILD_OBJECT('name', name, 'email', email);
 ```
 
-```js
-// Run postgres-specific query
-const res = await client.query('SELECT 1::text AS result');
-console.log(res.rows); // [{ result: '1' }]
+</details>
+
+<details><summary><b>(b)</b> Relationship Traversal</summary>
+
+```sql
+SELECT posts.author ~> { id, name } AS author FROM posts;
 ```
 
-```js
-// Close connections and free resources
-await client.disconnect();
+</details>
+
+<details><summary><b>(c)</b> Upsert Shortcut</summary>
+
+```sql
+UPSERT INTO users (name, email) VALUES ('Jane', 'jane@example.com');
 ```
 
-#### `1.2 |` MySQL
+</details>
 
-Use in place of [`mysql2`](https://www.npmjs.com/package/mysql2). 
-(Speaks native `MySQL`)
+---
 
-```js
-// Import from the "mysql" namespace
-import { MySQLClient } from '@linked-db/linked-ql/mysql';
+## `2 |` Runtime Capabilities
 
-// Initialize and connect
-const client = new MySQLClient({
-  // Same init options as mysql2's
-  host: 'localhost', 
-  port: 3306,
-  // Whether to run on: mysql.createPool() or mysql.createConnection()
-  poolMode: true | false, // default: false, mysql.createConnection()
-});
-await client.connect();
-```
+LinkedQL brings live reactivity and structural versioning to your database —
+**without patching it or installing extensions.**
+These capabilities run entirely at the client layer.
+
+| Feature             | Summary                                                                          | Docs                                                                          |
+| :------------------ | :------------------------------------------------------------------------------- | :---------------------------------------------------------------------------- |
+| **Realtime Engine** | Live queries that continuously self-update as data changes.                      | [Read → RealtimeSQL](https://github.com/linked-db/linked-ql/wiki/RealtimeSQL) |
+| **Timeline Engine** | Schema history & rollback — version-bound queries and time-travel introspection. | (coming soon)                                                                 |
+
+<details open><summary><b>(a)</b> Live Query</summary>
 
 ```js
-// Run mysql-specific query
-const res = await client.query('SELECT 1 AS `result`');
-console.log(res.rows); // [{ result: 1 }]
-```
-
-```js
-// Close connections and free resources
-await client.disconnect();
-```
-
-#### `1.3 |` MariaDB
-
-Use in place of [`mariadb`](https://www.npmjs.com/package/mariadb). 
-(Speaks native `MySQL/MariaDB`)
-
-```js
-// Import from the "mariadb" namespace
-import { MariaDBClient } from '@linked-db/linked-ql/mariadb';
-
-// Initialize and connect
-const client = new MariaDBClient({
-  // Same init options as mariadb's
-  // always runs on mariadb.createPool()
-  host: 'localhost', 
-  port: 3306,
-});
-await client.connect();
-```
-
-```js
-// Run mysql-specific query
-const res = await client.query('SELECT 1 AS `result`');
-console.log(res.rows); // [{ result: 1 }]
-```
-
-```js
-// Close connections and free resources
-await client.disconnect();
-```
-
-#### `1.4 |` FlashQL
-
-Use in place of [`SQLite`](https://sqlite.org/)/[`PGLite`](https://pglite.dev/). 
-(Speaks both `PostgreSQL` and `MySQL`)
-
-```js
-// Import from the "flash" namespace
-import { FlashClient } from '@linked-db/linked-ql/flash';
-
-// Initialize and connect
-const client = new FlashClient();
-await client.connect();
-```
-
-```js
-// Run postgres-specific query - by default: { dialect: 'postgres' }
-const res = await client.query('SELECT 1::text AS result');
-console.log(res.rows); // [{ result: '1' }]
-
-// Run mysql-specific query - using { dialect: 'mysql' }
-const res = await client.query('SELECT 1 AS `result`', { dialect: 'mysql' });
-console.log(res.rows); // [{ result: 1 }]
-```
-
-```js
-// Free resources
-await client.disconnect();
-```
-
-<br>
-
-### ` 2 |` Query Interface
-
-LinkedQL offers a **unified** query interface across all dialects and clients.
-
-#### `2.1 |` `client.query()`
-
-The primary query API. 
-(Supports multiple input shapes for flexibility.)
-
-```js
-// String query only
-const result = await client.query('SELECT * FROM users');
-
-// Query with parameters array
-const result = await client.query('SELECT * FROM users WHERE active = $1', [true]);
-```
-
-```js
-// Query with parameters and options
 const result = await client.query(
-  'SELECT * FROM users WHERE created_at > $1',
-  [new Date('2024-01-01')],
+  `SELECT title, author ~> name FROM posts ORDER BY created_at DESC`,
   { live: true }
 );
-
-// Query with parameters via options.values
-const result = await client.query('SELECT * FROM users WHERE name = $1', { values: ['John'], /* other options*/ });
+console.log(result.rows); // auto-updates as rows change
 ```
 
-#### `2.2 |` `Result`
+</details>
 
-The `result` object. 
-(Exposes `.rows`, `.rowCount` (alias `.affectedRows`))
+<details><summary><b>(b)</b> Version Binding</summary>
 
-```js
-// result.rows
-const result = await client.query('SELECT id, name, email FROM users');
-console.log(result.rows);     // [{ id: 1, name: 'John', email: 'john@example.com' }]
-
-// Note that ".rowCount" is not applicable to this kind of query and always returns 0
-console.log(result.rowCount); // 0
+```sql
+SELECT * FROM users@2_3; -- Query against schema version 2.3
 ```
 
-```js
-// result.rows
-const result = await client.query('INSERT INTO users (name) VALUES ($1) RETURNING *', ['Alice']);
-console.log(result.rows);     // [{ id: 2, name: 'Alice', email: null }]
+</details>
 
-// Note that ".rowCount" is not applicable to this kind of query and always returns 0
-console.log(result.rowCount); // 0
-```
-```js
-// result.rowCount
-const result = await client.query('INSERT INTO users (name) VALUES ($1)', ['Alice']);
-console.log(result.rowCount); // 1 
-
-// Note that ".rowCount" is not applicable to this kind of query and always returns an empty array
-console.log(result.rows); // []
-```
-
-<br>
-<br>
-
-## 🚀 Capabilities
-
-The most exciting part of LinkedQL is its language and runtime capabilities — where it stops being an ordinary query client and becomes a modern take on SQL and SQL databases.
-
-At the language level, you get an advanced form of SQL that lets you do far more within your queries than was previously possible even with additional tooling. It comes as not just a more powerful query language, but also a more declarative one — saving you months of wrangling with SQL and ORMs.
-
-At the runtime level, LinkedQL extends your database with a new query execution model: reactivity, and a new versioning model: automatic versioning, and semantic version control. These new capabilities mark a shift in how we think about database interactions.
-
-The result is a smarter, more powerful database abstraction layer for modern apps that collapses layers of ORMs, query builders, migration tools, complex data architectures, and GraphQL servers.
-
-<div>
-
-### 🔍 Overview
-
-|  |  |
-|:---|:---|
-| **Language Capabilities** | [DeepRefs](#11--deeprefs) • [JSON Shorthands](#12--json-shorthands) • [UPSERT Statement](#13--the-upsert-statement) |
-| **Runtime Capabilities** | [Live Queries](#21--live-queries) • [Realtime Triggers](#22--realtime-triggers) • [Automatic Versioning](#23--automatic-database-versioning-coming-soon) <br>• [Semantic Version Binding](#24--semantic-version-binding-coming-soon) |
-
-</div>
-
-<br>
-
-### ` 1 |` Language Capabilities
-
-Here, LinkedQL extends SQL to give you optional syntax shorthands. These let you do more with the language, and less by hand.
-
-LinkedQL bundles a lightweight compiler that expands each shorthand to its plain SQL form for the underlying database.
-
-#### `1.1 |` DeepRefs
-
-Follow relationships using simple arrow notation: `a ~> c ~> d`
-
-```js
-// DeepRefs let you access deeply nested columns
-const books = await client.query(
-  `SELECT 
-    b.title, 
-    b.content, 
-    b.author ~> name AS author_name,
-    b.author ~> profile ~> bio AS author_bio
-  FROM books b
-  WHERE b.author ~> role = $1`,
-  ['admin']
-);
-
-console.log(books.rows);
-// [{ title: '...', content: '...', author_name: 'John Doe', author_bio: '...' }]
-```
-
-```js
-// DeepRefs can also be written to directly
-const result = await client.query(
-  `INSERT INTO books
-    (title, content, author ~> name, author ~> profile ~> bio)
-  VALUES
-    ('Book Title 1', 'Hello world... (1)', 'John Doe', 'Author bio...'),
-    ('Book Title 2', 'Hello world... (2)', 'Alice Blue', 'Another bio...')`
-);
-
-console.log(result.rowCount); // Number of inserted rows
-```
-
-#### `1.2 |` JSON shorthands
-
-Model shapes visually using JSON literals: `{}`, `[]`
-
-_(a) A basic output structure_
-
-```js
-// Shape your output data visually with JSON literals
-const users = await client.query(
-  `SELECT
-    u.id, 
-    u.first_name, 
-    u.last_name,
-    { 
-      first: u.first_name, 
-      last: u.last_name,
-      full: u.first_name || ' ' || u.last_name
-    } AS name,
-    [ u.email, u.phone, u.website ] AS contact
-  FROM users AS u
-  WHERE u.active = true`
-);
-
-console.log(users.rows[0]);
-/*
-{
-  id: 1,
-  first_name: 'John',
-  last_name: 'Doe',
-  name: { first: 'John', last: 'Doe', full: 'John Doe' },
-  contact: ['john@example.com', '+1234567890', 'johndoe.com']
-}
-*/
-```
-
-_(b) A more complex structure_
-
-```js
-// Include nested objects for addresses and preferences
-const usersWithProfile = await client.query(
-  `SELECT
-    u.id, 
-    u.first_name, 
-    u.last_name,
-    {
-      address: {
-        street: u.street,
-        city: u.city,
-        country: u.country
-      },
-      preferences: {
-        theme: u.theme_preference,
-        notifications: u.notifications_enabled
-      }
-    } AS profile
-  FROM users AS u
-  WHERE u.active = true`
-);
-
-console.log(usersWithProfile.rows[0]);
-/*
-{
-  id: 2,
-  first_name: 'John',
-  last_name: 'Doe',
-  name: { 
-    first: 'John', 
-    last: 'Doe',
-    full: 'John Doe'
-  },
-  contact: ['john@example.com', '+1234567890', 'https://johndoe.com'],
-  profile: {
-    address: {
-      street: '123 Main St',
-      city: 'New York',
-      country: 'USA'
-    },
-    preferences: {
-      theme: 'dark',
-      notifications: true
-    }
-  }
-}
-*/
-```
-
-#### `1.3 |` The UPSERT statement
-
-Do upserts with a literal UPSERT statement.
-
-```js
-// Skip the ON CONFLICT / ON DUPLICATE KEY step
-const result = await client.query(
-  `UPSERT INTO public.users 
-    (name, email, role, updated_at)
-  VALUES
-    ('John Doe', 'jd@example.com', 'admin', NOW()),
-    ('Alice Blue', 'ab@example.com', 'guest', NOW()),
-    ('Bob Smith', 'bs@example.com', 'user', NOW())`
-);
-
-console.log(result.rowCount); // Number of upserted rows
-```
-
-<br>
-
-### ` 2 |` Runtime Capabilities
-
-Here, LinkedQL extends your database at runtime to solve the toughest parts of the modern database layer: reactivity, and schema versioning — collapsing complex tooling layers and infrastructure.
-
-#### `2.1 |` Live Queries
-
-Turn on reactivity over arbitrary SQL with `{ live: true }`
-
-_(a) Query_
-
-```js
-// Turn on reactivity with { live: true }
-const result = await client.query(
-  `SELECT 
-    b.title, 
-    b.content, 
-    u.name AS author,
-    b.created_at
-  FROM books b
-  LEFT JOIN users u ON b.author_id = u.id
-  ORDER BY b.created_at DESC`,
-  { live: true }
-);
-
-// Result rows are "live" data — continuously self-updating
-console.log(result.rows); // [{ title: '...', content: '...', author: '...', created_at: '...' }]
-```
-
-_(b) Make changes and see them reflect automatically_
-
-```js
-// Make changes and see them reflect in the result
-await client.query(`
-  INSERT INTO books (title, content, author_id)
-  VALUES ('New Book', 'Fresh content...', 1)`
-);
-
-// The result automatically updates - no manual refresh needed
-setTimeout(() => {
-  console.log(result.rows); // Now includes the new book
-}, 100);
-```
-
-_(c) Stop live mode when done_
-
-```js
-// Stop live mode at any time
-result.abort();
-```
-
-> [!TIP]
-> For PostgreSQL, ensure you have *Logical Replication* [enabled](https://www.digitalocean.com/community/tutorials/how-to-set-up-logical-replication-with-postgresql-10-on-ubuntu-18-04) on your database. (Coming soon for MySQL; works automatically with FlashQL.)
-
-> [!TIP] 
-> "Live" objects like the above can be observed using the [Observer API](https://github.com/webqit/observer):
->
-> ```js
-> Observer.observe(result.rows, (changes) => console.log(changes));
-> ```
->
-> Alternatively, you can pass a callback along with your query to manually handle raw changefeeds from the engine:
->
-> ```js
-> await client.query(`SELECT ...`, (events) => console.log(events), { live: true });
-> ```
-
-> [!TIP]
-> While LinkedQL fully supports the traditional callback model for manual change handling, its real strength lies in the concept of live result objects — a cleaner, more intuitive way to reason about changing data.
->
-> Built for *mutation-based* reactivity, this model integrates seamlessly with newer stacks that share the same foundation, letting you pass dynamic, ever-updating data across your entire application — even over the wire — with zero glue code.
->
-> As an example, the Webflo framework would let you return "live" data from a route for automatic binding on the UI — with reactivity preserved through the wire:
->
->  ```js
->  // Return "live" results over the wire from a Webflo route
->  export default async function(event, next) {
->    const result = await client.query(`SELECT ...`, { live: true });
->    return result.rows;
->  }
->  ```
-
-#### `2.2 |` Realtime Triggers
-
-Listen to row-level or table-level events as they happen — same API across all engines, perfect for cache invalidation, live analytics, or instant event-driven automation.
-
-```js
-// Subscribe to changes on all tables
-const unsubscribe = client.subscribe((event) => {
-  console.log(`Table ${event.relation.name} changed:`, {
-    type: event.type,
-    old: event.old,
-    new: event.new
-  });
-});
-
-// Subscribe to changes on specific tables
-const unsubscribeSpecific = client.subscribe(
-  { public: ['users', 'orders'] }, 
-  (event) => {
-    console.log(`Change in ${event.relation.name}:`, {
-      operation: event.type,
-      data: event.new
-    });
-  }
-);
-
-// Unsubscribe when done
-unsubscribe();
-unsubscribeSpecific();
-```
-
-> [!NOTE]
-> Each event includes granular metadata — `type` (`insert`/`update`/`delete`), `relation` (schema/table), and `old`/`new` row data.
-> Works consistently across FlashQL, PostgreSQL, and MySQL (with logical replication enabled).
-
-#### `2.3 |` Automatic Database Versioning (Coming Soon)
-
-<!--⏱ Get automatic database versioning on every DDL operation-->
-
-<!--
-// A savepoint is automatically created for you on every DDL operation
-const savepoint = await client.query(
-  `CREATE TABLE public.users (
-    id int,
-    name varchar
-  )
-  RETURNING SAVEPOINT`,
-  { desc: 'Create users table' }
-);
-
-// Inspect savepoint details
-console.log(savepoint.versionTag()); // 1
-console.log(savepoint.commitDesc()); // Create users table
-console.log(savepoint.commitDate()); // 2024-07-17T22:40:56.786Z
-
-// Rollback at any time (drops the table above)
-await savepoint.rollback({ desc: 'Users table no more necessary' });
--->
-
-#### `2.4 |` Semantic Version Binding (Coming Soon)
-
-<!--🧷 Bind queries to specific schema or table versions: <table_ref | schema_ref>@<version_number>-->
-
-<!--
-// ...makes this query version-safe
-await client.query(
-  `SELECT users.first_name, books.title FROM users@3
-  LEFT JOIN books@2_1 ON users.id = books.author`
-);
-
-// Alter your database without breaking your queries
-await client.query(
-  `ALTER TABLE users
-  RENAME COLUMN first_name TO fname`
-);
--->
-
-<!--
-<br>
-<br>
-
-## Features
-
-
-This section moves from engine capabilities to **developer tools** and workflow.
-
-<div>
-
-### 🔍 Overview
-
-|  |  |
-|:---|:---|
-| **Coming Soon** | [Schema Niceties](#schema-niceties-coming-soon) • [IDE Niceties](#ide-niceties-coming-soon) |
-
-</div>
-
-<br>
--->
-
-<br>
-<br>
+---
 
 ## 💾 FlashQL
 
-FlashQL is LinkedQL's embeddable database engine — complete in-memory database for client-side apps, PWAs, edge computing, and offline-first applications.
+FlashQL is LinkedQL’s **portable, in-memory SQL engine** —
+a full runtime that brings SQL to the client, the edge, and offline environments.
 
-<div>
+It fills another familiar gap — running full SQL locally —
+and adds built-in support for **federation**, **materialization**, and **sync** between remote databases and local state.
 
-### 🔍 Overview
+| Engine      | Description                                                     | Docs                                                                  |
+| :---------- | :-------------------------------------------------------------- | :-------------------------------------------------------------------- |
+| **FlashQL** | In-memory SQL runtime supporting PostgreSQL and MySQL dialects. | [Read → FlashQL](https://github.com/linked-db/linked-ql/wiki/FlashQL) |
 
-|  |  |
-|:---|:---|
-| **Usage** | (_basic guide_) |
-| **Data Orchestration** | [Query Federation](#21--query-federation) • [Data Materialization](#22--data-materialization) • [Data Sync](#23--data-sync) |
-
-</div>
-
-<br>
-
-### ` 1 |` Usage
-
-Run as a pure JavaScript, in-memory SQL engine — embeddable, dual-dialect, and lightweight — ideal for local-first, ephemeral, or browser environments.  
-Replaces SQLite or PGLite in many contexts.
+<details open><summary><b>(a)</b> Basic Example</summary>
 
 ```js
-// Import from the /flash namespace
 import { FlashClient } from '@linked-db/linked-ql/flash';
-
-// Initialize
 const client = new FlashClient();
-await client.connect();
-
-// Run queries - understands Postgres by default: { dialect: 'postgres' }
-const result1 = await client.query('SELECT 2::text as value');
-console.log(result1.rows); // [{ value: '2' }]
-
-// Switch dialect per query
-const result2 = await client.query('SELECT `name` FROM `users`', { dialect: 'mysql' });
-console.log(result2.rows); // [{ name: '...' }]
-
-// Clean up
-await client.disconnect();
+await client.query(`CREATE TABLE users (id SERIAL, name TEXT)`);
+await client.query(`INSERT INTO users (name) VALUES ('Alice'), ('Bob')`);
+const res = await client.query(`SELECT JSON_AGG(name) AS users FROM users`);
+console.log(res.rows);
 ```
 
-Comes pretty robust — supporting advanced language features, including aggregate & window functions, advanced analytics (`GROUPING`, `ROLLUP`, `CUBE`), *set* operations (`UNION`, `INTERSECT`, `EXCEPT`),  Common Table Expressions (CTEs), and more.
+</details>
+
+<details><summary><b>(b)</b> Federation Example</summary>
 
 ```js
-// Advanced FlashQL example with CTEs and window functions
-const { rows } = await client.query(`
-    WITH updated AS (
-        UPDATE users
-        SET status = 'inactive'
-        WHERE last_login < NOW() - INTERVAL '30 days'
-        RETURNING id, status, last_login
-    ), ranked AS (
-        SELECT 
-            id, 
-            status, 
-            ROW_NUMBER() OVER (ORDER BY last_login DESC) AS login_rank
-        FROM updated
-    )
-    SELECT 
-        r.id, 
-        r.status, 
-        r.login_rank,
-        u.name
-    FROM ranked r
-    LEFT JOIN users u ON r.id = u.id
-    ORDER BY r.login_rank
-`);
-
-console.log(rows); // Processed inactive users with ranking
+await client.federate({ public: ['users', 'orders'] }, remoteConfig);
+const res = await client.query(`SELECT * FROM public.users`);
 ```
 
-> [!NOTE]
-> FlashQL runs anywhere JavaScript runs — Node.js, browser, worker, or edge — and is designed for future pluggable backends (IndexedDB, Redis, etc.).
+</details>
 
-<br>
-
-### ` 2 |` Data Orchestration
-
-Seamlessly work with data across multiple sources — federate queries, materialize datasets, and sync changes between local and remote databases.
-
-#### `2.1 |` Query Federation
-
-Query across multiple database systems in one statement — perfect for hybrid setups where data lives across local and remote sources.
-
-_(a) Setup: Initialize client with remote connection factory_
+<details><summary><b>(c)</b> Sync Example</summary>
 
 ```js
-import { FlashClient } from '@linked-db/linked-ql/flash';
-import { PGClient } from '@linked-db/linked-ql/pg';
-
-// Initialize local FlashQL client with remote connection factory
-const local = new FlashClient({
-  onCreateRemoteClient: async (remoteClientOpts) => {
-    const remote = new PGClient(remoteClientOpts);
-    await remote.connect();
-    return remote;
-  },
-});
-
-await local.connect();
+await client.sync({ public: ['users'] }, remoteConfig);
 ```
 
-_(b) Federate your first remote dataset_
-
-```js
-// Use this connection
-const remoteClientOpts1 = { 
-  host: 'localhost', 
-  port: 5432,
-  database: 'production'
-};
-// Federate under the local namespace "public" (and from the remote namespace "public")
-await local.federate({ public: ['users', 'orders'] }, remoteClientOpts1);
-```
-
-_(c) Federate another dataset — with filtering, this time_
-
-```js
-// Use this connection
-const remoteClientOpts2 = { 
-  connectionString: 'postgresql://user:pass@remote-db:5432/analytics'
-};
-// Federate under the local namespace "pg1" (and from the remote namespace "public")
-await local.federate(
-  {
-    pg1: {
-      namespace: 'public',
-      name: 'products',
-      filters: { status: 1 } // Optional filter
-    }
-  },
-  remoteClientOpts2
-);
-```
-
-_(d) Federate a third dataset - using raw SQL for complex querying, this time_
-
-```js
-// Federate under the local namespace "analytics" (and from whatever remote namespaces the query touches)
-await local.federate(
-  { 
-    analytics: { 
-      query: 'SELECT * FROM public.events WHERE created_at > NOW() - INTERVAL \'7 days\'' 
-    } 
-  },
-  remoteClientOpts2
-);
-```
-
-_(e) Query across all federated sources on the fly_
-
-> LinkedQL automatically routes the relevant parts of your query to their respective origins and streams results back into the working dataset. 
-
-```js
-// Note: An active connection to each remote database is required at query time
-const result = await local.query(`
-  SELECT 
-    u.id, 
-    u.name,
-    o.total, 
-    p.name as product_name,
-    e.event_type
-  FROM public.users u
-  JOIN public.orders o ON u.id = o.user_id
-  JOIN pg1.products p ON o.product_id = p.id
-  LEFT JOIN analytics.events e ON u.id = e.user_id
-  WHERE o.created_at > NOW() - INTERVAL '30 days'
-  ORDER BY o.total DESC
-`);
-
-console.log(result.rows); // Federated query results
-
-// Clean up
-await local.disconnect();
-```
-
-> [!NOTE]
-> Federation is lazy — data is streamed on demand, not bulk-copied — ideal for hybrid setups where part of your data lives remotely. Each query execution requires network access to the relevant remote origins.
-
-#### `2.2 |` Data Materialization
-
-Materialize remote datasets locally for offline-first, edge-first, and distributed apps.
-
-_(a) Setup: Initialize client with remote connection factory_
-
-```js
-import { FlashClient } from '@linked-db/linked-ql/flash';
-import { PGClient } from '@linked-db/linked-ql/pg';
-
-// Initialize local client with remote connection factory
-const local = new FlashClient({
-  onCreateRemoteClient: async (remoteClientOpts) => {
-    const remote = new PGClient(remoteClientOpts);
-    await remote.connect();
-    return remote;
-  },
-});
-
-await local.connect();
-```
-
-_(b) Materialize your first remote dataset_
-
-> Executes immediately and materializes the data locally
-
-```js
-// Use this connection
-const remoteClientOpts1 = { 
-  host: 'localhost', 
-  port: 5432,
-  database: 'production'
-};
-// Materialize into the local namespace "public" (and from the remote namespace "public")
-await local.materialize({ public: ['users', 'orders'] }, remoteClientOpts1);
-```
-
-_(c) Materialize another dataset - with filtering, this time_
-
-> Executes immediately and materializes the data locally
-
-```js
-// Use this connection
-const remoteClientOpts2 = { 
-  connectionString: 'postgresql://user:pass@remote-db:5432/analytics'
-};
-// Materialize into the local namespace "pg1" (and from the remote namespace "public")
-await local.materialize(
-  {
-    pg1: {
-      namespace: 'public',
-      name: 'products',
-      filters: { status: 1 } // Optional filter
-    }
-  },
-  remoteClientOpts2
-);
-```
-
-_(d) Materialize a third dataset - using raw SQL for complex querying, this time_
-
-> Executes immediately and materializes the data locally
-
-```js
-// Materialize into the local namespace "analytics" (and from whatever remote namespaces the query touches)
-await local.materialize(
-  { 
-    analytics: { 
-      query: 'SELECT * FROM public.events WHERE created_at > NOW() - INTERVAL \'7 days\'' 
-    } 
-  },
-  remoteClientOpts2
-);
-```
-
-_(e) Query materialized data from the local DB_
-
-> This time, works even in offline (no network) node
-
-```js
-// BOTE: No active connection is required
-const result = await local.query(`
-  SELECT 
-    u.id, 
-    u.name,
-    o.total, 
-    p.name as product_name,
-    e.event_type
-  FROM public.users u
-  JOIN public.orders o ON u.id = o.user_id
-  JOIN pg1.products p ON o.product_id = p.id
-  LEFT JOIN analytics.events e ON u.id = e.user_id
-  WHERE o.created_at > NOW() - INTERVAL '30 days'
-  ORDER BY o.total DESC
-`);
-
-console.log(result.rows); // Works offline - data is materialized locally
-
-// Clean up
-await local.disconnect();
-```
-
-> [!NOTE]
-> **Key difference from Federation**: Each `materialize()` operation executes immediately and copies remote data into the local DB, enabling offline queries. By contrast, query execution for federated origins happens at actual query time and requires an active connection to each relevant origin.
-
-#### `2.3 |` Data Sync
-
-Two-way data synchronization between local and remote databases — perfect for offline-first, edge-first, and distributed apps.
-
-_(a) Setup: Initialize client with remote connection factory_
-
-```js
-import { FlashClient } from '@linked-db/linked-ql/flash';
-import { PGClient } from '@linked-db/linked-ql/pg';
-
-// Initialize local client with remote connection factory
-const local = new FlashClient({
-  onCreateRemoteClient: async (remoteClientOpts) => {
-    const remote = new PGClient(remoteClientOpts);
-    await remote.connect();
-    return remote;
-  },
-});
-
-await local.connect();
-```
-
-_(b) Sync with your first remote dataset_
-
-> Materializes data immediately and activates two-way synchronization between local and remote
-
-```js
-// Use this connection
-const remoteClientOpts1 = { 
-  host: 'localhost', 
-  port: 5432,
-  database: 'production'
-};
-// Sync between the local namespace "public" (and the remote namespace "public")
-await local.sync(
-  { public: ['users', 'orders'] }, 
-  remoteClientOpts1
-);
-```
-
-_(c) Make local changes and see them sync back automatically_
-
-```js
-// Create new record in dataset
-await local.query(`
-  INSERT INTO users (name, email) 
-  VALUES ('New User', 'user@example.com')
-`);
-
-// Update existing record
-await local.query(`
-  UPDATE orders 
-  SET status = 'completed' 
-  WHERE id = 123
-`);
-```
-
-> [!NOTE]
-> **Key difference from Materialization**: `sync()` provides bidirectional synchronization. While materialization is one-way (remote → local), and one-off, sync materializes (remote → local) **live mode**, and syncs local changes back to their respective origins (local → remote) - either as they happen or as connectivity allows. Does automatic conflict handling.
->
-> `.sync()` is in _alpha_.
+</details>
 
 ---
 
 ## 📚 Documentation
 
-> Comprehensive documentation coming soon.
+> [!NOTE]
+> The main [linked-db/linked-ql/wiki](https://github.com/linked-db/linked-ql/wiki) documents **v0.3.x**.
+> Pages tagged **@next** reflect this version.
+
+| Feature           | Wiki Page                                                                    |
+| :---------------- | :--------------------------------------------------------------------------- |
+| **DeepRefs**      | [DeepRefs →](https://github.com/linked-db/linked-ql/wiki/DeepRefs)           |
+| **JSON Literals** | [JSON Literals →](https://github.com/linked-db/linked-ql/wiki/JSON-Literals) |
+| **UPSERTS**       | [UPSERTS →](https://github.com/linked-db/linked-ql/wiki/UPSERTS)             |
+| **RealtimeSQL**   | [RealtimeSQL →](https://github.com/linked-db/linked-ql/wiki/RealtimeSQL)     |
+| **FlashQL**       | [FlashQL →](https://github.com/linked-db/linked-ql/wiki/FlashQL)             |
+
+---
 
 ## ⏳ Development Progress
 
-| Component              | Status        | Notes                    |
-|:-----------------------|:--------------|:-------------------------|
-| **Core Parser/Compiler**   | 🟩🟩🟩🟩 `100%` | ✅ Complete              |
-| **Core Transform Engine**  | 🟩🟩🟩🟩 `100%` | ✅ Complete              |
-| **InMemory DB Engine**     | 🟩🟩🟩🟩 `99%`  | 🚀 Stable, expanding    |
-| **DB Mirroring Engine**    | 🟩🟩🟩🟩 `99%`  | 🚀 Complete, `.sync()` in alpha |
-| **DB Drivers (PG/MySQL)**  | 🟩🟩🟩🟩 `97%`  | 🚀 MySQL catching up    |
-| **Realtime Engine**        | 🟩🟩🟩🟩 `99%`  | 🚀 Stable, expanding    |
-| **Version Binding**        | 🟩⬜⬜⬜ `20%`  | 🔧 Early prototype      |
-| **Auto-Versioning Engine** | 🟩⬜⬜⬜ `10%`  | ⏳ Deferred to v0.3.*   |
-| **Migration Wizard**       | 🟩⬜⬜⬜ `10%`  | ⏳ Deferred to v0.3.*   |
-| **IDE Tooling**            | 🟩⬜⬜⬜ `5%`   | 🔧 Initial hooks only   |
-| **Revamped Docs**          | ⬜⬜⬜⬜ `0%`    | 📝 Not started          |
+| Component          | Status    | Note                  |
+| :----------------- | :-------- | :-------------------- |
+| Parser & Compiler  | 🟩 `100%` | Stable                |
+| Transform Engine   | 🟩 `100%` | Stable                |
+| FlashQL Engine     | 🟩 `99%`  | Production-ready      |
+| Realtime Engine    | 🟩 `99%`  | Expanding             |
+| Drivers (PG/MySQL) | 🟩 `97%`  | MySQL parity nearing  |
+| Timeline Engine    | 🟨 `20%`  | Versioning + rollback |
+| Migration Wizard   | ⬜ `10%`   | Planned               |
+| IDE Tooling        | ⬜ `5%`    | Early hooks           |
+| Docs (vNext)       | 🟩 `95%`  | Active                |
 
-> 💡 **Status Legend**: 🟩 Complete | 🟨 In Progress | ⬜ Not Started  
-> 🚀 **Active Development**: Core features are stable and expanding rapidly
+> 💡 Status Legend: 🟩 Complete | 🟨 In Progress | ⬜ Not Started
+
+---
 
 ## 🤝 Contributing
 
-LinkedQL is in active development — and contributions are welcome!  
-
-Here’s how you can jump in:  
-- **Issues** → Spot a bug or have a feature idea? Open an [issue](https://github.com/linked-db/linked-ql/issues).  
-- **Pull requests** → PRs are welcome for fixes, docs, or new ideas.  
-- **Discussions** → Not sure where your idea fits? Start a [discussion](https://github.com/linked-db/linked-ql/discussions).  
-
-### 🛠️ Local Setup
-
-⤷ clone → install → test
+LinkedQL is in active development — contributions are welcome!
 
 ```bash
 git clone https://github.com/linked-db/linked-ql.git
@@ -1041,16 +258,15 @@ npm install
 npm test
 ```
 
-### 📝 Tips
+* Development happens on the **`next`** branch.
+* Open [issues](https://github.com/linked-db/linked-ql/issues) or [discussions](https://github.com/linked-db/linked-ql/discussions).
+* Pull requests for fixes, docs, or new ideas are appreciated.
 
-- Development happens on the `next` branch — be sure to switch to it as above after cloning.
-- Consider creating your feature branch from `next` before making changes (e.g. `git checkout -b feature/my-idea`).
-- Remember to `npm test` before submitting a PR.
-- Check the [Progress](#-our-progress-on-this-iteration-of-linkedql) section above to see where help is most needed.
+---
 
 ## 🔑 License
 
-MIT — see [LICENSE](https://github.com/linked-db/linked-ql?tab=MIT-1-ov-file)
+MIT — see [LICENSE](https://github.com/linked-db/linked-ql/blob/next/LICENSE)
 
 [npm-version-src]: https://img.shields.io/npm/v/@linked-db/linked-ql?style=flat&colorA=18181B&colorB=F0DB4F
 [npm-version-href]: https://npmjs.com/package/@linked-db/linked-ql
@@ -1060,3 +276,15 @@ MIT — see [LICENSE](https://github.com/linked-db/linked-ql?tab=MIT-1-ov-file)
 [bundle-href]: https://bundlephobia.com/result?p=@linked-db/linked-ql@next
 [license-src]: https://img.shields.io/github/license/linked-db/linked-ql.svg?style=flat&colorA=18181B&colorB=F0DB4F
 [license-href]: https://github.com/linked-db/linked-ql/blob/next/LICENSE
+
+```
+
+---
+
+This version finally ties your product-pitch clarity to the philosophical spine:  
+- “What is LinkedQL?” — product definition.  
+- “Why LinkedQL?” — the engineering thesis.  
+- Ends with a payoff line that loops back to the practical: *“All of that comes built-in with the classic client API.”*  
+
+It’s succinct, developer-natural, and consistent with the tone across your feature docs.
+```
