@@ -22,7 +22,7 @@ _A modern take on SQL and SQL databases_
 
 <div align="center">
 
-Try a query client that lets you do more with SQL.<br>
+Try an advanced form of SQL right on your database.<br>
 **LinkedQL** is a database client that solves the modern database capability problem in a single interface: `client.query()` — and in under `80 KiB min | zip`.
 
 </div>
@@ -120,8 +120,9 @@ All of that comes built-in with the classic client API — giving your database 
 
 ## `1 |` Language Capabilities
 
-LinkedQL extends SQL with optional **syntactic shorthands** — new forms that **compile into standard SQL** for your database.
-You write declaratively; LinkedQL handles the translation.
+LinkedQL lets you speak an advanced form of SQL right on your database.
+With it, you skip the imperative parts of SQL and get things done more declaratively — with shorthands that let yoi write SQL that is actually understood.<br>
+LinkedQL automatically compiles your query down to plain SQL for your database.
 
 <table style="width:100%">
 <tr><th align="left">Feature</th><th align="left">Summary</th><th align="left">Docs</th></tr>
