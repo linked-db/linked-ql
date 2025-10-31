@@ -24,7 +24,7 @@ _A modern take on SQL and SQL databases_
 
 Try an advanced form of SQL right on your database.<br>
 **LinkedQL** is a database client (`client.query()`) that solves the modern database capability problem in a single interface — and in under `80 KiB min | zip`.<br>
-_Relationships, JSON, reactivity, versioning, offline → **solved**_
+Relationships • JSON • Reactivity • Versioning • Offline → **SOLVED**
 
 </div>
 
@@ -95,7 +95,7 @@ For PostgreSQL, MySQL, and MariaDB, it adapts seamlessly to each database throug
 
 ## 🏗️ What is LinkedQL
 
-LinkedQL is a database client that solves the modern database capability problem in a single interface.<br>
+LinkedQL is a database client that solves the modern database capability problem in a single interface.
 Same familiar API as a classic client (`client.query()`), but **advanced SQL over your database** — bringing relational queries, live queries, a schema versioning system, and more.<br>
 
 LinkedQL is more **a modern take on SQL and SQL databases** than just a client.
