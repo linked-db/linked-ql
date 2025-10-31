@@ -270,7 +270,7 @@ Its built-in **FlashQL** runtime brings all of LinkedQL to the **client**, the *
 It extends that with built-in support for **federation**, **materialization**, and **sync** between remote databases and local state.
 
 | **Capability**      | **Summary**                                                  | **Docs**                                                                   |
-| ------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| :------------------ | :----------------------------------------------------------- | :------------------------------------------------------------------------- |
 | **Federation**      | Query across remote and local databases as a single surface. | [Read → FlashQL Docs](https://github.com/linked-db/linked-ql/wiki/FlashQL#221-query-federation) |
 | **Materialization** | Materialize remote datasets locally for offline queries.     | [Read → FlashQL Docs](https://github.com/linked-db/linked-ql/wiki/FlashQL#222-data-materialization) |
 | **Sync**            | Two-way synchronization between local and remote databases.  | [Read → FlashQL Docs](https://github.com/linked-db/linked-ql/wiki/FlashQL#223-data-sync) |
