@@ -121,43 +121,69 @@ All of that comes built-in with the classic client API — giving your database 
 ## `1 |` Language Capabilities
 
 LinkedQL lets you speak an advanced form of SQL right on your database.
-With it, you skip the imperative parts of SQL and get things done more declaratively — with shorthands that let yoi write SQL that is actually understood.<br>
-LinkedQL automatically compiles your query down to plain SQL for your database.
+With it, you skip the imperative parts of SQL and get to writing more **intentful** SQL — with first-class support and shorthands for relationships and JSON.<br>
+LinkedQL automatically compiles your query down to the SQL your database understands.
 
-<table style="width:100%">
-<tr><th align="left">Feature</th><th align="left">Summary</th><th align="left">Docs</th></tr>
-<tr><td><b>DeepRefs</b></td><td>Follow relationships using arrow notation (<code>a ~> b ~> c</code>).</td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/DeepRefs">Read →</a></td></tr>
-<tr><td><b>JSON Literals</b></td><td>Model JSON shapes directly in SQL using <code>{}</code> and <code>[]</code>.</td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/JSON-Literals">Read →</a></td></tr>
-<tr><td><b>UPSERTS</b></td><td>Perform insert-or-update operations with a literal <code>UPSERT</code>.</td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/UPSERTS">Read →</a></td></tr>
-</table>
+| **Feature**       | **Summary**                                                  | **Docs**                                                            |
+| ----------------- | ------------------------------------------------------------ | ------------------------------------------------------------------- |
+| **DeepRefs**      | Follow relationships using arrow notation (`a ~> b ~> c`).   | [Read →](https://github.com/linked-db/linked-ql/wiki/DeepRefs)      |
+| **JSON Literals** | Model JSON shapes directly in SQL using `{}` and `[]`.       | [Read →](https://github.com/linked-db/linked-ql/wiki/JSON-Literals) |
+| **UPSERTS**       | Perform insert-or-update operations with a literal `UPSERT`. | [Read →](https://github.com/linked-db/linked-ql/wiki/UPSERTS)       |
+
+---
 
 ### Examples
 
-<details name="lang-capab" open><summary><b>(a)</b> JSON Modeling</summary>
+<details open name="lang-capab"><summary><b>(a)</b> JSON Literals — Structured Projection</summary>
 
 ```js
-const result = await client.query(`SELECT { name, email } AS user FROM users;`);
-console.log(result.rows);
-// → [{ user: { name: 'Jane', email: 'jane@example.com' } }]
+const result = await client.query(`
+  SELECT { id, name, email } AS user
+  FROM users
+  WHERE id = 1;
+`);
+
+console.log(result.rows[0]);
+// → { user: { id: 1, name: 'Jane', email: 'jane@example.com' } }
 ```
+
+*SQL constructs return shaped JSON directly — no post-mapping layer needed.*
 
 </details>
 
-<details name="lang-capab"><summary><b>(b)</b> Relationship Traversal</summary>
+---
+
+<details name="lang-capab"><summary><b>(b)</b> DeepRefs — Inline Relationship Traversal</summary>
 
 ```js
-const posts = await client.query(`SELECT posts.author ~> { id, name } AS author FROM posts;`);
-console.log(posts.rows);
-// → [{ author: { id: 1, name: 'John Doe' } }]
+const posts = await client.query(`
+  SELECT title, author ~> { name, email }
+  FROM posts
+  WHERE published = true;
+`);
+
+console.log(posts.rows[0]);
+// → { title: 'Realtime SQL', author: { name: 'John Doe', email: 'john@example.com' } }
 ```
+
+*Follow foreign keys directly inside a query — joins expressed as natural relationships.*
 
 </details>
 
-<details name="lang-capab"><summary><b>(c)</b> Upsert Shortcut</summary>
+---
+
+<details name="lang-capab"><summary><b>(c)</b> UPSERT — Insert-or-Update in One Step</summary>
 
 ```js
-await client.query(`UPSERT INTO users (name, email) VALUES ('Jane', 'jane@example.com');`);
+await client.query(`
+  UPSERT INTO users
+    (id, name, email)
+  VALUES
+    (1, 'Jane', 'jane@example.com');
+`);
 ```
+
+*LinkedQL exposes UPSERT as a literal statement — cleaner and portable across dialects.*
 
 </details>
 
