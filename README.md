@@ -126,7 +126,7 @@ With syntax shorthands and first-class support for relationships and JSON, you s
 LinkedQL automatically compiles your query down to the SQL your database understands.
 
 | **Feature**       | **Summary**                                                                     | **Docs**                                                                          |
-| ----------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| :---------------- | :------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------- |
 | **DeepRefs**      | Follow relationships using simple arrow notation (`a ~> b ~> c`).               | [Read → DeepRefs](https://github.com/linked-db/linked-ql/wiki/DeepRefs)           |
 | **JSON Literals** | Model JSON shapes directly in SQL using JSON literals (`{}`, `[]`).             | [Read → JSON Literals](https://github.com/linked-db/linked-ql/wiki/JSON-Literals) |
 | **UPSERTS**       | Perform insert-or-update operations with a literal `UPSERT` statement.          | [Read → UPSERTS](https://github.com/linked-db/linked-ql/wiki/UPSERTS)             |
@@ -199,7 +199,7 @@ LinkedQL enables **SQL-level reactivity** and **automatic schema versioning** ri
 Modern apps and modern workflows — solved.
 
 | **Feature**         | **Summary**                                                                                         | **Docs**                                                                           |
-| ------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| :------------------ | :-------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------- |
 | **Realtime SQL**    | Run live, self-updating queries over your datatabase.                                               | [Read → RealtimeSQL Docs](https://github.com/linked-db/linked-ql/wiki/RealtimeSQL) |
 | **Timeline Engine** | Get automatic database versioning on every DDL operation; bind queries to specific schema versions. | *(Coming soon)*                                                                    |
 
