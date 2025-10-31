@@ -44,10 +44,6 @@ Relationships • JSON • Reactivity • Versioning • Offline → **SOLVED**
 
 ## ⚡ Quick Start
 
-> [!NOTE]
-> You’re viewing **@linked-db/linked-ql@next** — the upcoming iteration.  
-> For the stable 0.3.x branch, see [linked-db/linked-ql@0.3.*](https://github.com/linked-db/linked-ql).
-
 ```bash
 npm i @linked-db/linked-ql@next
 ```
@@ -68,6 +64,10 @@ const result = await client.query(`SELECT 10 AS value`);
 console.log(result.rows); // [{ value: 10 }]
 await client.disconnect();
 ```
+
+> [!NOTE]
+> You’re viewing **@linked-db/linked-ql@next** — the upcoming iteration.  
+> For the stable 0.3.x branch, see [linked-db/linked-ql@0.3.*](https://github.com/linked-db/linked-ql).
 
 ---
 
@@ -379,7 +379,8 @@ client.on('sync:change', e => console.log('Δ', e.table, e.type));
 | IDE Tooling        | ⬜ `5%`    | Early hooks           |
 | Docs (vNext)       | 🟩 `95%`  | Active                |
 
-> 💡 **Status Legend**: 🟩 Complete | 🟨 In Progress | ⬜ Not Started
+> 💡 **Status Legend**:
+> 🟩 Complete | 🟨 In Progress | ⬜ Not Started
 
 ---
 
