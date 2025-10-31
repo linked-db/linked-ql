@@ -188,7 +188,7 @@ await client.query(
 
 ## `2 |` Runtime Capabilities
 
-LinkedQL enables **SQL-level reactivity** and **automatic schema versioning** right on your database — **with no plugins, database extensions, or middleware** required.
+LinkedQL enables **SQL-level reactivity** and **automatic schema versioning** right on your database — **no plugins, database extensions, or middleware** required.
 (A built-in **Realtime Engine** and **Timeline Engine** quietly extend your database at execution time.)
 Modern apps and modern workflows — solved.
 
@@ -266,14 +266,14 @@ console.log(result.rows);
 ## `3 |` Offline Capabilities
 
 LinkedQL can run anywhere your app runs.
-Its built-in **FlashQL** runtime brings all of LinkedQL to the **client**, the **edge**, and **offline** environments — same SQL, same LinkedQL.
+Its built-in **FlashQL** runtime brings all of LinkedQL to the **client**, the **edge**, and **offline** environments — same SQL, same semantics.
 It extends that with built-in support for **federation**, **materialization**, and **sync** between remote databases and local state.
 
 | **Capability**      | **Summary**                                                  | **Docs**                                                                   |
 | ------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------- |
-| **Federation**      | Query across remote and local databases as a single surface. | [Read → FlashQL Docs](https://github.com/linked-db/linked-ql/wiki/FlashQL) |
-| **Materialization** | Materialize remote datasets locally for offline queries.     | [Read → FlashQL Docs](https://github.com/linked-db/linked-ql/wiki/FlashQL) |
-| **Sync**            | Two-way synchronization between local and remote databases.  | [Read → FlashQL Docs](https://github.com/linked-db/linked-ql/wiki/FlashQL) |
+| **Federation**      | Query across remote and local databases as a single surface. | [Read → FlashQL Docs](https://github.com/linked-db/linked-ql/wiki/FlashQL#221-query-federation) |
+| **Materialization** | Materialize remote datasets locally for offline queries.     | [Read → FlashQL Docs](https://github.com/linked-db/linked-ql/wiki/FlashQL#222-data-materialization) |
+| **Sync**            | Two-way synchronization between local and remote databases.  | [Read → FlashQL Docs](https://github.com/linked-db/linked-ql/wiki/FlashQL#223-data-sync) |
 
 ### Examples
 
