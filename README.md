@@ -1,4 +1,3 @@
-
 <div align="center">
 
 # LinkedQL  
@@ -122,9 +121,9 @@ LinkedQL automatically compiles your query down to the SQL your database underst
 
 | **Feature**       | **Summary**                                                                     | **Docs**                                                                          |
 | :---------------- | :------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------- |
-| **DeepRefs**      | Follow relationships using simple arrow notation (`a ~> b ~> c`).               | [Read → DeepRefs](https://github.com/linked-db/linked-ql/wiki/DeepRefs)           |
-| **JSON Literals** | Model JSON shapes directly in SQL using JSON literals (`{}`, `[]`).             | [Read → JSON Literals](https://github.com/linked-db/linked-ql/wiki/JSON-Literals) |
-| **UPSERTS**       | Perform insert-or-update operations with a literal `UPSERT` statement.          | [Read → UPSERTS](https://github.com/linked-db/linked-ql/wiki/UPSERTS)             |
+| **DeepRefs**      | Follow relationships using simple arrow notation (`a ~> b ~> c`).               | [Read → DeepRefs Docs](https://github.com/linked-db/linked-ql/wiki/DeepRefs)      |
+| **JSON Literals** | Model JSON shapes directly in SQL using JSON literals (`{}`, `[]`).             | [Read → JSON Docs](https://github.com/linked-db/linked-ql/wiki/JSON-Literals)     |
+| **UPSERTS**       | Perform insert-or-update operations with a literal `UPSERT` statement.          | [Read → UPSERTS Docs](https://github.com/linked-db/linked-ql/wiki/UPSERTS)        |
 
 ### Examples
 
@@ -161,7 +160,7 @@ const posts = await client.query(
 );
 
 console.log(posts.rows[0]);
-// → { title: 'Realtime SQL', author: { name: 'John Doe', email: 'john@example.com' } }
+// → { title: 'Syntax Shorthands', author: { name: 'John Doe', email: 'john@example.com' } }
 ```
 
 </details>
@@ -195,7 +194,7 @@ Modern apps and modern workflows — solved.
 
 | **Feature**         | **Summary**                                                                                         | **Docs**                                                                           |
 | :------------------ | :-------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------- |
-| **Realtime SQL**    | Run live, self-updating queries over your datatabase.                                               | [Read → RealtimeSQL Docs](https://github.com/linked-db/linked-ql/wiki/RealtimeSQL) |
+| **Realtime SQL**    | Run live, self-updating queries right on your database.                                             | [Read → RealtimeSQL Docs](https://github.com/linked-db/linked-ql/wiki/RealtimeSQL) |
 | **Timeline Engine** | Get automatic database versioning on every DDL operation; bind queries to specific schema versions. | *(Coming soon)*                                                                    |
 
 ### Examples
@@ -267,7 +266,7 @@ console.log(result.rows);
 ## `3 |` Offline Capabilities
 
 LinkedQL can run anywhere your app runs.
-Its built-in **FlashQL** runtime brings all of LinkedQL to the **client**, the **edge**, and **offline** environments — the same SQL, the same semantics, no compromises.
+Its built-in **FlashQL** runtime brings all of LinkedQL to the **client**, the **edge**, and **offline** environments — same SQL, same LinkedQL.
 It extends that with built-in support for **federation**, **materialization**, and **sync** between remote databases and local state.
 
 | **Capability**      | **Summary**                                                  | **Docs**                                                                   |
@@ -353,10 +352,6 @@ client.on('sync:change', e => console.log('Δ', e.table, e.type));
 
 ## 📚 Documentation
 
-> [!NOTE]
-> The main [linked-db/linked-ql/wiki](https://github.com/linked-db/linked-ql/wiki) documents **v0.3.x**.
-> Pages tagged **@next** reflect this version.
-
 | Feature           | Description                                                  | Wiki Page                                                                    |
 | :---------------- | :----------------------------------------------------------- | :--------------------------------------------------------------------------- |
 | **DeepRefs**      | Declarative relationship traversal across foreign keys.      | [DeepRefs →](https://github.com/linked-db/linked-ql/wiki/DeepRefs)           |
@@ -364,6 +359,9 @@ client.on('sync:change', e => console.log('Δ', e.table, e.type));
 | **UPSERTS**       | Simplified `INSERT + UPDATE` hybrid statement.               | [UPSERTS →](https://github.com/linked-db/linked-ql/wiki/UPSERTS)             |
 | **RealtimeSQL**   | Live queries powered by the Realtime Engine.                 | [RealtimeSQL →](https://github.com/linked-db/linked-ql/wiki/RealtimeSQL)     |
 | **FlashQL**       | In-memory SQL runtime for offline, edge, and hybrid apps.    | [FlashQL →](https://github.com/linked-db/linked-ql/wiki/FlashQL)             |
+
+> [!NOTE]
+> Every part of [linked-db/linked-ql/wiki](https://github.com/linked-db/linked-ql/wiki) not tagged **@next** is documentation for **v@linked-db/linked-ql0.3.x**, not this version.
 
 ---
 
@@ -373,15 +371,15 @@ client.on('sync:change', e => console.log('Δ', e.table, e.type));
 | :----------------- | :-------- | :-------------------- |
 | Parser & Compiler  | 🟩 `100%` | Stable                |
 | Transform Engine   | 🟩 `100%` | Stable                |
+| Drivers (PG/MySQL) | 🟩 `97%`  | MySQL parity nearing  |
 | FlashQL Engine     | 🟩 `99%`  | Production-ready      |
 | Realtime Engine    | 🟩 `99%`  | Expanding             |
-| Drivers (PG/MySQL) | 🟩 `97%`  | MySQL parity nearing  |
 | Timeline Engine    | 🟨 `20%`  | Versioning + rollback |
 | Migration Wizard   | ⬜ `10%`   | Planned               |
 | IDE Tooling        | ⬜ `5%`    | Early hooks           |
 | Docs (vNext)       | 🟩 `95%`  | Active                |
 
-> 💡 Status Legend: 🟩 Complete | 🟨 In Progress | ⬜ Not Started
+> 💡 **Status Legend**: 🟩 Complete | 🟨 In Progress | ⬜ Not Started
 
 ---
 
