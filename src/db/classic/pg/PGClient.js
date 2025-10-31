@@ -26,7 +26,7 @@ export class PGClient extends AbstractSQL0Client {
     constructor({
         poolMode = false,
         walSlotName = 'linkedql_default_slot',
-        walSlotPersistence = 1, // 2 for wholly externally-managed slot
+        walSlotPersistence = 0, // 2 for wholly externally-managed slot
         pgPublications = 'linkedql_default_publication',
         capability = {},
         ...connectionParams
@@ -107,7 +107,7 @@ export class PGClient extends AbstractSQL0Client {
         const slotCheck = await this.#adminDriver.query(checkSlotSql);
 
         if (!slotCheck.rows.length) {
-            const createSlotSQL = this.#walSlotPersistence === 0  // 0 for wholly externally-managed slot
+            const createSlotSQL = this.#walSlotPersistence === 0  // 0 for temporary slot
                 ? `SELECT * FROM pg_create_logical_replication_slot('${this.#walSlotName}', 'pgoutput', true)`
                 : `SELECT * FROM pg_create_logical_replication_slot('${this.#walSlotName}', 'pgoutput')`;
             await this.#adminDriver.query(createSlotSQL);

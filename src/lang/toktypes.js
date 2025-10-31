@@ -360,8 +360,8 @@ export const dataTypes = {
 export const operators = {
   common: [
     // Custom/graph-style
-    ['<~', { prec: 90, assoc: 'left', resultType: ':right' }],
-    ['~>', { prec: 90, assoc: 'right', resultType: ':right' }],
+    ['<~', { prec: 100, assoc: 'left', resultType: ':right' }],
+    ['~>', { prec: 100, assoc: 'right', resultType: ':right' }],
     ['BETWEEN', { prec: 85, assoc: 'left', resultType: 'boolean' }],
     ['NOT', { prec: 80, assoc: 'right', resultType: 'boolean' }],
     // Arithmetic
@@ -400,7 +400,7 @@ export const operators = {
   postgres: [
     ['COLLATE', { prec: 83, assoc: 'left', resultType: 'string' }],
     ['||', { prec: 60, assoc: 'left', resultType: 'string' }],
-    ['::', { prec: 100, assoc: 'left', resultType: 'casted' }],
+    ['::', { prec: 97, assoc: 'left', resultType: 'casted' }],
     ['AT', { prec: 95, assoc: 'left', resultType: 'timestamptz' }],
     ['^', { prec: 90, assoc: 'left', resultType: 'number' }],
     ['#', { prec: 60, assoc: 'left', resultType: 'number' }],

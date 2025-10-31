@@ -43,10 +43,17 @@ export class UpsertStmt extends SugarMixin(InsertStmt) {
 					...c,
 				},
 				operator: '=',
-				right: {
+				right: toDialect === 'mysql' ? {
+					nodeName: registry.CallExpr.NODE_NAME,
+					name: 'VALUES',
+					arguments: [{
+						nodeName: registry.ColumnRef1.NODE_NAME,
+						...c,
+					}],
+				} : {
 					...c,
 					nodeName: registry.ColumnRef1.NODE_NAME,
-					qualifier: { value: toDialect === 'mysql' ? 'VALUES' : 'EXCLUDED' },
+					qualifier: { value: 'EXCLUDED' },
 				}
 			})),
 		};

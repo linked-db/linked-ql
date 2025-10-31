@@ -34,13 +34,15 @@ VALUES
 await client1.query(sql);
 
 
-await client2.query('CREATE TABLE IF NOT EXISTS t3 (id INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY, rel INT, col3 TEXT)');
+await client2.query('CREATE TABLE IF NOT EXISTS t3 (id INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY, rel INT REFERENCES t2 (id), col3 TEXT)');
 sql = `
     INSERT INTO t3 (col3)
     VALUES
         ('threeeeeeee-111'),
-        ('threeeeeeee--222')`;
-await client2.query(sql);
+        ('threeeeeeee--222')
+    --RETURNING rel ~> id`;
+const e = await client2.query(sql);
+console.log('::::', e.rows);
 
 
 
@@ -81,7 +83,7 @@ if (0) {
     VALUES
         ('a-5', 'b-5', 'one')`;
     sql = `
-    UPDATE t1 SET rel = 1 WHERE id = 1;
+    UPDATE t1 SET rel = 1 WHERE id = 1 RETURNING rel ~> id;
     `;
     await client1.query(sql);
 
