@@ -124,13 +124,11 @@ LinkedQL lets you speak an advanced form of SQL right on your database.
 With it, you skip the imperative parts of SQL and get to writing more **intentful** SQL — with first-class support and shorthands for relationships and JSON.<br>
 LinkedQL automatically compiles your query down to the SQL your database understands.
 
-| **Feature**       | **Summary**                                                  | **Docs**                                                            |
-| ----------------- | ------------------------------------------------------------ | ------------------------------------------------------------------- |
-| **DeepRefs**      | Follow relationships using arrow notation (`a ~> b ~> c`).   | [Read →](https://github.com/linked-db/linked-ql/wiki/DeepRefs)      |
-| **JSON Literals** | Model JSON shapes directly in SQL using `{}` and `[]`.       | [Read →](https://github.com/linked-db/linked-ql/wiki/JSON-Literals) |
-| **UPSERTS**       | Perform insert-or-update operations with a literal `UPSERT`. | [Read →](https://github.com/linked-db/linked-ql/wiki/UPSERTS)       |
-
----
+| **Feature**       | **Summary**                                                           | **Docs**                                                            |
+| ----------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| **DeepRefs**      | Follow relationships using simple arrow notation (`a ~> b ~> c`).     | [Read →](https://github.com/linked-db/linked-ql/wiki/DeepRefs)      |
+| **JSON Literals** | Model JSON shapes directly in SQL using JSON notation `{}` and `[]`.  | [Read →](https://github.com/linked-db/linked-ql/wiki/JSON-Literals) |
+| **UPSERTS**       | Perform insert-or-update operations with a literal `UPSERT`.          | [Read →](https://github.com/linked-db/linked-ql/wiki/UPSERTS)       |
 
 ### Examples
 
@@ -186,8 +184,6 @@ await client.query(`
 *LinkedQL exposes UPSERT as a literal statement — cleaner and portable across dialects.*
 
 </details>
-
----
 
 ## `2 |` Runtime Capabilities
 
