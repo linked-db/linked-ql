@@ -77,17 +77,12 @@ await client.disconnect();
 LinkedQL ships with clients for each major SQL dialect.<br>
 For PostgreSQL, MySQL, and MariaDB, it adapts seamlessly to each database through their respective native connector.
 
-<table style="width:100%">
-<tr>
-<th align="left">Dialect</th>
-<th align="left">Package</th>
-<th align="left">Docs</th>
-</tr>
-<tr><td>PostgreSQL</td><td><code>@linked-db/linked-ql/pg</code></td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/Entry-Point#11--postgresql">Read → PG Docs</a></td></tr>
-<tr><td>MySQL</td><td><code>@linked-db/linked-ql/mysql</code></td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/Entry-Point#12--mysql">Read → MySQL Docs</a></td></tr>
-<tr><td>MariaDB</td><td><code>@linked-db/linked-ql/mariadb</code></td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/Entry-Point#13--mariadb">Read → MariaDB Docs</a></td></tr>
-<tr><td>FlashQL (In-Memory)</td><td><code>@linked-db/linked-ql/flash</code></td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/Entry-Point#14--flashql">Read → FlashQL Docs</a></td></tr>
-</table>
+| **Dialect**         | **Package**                    | **Docs**                                                                                   |
+| ------------------- | ------------------------------ | ------------------------------------------------------------------------------------------ |
+| PostgreSQL          | `@linked-db/linked-ql/pg`      | [Read → PG Docs](https://github.com/linked-db/linked-ql/wiki/Entry-Point#11--postgresql)   |
+| MySQL               | `@linked-db/linked-ql/mysql`   | [Read → MySQL Docs](https://github.com/linked-db/linked-ql/wiki/Entry-Point#12--mysql)     |
+| MariaDB             | `@linked-db/linked-ql/mariadb` | [Read → MariaDB Docs](https://github.com/linked-db/linked-ql/wiki/Entry-Point#13--mariadb) |
+| FlashQL (In-Memory) | `@linked-db/linked-ql/flash`   | [Read → FlashQL Docs](https://github.com/linked-db/linked-ql/wiki/Entry-Point#14--flashql) |
 
 ---
 
@@ -100,7 +95,7 @@ Same familiar API as a classic client (`client.query()`), but **advanced SQL ove
 
 LinkedQL is more **a modern take on SQL and SQL databases** than just a client.
 
-Need the full power of SQL locally? LinkedQL also runs as an **embeddable, in-memory database** — codenamed **FlashQL**.
+Need the full power of SQL locally? LinkedQL runs as an **embeddable, in-memory database** — codenamed **FlashQL**.
 Use it as a lighter replacement for SQLite or PGLite, with all of LinkedQL’s power built in.
 
 ---
@@ -109,7 +104,7 @@ Use it as a lighter replacement for SQLite or PGLite, with all of LinkedQL’s p
 
 SQL and SQL databases have a **capability problem.**
 Modern applications built around them have to wade through layers of **external tooling** as a consequence.<br>
-(For example, need relational queries and realtime data? → ORMs + GraphQL layers.)
+(For example, need relational queries and realtime data? → typical setup: ORM + GraphQL layers.)
 
 Rather than extend that layer with yet another prosthetic arm for a missing limb in SQL, **LinkedQL extends SQL itself** to close the gaps at their level — **syntax gaps at the language layer**, **runtime problems at the runtime layer.**
 
@@ -122,7 +117,7 @@ All of that comes built-in with the classic client API — giving your database 
 ## `1 |` Language Capabilities
 
 LinkedQL lets you speak an advanced form of SQL right on your database.
-With syntax shorthands and first-class support for relationships and JSON, you skip the imperative parts of SQL and get to writing more **intentful** SQL.<br>
+With syntax shorthands and first-class support for relationships and JSON, you skip the imperative parts of SQL and get to writing more **intentful** SQL.
 LinkedQL automatically compiles your query down to the SQL your database understands.
 
 | **Feature**       | **Summary**                                                                     | **Docs**                                                                          |
@@ -195,7 +190,7 @@ await client.query(
 ## `2 |` Runtime Capabilities
 
 LinkedQL enables **SQL-level reactivity** and **automatic schema versioning** right on your database — **with no plugins, database extensions, or middleware** required.
-(A built-in **Realtime Engine** and **Timeline Engine** quietly extend your database at execution time.)<br>
+(A built-in **Realtime Engine** and **Timeline Engine** quietly extend your database at execution time.)
 Modern apps and modern workflows — solved.
 
 | **Feature**         | **Summary**                                                                                         | **Docs**                                                                           |
@@ -271,45 +266,83 @@ console.log(result.rows);
 
 ## `3 |` Offline Capabilities
 
-Offline capabilities are powered by **FlashQL** — LinkedQL’s in-memory SQL engine that brings the full database runtime to the client, edge, and offline environments.
-It fills another familiar gap: running full SQL locally — and adds built-in support for **federation**, **materialization**, and **sync** between remote databases and local state.
+LinkedQL can run anywhere your app runs.
+Its built-in **FlashQL** runtime brings all of LinkedQL to the **client**, the **edge**, and **offline** environments — the same SQL, the same semantics, no compromises.
+It extends that with built-in support for **federation**, **materialization**, and **sync** between remote databases and local state.
 
-<table style="width:100%">
-<tr><th align="left">Capability</th><th align="left">Description</th><th align="left">Docs</th></tr>
-<tr><td><b>Federation</b></td><td>Query across remote and local databases as a single surface.</td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/FlashQL">Read →</a></td></tr>
-<tr><td><b>Materialization</b></td><td>Materialize remote datasets locally for offline queries.</td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/FlashQL">Read →</a></td></tr>
-<tr><td><b>Sync</b></td><td>Two-way synchronization between local and remote databases.</td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/FlashQL">Read →</a></td></tr>
-</table>
+| **Capability**      | **Summary**                                                  | **Docs**                                                                   |
+| ------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| **Federation**      | Query across remote and local databases as a single surface. | [Read → FlashQL Docs](https://github.com/linked-db/linked-ql/wiki/FlashQL) |
+| **Materialization** | Materialize remote datasets locally for offline queries.     | [Read → FlashQL Docs](https://github.com/linked-db/linked-ql/wiki/FlashQL) |
+| **Sync**            | Two-way synchronization between local and remote databases.  | [Read → FlashQL Docs](https://github.com/linked-db/linked-ql/wiki/FlashQL) |
 
 ### Examples
 
-<details name="offline-capab" open><summary><b>(a)</b> Basic Query</summary>
+---
+
+<details open name="offline-capab"><summary><b>(a)</b> Local Database — Runs Anywhere</summary>
+
+> The same SQL engine that runs on the server — fully on the client.
 
 ```js
 import { FlashClient } from '@linked-db/linked-ql/flash';
 const client = new FlashClient();
+
 await client.query(`CREATE TABLE users (id SERIAL, name TEXT)`);
 await client.query(`INSERT INTO users (name) VALUES ('Alice'), ('Bob')`);
-const res = await client.query(`SELECT JSON_AGG(name) AS users FROM users`);
-console.log(res.rows);
+
+const result = await client.query(`SELECT JSON_AGG(name) AS users FROM users`);
+
+console.log(result.rows);
 // → [{ users: ['Alice', 'Bob'] }]
 ```
 
 </details>
 
-<details name="offline-capab"><summary><b>(b)</b> Federation Example</summary>
+---
+
+<details name="offline-capab"><summary><b>(b)</b> Federation — Local + Remote in One Query</summary>
+
+> Query remote and local tables together — one SQL surface, automatic remote joins.
 
 ```js
-await client.federate({ public: ['users', 'orders'] }, remoteConfig);
-const res = await client.query(`SELECT * FROM public.users`);
+await client.federate({ store: ['orders'] }, remoteConfig);
+
+const result = await client.query(
+  `SELECT
+    u.name,
+    COUNT(o.id) AS total_orders
+  FROM users AS u LEFT JOIN store.orders AS o ON o.user_id = u.id
+  GROUP BY u.id
+  ORDER BY total_orders DESC`
+);
+
+console.log(result.rows);
+// → combines local `users` and remote `orders` data transparently
 ```
 
 </details>
 
-<details name="offline-capab"><summary><b>(c)</b> Sync Example</summary>
+---
+
+<details name="offline-capab"><summary><b>(c)</b> Sync — Continuous Offline Resilience</summary>
+
+> Keep local and remote data automatically aligned — bidirectional, incremental, and resumable.
 
 ```js
-await client.sync({ public: ['users'] }, remoteConfig);
+await client.sync({ store: ['orders'] }, remoteConfig);
+
+const result = await client.query(
+  `SELECT
+    u.name,
+    COUNT(o.id) AS total_orders
+  FROM users AS u LEFT JOIN store.orders AS o ON o.user_id = u.id
+  GROUP BY u.id ORDER BY total_orders DESC`
+);
+
+client.on('sync:status', s => console.log('Sync status:', s.state));
+client.on('sync:change', e => console.log('Δ', e.table, e.type));
+// → local tables stay mirrored with remote updates — even after reconnects
 ```
 
 </details>
