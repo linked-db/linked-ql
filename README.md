@@ -387,7 +387,16 @@ client.on('sync:change', e => console.log('Δ', e.table, e.type));
 
 ## 🤝 Contributing
 
-LinkedQL is in active development — contributions are welcome!
+LinkedQL is in active development — and contributions are welcome!  
+
+Here’s how you can jump in:  
+- **Issues** → Spot a bug or have a feature idea? Open an [issue](https://github.com/linked-db/linked-ql/issues).  
+- **Pull requests** → PRs are welcome for fixes, docs, or new ideas.  
+- **Discussions** → Not sure where your idea fits? Start a [discussion](https://github.com/linked-db/linked-ql/discussions).  
+
+### 🛠️ Local Setup
+
+⤷ clone → install → test
 
 ```bash
 git clone https://github.com/linked-db/linked-ql.git
@@ -397,17 +406,16 @@ npm install
 npm test
 ```
 
-* Development happens on the **`next`** branch.
-* Open [issues](https://github.com/linked-db/linked-ql/issues) or [discussions](https://github.com/linked-db/linked-ql/discussions).
-* Pull requests for fixes, docs, or new ideas are appreciated.
+### 📝 Tips
 
----
+- Development happens on the `next` branch — be sure to switch to it as above after cloning.
+- Consider creating your feature branch from `next` before making changes (e.g. `git checkout -b feature/my-idea`).
+- Remember to `npm test` before submitting a PR.
+- Check the [Progress](#-our-progress-on-this-iteration-of-linkedql) section above to see where help is most needed.
 
 ## 🔑 License
 
-MIT — see [LICENSE](https://github.com/linked-db/linked-ql/blob/next/LICENSE)
-
-[npm-version-src]: https://img.shields.io/npm/v/@linked-db/linked-ql?style=flat&
+MIT — see [LICENSE](https://github.com/linked-db/linked-ql?tab=MIT-1-ov-file)
 
 [npm-version-src]: https://img.shields.io/npm/v/@linked-db/linked-ql?style=flat&colorA=18181B&colorB=F0DB4F
 [npm-version-href]: https://npmjs.com/package/@linked-db/linked-ql
