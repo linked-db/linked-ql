@@ -34,7 +34,7 @@ Relationships • JSON • Reactivity • Versioning • Offline → **SOLVED**
 | Entry Point | Idea | Capabilities | More |
 |:--|:--|:--|:--|
 | [Quick Start](#-quick-start) | [What is LinkedQL](#️-what-is-linkedql) | [Language Capabilities](#1--language-capabilities) | [Documentation](#-documentation) |
-| [Clients & Dialects](#️-clients--dialects) | [Why LinkedQL](#-why-linkedql) | [Runtime Capabilities](#2--runtime-capabilities) | [Progress](#-development-progress) |
+| [Clients & Dialects](#️-clients--dialects) | [Why LinkedQL](#-why-linkedql) | [Runtime Capabilities](#2--runtime-capabilities) | [Progress](#-progress-next) |
 | | | [Offline Capabilities](#3--offline-capabilities) | |
 
 </div>
@@ -77,7 +77,7 @@ LinkedQL ships with clients for each major SQL dialect.<br>
 For PostgreSQL, MySQL, and MariaDB, it adapts seamlessly to each database through their respective native connector.
 
 | **Dialect**         | **Package**                    | **Docs**                                                                                   |
-| ------------------- | ------------------------------ | ------------------------------------------------------------------------------------------ |
+| :------------------ | :----------------------------- | :----------------------------------------------------------------------------------------- |
 | PostgreSQL          | `@linked-db/linked-ql/pg`      | [Read → PG Docs](https://github.com/linked-db/linked-ql/wiki/Entry-Point#11--postgresql)   |
 | MySQL               | `@linked-db/linked-ql/mysql`   | [Read → MySQL Docs](https://github.com/linked-db/linked-ql/wiki/Entry-Point#12--mysql)     |
 | MariaDB             | `@linked-db/linked-ql/mariadb` | [Read → MariaDB Docs](https://github.com/linked-db/linked-ql/wiki/Entry-Point#13--mariadb) |
@@ -361,11 +361,11 @@ client.on('sync:change', e => console.log('Δ', e.table, e.type));
 | **FlashQL**       | In-memory SQL runtime for offline, edge, and hybrid apps.    | [FlashQL →](https://github.com/linked-db/linked-ql/wiki/FlashQL)             |
 
 > [!NOTE]
-> Every part of [linked-db/linked-ql/wiki](https://github.com/linked-db/linked-ql/wiki) not tagged **@next** is documentation for **v@linked-db/linked-ql0.3.x**, not this version.
+> Every part of the [wiki](https://github.com/linked-db/linked-ql/wiki) not tagged **@next** is documentation for **@linked-db/linked-ql0.3.x**, not this version.
 
 ---
 
-## ⏳ Development Progress
+## ⏳ Progress (`@next`)
 
 | Component          | Status    | Note                  |
 | :----------------- | :-------- | :-------------------- |
