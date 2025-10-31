@@ -3,12 +3,12 @@
 
 # LinkedQL  
 
+_A modern take on SQL and SQL databases_
+
 [![npm version][npm-version-src]][npm-version-href]
 [![npm downloads][npm-downloads-src]][npm-downloads-href]
 [![bundle][bundle-src]][bundle-href]
 [![License][license-src]][license-href]
-
-_A modern take on SQL and SQL databases_
 
 </div>
 
@@ -23,7 +23,8 @@ _A modern take on SQL and SQL databases_
 <div align="center">
 
 Try an advanced form of SQL right on your database.<br>
-**LinkedQL** is a database client that solves the modern database capability problem in a single interface: `client.query()` — and in under `80 KiB min | zip`.
+**LinkedQL** is a database client (`client.query()`) that solves the modern database capability problem in a single interface — and in under `80 KiB min | zip`.<br>
+_Relationships, JSON, reactivity, versioning, offline → **solved**_
 
 </div>
 
@@ -120,15 +121,15 @@ All of that comes built-in with the classic client API — giving your database 
 
 ## `1 |` Language Capabilities
 
-LinkedQL lets you speak an advanced form of SQL right on your database.
-With it, you skip the imperative parts of SQL and get to writing more **intentful** SQL — with first-class support and shorthands for relationships and JSON.<br>
+LinkedQL lets you speak an advanced form of SQL right on your database.<br>
+With shorthands and first-class support for relationships and JSON, you skip the imperative parts of SQL and get to writing more **intentful** SQL.<br>
 LinkedQL automatically compiles your query down to the SQL your database understands.
 
-| **Feature**       | **Summary**                                                           | **Docs**                                                            |
-| ----------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| **DeepRefs**      | Follow relationships using simple arrow notation (`a ~> b ~> c`).     | [Read →](https://github.com/linked-db/linked-ql/wiki/DeepRefs)      |
-| **JSON Literals** | Model JSON shapes directly in SQL using JSON notation `{}` and `[]`.  | [Read →](https://github.com/linked-db/linked-ql/wiki/JSON-Literals) |
-| **UPSERTS**       | Perform insert-or-update operations with a literal `UPSERT`.          | [Read →](https://github.com/linked-db/linked-ql/wiki/UPSERTS)       |
+| **Feature**       | **Summary**                                                                     | **Docs**                                                                          |
+| ----------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **DeepRefs**      | Follow relationships using simple arrow notation (`a ~> b ~> c`).               | [Read → DeepRefs](https://github.com/linked-db/linked-ql/wiki/DeepRefs)           |
+| **JSON Literals** | Model JSON shapes directly in SQL using JSON literals (`{}`, `[]`).             | [Read → JSON Literals](https://github.com/linked-db/linked-ql/wiki/JSON-Literals) |
+| **UPSERTS**       | Perform insert-or-update operations with a literal `UPSERT` statement.          | [Read → UPSERTS](https://github.com/linked-db/linked-ql/wiki/UPSERTS)             |
 
 ### Examples
 
@@ -139,11 +140,11 @@ LinkedQL automatically compiles your query down to the SQL your database underst
 > SQL constructs return shaped JSON directly — no post-mapping layer needed.
 
 ```js
-const result = await client.query(`
-  SELECT { id, name, email } AS user
+const result = await client.query(
+  `SELECT { id, name, email } AS user
   FROM users
-  WHERE id = 1;
-`);
+  WHERE id = 1;`
+);
 
 console.log(result.rows[0]);
 // → { user: { id: 1, name: 'Jane', email: 'jane@example.com' } }
@@ -158,11 +159,11 @@ console.log(result.rows[0]);
 > Follow foreign keys directly inside a query — joins expressed as natural relationships.
 
 ```js
-const posts = await client.query(`
-  SELECT title, author ~> { name, email }
+const posts = await client.query(
+  `SELECT title, author ~> { name, email }
   FROM posts
-  WHERE published = true;
-`);
+  WHERE published = true;`
+);
 
 console.log(posts.rows[0]);
 // → { title: 'Realtime SQL', author: { name: 'John Doe', email: 'john@example.com' } }
@@ -177,12 +178,12 @@ console.log(posts.rows[0]);
 > LinkedQL exposes UPSERT as a literal statement — cleaner and portable across dialects.
 
 ```js
-await client.query(`
-  UPSERT INTO users
-    (id, name, email)
+await client.query(
+  `UPSERT INTO users (id, name, email)
   VALUES
-    (1, 'Jane', 'jane@example.com');
-`);
+    (1, 'Jane', 'jane@example.com'),
+    (2, 'James', 'j2@example.com')`
+);
 ```
 
 </details>
@@ -193,39 +194,80 @@ await client.query(`
 
 ## `2 |` Runtime Capabilities
 
-LinkedQL brings live reactivity and structural versioning to your database —
-**without patching it or installing extensions.**
+LinkedQL enables **SQL-level reactivity** and **automatic schema versioning** right on your database — **with no plugins, or database extensions, or middleware** required.<br>
+A built-in **Realtime Engine** and **Timeline Engine** quietly expand what your database can do at execution time.<br>
+Designed for modern applications that demand reactivity and consistency — without the stack complexity.
 
-<table style="width:100%">
-<tr><th align="left">Feature</th><th align="left">Summary</th><th align="left">Docs</th></tr>
-<tr><td><b>Realtime Engine</b></td><td>Live queries that continuously self-update as data changes.</td><td align="left"><a href="https://github.com/linked-db/linked-ql/wiki/RealtimeSQL">Read →</a></td></tr>
-<tr><td><b>Timeline Engine</b></td><td>Schema history & rollback — version-bound queries and time-travel introspection.</td><td align="left">(coming soon)</td></tr>
-</table>
+| **Feature**         | **Summary**                                                                                         | **Docs**                                                                           |
+| ------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| **Realtime SQL**    | Run live, self-updating queries over your datatabase.                                               | [Read → RealtimeSQL Docs](https://github.com/linked-db/linked-ql/wiki/RealtimeSQL) |
+| **Timeline Engine** | Get automatic database versioning on every DDL operation; bind queries to specific schema versions. | *(Coming soon)*                                                                    |
 
 ### Examples
 
-<details name="runtime-capab" open><summary><b>(a)</b> Live Query</summary>
+---
+
+<details open name="runtime-capab"><summary><b>(a)</b> Live Queries — Continuous Results</summary>
+
+> Turn on reactivity over arbitrary queries with `{ live: true }`; you get a **live view** of your data.
 
 ```js
 const result = await client.query(
-  `SELECT title, author ~> name FROM posts ORDER BY created_at DESC`,
+  `SELECT p.title, p.category, p.views, u.name
+  FROM posts AS p LEFT JOIN users AS u ON p.author = u.id
+  WHERE p.published = true ORDER BY p.created_at DESC`,
   { live: true }
 );
-console.log(result.rows); // auto-updates as rows change
-```
 
-</details>
-
-<details name="runtime-capab"><summary><b>(b)</b> Version Binding</summary>
-
-```js
-const result = await client.query(`SELECT * FROM users@2_3;`);
-console.log(result.rows); // Query against schema version 2.3
+setInterval(() => console.log(result.rows), 1000);
+// → auto-updates as posts are created, edited, or deleted
 ```
 
 </details>
 
 ---
+
+<details name="runtime-capab"><summary><b>(b)</b> Live Queries + Syntax Shorthands</summary>
+
+> .
+
+```js
+const result = await client.query(
+  `SELECT
+    { title, category, views } AS post,
+    author ~> { name, email } AS author
+  FROM posts WHERE published = true ORDER BY created_at DESC`,
+  { live: true }
+);
+
+setInterval(() => console.log(result.rows), 1000);
+// → auto-updates as posts are created, edited, or deleted
+```
+
+</details>
+
+---
+
+<details name="runtime-capab"><summary><b>(c)</b> Version Binding — Ponit-in-Time Queries</summary>
+
+> Anchor a query to a specific schema version — prevent breaking changes with semantic version control.
+
+```js
+const result = await client.query(
+  `SELECT name, email
+  FROM users@2_3
+  WHERE active = true;`
+);
+
+console.log(result.rows);
+// → Runs against schema version 2.3 — unaffected by later changes
+```
+
+</details>
+
+---
+
+<br><br>
 
 ## `3 |` Offline Capabilities
 
