@@ -1,5 +1,4 @@
 
-
 <div align="center">
 
 # LinkedQL  
@@ -23,6 +22,7 @@ _A modern take on SQL and SQL databases_
 
 <div align="center">
 
+Try a query client that lets you do more with SQL.<br>
 **LinkedQL** is a database client that solves the modern database capability problem in a single interface — `client.query()` — and in under `80 KiB min | zip`.
 
 </div>
@@ -94,8 +94,9 @@ For PostgreSQL, MySQL, and MariaDB, it adapts seamlessly to each database throug
 
 ## 🏗️ What is LinkedQL
 
-LinkedQL is a database client that solves the modern database capability problem in a single interface — `client.query()`. It comes as a modern take on SQL and SQL databases;
-same familiar API as a classic query client, but **advanced SQL over your database** — bringing relational queries, live queries, and schema awareness together in one place.
+LinkedQL is a database client that solves the modern database capability problem in a single interface.<br>
+Same familiar API as a classic query client (`client.query()`), but **advanced SQL over your database** — bringing relational queries, live queries, a schema versioning system, and more.<br>
+LinkedQL is more **a modern take on SQL and SQL databases** than just a query client.
 
 Need SQL locally too? LinkedQL also runs as an **embeddable, in-memory database** — codenamed **FlashQL**.
 Use it as a lighter replacement for SQLite or PGLite, with all of LinkedQL’s power built in.
