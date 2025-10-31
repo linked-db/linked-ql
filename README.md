@@ -379,7 +379,7 @@ client.on('sync:change', e => console.log('Δ', e.table, e.type));
 | IDE Tooling        | ⬜ `5%`    | Early hooks          |
 | Docs (vNext)       | 🟩 `95%`  | Expanding                |
 
-> <!--💡--> **Status Legend**:<br>
+> <!--💡--> Status Legend:<br>
 > 🟩 Complete | 🟨 In Progress | ⬜ Not Started
 
 ---
