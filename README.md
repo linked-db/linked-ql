@@ -371,15 +371,15 @@ client.on('sync:change', e => console.log('Δ', e.table, e.type));
 | :----------------- | :-------- | :-------------------- |
 | Parser & Compiler  | 🟩 `100%` | Stable                |
 | Transform Engine   | 🟩 `100%` | Stable                |
-| Drivers (PG/MySQL) | 🟩 `97%`  | MySQL parity nearing  |
-| FlashQL Engine     | 🟩 `99%`  | Production-ready      |
+| Drivers (PG/MySQL) | 🟩 `97%`  | Complete; MySQL nearing parity  |
+| FlashQL Engine     | 🟩 `99%`  | Expanding             |
 | Realtime Engine    | 🟩 `99%`  | Expanding             |
-| Timeline Engine    | 🟨 `20%`  | Versioning + rollback |
-| Migration Wizard   | ⬜ `10%`   | Planned               |
-| IDE Tooling        | ⬜ `5%`    | Early hooks           |
-| Docs (vNext)       | 🟩 `95%`  | Active                |
+| Timeline Engine    | 🟨 `20%`  | Planned               |
+| Migration Wizard   | ⬜ `10%`   | Planned              |
+| IDE Tooling        | ⬜ `5%`    | Early hooks          |
+| Docs (vNext)       | 🟩 `95%`  | Expanding                |
 
-> 💡 **Status Legend**:
+> <!--💡--> **Status Legend**:<br>
 > 🟩 Complete | 🟨 In Progress | ⬜ Not Started
 
 ---
