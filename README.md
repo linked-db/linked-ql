@@ -132,6 +132,8 @@ LinkedQL automatically compiles your query down to the SQL your database underst
 
 ### Examples
 
+---
+
 <details open name="lang-capab"><summary><b>(a)</b> JSON Literals — Structured Projection</summary>
 
 ```js
@@ -184,6 +186,10 @@ await client.query(`
 *LinkedQL exposes UPSERT as a literal statement — cleaner and portable across dialects.*
 
 </details>
+
+---
+
+<br><br>
 
 ## `2 |` Runtime Capabilities
 
