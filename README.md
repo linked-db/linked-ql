@@ -107,8 +107,8 @@ Use it as a lighter replacement for SQLite or PGLite, with all of LinkedQL’s p
 
 ## 🧭 Why LinkedQL
 
-SQL and SQL databases have a **capability problem.**<br>
-Modern applications built around them have to wade through layers of **external tooling** as a consequence.
+SQL and SQL databases have a **capability problem.**
+Modern applications built around them have to wade through layers of **external tooling** as a consequence.<br>
 (For example, need relational queries and realtime data? → ORMs + GraphQL layers.)
 
 Rather than extend that layer with yet another prosthetic arm for a missing limb in SQL, **LinkedQL extends SQL itself** to close the gaps at their level — **syntax gaps at the language layer**, **runtime problems at the runtime layer.**
@@ -122,7 +122,7 @@ All of that comes built-in with the classic client API — giving your database 
 ## `1 |` Language Capabilities
 
 LinkedQL lets you speak an advanced form of SQL right on your database.
-With shorthands and first-class support for relationships and JSON, you skip the imperative parts of SQL and get to writing more **intentful** SQL.<br>
+With syntax shorthands and first-class support for relationships and JSON, you skip the imperative parts of SQL and get to writing more **intentful** SQL.<br>
 LinkedQL automatically compiles your query down to the SQL your database understands.
 
 | **Feature**       | **Summary**                                                                     | **Docs**                                                                          |
@@ -194,9 +194,9 @@ await client.query(
 
 ## `2 |` Runtime Capabilities
 
-LinkedQL enables **SQL-level reactivity** and **automatic schema versioning** right on your database — **with no plugins, or database extensions, or middleware** required.
-A built-in **Realtime Engine** and **Timeline Engine** quietly expand what your database can do at execution time.<br>
-Designed for modern applications that demand reactivity and consistency — without the stack complexity.
+LinkedQL enables **SQL-level reactivity** and **automatic schema versioning** right on your database — **with no plugins, database extensions, or middleware** required.
+(A built-in **Realtime Engine** and **Timeline Engine** quietly extend your database at execution time.)<br>
+Modern apps and modern workflows — solved.
 
 | **Feature**         | **Summary**                                                                                         | **Docs**                                                                           |
 | ------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
@@ -209,7 +209,7 @@ Designed for modern applications that demand reactivity and consistency — with
 
 <details open name="runtime-capab"><summary><b>(a)</b> Live Queries — Continuous Results</summary>
 
-> Turn on reactivity over arbitrary queries with `{ live: true }`; you get a **live view** of your data.
+> Turn on reactivity for any query with `{ live: true }` — get a live view of your data.
 
 ```js
 const result = await client.query(
@@ -220,16 +220,16 @@ const result = await client.query(
 );
 
 setInterval(() => console.log(result.rows), 1000);
-// → auto-updates as posts are created, edited, or deleted
+// → Automatically updates as post or author data changes
 ```
 
 </details>
 
 ---
 
-<details name="runtime-capab"><summary><b>(b)</b> Live Queries + Syntax Shorthands</summary>
+<details name="runtime-capab"><summary><b>(b)</b> Live Queries + Language Shorthands</summary>
 
-> .
+> Combine runtime reactivity with language-level extensions — relational traversal, JSON shapes, and more.
 
 ```js
 const result = await client.query(
@@ -241,16 +241,16 @@ const result = await client.query(
 );
 
 setInterval(() => console.log(result.rows), 1000);
-// → auto-updates as posts are created, edited, or deleted
+// → Automatically updates as post or author data changes
 ```
 
 </details>
 
 ---
 
-<details name="runtime-capab"><summary><b>(c)</b> Version Binding — Ponit-in-Time Queries</summary>
+<details name="runtime-capab"><summary><b>(c)</b> Version Binding — Point-in-Time Queries</summary>
 
-> Anchor a query to a specific schema version — prevent breaking changes with semantic version control.
+> Anchor a query to a specific schema version — guard against breaking changes with semantic version control.
 
 ```js
 const result = await client.query(
@@ -260,7 +260,7 @@ const result = await client.query(
 );
 
 console.log(result.rows);
-// → Runs against schema version 2.3 — unaffected by later changes
+// → Runs against schema version 2.3 — unaffected by later migrations
 ```
 
 </details>
