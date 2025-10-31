@@ -136,6 +136,8 @@ LinkedQL automatically compiles your query down to the SQL your database underst
 
 <details open name="lang-capab"><summary><b>(a)</b> JSON Literals — Structured Projection</summary>
 
+> SQL constructs return shaped JSON directly — no post-mapping layer needed.
+
 ```js
 const result = await client.query(`
   SELECT { id, name, email } AS user
@@ -147,13 +149,13 @@ console.log(result.rows[0]);
 // → { user: { id: 1, name: 'Jane', email: 'jane@example.com' } }
 ```
 
-*SQL constructs return shaped JSON directly — no post-mapping layer needed.*
-
 </details>
 
 ---
 
 <details name="lang-capab"><summary><b>(b)</b> DeepRefs — Inline Relationship Traversal</summary>
+
+> Follow foreign keys directly inside a query — joins expressed as natural relationships.
 
 ```js
 const posts = await client.query(`
@@ -166,13 +168,13 @@ console.log(posts.rows[0]);
 // → { title: 'Realtime SQL', author: { name: 'John Doe', email: 'john@example.com' } }
 ```
 
-*Follow foreign keys directly inside a query — joins expressed as natural relationships.*
-
 </details>
 
 ---
 
 <details name="lang-capab"><summary><b>(c)</b> UPSERT — Insert-or-Update in One Step</summary>
+
+> LinkedQL exposes UPSERT as a literal statement — cleaner and portable across dialects.
 
 ```js
 await client.query(`
@@ -182,8 +184,6 @@ await client.query(`
     (1, 'Jane', 'jane@example.com');
 `);
 ```
-
-*LinkedQL exposes UPSERT as a literal statement — cleaner and portable across dialects.*
 
 </details>
 
