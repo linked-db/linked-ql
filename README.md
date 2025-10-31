@@ -23,7 +23,7 @@ _A modern take on SQL and SQL databases_
 <div align="center">
 
 Try a query client that lets you do more with SQL.<br>
-**LinkedQL** is a database client that solves the modern database capability problem in a single interface — `client.query()` — and in under `80 KiB min | zip`.
+**LinkedQL** is a database client that solves the modern database capability problem in a single interface: `client.query()`, and in under `80 KiB min | zip`.
 
 </div>
 
@@ -108,7 +108,7 @@ Use it as a lighter replacement for SQLite or PGLite, with all of LinkedQL’s p
 
 SQL and SQL databases have a **capability problem.**
 Modern applications built around them have to wade through layers of **external tooling** as a consequence.
-(For example, need relational queries and realtime data? → ORMs + GraphQL layers.)
+(For example, need relational queries and realtime data? → ORMs + GraphQL layers, for a start.)
 
 Rather than extend that layer with yet another prosthetic arm for a missing limb in SQL, **LinkedQL extends SQL itself** to close the gaps at their level — **syntax gaps at the language layer**, and **runtime problems at the runtime layer.**
 
