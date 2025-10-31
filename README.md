@@ -96,7 +96,7 @@ For PostgreSQL, MySQL, and MariaDB, it adapts seamlessly to each database throug
 ## 🏗️ What is LinkedQL
 
 LinkedQL is a database client that solves the modern database capability problem in a single interface.
-Same familiar API as a classic client (`client.query()`), but **advanced SQL over your database** — bringing relational queries, live queries, a schema versioning system, and more.<br>
+Same familiar API as a classic client (`client.query()`), but **advanced SQL over your database** — bringing relational queries, live queries, a schema versioning system, offline capabilities and more.
 
 LinkedQL is more **a modern take on SQL and SQL databases** than just a client.
 
@@ -107,7 +107,7 @@ Use it as a lighter replacement for SQLite or PGLite, with all of LinkedQL’s p
 
 ## 🧭 Why LinkedQL
 
-SQL and SQL databases have a **capability problem.**
+SQL and SQL databases have a **capability problem.**<br>
 Modern applications built around them have to wade through layers of **external tooling** as a consequence.
 (For example, need relational queries and realtime data? → ORMs + GraphQL layers.)
 
@@ -121,7 +121,7 @@ All of that comes built-in with the classic client API — giving your database 
 
 ## `1 |` Language Capabilities
 
-LinkedQL lets you speak an advanced form of SQL right on your database.<br>
+LinkedQL lets you speak an advanced form of SQL right on your database.
 With shorthands and first-class support for relationships and JSON, you skip the imperative parts of SQL and get to writing more **intentful** SQL.<br>
 LinkedQL automatically compiles your query down to the SQL your database understands.
 
@@ -194,7 +194,7 @@ await client.query(
 
 ## `2 |` Runtime Capabilities
 
-LinkedQL enables **SQL-level reactivity** and **automatic schema versioning** right on your database — **with no plugins, or database extensions, or middleware** required.<br>
+LinkedQL enables **SQL-level reactivity** and **automatic schema versioning** right on your database — **with no plugins, or database extensions, or middleware** required.
 A built-in **Realtime Engine** and **Timeline Engine** quietly expand what your database can do at execution time.<br>
 Designed for modern applications that demand reactivity and consistency — without the stack complexity.
 
