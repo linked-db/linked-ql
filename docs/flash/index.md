@@ -190,9 +190,9 @@ Capabilities inherited from LinkedQL includes:
 
 | Capability            | Description                                     |   |
 | :-------------------- | :---------------------------------------------- |:--|
-| **DeepRefs (~>)**     | Declarative foreign-key dereferencing syntax.   | [_reference_](lang/deeprefs) |
-| **JSON Literals**     | Inline object and array literals.               | [_reference_](lang/json-Literals) |
-| **UPSERT Semantics**  | Dedicated `UPSERT` statement.                    | [_reference_](lang/upsert) |
+| **DeepRefs (~>)**     | Declarative foreign-key dereferencing syntax.   | [_reference_](/linked-ql/lang/deeprefs) |
+| **JSON Literals**     | Inline object and array literals.               | [_reference_](/linked-ql/lang/json-Literals) |
+| **UPSERT Semantics**  | Dedicated `UPSERT` statement.                    | [_reference_](/linked-ql/lang/upsert) |
 | **Versioned Queries** | Access versioned schemas using `@version`.      |   |
 
 ```sql
@@ -213,7 +213,7 @@ Capabilities inherited from LinkedQL includes:
 
 | Capability            | Description                                     |   |
 | :-------------------- | :---------------------------------------------- |:--|
-| **Live Queries**      | LinkedQL's Live Queries capability.             | [_reference_](proc/realtime-sql) |
+| **Live Queries**      | LinkedQL's Live Queries capability.             | [_reference_](/linked-ql/proc/realtime-sql) |
 | **Database Versioning** | LinkedQL's versioning system. |   |
 
 ### `2.2 |` Data Orchestration & Mirroring

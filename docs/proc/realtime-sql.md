@@ -67,7 +67,7 @@ result.abort();
 That ends reactivity; the array stops updating.
 
 > [!TIP]
-> To run live queries on PostgreSQL, MySQL, MariaDB be sure to follow the [setup instructions](entry/clients) for the database.
+> To run live queries on PostgreSQL, MySQL, MariaDB be sure to follow the [setup instructions](/linked-ql/entry/clients) for the database.
 
 ---
 

@@ -217,7 +217,7 @@ LEFT JOIN (SELECT author, title FROM posts) AS p
 GROUP BY u.id;
 ```
 
-Alternatively, you can use the [declarative aggregation syntax](lang/json-Literals#-2--aggregation-syntax): `AS col[]`.<br>
+Alternatively, you can use the [declarative aggregation syntax](/linked-ql/lang/json-Literals#-2--aggregation-syntax): `AS col[]`.<br>
 This performs aggregation **within** the BackRef’s inner scope rather than the outer query, isolating the grouping semantics to that subrelation.
 
 ```sql
@@ -603,7 +603,7 @@ Each row from the source query becomes one complete relational structure and exe
 
 ### `3.5 |` Upserts
 
-DeepRefs are fully supported in [UPSERT](lang/upsert) operations — being just a variation of the `INSERT` statement.
+DeepRefs are fully supported in [UPSERT](/linked-ql/lang/upsert) operations — being just a variation of the `INSERT` statement.
 
 ```sql
 UPSERT INTO posts

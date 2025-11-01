@@ -78,10 +78,10 @@ For PostgreSQL, MySQL, and MariaDB, it adapts seamlessly to each database throug
 
 | **Dialect**         | **Package**                    | **Docs**                                                                                   |
 | :------------------ | :----------------------------- | :----------------------------------------------------------------------------------------- |
-| PostgreSQL          | `@linked-db/linked-ql/pg`      | [Read → PG Docs](docs/entry/clients#11--postgresql)   |
-| MySQL               | `@linked-db/linked-ql/mysql`   | [Read → MySQL Docs](docs/entry/clients#12--mysql)     |
-| MariaDB             | `@linked-db/linked-ql/mariadb` | [Read → MariaDB Docs](docs/entry/clients#13--mariadb) |
-| FlashQL (In-Memory) | `@linked-db/linked-ql/flash`   | [Read → FlashQL Docs](docs/entry/clients#14--flashql) |
+| PostgreSQL          | `@linked-db/linked-ql/pg`      | [Read → PG Docs](https://linked-db.github.io/linked-ql/entry/clients#11--postgresql)   |
+| MySQL               | `@linked-db/linked-ql/mysql`   | [Read → MySQL Docs](https://linked-db.github.io/linked-ql/entry/clients#12--mysql)     |
+| MariaDB             | `@linked-db/linked-ql/mariadb` | [Read → MariaDB Docs](https://linked-db.github.io/linked-ql/entry/clients#13--mariadb) |
+| FlashQL (In-Memory) | `@linked-db/linked-ql/flash`   | [Read → FlashQL Docs](https://linked-db.github.io/linked-ql/entry/clients#14--flashql) |
 
 ---
 
@@ -121,9 +121,9 @@ LinkedQL automatically compiles your query down to the SQL your database underst
 
 | **Feature**       | **Summary**                                                                     | **Docs**                                                                          |
 | :---------------- | :------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------- |
-| **DeepRefs**      | Follow relationships using simple arrow notation (`a ~> b ~> c`).               | [Read → DeepRefs Docs](docs/lang/deeprefs)      |
-| **JSON Literals** | Model JSON shapes directly in SQL using JSON literals (`{}`, `[]`).             | [Read → JSON Docs](docs/lang/json-Literals)     |
-| **UPSERTS**       | Perform insert-or-update operations with a literal `UPSERT` statement.          | [Read → UPSERTS Docs](docs/lang/upsert)        |
+| **DeepRefs**      | Follow relationships using simple arrow notation (`a ~> b ~> c`).               | [Read → DeepRefs Docs](https://linked-db.github.io/linked-ql/lang/deeprefs)      |
+| **JSON Literals** | Model JSON shapes directly in SQL using JSON literals (`{}`, `[]`).             | [Read → JSON Docs](https://linked-db.github.io/linked-ql/lang/json-Literals)     |
+| **UPSERTS**       | Perform insert-or-update operations with a literal `UPSERT` statement.          | [Read → UPSERTS Docs](https://linked-db.github.io/linked-ql/lang/upsert)        |
 
 ### Examples
 
@@ -194,7 +194,7 @@ Modern apps and modern workflows — solved.
 
 | **Feature**         | **Summary**                                                                                         | **Docs**                                                                           |
 | :------------------ | :-------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------- |
-| **Realtime SQL**    | Run live, self-updating queries right on your database.                                             | [Read → RealtimeSQL Docs](docs/proc/realtime-sql) |
+| **Realtime SQL**    | Run live, self-updating queries right on your database.                                             | [Read → RealtimeSQL Docs](https://linked-db.github.io/linked-ql/proc/realtime-sql) |
 | **Timeline Engine** | Get automatic database versioning on every DDL operation; bind queries to specific schema versions. | *(Coming soon)*                                                                    |
 
 ### Examples
@@ -271,9 +271,9 @@ It extends that with built-in support for **federation**, **materialization**, a
 
 | **Capability**      | **Summary**                                                  | **Docs**                                                                   |
 | :------------------ | :----------------------------------------------------------- | :------------------------------------------------------------------------- |
-| **Federation**      | Query across remote and local databases as a single surface. | [Read → FlashQL Docs](docs/flash#221-query-federation) |
-| **Materialization** | Materialize remote datasets locally for offline queries.     | [Read → FlashQL Docs](docs/flash#222-data-materialization) |
-| **Sync**            | Two-way synchronization between local and remote databases.  | [Read → FlashQL Docs](docs/flash#223-data-sync) |
+| **Federation**      | Query across remote and local databases as a single surface. | [Read → FlashQL Docs](https://linked-db.github.io/linked-ql/flash#221-query-federation) |
+| **Materialization** | Materialize remote datasets locally for offline queries.     | [Read → FlashQL Docs](https://linked-db.github.io/linked-ql/flash#222-data-materialization) |
+| **Sync**            | Two-way synchronization between local and remote databases.  | [Read → FlashQL Docs](https://linked-db.github.io/linked-ql/flash#223-data-sync) |
 
 ### Examples
 
@@ -354,11 +354,11 @@ client.on('sync:change', e => console.log('Δ', e.table, e.type));
 
 | Feature           | Description                                                  | Wiki Page                                                                    |
 | :---------------- | :----------------------------------------------------------- | :--------------------------------------------------------------------------- |
-| **DeepRefs**      | Declarative relationship traversal across foreign keys.      | [DeepRefs →](docs/lang/deeprefs)           |
-| **JSON Literals** | Inline JSON modeling syntax — objects, arrays, aggregations. | [JSON Literals →](docs/lang/json-Literals) |
-| **UPSERTS**       | Simplified `INSERT + UPDATE` hybrid statement.               | [UPSERTS →](docs/lang/upsert)              |
-| **RealtimeSQL**   | Live queries powered by the Realtime Engine.                 | [RealtimeSQL →](docs/proc/realtime-sql)    |
-| **FlashQL**       | In-memory SQL runtime for offline, edge, and hybrid apps.    | [FlashQL →](docs/flash)                    |
+| **DeepRefs**      | Declarative relationship traversal across foreign keys.      | [DeepRefs →](https://linked-db.github.io/linked-ql/lang/deeprefs)           |
+| **JSON Literals** | Inline JSON modeling syntax — objects, arrays, aggregations. | [JSON Literals →](https://linked-db.github.io/linked-ql/lang/json-Literals) |
+| **UPSERTS**       | Simplified `INSERT + UPDATE` hybrid statement.               | [UPSERTS →](https://linked-db.github.io/linked-ql/lang/upsert)              |
+| **RealtimeSQL**   | Live queries powered by the Realtime Engine.                 | [RealtimeSQL →](https://linked-db.github.io/linked-ql/proc/realtime-sql)    |
+| **FlashQL**       | In-memory SQL runtime for offline, edge, and hybrid apps.    | [FlashQL →](https://linked-db.github.io/linked-ql/flash)                    |
 
 ---
 

@@ -174,7 +174,7 @@ LinkedQL’s aggregation syntax doesn’t alter SQL’s grouping rules.
 
 It simplifies **expression**, not semantics.
 
-An exception to this rule appears in [DeepRefs](lang/deeprefs#112-backrefs-) — where the aggregation syntax isolates its own grouping semantics from the main query.
+An exception to this rule appears in [DeepRefs](/linked-ql/lang/deeprefs#112-backrefs-) — where the aggregation syntax isolates its own grouping semantics from the main query.
 
 ---
 
@@ -200,7 +200,7 @@ FROM users;
 
 ### `3.2 |` DeepRefs
 
-JSON literals compose with [DeepRefs](lang/deeprefs) to model relationships structurally.
+JSON literals compose with [DeepRefs](/linked-ql/lang/deeprefs) to model relationships structurally.
 
 ```sql
 SELECT
