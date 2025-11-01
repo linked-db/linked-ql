@@ -191,7 +191,7 @@ Capabilities inherited from LinkedQL includes:
 | Capability            | Description                                     |   |
 | :-------------------- | :---------------------------------------------- |:--|
 | **DeepRefs (~>)**     | Declarative foreign-key dereferencing syntax.   | [_reference_](/linked-ql/lang/deeprefs) |
-| **JSON Literals**     | Inline object and array literals.               | [_reference_](/linked-ql/lang/json-Literals) |
+| **JSON Literals**     | Inline object and array literals.               | [_reference_](/linked-ql/lang/json-literals) |
 | **UPSERT Semantics**  | Dedicated `UPSERT` statement.                    | [_reference_](/linked-ql/lang/upsert) |
 | **Versioned Queries** | Access versioned schemas using `@version`.      |   |
 

@@ -217,7 +217,7 @@ LEFT JOIN (SELECT author, title FROM posts) AS p
 GROUP BY u.id;
 ```
 
-Alternatively, you can use the [declarative aggregation syntax](/linked-ql/lang/json-Literals#-2--aggregation-syntax): `AS col[]`.<br>
+Alternatively, you can use the [declarative aggregation syntax](/linked-ql/lang/json-literals#-2--aggregation-syntax): `AS col[]`.<br>
 This performs aggregation **within** the BackRef’s inner scope rather than the outer query, isolating the grouping semantics to that subrelation.
 
 ```sql

@@ -122,7 +122,7 @@ LinkedQL automatically compiles your query down to the SQL your database underst
 | **Feature**       | **Summary**                                                                     | **Docs**                                                                          |
 | :---------------- | :------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------- |
 | **DeepRefs**      | Follow relationships using simple arrow notation (`a ~> b ~> c`).               | [Read → DeepRefs Docs](https://linked-db.github.io/linked-ql/lang/deeprefs)      |
-| **JSON Literals** | Model JSON shapes directly in SQL using JSON literals (`{}`, `[]`).             | [Read → JSON Docs](https://linked-db.github.io/linked-ql/lang/json-Literals)     |
+| **JSON Literals** | Model JSON shapes directly in SQL using JSON literals (`{}`, `[]`).             | [Read → JSON Docs](https://linked-db.github.io/linked-ql/lang/json-literals)     |
 | **UPSERTS**       | Perform insert-or-update operations with a literal `UPSERT` statement.          | [Read → UPSERTS Docs](https://linked-db.github.io/linked-ql/lang/upsert)        |
 
 ### Examples
@@ -355,7 +355,7 @@ client.on('sync:change', e => console.log('Δ', e.table, e.type));
 | Feature           | Description                                                  | Wiki Page                                                                    |
 | :---------------- | :----------------------------------------------------------- | :--------------------------------------------------------------------------- |
 | **DeepRefs**      | Declarative relationship traversal across foreign keys.      | [DeepRefs →](https://linked-db.github.io/linked-ql/lang/deeprefs)           |
-| **JSON Literals** | Inline JSON modeling syntax — objects, arrays, aggregations. | [JSON Literals →](https://linked-db.github.io/linked-ql/lang/json-Literals) |
+| **JSON Literals** | Inline JSON modeling syntax — objects, arrays, aggregations. | [JSON Literals →](https://linked-db.github.io/linked-ql/lang/json-literals) |
 | **UPSERTS**       | Simplified `INSERT + UPDATE` hybrid statement.               | [UPSERTS →](https://linked-db.github.io/linked-ql/lang/upsert)              |
 | **RealtimeSQL**   | Live queries powered by the Realtime Engine.                 | [RealtimeSQL →](https://linked-db.github.io/linked-ql/proc/realtime-sql)    |
 | **FlashQL**       | In-memory SQL runtime for offline, edge, and hybrid apps.    | [FlashQL →](https://linked-db.github.io/linked-ql/flash)                    |

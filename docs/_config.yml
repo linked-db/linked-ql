@@ -1,0 +1,13 @@
+title: LinkedQL
+description: SQL, evolved — A reactive, version-aware database client.
+theme: jekyll-theme-cayman
+markdown: GFM
+show_downloads: false
+github:
+  is_project_page: true
+  repository_url: https://github.com/linked-db/linked-ql
+url: "https://linked-db.github.io"
+baseurl: "/linked-ql"
+plugins:
+  - jekyll-seo-tag
+  - jekyll-sitemap
