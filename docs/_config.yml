@@ -1,7 +1,6 @@
 title: LinkedQL
 description: SQL, evolved — A reactive, version-aware database client.
 plugins:
-  - jekyll-remote-theme
   - jekyll-seo-tag
   - jekyll-sitemap
 markdown: GFM
