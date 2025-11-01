@@ -1,4 +1,5 @@
 .*
+!/.github
 !/.gitignore
 !.eslintrc.yml
 coverage
