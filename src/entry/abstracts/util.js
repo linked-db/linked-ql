@@ -57,7 +57,7 @@ export function normalizeQueryArgs(...args) {
         ({ query: query, ...options } = args[0]);
     } else if (typeof args[0] === 'object' && args[0] && typeof args[0].text/* node_postgres compat */ === 'string') {
         ({ text: query, ...options } = args[0]);
-    } else if (typeof args[0] === 'object' && args[0] && typeof args[0].url/* AbstractAPIClient compat */ === 'string') {
+    } else if (typeof args[0] === 'object' && args[0] && typeof args[0].url/* AbstractFetchClient compat */ === 'string') {
         ({ url: query, ...options } = args[0]);
     } else {
         query = args.shift();

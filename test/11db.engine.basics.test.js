@@ -3,10 +3,10 @@ import chaiAsPromised from 'chai-as-promised';
 use(chaiAsPromised);
 
 import '../src/lang/index.js';
-import { matchRelationSelector, normalizeRelationSelectorArg } from '../src/db/abstracts/util.js';
-import { StorageEngine } from '../src/db/flash/StorageEngine.js';
-import { FlashClient } from '../src/db/flash/FlashClient.js';
-import { TableStorage } from '../src/db/flash/TableStorage.js';
+import { matchRelationSelector, normalizeRelationSelectorArg } from '../src/entry/abstracts/util.js';
+import { StorageEngine } from '../src/flash/StorageEngine.js';
+import { FlashClient } from '../src/flash/FlashClient.js';
+import { TableStorage } from '../src/flash/TableStorage.js';
 
 describe('Util', () => {
 

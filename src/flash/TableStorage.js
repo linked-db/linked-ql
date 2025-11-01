@@ -1,4 +1,4 @@
-import { SimpleEmitter } from '../abstracts/SimpleEmitter.js';
+import { SimpleEmitter } from '../entry/abstracts/SimpleEmitter.js';
 import { ConflictError } from './ConflictError.js';
 
 export class TableStorage extends SimpleEmitter {

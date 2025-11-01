@@ -1,5 +1,5 @@
 import { NamespaceSchema } from './ddl/namespace/NamespaceSchema.js';
-import { matchRelationSelector, normalizeRelationSelectorArg } from '../db/abstracts/util.js';
+import { matchRelationSelector, normalizeRelationSelectorArg } from '../entry/abstracts/util.js';
 
 export class SchemaInference {
 

@@ -1,6 +1,6 @@
-import { SimpleEmitter } from '../abstracts/SimpleEmitter.js';
+import { SimpleEmitter } from '../entry/abstracts/SimpleEmitter.js';
 import { TableStorage } from './TableStorage.js';
-import { registry } from '../../lang/registry.js';
+import { registry } from '../lang/registry.js';
 
 export class StorageNamespace extends SimpleEmitter {
 

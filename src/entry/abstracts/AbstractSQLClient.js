@@ -2,10 +2,10 @@ import { normalizeQueryArgs } from './util.js';
 import { AbstractClient } from './AbstractClient.js';
 import { AbstractNode } from '../../lang/abstracts/AbstractNode.js';
 import { AbstractStmt } from '../../lang/abstracts/AbstractStmt.js';
-import { RealtimeClient } from '../realtime/RealtimeClient.js';
+import { RealtimeClient } from '../../proc/realtime/RealtimeClient.js';
 import { Transformer } from '../../lang/Transformer.js';
 import { registry } from '../../lang/registry.js';
-import { Result } from '../Result.js';
+import { Result } from '../../entry/Result.js';
 
 export class AbstractSQLClient extends AbstractClient {
 

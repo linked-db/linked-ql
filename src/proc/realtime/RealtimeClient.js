@@ -1,6 +1,6 @@
 import '../../lang/index.js';
-import { AbstractSQLClient } from '../abstracts/AbstractSQLClient.js';
-import { normalizeQueryArgs } from '../abstracts/util.js';
+import { AbstractSQLClient } from '../../entry/abstracts/AbstractSQLClient.js';
+import { normalizeQueryArgs } from '../../entry/abstracts/util.js';
 import { RealtimeResult } from './RealtimeResult.js';
 import { QueryWindow } from './QueryWindow.js';
 import { registry } from '../../lang/registry.js';

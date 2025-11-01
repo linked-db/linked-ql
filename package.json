@@ -14,7 +14,7 @@
   ],
   "homepage": "https://linked-ql.netlify.app/",
   "icon": "https://webqit.io/icon.svg",
-  "version": "0.4.0-next.61",
+  "version": "0.4.0-next.62",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -27,25 +27,20 @@
   "sideEffects": true,
   "main": "./src/index.js",
   "exports": {
-    ".": "./src/db/flash/FlashClient.js",
-    "./flash": "./src/db/flash/FlashClient.js",
-    "./realtime": "./src/db/realtime/RealtimeClient.js",
-    "./mariadb": "./src/db/classic/mariadb/MariaDBClient.js",
-    "./mysql": "./src/db/classic/mysql/MySQLClient.js",
-    "./pg": "./src/db/classic/pg/PGClient.js"
-  },
-  "bin": {
-    "linkedql": "src/cli/index.js"
+    ".": "./src/flash/FlashClient.js",
+    "./flash": "./src/flash/FlashClient.js",
+    "./realtime": "./src/proc/realtime/RealtimeClient.js",
+    "./mariadb": "./src/entry/mariadb/MariaDBClient.js",
+    "./mysql": "./src/entry/mysql/MySQLClient.js",
+    "./pg": "./src/entry/pg/PGClient.js"
   },
   "scripts": {
     "test": "mocha --extension .test.js --recursive --timeout 5000 --exit",
     "lab": "mocha --extension .lab.js --recursive --timeout 5000 --exit",
-    "test:coverage": "c8 --reporter=text-lcov npm run test | coveralls",
-    "build": "esbuild main=src/index.js --bundle --minify --sourcemap --outdir=dist",
+    "build": "esbuild main=src/index.js flash=src/flash/FlashClient.js --bundle --minify --sourcemap --outdir=dist",
     "preversion": "npm run test && npm run build && git add -A dist",
-    "postversion": "npm publish --tag next",
-    "postpublish": "git push && git push --tags",
-    "version:next": "npm version prerelease --preid=next --no-git-tag-version"
+    "postversion": "git push && git push --tags",
+    "version:next": "npm version prerelease --preid=next"
   },
   "dependencies": {
     "@webqit/observer": "^3.8.2",

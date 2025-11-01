@@ -1,9 +1,9 @@
-import { SimpleEmitter } from '../abstracts/SimpleEmitter.js';
-import { AbstractNode } from '../../lang/abstracts/AbstractNode.js';
+import { SimpleEmitter } from '../entry/abstracts/SimpleEmitter.js';
+import { AbstractNode } from '../lang/abstracts/AbstractNode.js';
+import { AbstractFetchClient } from './fetch/AbstractFetchClient.js';
 import { ConflictError } from './ConflictError.js';
 import { ExprEngine } from './ExprEngine.js';
-import { registry } from '../../lang/registry.js';
-import { AbstractAPIClient } from './api/AbstractAPIClient.js';
+import { registry } from '../lang/registry.js';
 
 const TBL_PLACEHOLDER = Symbol.for('tbl_placeholder');
 const GROUPING_META = Symbol.for('grouping_meta');
@@ -670,7 +670,7 @@ export class QueryEngine extends SimpleEmitter {
         let remoteStream;
         if (tblDef) {
             const remoteQuery = await nsDef.client.parse(tblDef.querySpec);
-            remoteStream = nsDef.client instanceof AbstractAPIClient
+            remoteStream = nsDef.client instanceof AbstractFetchClient
                 ? await nsDef.client.stream(remoteQuery)
                 : await nsDef.client.cursor(remoteQuery);
         }
@@ -810,7 +810,7 @@ export class QueryEngine extends SimpleEmitter {
                     if (i === 0 || i > $i) {
                         if (i > $i) remoteQuery = await concatWhere(); // lazily
                         if (remoteQuery) {
-                            remoteStream = nsDef.client instanceof AbstractAPIClient
+                            remoteStream = nsDef.client instanceof AbstractFetchClient
                                 ? await nsDef.client.stream(remoteQuery)
                                 : await nsDef.client.cursor(remoteQuery);
                         } else remoteStream = (async function* () { })();
@@ -823,7 +823,7 @@ export class QueryEngine extends SimpleEmitter {
                     let pushDownLogic = await this.#exprEngine.evaluate(conditionExpr, { ...lateralCtx, [rightAlias]: TBL_PLACEHOLDER }, queryCtx);
                     if (pushDownLogic instanceof AbstractNode || (pushDownLogic = Boolean(pushDownLogic))) {
                         const remoteQuery = remoteQuery_Where(pushDownLogic);
-                        return nsDef.client instanceof AbstractAPIClient
+                        return nsDef.client instanceof AbstractFetchClient
                             ? await nsDef.client.stream(remoteQuery)
                             : await nsDef.client.cursor(remoteQuery);
                     }
@@ -836,12 +836,12 @@ export class QueryEngine extends SimpleEmitter {
             // No WHERE at all
             const remoteQuery = await nsDef.client.parse(tblDef.querySpec);
             if (joinStrategy.memoization) {
-                const remoteStream = nsDef.client instanceof AbstractAPIClient
+                const remoteStream = nsDef.client instanceof AbstractFetchClient
                     ? await nsDef.client.stream(remoteQuery)
                     : await nsDef.client.cursor(remoteQuery);
                 createRemoteStream = this.#memoizeStream(remoteStream);
             } else {
-                createRemoteStream = async () => nsDef.client instanceof AbstractAPIClient
+                createRemoteStream = async () => nsDef.client instanceof AbstractFetchClient
                     ? await nsDef.client.stream(remoteQuery)
                     : await nsDef.client.cursor(remoteQuery);
             }

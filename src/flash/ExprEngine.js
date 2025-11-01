@@ -1,6 +1,6 @@
-import { AbstractNode } from '../../lang/abstracts/AbstractNode.js';
-import { _eq } from '../../lang/abstracts/util.js';
-import { registry } from '../../lang/registry.js';
+import { AbstractNode } from '../lang/abstracts/AbstractNode.js';
+import { _eq } from '../lang/abstracts/util.js';
+import { registry } from '../lang/registry.js';
 
 const TBL_PLACEHOLDER = Symbol.for('tbl_placeholder');
 const GROUPING_META = Symbol.for('grouping_meta');

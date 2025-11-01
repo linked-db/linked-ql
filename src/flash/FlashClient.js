@@ -1,10 +1,10 @@
-import { AbstractSQLClient } from '../abstracts/AbstractSQLClient.js';
-import { matchRelationSelector, normalizeRelationSelectorArg } from '../abstracts/util.js';
+import { AbstractSQLClient } from '../entry/abstracts/AbstractSQLClient.js';
+import { matchRelationSelector, normalizeRelationSelectorArg } from '../entry/abstracts/util.js';
+import { AbstractFetchClient } from './fetch/AbstractFetchClient.js';
+import { ConflictError } from './ConflictError.js';
 import { StorageEngine } from './StorageEngine.js';
 import { QueryEngine } from './QueryEngine.js';
-import { registry } from '../../lang/registry.js';
-import { ConflictError } from './ConflictError.js';
-import { AbstractAPIClient } from './api/AbstractAPIClient.js';
+import { registry } from '../lang/registry.js';
 
 export class FlashClient extends AbstractSQLClient {
 
@@ -257,14 +257,14 @@ export class FlashClient extends AbstractSQLClient {
             // Inser records
             let stream, hashes = [];
             if (options.live) {
-                const result = await remoteClient[remoteClient instanceof AbstractAPIClient ? 'query' : 'request'](
+                const result = await remoteClient[remoteClient instanceof AbstractFetchClient ? 'query' : 'request'](
                     query,
                     (eventName, eventData) => this.#handleInSync(tableStorage, eventName, eventData),
                     { live: true }
                 );
                 ({ rows: stream, hashes } = result);
                 abortLines.push(result.abort.bind(result));
-            } else stream = await remoteClient[remoteClient instanceof AbstractAPIClient ? 'cursor' : 'stream'](query);
+            } else stream = await remoteClient[remoteClient instanceof AbstractFetchClient ? 'cursor' : 'stream'](query);
 
             let i = 0;
             for await (const row of stream) {

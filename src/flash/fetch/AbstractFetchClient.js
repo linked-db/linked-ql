@@ -1,8 +1,7 @@
-import { normalizeQueryArgs } from '../../abstracts/util.js';
-import { AbstractClient } from '../../abstracts/AbstractClient.js';
-import { registry } from '../../../lang/registry.js';
+import { normalizeQueryArgs } from '../../entry/abstracts/util.js';
+import { AbstractClient } from '../../entry/abstracts/AbstractClient.js';
 
-export class AbstractAPIClient extends AbstractClient {
+export class AbstractFetchClient extends AbstractClient {
 
     async parse(requestSpec, { alias = null, dynamicWhereMode = false, ...options } = {}) {
     }
