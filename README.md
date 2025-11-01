@@ -12,9 +12,9 @@ _A modern take on SQL and SQL databases_
 </div>
 
 <picture>
-  <source media="(max-width:799px)" srcset="https://github.com/linked-db/linked-ql/blob/resources/linked-ql-mobile2.png?raw=true">
-  <source media="(min-width:800px)" srcset="https://github.com/linked-db/linked-ql/blob/resources/linked-ql-main2.png?raw=true">
-  <img src="https://github.com/linked-db/linked-ql/blob/resources/linked-ql-main2.png?raw=true" alt="LinkedQL Banner" width="100%">
+  <source media="(max-width:799px)" srcset="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-mobile2.png?raw=true">
+  <source media="(min-width:800px)" srcset="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-main2.png?raw=true">
+  <img src="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-main2.png?raw=true" alt="LinkedQL Banner" width="100%">
 </picture>
 
 <br><br>
@@ -422,4 +422,4 @@ MIT — see [LICENSE](https://github.com/linked-db/linked-ql?tab=MIT-1-ov-file)
 [bundle-src]: https://img.shields.io/bundlephobia/minzip/@linked-db/linked-ql?style=flat&colorA=18181B&colorB=F0DB4F
 [bundle-href]: https://bundlephobia.com/result?p=@linked-db/linked-ql
 [license-src]: https://img.shields.io/github/license/linked-db/linked-ql.svg?style=flat&colorA=18181B&colorB=F0DB4F
-[license-href]: https://github.com/linked-db/linked-ql/blob/LICENSE
+[license-href]: https://github.com/linked-db/linked-ql/blob/master/LICENSE
