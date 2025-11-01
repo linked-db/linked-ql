@@ -1,0 +1,14 @@
+---
+---
+
+@import "{{ site.theme }}";
+
+body {
+  background: #0d0d0d;
+  color: #d8d8d8;
+}
+
+a { color: #7ab8ff; }
+pre, code { background: #1a1a1a; color: #e0e0e0; }
+h1, h2, h3, h4 { color: #fafafa; }
+details summary { color: #fff; }
