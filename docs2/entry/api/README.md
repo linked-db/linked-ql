@@ -1,11 +1,3 @@
----
-title: "The Query Interface"
-description: "The LinkedQL query interface"
-permalink: /entry/api/
-nav_order: 4
-layout: page
----
-
 # Query Interface
 
 LinkedQL provides a **unified** query interface across all dialects.

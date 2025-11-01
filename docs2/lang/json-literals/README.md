@@ -1,11 +1,3 @@
----
-title: "JSON Literals"
-description: "LinkedQL’s JSON literal syntax — native object and array literals within SQL expressions."
-permalink: /lang/json-literals/
-nav_order: 2
-layout: page
----
-
 # ≫ JSON Literals
 
 *Express shapes like you're writing JSON.*

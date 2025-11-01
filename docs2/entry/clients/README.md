@@ -1,11 +1,3 @@
----
-title: "Clients and Dialects"
-description: "The LinkedQL clients and dialects"
-permalink: /entry/clients/
-nav_order: 4
-layout: page
----
-
 # Dialects & Clients
 
 LinkedQL ships with clients for each major SQL dialect.

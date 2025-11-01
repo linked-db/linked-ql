@@ -1,11 +1,3 @@
----
-title: "DeepRefs"
-description: "LinkedQL’s Deep Reference operator (~>) — a first-class language feature for relational dereferencing in SQL."
-permalink: /lang/deeprefs/
-nav_order: 1
-layout: page
----
-
 # ≫ DeepRefs
 
 _Follow relationships using simple arrow notation: `a ~> b`!_

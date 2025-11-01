@@ -1,11 +1,3 @@
----
-title: "LinkedQL Documentation"
-description: "Unified documentation for the LinkedQL ecosystem — language, processing engine, embedded runtime, and client interfaces."
-permalink: /
-nav_order: 0
-layout: home
----
-
 # LinkedQL Documentation
 
 Explore the layers of the LinkedQL system:
