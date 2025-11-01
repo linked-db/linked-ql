@@ -1,7 +1,9 @@
 title: LinkedQL
 description: SQL, evolved — A reactive, version-aware database client.
 markdown: GFM
-show_downloads: false
+remote_theme: mmistakes/minimal-mistakes
+minimal_mistakes_skin: dark
+show_downloads: true
 github:
   is_project_page: true
   repository_url: https://github.com/linked-db/linked-ql
