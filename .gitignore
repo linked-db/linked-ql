@@ -1,5 +1,6 @@
 .*
 !/.github
+!.vitepress
 !/.gitignore
 !.eslintrc.yml
 coverage

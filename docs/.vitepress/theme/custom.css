@@ -1,0 +1,7 @@
+:root {
+  /* Logo */
+  --vp-nav-logo-height: 40px;
+}
+.nowrap {
+    white-space: nowrap;
+}
