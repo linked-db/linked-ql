@@ -41,9 +41,9 @@
     "preversion": "npm run test && npm run build && git add -A dist",
     "postversion": "git push && git push --tags",
     "version:next": "npm version prerelease --preid=next",
-    "docs:dev": "vitepress dev docs --open",
-    "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs --port 4173"
+    "site:dev": "vitepress dev site --open",
+    "site:build": "vitepress build site",
+    "site:preview": "vitepress preview site --port 4173"
   },
   "dependencies": {
     "@webqit/observer": "^3.8.2",

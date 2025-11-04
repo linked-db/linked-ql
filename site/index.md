@@ -5,7 +5,7 @@ hero:
   name: LinkedQL
   text: A modern take on SQL and SQL databases.
   tagline: >
-    Relationships, JSON, Schema, Reactivity, Versioning, Offline → solved.
+    Relationships, JSON, Schema, Reactivity, Versioning, Offline → SOLVED.
   actions:
     - theme: brand
       text: Get Started
