@@ -6,14 +6,11 @@
 SELECT { email, mobile: phone } AS contact FROM users;
 ```
 
-LinkedQL translates that to its dialect-native JSON function:
-`JSON_BUILD_OBJECT()` / `JSON_OBJECT()`.
+LinkedQL translates that to its dialect-native JSON function.
 
 ## Overview
 
-SQL’s deep JSON integration has long come through **functions** —
-`JSON_BUILD_OBJECT()`, `JSON_BUILD_ARRAY()`, and `JSON_AGG()` in PostgreSQL;
-`JSON_OBJECT()`, `JSON_ARRAY()`, and `JSON_ARRAYAGG()` in MySQL.
+SQL’s deep JSON integration has long come through **functions**.
 
 The problem is: their imperative nature often complicates their core use case — **modeling structure**.
 Instead of enabling a mental model of shape, they force you to think procedurally — diverging from how we actually reason about structure and how we already represent it across languages.
@@ -172,13 +169,3 @@ SELECT
   { comments[]: (post <~ comments) ~> { id, text } } AS related
 FROM posts AS p;
 ```
-
-## Appendix A — Dialect Equivalents
-
-| LinkedQL Form       | PostgreSQL                                   | MySQL                                       |
-| :------------------ | :------------------------------------------- | :------------------------------------------ |
-| `{ a, b: x }`       | `JSON_BUILD_OBJECT('a', a, 'b', x)`          | `JSON_OBJECT('a', a, 'b', x)`               |
-| `[ a, b ]`          | `JSON_BUILD_ARRAY(a, b)`                     | `JSON_ARRAY(a, b)`                          |
-| `expr AS list[]`    | `JSON_AGG(expr) AS list`                     | `JSON_ARRAYAGG(expr) AS list`               |
-| `{ items[]: expr }` | `JSON_BUILD_OBJECT('items', JSON_AGG(expr))` | `JSON_OBJECT('items', JSON_ARRAYAGG(expr))` |
-

@@ -1,8 +1,8 @@
-# Foreign I/O
+# Foreign I/O (Alpha)
 
 **Foreign I/O** is FlashQL’s external data interface — in its hybrid execution model. It extends the engine’s reach beyond the local store, allowing queries to span **remote databases**, **APIs**, or any other data endpoint — all from the same SQL surface.
 
-Through Foreign I/O, FlashQL can stream data on demand, materialize remote datasets locally, or maintain continuous two-way synchronization. These capabilities manifest as three complementary modes:
+With Foreign I/O, you can stream data on demand, materialize remote datasets locally, or maintain continuous two-way synchronization.
 
 * **Federation** — join remote databases or arbitrary data sources directly in a query, on demand.
 * **Materialization** — pull and persist remote datasets locally for offline-first or edge-first workloads.

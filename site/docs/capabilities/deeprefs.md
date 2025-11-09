@@ -1,6 +1,6 @@
 # DeepRefs
 
-_Follow relationships using simple arrow notation: `a ~> b`!_
+_Follow relationships using simple arrow notation: `a ~> b`. Insert or update nested structures using same notation_
 
 SQL schemas already describe relationships —
 `FOREIGN KEY (author) REFERENCES users (id)`
@@ -11,7 +11,7 @@ DeepRefs let you **traverse those foreign-key declarations directly**, inline, w
 SELECT author ~> name FROM posts
 ```
 
-If you’ve declared a relationship, you can draw arrows on it.
+If you’ve declared any relationship, you can traverse them directly.
 LinkedQL automatically handles the mechanics and resolves them all from the schema catalog.
 
 ## General Syntax

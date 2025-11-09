@@ -1,5 +1,11 @@
 # Language Reference
 
+This is FlashQL's SQL implemenation reference.
+
+::: warning TODO
+This reference is pending restructure and update.
+:::
+
 ### 1. Statements
 
 | Clause / Construct                  |   Dialect  | Support | Notes                                  |

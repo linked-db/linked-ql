@@ -49,8 +49,14 @@ result.abort();
 
 That ends reactivity; the array stops updating.
 
-> [!TIP]
+Above, `result` is [`RealtimeResult`](../../docs/query-api#realtimeresult).
+
+> [!IMPORTANT]
 > To run live queries on PostgreSQL, MySQL, MariaDB be sure to follow the [setup instructions](../setup) for the database.
+
+::: tip Deep Dive
+The mechanics of the Realtime Engine is covered in the [LinkedQL Realtime Engineering Paper](/engineering/realtime-engine)
+:::
 
 ## Realworld Overview
 
@@ -152,11 +158,17 @@ Essentially, LinkedQL extends reactivity to the full semantic surface of `SELECT
 For a query like the below:
 
 ```js
-const result = await client.query(`SELECT id, title FROM posts`, { live: true });
-console.log(result.rows);
+const result = await client.query(
+    `SELECT id, title FROM posts`,
+    { live: true }
+);
 ```
 
-The initial result could be:
+You get an initial result:
+
+```js
+console.log(result.rows);
+```
 
 ```text
 [A, B, C, D] // initial result
@@ -518,7 +530,7 @@ function handle(eventName, eventData) {
 }
 ```
 
-That logic is conceptually what the built-in `RealtimeResult` does for you internally — but as an atomic operation. It:
+That logic is conceptually what the built-in [`RealtimeResult`](../../docs/query-api#realtimeresult) does for you internally — but as an atomic operation. It:
 
 * applies `result`, `diff`, and `swap` events;
 * preserves ordering and LIMIT/OFFSET semantics;

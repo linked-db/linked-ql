@@ -1,12 +1,8 @@
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
-    lang: 'en-US',
     title: 'LinkedQL',
     description: 'A modern take on SQL and SQL databases — with reactivity, versioning, and more.',
-    appearance: 'force-dark',
-    base: '/',
-    cleanUrls: true,
     themeConfig: {
         // Site logo
         logo: {
@@ -20,10 +16,11 @@ export default defineConfig({
         ],
         // Top nav
         nav: [
-            { text: 'About', link: '/docs/about' },
+            { text: 'What is LinkedQL', link: '/docs/about' },
             { text: 'Capabilities', link: '/docs/capabilities' },
             { text: 'FlashQL', link: '/docs/flashql' },
-            { text: 'Docs', link: '/docs' },
+            { text: 'Docs', link: '/docs', activeMatch: '/docs' },
+            { text: 'Engineering', link: '/engineering/realtime-engine', activeMatch: '/engineering' },
             {
                 text: 'Star on GitHub',
                 link: 'https://github.com/linked-db/linked-ql',
@@ -36,7 +33,7 @@ export default defineConfig({
                 {
                     text: 'Intro',
                     items: [
-                        { text: 'About', link: '/docs/about' },
+                        { text: 'What is LinkedQL', link: '/docs/about' },
                     ]
                 },
                 {
@@ -48,6 +45,7 @@ export default defineConfig({
                         {
                             text: 'Capabilities',
                             link: '/docs/capabilities',
+                            collapsed: false,
                             items: [
                                 { text: 'DeepRefs', link: '/docs/capabilities/deeprefs' },
                                 { text: 'JSON Literals', link: '/docs/capabilities/json-literals' },
@@ -60,7 +58,21 @@ export default defineConfig({
                 {
                     text: 'FlashQL',
                     items: [
-                        { text: 'FlashQL', link: '/docs/flashql' },
+                        {
+                            text: 'FlashQL',
+                            link: '/docs/flashql',
+                            collapsed: false,
+                            items: [
+                                { text: 'Foreign I/O', link: '/docs/flashql/foreign-io' },
+                                { text: 'Language Reference', link: '/docs/flashql/lang' },
+                            ]
+                        },
+                    ]
+                },
+                {
+                    text: 'Engineering',
+                    items: [
+                        { text: 'Realtime Engine', link: '/engineering/realtime-engine' },
                     ]
                 }
             ]
@@ -73,16 +85,19 @@ export default defineConfig({
         },
 
         // Search: VitePress ships built-in local search
-        search: {
-            provider: 'local'
-        },
-
-        // Appearance (dark mode)
-        appearance: 'auto' // auto | dark | light
+        search: { provider: 'local' },
     },
 
     // VitePress defaults are great; you can add head tags here if needed
-    head: [
-        ['meta', { name: 'theme-color', content: '#0f172a' }]
-    ]
+    head: [['meta', { name: 'theme-color', content: '#0f172a' }]],
+
+    lang: 'en-US',
+    base: '/',
+    cleanUrls: true,
+    appearance: 'force-dark',
+    toc: { level: [1, 2] },
+    markdown: {
+        math: true,
+        theme: 'material-theme-palenight',
+    },
 })

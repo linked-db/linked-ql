@@ -103,15 +103,7 @@ LinkedQL’s selection process is schema-driven:
 
 This ensures deterministic, schema-aware conflict resolution for PostgreSQL.
 
-## Appendix A — Dialect Equivalents
-
-| LinkedQL Form                                  | PostgreSQL Equivalent                                                              | MySQL Equivalent                                                           |
-| :--------------------------------------------- | :--------------------------------------------------------------------------------- | :------------------------------------------------------------------------- |
-| `UPSERT INTO users (name, email) VALUES (...)` | `INSERT INTO users (name, email) VALUES (...) ON CONFLICT (...) DO UPDATE SET ...` | `INSERT INTO users (name, email) VALUES (...) ON DUPLICATE KEY UPDATE ...` |
-| Conflict clause                                | `ON CONFLICT (unique_key)`                                                         | `ON DUPLICATE KEY`                                                         |
-| Update source                                  | `EXCLUDED.column`                                                                  | `VALUES(column)`                                                           |
-
-## Appendix B — Notes & Constraints
+## Appendix A — Notes & Constraints
 
 * Multi-row inserts are fully supported.
 * In PostgreSQL, the target table must define at least one **unique** or **primary key** constraint.

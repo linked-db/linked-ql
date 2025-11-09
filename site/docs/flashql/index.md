@@ -1,10 +1,10 @@
 # FlashQL
 
-*A full SQL engine for the client, the edge, and the offline world.*
+*A full SQL engine for the local runtime, the edge, and the offline world.*
 
 FlashQL is LinkedQL’s embeddable database engine — a complete in-memory SQL runtime that runs anywhere JavaScript does: Node.js, browser, worker, or edge.
 
-FlashQL can replace SQLite or PGLite across local-first, offline-first, and hybrid use cases — offering standard SQL semantics combined with LinkedQL’s extended capabilities, and native support for federation and synchronization.
+FlashQL can replace SQLite or PGLite across a variety of use cases — offering standard SQL semantics combined with LinkedQL’s extended capabilities, and native support for federation and synchronization.
 
 Use FlashQL to:
 
@@ -16,7 +16,7 @@ Use FlashQL to:
 
 ## Overview
 
-Modern applications need database power without a network layer or the overhead of a physical database server. Sometimes, they need to have both — a hybrid model that pairs traditional databases with a local engine. FlashQL addresses just that **in less than `80KiB min|zip`**.
+Modern applications need database power without a network layer or the overhead of a physical database server. Sometimes, they also need both — a hybrid model that pairs traditional databases with a local engine. FlashQL addresses just that **in less than `80KiB min|zip`**.
 
 Just spin up an instance in-app and run SQL:
 
@@ -50,7 +50,7 @@ Optionally specify per query:
 await db.query('SELECT `name` FROM `users`', { dialect: 'mysql' });
 ```
 
-Where not specified, FlashQL's dialect defaults to `postgres`.
+Where not specified at any scope, FlashQL's dialect defaults to `postgres`.
 
 ## Compatibility
 
@@ -230,6 +230,7 @@ Capabilities demonstrated:
 * `COALESCE` and `DATE_TRUNC` expressions
 * `GROUPING SETS` multi-level aggregation
 * Chained set operations (`UNION ALL … EXCEPT … INTERSECT`)
+* Set Returning Functions (SRF) `UNNEST()`, `GENERATE_SERIES()`
 * Ordering with `NULLS LAST`
 
 ## Storage Backends
@@ -252,7 +253,7 @@ const db = new FlashClient({
 
 ## LinkedQL Capabilities
 
-FlashQL shares the same core as the rest of LinkedQL, bringing its advanced language and runtime capabilities to the local runtime. This core features:
+FlashQL shares the same core as the rest of LinkedQL, bringing its advanced language and runtime capabilities to the local runtime. This core includes:
 
 | Language Capabilities                                     | Runtime Capabilities                                     |
 | :-------------------------------------------------------- | :------------------------------------------------------- |
@@ -261,12 +262,15 @@ FlashQL shares the same core as the rest of LinkedQL, bringing its advanced lang
 | **[UPSERT](./capabilities/upsert)**                   |                                                          |
 
 ```js
-const result = await client.query(`SELECT title, author ~> name FROM posts`, { live: true });
+const result = await client.query(`
+    SELECT title, author ~> name FROM posts
+`, { live: true }
+);
 ```
 
 ## Universal I/O
 
-Beyond just a local database, FlashQL is built as a **unified SQL interface** over your entire data universe — wherever that may span. The query engine follows a model that lets you bring **arbitrary data** into a single relational query space — whether from the local runtime, a remote database, a REST API, or any other source. Your application sees a unified abstraction — a query space — with the details of each source’s origin isolated to the wiring layer.
+Beyond just a local database, FlashQL is built as a **unified SQL interface** over your entire data universe — wherever that may span. The query engine follows a model that lets you bring **arbitrary data** into a single relational query space — whether from the local runtime, a remote database, a REST API, or any other source. Your application sees a unified abstraction — a query space — while the specific details of these sources remain isolated to the wiring layer.
 
 FlashQL exposes these capabilities through **Foreign I/O** — a family of interfaces that let you:
 

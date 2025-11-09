@@ -31,22 +31,64 @@ Relationships • JSON • Schema • Reactivity • Versioning • Offline → 
 
 <div align="center">
 
-| Entry Point | Idea | Capabilities | More |
-|:--|:--|:--|:--|
-| [Quick Start](#-quick-start) | [What is LinkedQL](#️-what-is-linkedql) | [Language Capabilities](#1--language-capabilities) | [Documentation](#-documentation) |
-| [Clients & Dialects](#️-clients--dialects) | [Why LinkedQL](#-why-linkedql) | [Runtime Capabilities](#2--runtime-capabilities) | [Progress](#-progress-next) |
-| | | [Offline Capabilities](#3--offline-capabilities) | |
+| Entry Point | Capabilities | More |
+|:--|:--|:--|
+| [Quick Start](#quick-start) | [Language Capabilities](#1--language-capabilities) | [What is LinkedQL](https://linked-ql.netlify.app/docs/about) |
+| [Clients & Dialects](#clients--dialects) | [Runtime Capabilities](#2--runtime-capabilities) | [Documentation](#-documentation) |
+| [Query Interface](#query-interface) | [Offline Capabilities](#3--offline-capabilities) | [Progress](#-progress-next) |
 
 </div>
 
 <br><br>
 
 
-## ⚡ Quick Start
+## Quick Start
+
+
+### Installation
+
+LinkedQL is distributed as an npm package. Install it with:
 
 ```bash
-npm i @linked-db/linked-ql
+npm install @linked-db/linked-ql
 ```
+
+The package provides clients for all supported SQL dialects — including **FlashQL**, the in-memory SQL engine for local or offline use.
+
+### Initialization
+
+Import and initialize the client for your use case. You can run either fully in-memory or with a database.
+Here are two quick examples:
+
+#### Run Locally with FlashQL
+
+FlashQL lets you run SQL queries entirely in memory — with zero setup.
+
+```js
+import { FlashClient } from '@linked-db/linked-ql/flash';
+
+const client = new FlashClient();
+
+const result = await client.query(`
+  CREATE TABLE users (id SERIAL PRIMARY KEY, name TEXT);
+  INSERT INTO users (name) VALUES ('Ada'), ('Linus');
+  SELECT * FROM users;
+`);
+
+console.log(result.rows);
+// [{ id: 1, name: 'Ada' }, { id: 2, name: 'Linus' }]
+```
+
+FlashQL is ideal for:
+
+* **Local-first and offline-first apps**
+* **Running SQL over runtime data**
+* **Testing and prototyping**
+
+#### Connect to a Database
+
+Connect to your database from the list of supported dialects below.
+Here’s an example using PostgreSQL:
 
 ```js
 import { PGClient } from '@linked-db/linked-ql/pg';
@@ -56,74 +98,51 @@ const client = new PGClient({
   port: 5432,
   user: 'postgres',
   password: 'password',
-  database: 'myapp'
+  database: 'myapp',
 });
 
 await client.connect();
+
 const result = await client.query(`SELECT 10 AS value`);
 console.log(result.rows); // [{ value: 10 }]
+
 await client.disconnect();
 ```
+
+## Clients & Dialects
+
+| **Dialect**         | **Import Path**                | **Guide**                          |
+| :------------------ | :----------------------------- | :--------------------------------- |
+| PostgreSQL          | `@linked-db/linked-ql/pg`      | [PostgreSQL →](https://linked-ql.netlify.app/docs/setup#postgresql) |
+| MySQL               | `@linked-db/linked-ql/mysql`   | [MySQL →](https://linked-ql.netlify.app/docs/setup#mysql)           |
+| MariaDB             | `@linked-db/linked-ql/mariadb` | [MariaDB →](https://linked-ql.netlify.app/docs/setup#mariadb)       |
+| FlashQL (In-Memory) | `@linked-db/linked-ql/flash`   | [FlashQL →](https://linked-ql.netlify.app/docs/setup#flashql)       |
+
+## Query Interface
+
+LinkedQL maintains a **unified and familiar interface** across all dialects — whether remote or local.
+Method signatures and return values are consistent and documented in the
+[**Client API Reference →**](https://linked-ql.netlify.app/docs/query-api)
+
+---
 
 > [!NOTE]
 > You’re viewing **@linked-db/linked-ql** — the newest iteration.  
 > For the prev 0.3.x branch, see [linked-db/linked-ql@0.3.*](https://github.com/linked-db/linked-ql/tree/0.30.13).
 
----
-
-## 🗄️ Clients & Dialects
-
-LinkedQL ships with clients for each major SQL dialect.<br>
-For PostgreSQL, MySQL, and MariaDB, it adapts seamlessly to each database through their respective native connector.
-
-| **Dialect**         | **Package**                    | **Docs**                                                                                   |
-| :------------------ | :----------------------------- | :----------------------------------------------------------------------------------------- |
-| PostgreSQL          | `@linked-db/linked-ql/pg`      | [Read → PG Docs](https://linked-ql.netlify.app/docs/setup#postgresql)   |
-| MySQL               | `@linked-db/linked-ql/mysql`   | [Read → MySQL Docs](https://linked-ql.netlify.app/docs/setup#mysql)     |
-| MariaDB             | `@linked-db/linked-ql/mariadb` | [Read → MariaDB Docs](https://linked-ql.netlify.app/docs/setup#mariadb) |
-| FlashQL (In-Memory) | `@linked-db/linked-ql/flash`   | [Read → FlashQL Docs](https://linked-ql.netlify.app/docs/setup#flashql) |
-
----
-
-<br><br>
-
-## 🏗️ What is LinkedQL
-
-LinkedQL is a database client that solves the modern database capability problem in a single interface.
-Same familiar API as a classic client (`client.query()`), but **advanced SQL over your database** — bringing relational queries, live queries, a schema versioning system, offline capabilities and more.
-
-LinkedQL is more **a modern take on SQL and SQL databases** than just a client.
-
-Need the full power of SQL locally? LinkedQL runs as an **embeddable, in-memory database** — codenamed **FlashQL**.
-Use it as a lighter replacement for SQLite or PGLite, with all of LinkedQL’s power built in.
-
----
-
-## 🧭 Why LinkedQL
-
-SQL and SQL databases have a **capability problem.**
-Modern applications built around them have to wade through layers of **external tooling** as a consequence.<br>
-(For example, need relational queries and realtime data? → typical setup: ORM + GraphQL layers.)
-
-Rather than extend that layer with yet another prosthetic arm for a missing limb in SQL, **LinkedQL extends SQL itself** to close the gaps at their level — **syntax gaps at the language layer**, **runtime problems at the runtime layer.**
-
-All of that comes built-in with the classic client API — giving your database an **automatic upgrade** in both **language** and **runtime capabilities**.
-
----
+> [!IMPORTANT]
+> 🚀 **LinkedQL is in active development and evolving daily.** Current status = **alpha**.<br>
+> You’re welcome to experiment, but it’s not yet suited for production workloads.
 
 <br><br>
 
 ## `1 |` Language Capabilities
 
-LinkedQL lets you speak an advanced form of SQL right on your database.
-With syntax shorthands and first-class support for relationships and JSON, you skip the imperative parts of SQL and get to writing more **intentful** SQL.
-LinkedQL automatically compiles your query down to the SQL your database understands.
-
-| **Feature**       | **Summary**                                                                     | **Docs**                                                                          |
-| :---------------- | :------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------- |
-| **DeepRefs**      | Follow relationships using simple arrow notation (`a ~> b ~> c`).               | [Read → DeepRefs Docs](https://linked-ql.netlify.app/docs/capabilities/deeprefs)      |
-| **JSON Literals** | Model JSON shapes directly in SQL using JSON literals (`{}`, `[]`).             | [Read → JSON Docs](https://linked-ql.netlify.app/docs/capabilities/json-literals)     |
-| **UPSERTS**       | Perform insert-or-update operations with a literal `UPSERT` statement.          | [Read → UPSERTS Docs](https://linked-ql.netlify.app/docs/capabilities/upsert)        |
+| **Feature**       | **Summary**                                                            | **Docs**                                             |
+| :---------------- | :--------------------------------------------------------------------- | :--------------------------------------------------- |
+| **DeepRefs**      | Follow foreign key relationships directly in simple arrow notation.    | [Read → DeepRefs Docs](https://linked-ql.netlify.app/docs/capabilities/deeprefs)  |
+| **JSON Literals** | Model JSON objects and arrays using literal JSON syntax.                         | [Read → JSON Docs](https://linked-ql.netlify.app/docs/capabilities/json-literals) |
+| **UPSERT**        | Perform the classic `INSERT...ON CONFLICT` statement in a single step. | [Read → UPSERT Docs](https://linked-ql.netlify.app/docs/capabilities/upsert)      |
 
 ### Examples
 
@@ -131,53 +150,55 @@ LinkedQL automatically compiles your query down to the SQL your database underst
 
 <details open name="lang-capab"><summary><b>(a)</b> JSON Literals — Structured Projection</summary>
 
-> SQL constructs return shaped JSON directly — no post-mapping layer needed.
+> Model JSON objects and arrays using literal JSON syntax.
 
 ```js
-const result = await client.query(
-  `SELECT { id, name, email } AS user
+const result = await client.query(`
+  SELECT
+  id,
+  { first: first_name, last: last_name } AS name,
+  { email, phone: phone_number } AS contact
   FROM users
-  WHERE id = 1;`
-);
+`);
 
 console.log(result.rows[0]);
-// → { user: { id: 1, name: 'Jane', email: 'jane@example.com' } }
+// { id: 1, name: { first: 'Jane', last: 'Dark' }, contact: { email: 'jane@example.com', phone: null } }
 ```
 
 </details>
 
 ---
 
-<details name="lang-capab"><summary><b>(b)</b> DeepRefs — Inline Relationship Traversal</summary>
+<details name="lang-capab"><summary><b>(b)</b> DeepRefs — Relationship Traversal</summary>
 
-> Follow foreign keys directly inside a query — joins expressed as natural relationships.
+> Follow foreign key relationships directly in simple arrow notation.
 
 ```js
-const posts = await client.query(
-  `SELECT title, author ~> { name, email }
+const posts = await client.query(`
+  SELECT title, author ~> { name, email }
   FROM posts
-  WHERE published = true;`
-);
+  WHERE published = true;
+`);
 
 console.log(posts.rows[0]);
-// → { title: 'Syntax Shorthands', author: { name: 'John Doe', email: 'john@example.com' } }
+// { title: 'Syntax Shorthands', author: { name: 'John', email: 'john@example.com' } }
 ```
 
 </details>
 
 ---
 
-<details name="lang-capab"><summary><b>(c)</b> UPSERT — Insert-or-Update in One Step</summary>
+<details name="lang-capab"><summary><b>(c)</b> UPSERT — Insert or Update</summary>
 
-> LinkedQL exposes UPSERT as a literal statement — cleaner and portable across dialects.
+> Perform the classic `INSERT...ON CONFLICT` statement in a single step.
 
 ```js
-await client.query(
-  `UPSERT INTO users (id, name, email)
+await client.query(`
+  UPSERT INTO users (id, name, email)
   VALUES
     (1, 'Jane', 'jane@example.com'),
-    (2, 'James', 'j2@example.com')`
-);
+    (2, 'James', 'j2@example.com');
+`);
 ```
 
 </details>
@@ -188,54 +209,46 @@ await client.query(
 
 ## `2 |` Runtime Capabilities
 
-LinkedQL enables **SQL-level reactivity** and **automatic schema versioning** right on your database — **no plugins, database extensions, or middleware** required.
-(A built-in **Realtime Engine** and **Timeline Engine** quietly extend your database at execution time.)
-Modern apps and modern workflows — solved.
-
-| **Feature**         | **Summary**                                                                                         | **Docs**                                                                           |
-| :------------------ | :-------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------- |
-| **Realtime SQL**    | Run live, self-updating queries right on your database.                                             | [Read → RealtimeSQL Docs](https://linked-ql.netlify.app/docs/capabilities/realtime-sql) |
-| **Timeline Engine** | Get automatic database versioning on every DDL operation; bind queries to specific schema versions. | *(Coming soon)*                                                                    |
+| **Feature**         | **Summary**                                                            | **Docs**                                                   |
+| :------------------ | :--------------------------------------------------------------------- | :--------------------------------------------------------- |
+| **Live Queries**    | Turn on reactivity over any query and get back a live view of your data. | [Read → RealtimeSQL Docs](https://linked-ql.netlify.app/docs/capabilities/realtime-sql) |
+| **Timeline Engine** | Anchor a query to a fixed schema version for stable results over time. | *(Coming soon)*                                            |
 
 ### Examples
 
 ---
 
-<details open name="runtime-capab"><summary><b>(a)</b> Live Queries — Continuous Results</summary>
+<details open name="runtime-capab"><summary><b>(a)</b> Live Queries and Live Views</summary>
 
-> Turn on reactivity for any query with `{ live: true }` — get a live view of your data.
+> Turn on reactivity over any query and get back a live view of your data.
 
 ```js
-const result = await client.query(
-  `SELECT p.title, p.category, p.views, u.name
+const result = await client.query(`
+  SELECT p.title, u.name
   FROM posts AS p LEFT JOIN users AS u ON p.author = u.id
-  WHERE p.published = true ORDER BY p.created_at DESC`,
-  { live: true }
-);
+  WHERE p.published = true
+  ORDER BY p.created_at DESC
+`, { live: true });
 
 setInterval(() => console.log(result.rows), 1000);
-// → Automatically updates as post or author data changes
+// Updates automatically as post or author data changes
 ```
 
 </details>
 
 ---
 
-<details name="runtime-capab"><summary><b>(b)</b> Live Queries + Language Shorthands</summary>
+<details name="runtime-capab"><summary><b>(b)</b> Live Queries + DeepRefs</summary>
 
-> Combine runtime reactivity with language-level extensions — relational traversal, JSON shapes, and more.
+> Combine live results with relational traversal and JSON shaping.
 
 ```js
-const result = await client.query(
-  `SELECT
-    { title, category, views } AS post,
+const result = await client.query(`
+  SELECT
+    { title, category } AS post,
     author ~> { name, email } AS author
-  FROM posts WHERE published = true ORDER BY created_at DESC`,
-  { live: true }
-);
-
-setInterval(() => console.log(result.rows), 1000);
-// → Automatically updates as post or author data changes
+  FROM posts WHERE published = true
+`, { live: true });
 ```
 
 </details>
@@ -244,17 +257,14 @@ setInterval(() => console.log(result.rows), 1000);
 
 <details name="runtime-capab"><summary><b>(c)</b> Version Binding — Point-in-Time Queries</summary>
 
-> Anchor a query to a specific schema version — guard against breaking changes with semantic version control.
+> Anchor a query to a fixed schema version for stable results over time.
 
 ```js
-const result = await client.query(
-  `SELECT name, email
+const result = await client.query(`
+  SELECT name, email
   FROM users@2_3
-  WHERE active = true;`
-);
-
-console.log(result.rows);
-// → Runs against schema version 2.3 — unaffected by later migrations
+  WHERE active = true;
+`);
 ```
 
 </details>
@@ -265,15 +275,13 @@ console.log(result.rows);
 
 ## `3 |` Offline Capabilities
 
-LinkedQL can run anywhere your app runs.
-Its built-in **FlashQL** runtime brings all of LinkedQL to the **client**, the **edge**, and **offline** environments — same SQL, same semantics.
-It extends that with built-in support for **federation**, **materialization**, and **sync** between remote databases and local state.
+LinkedQL bundles an embeddable SQL engine, **FlashQL**, that brings its full capabilities to the local runtime, the edge, and offline world.
 
-| **Capability**      | **Summary**                                                  | **Docs**                                                                   |
-| :------------------ | :----------------------------------------------------------- | :------------------------------------------------------------------------- |
-| **Federation**      | Query across remote and local databases as a single surface. | [Read → FlashQL Docs](https://linked-ql.netlify.app/docs/flashql) |
-| **Materialization** | Materialize remote datasets locally for offline queries.     | [Read → FlashQL Docs](https://linked-ql.netlify.app/docs/flashql) |
-| **Sync**            | Two-way synchronization between local and remote databases.  | [Read → FlashQL Docs](https://linked-ql.netlify.app/docs/flashql) |
+| **Capability**     | **Summary**                                                   | **Docs**                             |
+| :----------------- | :------------------------------------------------------------ | :----------------------------------- |
+| **Local Database** | Run a full SQL engine in memory — same semantics, zero setup. | [Read → FlashQL Docs](https://linked-ql.netlify.app/docs/flashql) |
+| **Federation**     | Query local and remote data together in a single SQL surface. | [Read → FlashQL Docs](https://linked-ql.netlify.app/docs/flashql) |
+| **Sync**           | Keep local and remote tables automatically synchronized.      | [Read → FlashQL Docs](https://linked-ql.netlify.app/docs/flashql) |
 
 ### Examples
 
@@ -281,7 +289,7 @@ It extends that with built-in support for **federation**, **materialization**, a
 
 <details open name="offline-capab"><summary><b>(a)</b> Local Database — Runs Anywhere</summary>
 
-> The same SQL engine that runs on the server — fully on the client.
+> Run a full SQL engine in memory — same semantics, zero setup.
 
 ```js
 import { FlashClient } from '@linked-db/linked-ql/flash';
@@ -291,57 +299,41 @@ await client.query(`CREATE TABLE users (id SERIAL, name TEXT)`);
 await client.query(`INSERT INTO users (name) VALUES ('Alice'), ('Bob')`);
 
 const result = await client.query(`SELECT JSON_AGG(name) AS users FROM users`);
-
 console.log(result.rows);
-// → [{ users: ['Alice', 'Bob'] }]
+// [{ users: ['Alice', 'Bob'] }]
 ```
 
 </details>
 
 ---
 
-<details name="offline-capab"><summary><b>(b)</b> Federation — Local + Remote in One Query</summary>
+<details name="offline-capab"><summary><b>(b)</b> Federation — Local + Remote</summary>
 
-> Query remote and local tables together — one SQL surface, automatic remote joins.
+> Query local and remote data together in a single SQL surface.
 
 ```js
 await client.federate({ store: ['orders'] }, remoteConfig);
 
-const result = await client.query(
-  `SELECT
-    u.name,
-    COUNT(o.id) AS total_orders
+const result = await client.query(`
+  SELECT u.name, COUNT(o.id) AS total_orders
   FROM users AS u LEFT JOIN store.orders AS o ON o.user_id = u.id
-  GROUP BY u.id
-  ORDER BY total_orders DESC`
-);
-
-console.log(result.rows);
-// → combines local `users` and remote `orders` data transparently
+  GROUP BY u.id ORDER BY total_orders DESC;
+`);
 ```
 
 </details>
 
 ---
 
-<details name="offline-capab"><summary><b>(c)</b> Sync — Continuous Offline Resilience</summary>
+<details name="offline-capab"><summary><b>(c)</b> Sync — Continuous Alignment</summary>
 
-> Keep local and remote data automatically aligned — bidirectional, incremental, and resumable.
+> Keep local and remote tables automatically synchronized.
 
 ```js
 await client.sync({ store: ['orders'] }, remoteConfig);
 
-const result = await client.query(
-  `SELECT
-    u.name,
-    COUNT(o.id) AS total_orders
-  FROM users AS u LEFT JOIN store.orders AS o ON o.user_id = u.id
-  GROUP BY u.id ORDER BY total_orders DESC`
-);
-
 client.on('sync:status', s => console.log('Sync status:', s.state));
 client.on('sync:change', e => console.log('Δ', e.table, e.type));
-// → local tables stay mirrored with remote updates — even after reconnects
 ```
 
 </details>
@@ -361,6 +353,8 @@ client.on('sync:change', e => console.log('Δ', e.table, e.type));
 | **FlashQL**       | In-memory SQL runtime for offline, edge, and hybrid apps.    | [FlashQL →](https://linked-ql.netlify.app/docs/flashql)                    |
 
 ---
+
+<br><br>
 
 ## ⏳ Progress (`@next`)
 

@@ -1,7 +1,34 @@
 :root {
   /* Logo */
   --vp-nav-logo-height: 40px;
+
+  /* Dark background for code blocks */
+  --vp-code-block-bg: #212327;
 }
+
 .nowrap {
-    white-space: nowrap;
+  white-space: nowrap;
+}
+
+h1 { counter-reset: h2_c; }
+
+h2 {
+  counter-increment: h2_c;
+  counter-reset: h3_c;
+}
+h2:not(.title, .text, :has(em)):before { content: counter(h2_c) ". "; }
+
+h3 {
+  counter-increment: h3_c;
+  counter-reset: h4_c;
+}
+h3:not(.text):before { content: counter(h2_c) "." counter(h3_c) ". "; }
+
+h4 {
+  counter-increment: h4_c;
+}
+h4:not(.text):before { content: counter(h2_c) "." counter(h3_c) "." counter(h4_c) ". "; }
+
+:is(h2, h3, h4)::before {
+  font-family: "Roboto Mono", monospace;
 }

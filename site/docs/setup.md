@@ -1,13 +1,12 @@
 # Dialects & Clients
 
-LinkedQL ships with clients for each major SQL dialect.
+LinkedQL ships with clients for each SQL dialect supported.
 
-The PostgreSQL, MySQL, and MariaDB clients integrate directly with their native drivers, while **FlashQL** provides an in-memory SQL engine that speaks both dialects.
+For **PostgreSQL**, **MySQL**, and **MariaDB**, LinkedQL integrates directly with the corresponding native driver.
 
 ## PostgreSQL
 
-Use as a drop-in replacement for [`node-postgres`](https://www.npmjs.com/package/pg).<br>
-Speaks native **PostgreSQL**.
+Use as a drop-in replacement for [`node-postgres`](https://www.npmjs.com/package/pg). Speaks native **PostgreSQL**.
 
 ```js
 import { PGClient } from '@linked-db/linked-ql/pg';
@@ -30,22 +29,26 @@ await client.disconnect();
 
 ### Client Options
 
-`PGClient` accepts all options supported by `node-postgres`.
+`PGClient` can be configured via a few options, including all options supported by `node-postgres`.
 
-Additional options:
-
-* **`poolMode`** (*Default*: `false`) — whether to connect over `pg.Pool` or `pg.Client`.
+| Option     | Type      | Default | Description                                                  |
+| :--------- | :-------- | :------ | :----------------------------------------------------------- |
+| *(all native options)* | —    | —          | Fully compatible with `node-postgres` driver configuration. |
+| `poolMode` | `boolean` | `false` | When `true`, uses `pg.Pool`; when `false`, uses `pg.Client`. |
 
 ### Realtime Setup
 
-To enable **live queries**, ensure [logical replication](https://www.postgresql.org/docs/current/view-pg-replication-slots.html) is enabled on your database.
+LinkedQL’s realtime behavior can be tuned via:
 
-Optionally specify the following to adapt LinkedQL to your setup:
+| Option               | Type                 | Default                          | Description                                                                                                                                                        |
+| :------------------- | :------------------- | :------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `walSlotName`        | `string`             | `'linkedql_default_slot'`        | Logical replication slot name used for change streaming.                                                                                                           |
+| `walSlotPersistence` | `0 \| 1 \| 2`        | `1`                              | Slot lifecycle policy:<br>`0` — ephemeral, managed by PostgreSQL;<br>`1` — ephemeral, managed by LinkedQL;<br>`2` — persistent, assumes external/admin management. |
+| `pgPublications`     | `string \| string[]` | `'linkedql_default_publication'` | Publication name(s) to subscribe to for changes.                                                                                                                   |
 
-* **`walSlotName`** — (*Default*: `'linkedql_default_slot'`) replication slot name.
-* **`walSlotPersistence`** — slot lifecycle management:<br>
-  `0` = ephemeral, DB-managed · `1` = ephemeral, LinkedQL-managed · `2` = persistent, external management implied.
-* **`pgPublications`** — (*Default*: `'linkedql_default_publication'`) publication name(s) to listen on.
+::: warning Logical Replication Required
+To enable **Live Queries**, ensure PostgreSQL [logical replication](https://www.postgresql.org/docs/current/view-pg-replication-slots.html) is enabled and, optionally, a publication is configured.
+:::
 
 ## MySQL
 
@@ -65,7 +68,7 @@ const client = new MySQLClient({
 });
 await client.connect();
 
-const res = await client.query('SELECT 1 AS `result`');
+const res = await client.query('SELECT 1 AS \`result\``);
 console.log(res.rows); // [{ result: 1 }]
 
 await client.disconnect();
@@ -73,19 +76,21 @@ await client.disconnect();
 
 ### Client Options
 
-`MySQLClient` accepts all connection options supported by `mysql2`.
+`MySQLClient` can be configured via a few options, including all options supported by `mysql2`.
 
-Additional options:
-
-* **`poolMode`** (*Default*: `false`) — whether to connect over `mysql.createPool()` or `mysql.createConnection()`.
+| Option     | Type      | Default | Description                                                                            |
+| :--------- | :-------- | :------ | :------------------------------------------------------------------------------------- |
+| *(all native options)* | —    | —          | Fully compatible with `mysql2` driver configuration. |
+| `poolMode` | `boolean` | `false` | When `true`, uses `mysql.createPool()`; when `false`, uses `mysql.createConnection()`. |
 
 ### Realtime Setup
 
-Realtime capabilities for MySQL are **coming soon**.
+_Live Queries for MySQL is **coming soon**.
+Current client usage is for standard query execution._
 
 ## MariaDB
 
-Use in place of [`mariadb`](https://www.npmjs.com/package/mariadb`).<br>
+Use in place of [`mariadb`](https://www.npmjs.com/package/mariadb`).
 Speaks native **MariaDB / MySQL**.
 
 ```js
@@ -100,7 +105,7 @@ const client = new MariaDBClient({
 });
 await client.connect();
 
-const res = await client.query('SELECT 1 AS `result`');
+const res = await client.query('SELECT 1 AS \`result\``);
 console.log(res.rows); // [{ result: 1 }]
 
 await client.disconnect();
@@ -108,17 +113,25 @@ await client.disconnect();
 
 ### Client Options
 
-`MariaDBClient` accepts all connection options supported by the native `mariadb` driver.<br>
-It always runs on a connection pool.
+`MariaDBClient` can be configured via a few options, including all options supported by `mariadb`.
+
+| Option                 | Type | Default    | Description                                           |
+| :--------------------- | :--- | :--------- | :---------------------------------------------------- |
+| *(all native options)* | —    | —          | Fully compatible with `mariadb` driver configuration. |
+
+::: tip Auto Pooling
+MariaDBClient always runs on a connection pool.
+:::
 
 ### Realtime Setup
 
-Realtime support for MariaDB is **coming soon**.
+_Live Queries for MariaDB is **coming soon**.
+Current client usage is for standard query execution._
 
 ## FlashQL
 
-Use as an in-memory alternative to [`SQLite`](https://sqlite.org/) or [`PGLite`](https://pglite.dev/).
-Speaks both **PostgreSQL** and **MySQL** dialects.
+Use as an in-memory alternative to engines like SQLite or PGLite.
+Provides an embeddable SQL runtime and supports multiple dialects.
 
 ```js
 import { FlashClient } from '@linked-db/linked-ql/flash';
@@ -126,18 +139,26 @@ import { FlashClient } from '@linked-db/linked-ql/flash';
 const client = new FlashClient();
 await client.connect();
 
-// PostgreSQL syntax (default dialect)
+// PostgreSQL-style syntax (default)
 const pgRes = await client.query('SELECT 1::text AS result');
 console.log(pgRes.rows); // [{ result: '1' }]
 
-// MySQL syntax (explicit dialect)
+// MySQL-style syntax (explicit dialect)
 const myRes = await client.query('SELECT 1 AS `result`', { dialect: 'mysql' });
 console.log(myRes.rows); // [{ result: 1 }]
 
 await client.disconnect();
 ```
 
+### Client Options
+
+`FlashClient` can be configured via a few options.
+
+| Option    | Type                      | Default        | Description                                                                    |
+| :-------- | :------------------------ | :------------- | :----------------------------------------------------------------------------- |
+| `dialect` | `'postgresql' \| 'mysql'` | `'postgresql'` | Default parsing/execution dialect.                                             |
+| `storage` | `FlashQLStorage`    | `undefined`    | (Coming soon) Storage target or adapter for persistent storage.                         |
+
 ### Realtime Setup
 
-Realtime capabilities are built in.
-No configuration required — FlashQL automatically emits and processes change events internally.
+_Realtime capabilities are **built in**. FlashQL maintains its own change events internally; no external replication setup is required._
