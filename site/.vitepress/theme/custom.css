@@ -4,6 +4,14 @@
 
   /* Dark background for code blocks */
   --vp-code-block-bg: #212327;
+
+  --vp-button-brand-text: black;
+  --vp-button-brand-hover-text: black;
+  --vp-button-brand-active-text: black;
+
+  --vp-c-brand-1: #e9c80d;
+  --vp-c-brand-2: gold;
+  --vp-c-brand-3: #ffbf00;
 }
 
 .nowrap {
