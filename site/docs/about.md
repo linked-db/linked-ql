@@ -51,7 +51,7 @@ Choose where to start:
 
 | Path | Focus |
 |:--|:--|
-| [Getting Started](./) | Get started with LinkedQL in under three minutes. No database required |
-| [Explore Capabilities](./capabilities) | Jump to the Capabilities section. |
-| [Meet FlashQL](./flashql) | Meet FlashQL — LinkedQL's embeddable SQL engine. |
-| [Engineering Deep Dive](../engineering/realtime-engine) | Dig into LinkedQL's engineering in the engineering section. |
+| [Getting Started](/docs) | Get started with LinkedQL in under three minutes. No database required |
+| [Explore Capabilities](/docs/capabilities) | Jump to the Capabilities section. |
+| [Meet FlashQL](/docs/flashql) | Meet FlashQL — LinkedQL's embeddable SQL engine. |
+| [Engineering Deep Dive](/engineering/realtime-engine) | Dig into LinkedQL's engineering in the engineering section. |
