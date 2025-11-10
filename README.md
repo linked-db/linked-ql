@@ -17,7 +17,7 @@ _A modern take on SQL and SQL databases_
   <img src="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-main2.png?raw=true" alt="LinkedQL Banner" width="100%">
 </picture>
 
-<br>
+<br><br>
 
 <div align="center">
 
