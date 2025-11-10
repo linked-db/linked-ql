@@ -17,9 +17,9 @@ _A modern take on SQL and SQL databases_
   <img src="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-main2.png?raw=true" alt="LinkedQL Banner" width="100%">
 </picture>
 
-<br><br>
-
 <div align="center">
+
+<br>
 
 _Simplify and unify your entire database layer in a single interface_ 🛸<br>
 LinkedQL is a database client (`client.query()`) for PostgreSQL and MySQL/MariaDB, but more broadly, an idea: **[SQL reimagined for modern apps ↗](https://linked-ql.netlify.app/overview)**
@@ -45,7 +45,7 @@ LinkedQL solves _**reactivity, relationships, JSON, schema, federation and sync,
 
 | Guide                                     | Explore                                       | Project                           |
 |:------------------------------------------|:----------------------------------------------|:----------------------------------|
-| [Quick Start](#installation)              | [Capabilities](#capabilities)                 | [Progress](#-progress-next)       |
+| [Installation](#installation)             | [Capabilities](#capabilities)                 | [Progress](#-progress-next)       |
 | [Clients & Dialects](#clients--dialects)  | [Features](#features)                         | [Contributing](#-contributing)    |
 | [Query Interface](#query-interface)       | [Documentation](#documentation)               | [License](#-license)              |
 
