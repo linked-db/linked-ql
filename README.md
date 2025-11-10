@@ -23,7 +23,7 @@ _A modern take on SQL and SQL databases_
 
 _Simplify and unify your entire database layer in a single interface_ 🛸<br>
 LinkedQL is a database client (`client.query()`) for PostgreSQL and MySQL/MariaDB, but more broadly, an idea: **[SQL reimagined for modern apps ↗](https://linked-ql.netlify.app/overview)**
-LinkedQL solves _**reactivity, relationships, JSON, schema, federation and sync, and more**_ in under `80 KiB min | zip`.
+LinkedQL solves **reactivity, relationships, JSON, schema, embedding, federation & sync, and more** in under `80 KiB min | zip`.
 
 </div>
 
@@ -45,7 +45,7 @@ LinkedQL solves _**reactivity, relationships, JSON, schema, federation and sync,
 
 | Guide                                     | Explore                                       | Project                           |
 |:------------------------------------------|:----------------------------------------------|:----------------------------------|
-| [Installation](#installation)             | [Capabilities](#capabilities)                 | [Progress](#-progress-next)       |
+| [Installation](#installation)             | [Capabilities](#capabilities)                 | [Status](#-status)                |
 | [Clients & Dialects](#clients--dialects)  | [Features](#features)                         | [Contributing](#-contributing)    |
 | [Query Interface](#query-interface)       | [Documentation](#documentation)               | [License](#-license)              |
 
@@ -162,7 +162,7 @@ Method signatures and return values are consistent and documented in the
 
 Visit the [LinkedQL documentation site ↗](https://linked-ql.netlify.app)
 
-| Jump to | Focus |
+| Jump to |  |
 |:--|:--|
 | [Getting Started ↗](https://linked-ql.netlify.app/docs) | Get started with LinkedQL in under three minutes. No database required |
 | [Capabilities Overview ↗](https://linked-ql.netlify.app/capabilities) | Jump to the Capabilities section. |
@@ -171,19 +171,19 @@ Visit the [LinkedQL documentation site ↗](https://linked-ql.netlify.app)
 
 ---
 
-## ⏳ Progress (`@next`)
+## ⏳ Status
 
 | Component          | Status    | Note                  |
 | :----------------- | :-------- | :-------------------- |
-| Parser & Compiler  | 🟩 `100%` | Stable                |
-| Transform Engine   | 🟩 `100%` | Stable                |
-| Drivers (PG/MySQL) | 🟩 `97%`  | Complete; MySQL nearing parity  |
+| Parser & Compiler  | 🟩 `100%` | Stabilizing           |
+| Transform Engine   | 🟩 `100%` | Stabilizing           |
+| Drivers (PG/MySQL) | 🟩 `97%`  | Stabilizing; MySQL nearing parity  |
 | FlashQL Engine     | 🟩 `99%`  | Expanding             |
-| Realtime Engine    | 🟩 `99%`  | Expanding             |
+| Realtime Engine    | 🟩 `99%`  | Stabilizing           |
 | Timeline Engine    | 🟨 `20%`  | Planned               |
-| Migration Wizard   | ⬜ `10%`   | Planned              |
-| IDE Tooling        | ⬜ `5%`    | Early hooks          |
-| Docs (vNext)       | 🟩 `95%`  | Expanding                |
+| Migration Wizard   | ⬜ `10%`  | Planned               |
+| IDE Tooling        | ⬜ `5%`   | Early hooks           |
+| Docs (vNext)       | 🟩 `99%`  | Expanding             |
 
 > <!--💡--> Status Legend:<br>
 > 🟩 Complete | 🟨 In Progress | ⬜ Not Started

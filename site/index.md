@@ -5,7 +5,7 @@ hero:
   name: LinkedQL
   text: A modern take on SQL and SQL databases.
   tagline: >
-    Relationships, JSON, Schema, Reactivity, Versioning, Offline → SOLVED.
+    Reactivity, Relationships, JSON, Schema, Embedding, Federation & Sync, and More → SOLVED.
   actions:
     - theme: brand
       text: Get Started
@@ -24,6 +24,6 @@ features:
     details: Turn on reactivity over arbitrary SQL with <span class="nowrap"><code>{ live∶ true }</code></span>. You get back a live view of your query. Live Queries in LinkedQL works directly on your database without a middleware or GraphQL servers.
   - title: Versioning Solved
     details: Get automatic database versioning as you iterate and evolve your schemas. LinkedQL makes that a reality right on your database. And that means, no more manual migration practices. 
-  - title: Offline Solved
+  - title: Embedding, Federation & Sync Solved
     details: Run SQL anywhere — even offline. Meet <b>FlashQL</b>, the in-memory engine that brings full LinkedQL semantics to the client and edge. And it comes as one query space over your entire data universe.
 ---

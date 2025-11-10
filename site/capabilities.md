@@ -150,7 +150,7 @@ const result = await client.query(`
 
 </details>
 
-## Offline Capabilities
+## Embedding & Integration Capabilities
 
 LinkedQL bundles an embeddable SQL engine, **FlashQL**, that brings its full capabilities to the local runtime, the edge, and offline world.
 
@@ -164,7 +164,7 @@ LinkedQL bundles an embeddable SQL engine, **FlashQL**, that brings its full cap
 
 ---
 
-<details open name="offline-capab"><summary><b>(a)</b> Local Database — Runs Anywhere</summary>
+<details open name="embed-capab"><summary><b>(a)</b> Local Database — Runs Anywhere</summary>
 
 > Run a full SQL engine in memory — same semantics, zero setup.
 
@@ -184,7 +184,7 @@ console.log(result.rows);
 
 ---
 
-<details name="offline-capab"><summary><b>(b)</b> Federation — Local + Remote</summary>
+<details name="embed-capab"><summary><b>(b)</b> Federation — Local + Remote</summary>
 
 > Query local and remote data together in a single SQL surface.
 
@@ -202,7 +202,7 @@ const result = await client.query(`
 
 ---
 
-<details name="offline-capab"><summary><b>(c)</b> Sync — Continuous Alignment</summary>
+<details name="embed-capab"><summary><b>(c)</b> Sync — Continuous Alignment</summary>
 
 > Keep local and remote tables automatically synchronized.
 
