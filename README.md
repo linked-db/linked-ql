@@ -23,7 +23,7 @@ _A modern take on SQL and SQL databases_
 
 _Simplify and unify your entire database layer in a single interface_ 🛸<br>
 LinkedQL is a database client (`client.query()`) for PostgreSQL and MySQL/MariaDB, but more broadly, an idea: **[SQL reimagined for modern apps ↗](https://linked-ql.netlify.app/overview)**
-LinkedQL solves **reactivity, relationships, JSON, schema, embedding, federation & sync, and more** in under `80 KiB min | zip`.
+LinkedQL solves **reactivity, relationships, JSON, schemas, embedding, federation & sync, and more** in under `80 KiB min | zip`.
 
 </div>
 
