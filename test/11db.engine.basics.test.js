@@ -4,9 +4,9 @@ use(chaiAsPromised);
 
 import '../src/lang/index.js';
 import { matchRelationSelector, normalizeRelationSelectorArg } from '../src/entry/abstracts/util.js';
-import { StorageEngine } from '../src/flash/StorageEngine.js';
-import { FlashClient } from '../src/flash/FlashClient.js';
-import { TableStorage } from '../src/flash/TableStorage.js';
+import { StorageEngine } from '../src/flashql/StorageEngine.js';
+import { FlashClient } from '../src/flashql/FlashClient.js';
+import { TableStorage } from '../src/flashql/TableStorage.js';
 
 describe('Util', () => {
 
