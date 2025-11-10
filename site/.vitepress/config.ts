@@ -48,10 +48,10 @@ export default defineConfig({
                     text: 'Capabilities',
                     items: [
                         { text: 'Capabilities Overview', link: '/capabilities' },
+                        { text: 'Live Queries', link: '/capabilities/live-queries' },
                         { text: 'DeepRefs', link: '/capabilities/deeprefs' },
                         { text: 'JSON Literals', link: '/capabilities/json-literals' },
                         { text: 'UPSERT', link: '/capabilities/upsert' },
-                        { text: 'Realtime SQL', link: '/capabilities/realtime-sql' },
                     ]
                 },
                 {

@@ -17,7 +17,7 @@ _A modern take on SQL and SQL databases_
   <img src="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-main2.png?raw=true" alt="LinkedQL Banner" width="100%">
 </picture>
 
-<br><br>
+<br>
 
 <div align="center">
 
@@ -26,8 +26,6 @@ LinkedQL is a database client (`client.query()`) for PostgreSQL and MySQL/MariaD
 LinkedQL solves _**reactivity, relationships, JSON, schema, federation and sync, and more**_ in under `80 KiB min | zip`.
 
 </div>
-
-<br>
 
 ---
 
