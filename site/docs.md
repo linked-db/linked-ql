@@ -30,7 +30,7 @@ Here are two quick examples:
 FlashQL lets you run SQL queries entirely in memory — with zero setup.
 
 ```js
-import { FlashClient } from '@linked-db/linked-ql/flash';
+import { FlashClient } from '@linked-db/linked-ql/flashql';
 
 const client = new FlashClient();
 
@@ -56,7 +56,7 @@ Connect to your database from the list of supported dialects below.
 Here’s an example using PostgreSQL:
 
 ```js
-import { PGClient } from '@linked-db/linked-ql/pg';
+import { PGClient } from '@linked-db/linked-ql/postgres';
 
 const client = new PGClient({
   host: 'localhost',
@@ -78,10 +78,10 @@ await client.disconnect();
 
 | **Dialect**         | **Import Path**                | **Guide**                          |
 | :------------------ | :----------------------------- | :--------------------------------- |
-| PostgreSQL          | `@linked-db/linked-ql/pg`      | [PostgreSQL →](/docs/setup#postgresql) |
+| PostgreSQL          | `@linked-db/linked-ql/postgres`      | [PostgreSQL →](/docs/setup#postgresql) |
 | MySQL               | `@linked-db/linked-ql/mysql`   | [MySQL →](/docs/setup#mysql)           |
 | MariaDB             | `@linked-db/linked-ql/mariadb` | [MariaDB →](/docs/setup#mariadb)       |
-| FlashQL (In-Memory) | `@linked-db/linked-ql/flash`   | [FlashQL →](/docs/setup#flashql)       |
+| FlashQL (In-Memory) | `@linked-db/linked-ql/flashql`   | [FlashQL →](/docs/setup#flashql)       |
 
 ## The Query Interface
 

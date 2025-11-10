@@ -75,7 +75,7 @@ Here are two quick examples:
 FlashQL lets you run SQL queries entirely in memory — with zero setup.
 
 ```js
-import { FlashClient } from '@linked-db/linked-ql/flash';
+import { FlashClient } from '@linked-db/linked-ql/flashql';
 
 const client = new FlashClient();
 
@@ -101,7 +101,7 @@ Connect to your database from the list of supported dialects below.
 Here’s an example using PostgreSQL:
 
 ```js
-import { PGClient } from '@linked-db/linked-ql/pg';
+import { PGClient } from '@linked-db/linked-ql/postgres';
 
 const client = new PGClient({
   host: 'localhost',
@@ -123,10 +123,10 @@ await client.disconnect();
 
 | **Dialect**         | **Import Path**                | **Guide**                          |
 | :------------------ | :----------------------------- | :--------------------------------- |
-| PostgreSQL          | `@linked-db/linked-ql/pg`      | [PostgreSQL ↗](https://linked-ql.netlify.app/docs/setup#postgresql) |
+| PostgreSQL          | `@linked-db/linked-ql/postgres`      | [PostgreSQL ↗](https://linked-ql.netlify.app/docs/setup#postgresql) |
 | MySQL               | `@linked-db/linked-ql/mysql`   | [MySQL ↗](https://linked-ql.netlify.app/docs/setup#mysql)           |
 | MariaDB             | `@linked-db/linked-ql/mariadb` | [MariaDB ↗](https://linked-ql.netlify.app/docs/setup#mariadb)       |
-| FlashQL (In-Memory) | `@linked-db/linked-ql/flash`   | [FlashQL ↗](https://linked-ql.netlify.app/docs/setup#flashql)       |
+| FlashQL (In-Memory) | `@linked-db/linked-ql/flashql`   | [FlashQL ↗](https://linked-ql.netlify.app/docs/setup#flashql)       |
 
 ## Query Interface
 

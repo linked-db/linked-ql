@@ -9,7 +9,7 @@ For **PostgreSQL**, **MySQL**, and **MariaDB**, LinkedQL integrates directly wit
 Use as a drop-in replacement for [`node-postgres`](https://www.npmjs.com/package/pg). Speaks native **PostgreSQL**.
 
 ```js
-import { PGClient } from '@linked-db/linked-ql/pg';
+import { PGClient } from '@linked-db/linked-ql/postgres';
 
 const client = new PGClient({
   host: 'localhost',
@@ -134,7 +134,7 @@ Use as an in-memory alternative to engines like SQLite or PGLite.
 Provides an embeddable SQL runtime and supports multiple dialects.
 
 ```js
-import { FlashClient } from '@linked-db/linked-ql/flash';
+import { FlashClient } from '@linked-db/linked-ql/flashql';
 
 const client = new FlashClient();
 await client.connect();

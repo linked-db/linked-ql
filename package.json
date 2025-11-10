@@ -27,17 +27,17 @@
   "sideEffects": true,
   "main": "./src/index.js",
   "exports": {
-    ".": "./src/flash/FlashClient.js",
-    "./flash": "./src/flash/FlashClient.js",
-    "./realtime": "./src/proc/realtime/RealtimeClient.js",
-    "./mariadb": "./src/entry/mariadb/MariaDBClient.js",
+    ".": "./src/flashql/FlashClient.js",
+    "./flashql": "./src/flashql/FlashClient.js",
+    "./postgres": "./src/entry/postgres/PGClient.js",
     "./mysql": "./src/entry/mysql/MySQLClient.js",
-    "./pg": "./src/entry/pg/PGClient.js"
+    "./mariadb": "./src/entry/mariadb/MariaDBClient.js",
+    "./realtime": "./src/proc/realtime/RealtimeClient.js"
   },
   "scripts": {
     "test": "mocha --extension .test.js --recursive --timeout 5000 --exit",
     "lab": "mocha --extension .lab.js --recursive --timeout 5000 --exit",
-    "build": "esbuild main=src/index.js flash=src/flash/FlashClient.js --bundle --minify --sourcemap --outdir=dist",
+    "build": "esbuild main=src/index.js flashql=src/flashql/FlashClient.js --bundle --minify --sourcemap --outdir=dist",
     "preversion": "npm run test && npm run build && git add -A dist",
     "postversion": "git push && git push --tags",
     "version:next": "npm version prerelease --preid=next",
