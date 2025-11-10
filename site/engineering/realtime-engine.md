@@ -941,7 +941,7 @@ The Realtime Engine defines a complete operational model for reactive query exec
    ```
    This design allows any renderer, replicator, or transport layer to integrate seamlessly with LinkedQL’s live objects, eliminating glue code and external state management.
 
-## *Part 3 · Key Contributions and Conclusion*
+## *Part III · Key Contributions and Conclusion*
 
 ---
 
