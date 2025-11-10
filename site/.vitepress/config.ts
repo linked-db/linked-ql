@@ -16,10 +16,10 @@ export default defineConfig({
         ],
         // Top nav
         nav: [
-            { text: 'What is LinkedQL', link: '/docs/about' },
-            { text: 'Capabilities', link: '/docs/capabilities' },
-            { text: 'FlashQL', link: '/docs/flashql' },
+            { text: 'What is LinkedQL', link: '/overview', activeMatch: '/overview' },
+            { text: 'Capabilities', link: '/capabilities', activeMatch: '/capabilities' },
             { text: 'Docs', link: '/docs', activeMatch: '/docs' },
+            { text: 'FlashQL', link: '/flashql', activeMatch: '/flashql' },
             { text: 'Engineering', link: '/engineering/realtime-engine', activeMatch: '/engineering' },
             {
                 text: 'Star on GitHub',
@@ -31,9 +31,9 @@ export default defineConfig({
         sidebar: {
             '/': [
                 {
-                    text: 'Intro',
+                    text: 'Overview',
                     items: [
-                        { text: 'What is LinkedQL', link: '/docs/about' },
+                        { text: 'What is LinkedQL', link: '/overview' },
                     ]
                 },
                 {
@@ -42,31 +42,24 @@ export default defineConfig({
                         { text: 'Getting Started', link: '/docs' },
                         { text: 'Dialects & Clients', link: '/docs/setup' },
                         { text: 'Query Interface', link: '/docs/query-api' },
-                        {
-                            text: 'Capabilities',
-                            link: '/docs/capabilities',
-                            collapsed: false,
-                            items: [
-                                { text: 'DeepRefs', link: '/docs/capabilities/deeprefs' },
-                                { text: 'JSON Literals', link: '/docs/capabilities/json-literals' },
-                                { text: 'UPSERT', link: '/docs/capabilities/upsert' },
-                                { text: 'Realtime SQL', link: '/docs/capabilities/realtime-sql' },
-                            ]
-                        },
+                    ]
+                },
+                {
+                    text: 'Capabilities',
+                    items: [
+                        { text: 'Capabilities Overview', link: '/capabilities' },
+                        { text: 'DeepRefs', link: '/capabilities/deeprefs' },
+                        { text: 'JSON Literals', link: '/capabilities/json-literals' },
+                        { text: 'UPSERT', link: '/capabilities/upsert' },
+                        { text: 'Realtime SQL', link: '/capabilities/realtime-sql' },
                     ]
                 },
                 {
                     text: 'FlashQL',
                     items: [
-                        {
-                            text: 'FlashQL',
-                            link: '/docs/flashql',
-                            collapsed: false,
-                            items: [
-                                { text: 'Foreign I/O', link: '/docs/flashql/foreign-io' },
-                                { text: 'Language Reference', link: '/docs/flashql/lang' },
-                            ]
-                        },
+                        { text: 'FlashQL Overview', link: '/flashql' },
+                        { text: 'Federation & Sync', link: '/flashql/foreign-io' },
+                        { text: 'Language Reference', link: '/flashql/lang' },
                     ]
                 },
                 {
@@ -89,7 +82,7 @@ export default defineConfig({
     },
 
     // VitePress defaults are great; you can add head tags here if needed
-    head: [['meta', { name: 'theme-color', content: '#0f172a' }]],
+    head: [['meta', { name: 'theme-color', content: 'gold' }]],
 
     lang: 'en-US',
     base: '/',

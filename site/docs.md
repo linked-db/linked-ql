@@ -2,7 +2,7 @@
 
 This guide takes you from installation to your first query with LinkedQL. No database connection is required, as LinkedQL runs entirely in memory too.
 
-If you're totally new here, you may want to [meet LinkedQL](/docs/about).
+If you're totally new here, you may want to [meet LinkedQL](/overview).
 
 ---
 
@@ -102,5 +102,5 @@ and include a concise code sample, dialect, and environment details.
 ## Next Steps
 
 * [Dialects & Clients](/docs/setup) — PostgreSQL, MySQL, MariaDB, FlashQL
-* [Capabilities](/docs/capabilities) — Relationships, JSON, Live Queries, etc.
-* [FlashQL](/docs/flashql) — In-memory SQL engine overview
+* [Capabilities](/capabilities) — Relationships, JSON, Live Queries, etc.
+* [FlashQL](/flashql) — In-memory SQL engine overview

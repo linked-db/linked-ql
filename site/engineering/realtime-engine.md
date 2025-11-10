@@ -9,7 +9,7 @@
 
 ---
 
-The Realtime Engine is the core of LinkedQL’s [realtime query](/docs/capabilities/realtime-sql) system. It lies between the storage layer and the application layer, transforming storage-level mutations — from WAL, binlog, or in-memory emitters — into logical events that materialize as live state, extending SQL’s reach from static queries to fully “live” queries.
+The Realtime Engine is the core of LinkedQL’s [live queries](/capabilities/live-queries). It lies between the storage layer and the application layer, transforming storage-level mutations — from WAL, binlog, or in-memory emitters — into logical events that materialize as live state, extending SQL’s reach from static queries to fully “live” queries.
 
 Unlike replica-based architectures that operate only against local databases or materialized stores, the engine is designed to operate seamlessly across storage backends — from local databases to traditional databases such as PostgreSQL and MySQL — allowing both to participate equally in the "realtime" world. LinkedQL thus brings reactivity into the realms of traditional SQL databases, erasing the local/remote distinction and making live queries a universal concept across storage backends.
 

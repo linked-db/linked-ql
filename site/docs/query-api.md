@@ -126,7 +126,7 @@ console.log(result.rows); // [!code warning]
 
 ## `RealtimeResult`
 
-`RealtimeResult` is the result of a [live query](capabilities/realtime-sql) in LinkedQL — queries that execute with `{ live: true }`.
+`RealtimeResult` is the result of a [live query](/capabilities/live-queries) in LinkedQL — queries that execute with `{ live: true }`.
 It extends [`Result`](#result) to represent a **live view** of query results — adding a small set of properties and methods that enable reactivity and lifecycle control..
 
 ### Own Properties
