@@ -27,8 +27,8 @@ The goal with LinkedQL is to bring these capabilities to the database itself and
 
 | Capability                    | Description                                                                                                                    |
 | :---------------------------- | :----------------------------------------------------------------------------------------------------------------------------- |
-| 🔗 **DeepRef Operators**      | Traverse relationships using simple path notation (`~>` / `<~`). Insert or update nested structures using same notation.       |
 | ⚡ **Live Queries**            | Turn on reactivity over any SQL query with `{ live: true }`. No extra infrastructure required.                                   |
+| 🔗 **DeepRef Operators**      | Traverse relationships using simple path notation (`~>` / `<~`). Insert or update nested structures using same notation.       |
 | 🧩 **JSON Literals**          | Bring JSON-like clearity to your queries with LinkedQL's first-class support for JSON notation.                                |
 | 🪄 **Upserts**                | Do upserts with a literal UPSERT statement.                                                                                    |
 | 🧠 **Schema Versioning**      | (Coming soon) Get automatic schema versioning on your database: automatic snapshots and historical introspection.              |

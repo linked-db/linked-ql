@@ -65,7 +65,7 @@ export default defineConfig({
                 {
                     text: 'Engineering',
                     items: [
-                        { text: 'Realtime Engine', link: '/engineering/realtime-engine' },
+                        { text: 'The Realtime Engine', link: '/engineering/realtime-engine' },
                     ]
                 }
             ]
