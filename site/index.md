@@ -5,7 +5,7 @@ hero:
   name: LinkedQL
   text: A modern take on SQL and SQL databases.
   tagline: >
-    Reactivity, Relationships, JSON, Schema, Embedding, Federation & Sync, and More → SOLVED.
+    Reactivity, Relationships, JSON, Schemas, Embedding, Federation & Sync, and More → SOLVED.
   actions:
     - theme: brand
       text: Get Started
@@ -18,7 +18,7 @@ features:
     details: Traverse relationships directly in your queries — without writing a JOIN. Meet DeepRefs, the syntax shorthand that lets you follow relationships using simple arrow notation <span class="nowrap">— <code>SELECT a ~> b</code></span>
   - title: JSON Solved
     details: Bring JSON-like clearity to your queries. LinkedQL's first-class support for JSON notation saves you the wrangling with SQL's low-level JSON functions <span class="nowrap">— <code>SELECT { a, b }</code></span>
-  - title: Schema Solved
+  - title: Schemas Solved
     details: Take a break from manual schema ops. LinkedQL operates with full context of your schema and automates the world for you. With Automatic Schema Inference, everything just works — without you
   - title: Reactivity Solved
     details: Turn on reactivity over arbitrary SQL with <span class="nowrap"><code>{ live∶ true }</code></span>. You get back a live view of your query. Live Queries in LinkedQL works directly on your database without a middleware or GraphQL servers.
