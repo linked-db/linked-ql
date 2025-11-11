@@ -11,7 +11,7 @@ LinkedQL is both:
 
 The broader idea captures the **intent** behind each tool in the compensatory layers built around SQL — query builders, ORMs, schema mappers, GraphQL servers, and other application-level boilerplates — and enables these natively within the language.
 
-This brings us to SQL that finally internalizes the external capabilities built around it — **an upgrade**.
+The result is SQL that finally internalizes the external capabilities built around it — **an upgrade**.
 
 Think of LinkedQL as **SQL, upgraded** — for modern applications.
 
