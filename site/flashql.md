@@ -21,7 +21,7 @@ Modern applications need database power without a network layer or the overhead 
 Just spin up an instance in-app and run SQL:
 
 ```js
-import { FlashClient } from '@linked-db/linked-ql/flash';
+import { FlashClient } from '@linked-db/linked-ql/flashql';
 
 const db = new FlashClient();
 await db.connect();
