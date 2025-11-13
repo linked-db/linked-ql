@@ -530,7 +530,7 @@ function handle(eventName, eventData) {
 }
 ```
 
-That logic is conceptually what the built-in [`RealtimeResult`](../docs/query-api#realtimeresult) does for you internally — but as an atomic operation. It:
+That logic is **conceptually** what the built-in [`RealtimeResult`](../docs/query-api#realtimeresult) does for you internally — but with additional concepts like atomicity. It:
 
 * applies `result`, `diff`, and `swap` events;
 * preserves ordering and LIMIT/OFFSET semantics;

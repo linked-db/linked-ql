@@ -23,15 +23,13 @@ LinkedQL extends the SQL language to bring in useful syntax shorthands for relat
 
 | **Feature**       | **Summary**                                                            | **Docs**                                             |
 | :---------------- | :--------------------------------------------------------------------- | :--------------------------------------------------- |
-| **DeepRefs**      | Follow foreign key relationships directly in simple arrow notation.    | [Read → DeepRefs Docs](/capabilities/deeprefs)  |
-| **JSON Literals** | Model JSON objects and arrays using literal JSON syntax.                         | [Read → JSON Docs](/capabilities/json-literals) |
-| **UPSERT**        | Perform the classic `INSERT...ON CONFLICT` statement in a single step. | [Read → UPSERT Docs](/capabilities/upsert)      |
+| **DeepRefs**      | Follow foreign key relationships directly using simple arrow notation. | [DeepRefs](/capabilities/deeprefs)  |
+| **JSON Literals** | Model JSON objects and arrays using literal JSON syntax.               | [JSON](/capabilities/json-literals) |
+| **UPSERT**        | Perform the classic `INSERT...ON CONFLICT` statement in a single step. | [UPSERT](/capabilities/upsert)      |
 
 ### Examples
 
----
-
-<details open name="lang-capab"><summary><b>(a)</b> JSON Literals — Structured Projection</summary>
+::: details **(a)** JSON Literals — Structured Projection {open name="lang-capab"}
 
 > Model JSON objects and arrays using literal JSON syntax.
 
@@ -48,13 +46,11 @@ console.log(result.rows[0]);
 // { id: 1, name: { first: 'Jane', last: 'Dark' }, contact: { email: 'jane@example.com', phone: null } }
 ```
 
-</details>
+:::
 
----
+::: details **(b)** DeepRefs — Relationship Traversal {name="lang-capab"}
 
-<details name="lang-capab"><summary><b>(b)</b> DeepRefs — Relationship Traversal</summary>
-
-> Follow foreign key relationships directly in simple arrow notation.
+> Follow foreign key relationships directly using simple arrow notation.
 
 ```js
 const posts = await client.query(`
@@ -67,11 +63,9 @@ console.log(posts.rows[0]);
 // { title: 'Syntax Shorthands', author: { name: 'John', email: 'john@example.com' } }
 ```
 
-</details>
+:::
 
----
-
-<details name="lang-capab"><summary><b>(c)</b> UPSERT — Insert or Update</summary>
+::: details **(c)** UPSERT — Insert or Update {name="lang-capab"}
 
 > Perform the classic `INSERT...ON CONFLICT` statement in a single step.
 
@@ -84,7 +78,7 @@ await client.query(`
 `);
 ```
 
-</details>
+:::
 
 ## Runtime Capabilities
 
@@ -92,14 +86,12 @@ LinkedQL extends the query execution layer with reactivity and automatic schema 
 
 | **Feature**         | **Summary**                                                            | **Docs**                                                   |
 | :------------------ | :--------------------------------------------------------------------- | :--------------------------------------------------------- |
-| **Live Queries**    | Turn on reactivity over any query and get back a live view of your data. | [Read → RealtimeSQL Docs](/capabilities/live-queries) |
+| **Live Queries**    | Turn on reactivity over any query and get back a live view of your data. | [Live Queries](/capabilities/live-queries) |
 | **Timeline Engine** | Anchor a query to a fixed schema version for stable results over time. | *(Coming soon)*                                            |
 
 ### Examples
 
----
-
-<details open name="runtime-capab"><summary><b>(a)</b> Live Queries and Live Views</summary>
+::: details **(a)** Live Queries and Live Views {open name="runtime-capab"}
 
 > Turn on reactivity over any query and get back a live view of your data.
 
@@ -115,11 +107,9 @@ setInterval(() => console.log(result.rows), 1000);
 // Updates automatically as post or author data changes
 ```
 
-</details>
+:::
 
----
-
-<details name="runtime-capab"><summary><b>(b)</b> Live Queries + DeepRefs</summary>
+::: details **(b)** Live Queries + DeepRefs {name="runtime-capab"}
 
 > Combine live results with relational traversal and JSON shaping.
 
@@ -132,11 +122,9 @@ const result = await client.query(`
 `, { live: true });
 ```
 
-</details>
+:::
 
----
-
-<details name="runtime-capab"><summary><b>(c)</b> Version Binding — Point-in-Time Queries</summary>
+::: details **(c)** Version Binding — Point-in-Time Queries {name="runtime-capab"}
 
 > Anchor a query to a fixed schema version for stable results over time.
 
@@ -148,7 +136,7 @@ const result = await client.query(`
 `);
 ```
 
-</details>
+:::
 
 ## Embedding & Integration Capabilities
 
@@ -156,15 +144,13 @@ LinkedQL bundles an embeddable SQL engine, **FlashQL**, that brings its full cap
 
 | **Capability**     | **Summary**                                                   | **Docs**                             |
 | :----------------- | :------------------------------------------------------------ | :----------------------------------- |
-| **Local Database** | Run a full SQL engine in memory — same semantics, zero setup. | [Read → FlashQL Docs](/flashql) |
-| **Federation**     | Query local and remote data together in a single SQL surface. | [Read → FlashQL Docs](/flashql) |
-| **Sync**           | Keep local and remote tables automatically synchronized.      | [Read → FlashQL Docs](/flashql) |
+| **Local Database** | Run a full SQL engine in memory — same semantics, zero setup. | [FlashQL](/flashql) |
+| **Federation**     | Query local and remote data together in a single SQL surface. | [FlashQL](/flashql) |
+| **Sync**           | Keep local and remote tables automatically synchronized.      | [FlashQL](/flashql) |
 
 ### Examples
 
----
-
-<details open name="embed-capab"><summary><b>(a)</b> Local Database — Runs Anywhere</summary>
+::: details **(a)** Local Database — Runs Anywhere {open name="embed-capab"}
 
 > Run a full SQL engine in memory — same semantics, zero setup.
 
@@ -180,11 +166,9 @@ console.log(result.rows);
 // [{ users: ['Alice', 'Bob'] }]
 ```
 
-</details>
+:::
 
----
-
-<details name="embed-capab"><summary><b>(b)</b> Federation — Local + Remote</summary>
+::: details **(b)** Federation — Local + Remote {name="embed-capab"}
 
 > Query local and remote data together in a single SQL surface.
 
@@ -198,11 +182,9 @@ const result = await client.query(`
 `);
 ```
 
-</details>
+:::
 
----
-
-<details name="embed-capab"><summary><b>(c)</b> Sync — Continuous Alignment</summary>
+::: details **(c)** Sync — Continuous Alignment {name="embed-capab"}
 
 > Keep local and remote tables automatically synchronized.
 
@@ -213,5 +195,5 @@ client.on('sync:status', s => console.log('Sync status:', s.state));
 client.on('sync:change', e => console.log('Δ', e.table, e.type));
 ```
 
-</details>
+:::
 

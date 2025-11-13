@@ -65,7 +65,7 @@ const result = await client.query(
 Represents the outcome of a query.
 All `query()` operations return a `Result` object that includes both **row data** and **write metadata**, though only one is meaningful per query type.
 
-### Properties**
+### Properties
 
 | Property       | Type     | Description                                                                                                    |
 | :------------- | :------- | :----------------------------------------------------------------------------------------------------- |
@@ -133,7 +133,7 @@ It extends [`Result`](#result) to represent a **live view** of query results —
 
 | Property | Type              | Description                                                                                                                                                                                                             |
 | :------- | :---------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rows`   | `any[] (proxied)` | A **live view** of result set. This array is reactive — it mutates automatically as database changes are applied. It is to be treated as read-only; manual mutation can desynchronize internal state.                   |
+| `rows`   | `any[]`           | A **live view** of result set. This array is reactive — it mutates automatically as database changes are applied. It is to be treated as read-only; manual mutation can desynchronize internal state.                   |
 | `hashes` | `string[]`        | Internal row identifiers used for diff tracking. Exposed for inspection only; must not be modified. Mutation of this array will corrupt the synchronization state.                                                      |
 
 ### Methods
