@@ -846,7 +846,7 @@ Properties induced by the protocol (as used here):
 - Composability: $\Delta_t$ can be replayed across process or network boundaries without re-deriving from data.
 - Idempotence & convergence: inherited from hashes and batch semantics.
 
-Because the protocol is universal, the same live object can cross process boundaries and network layers untouched: renderers animate mutations; replicators persist them; frameworks like *Webflo* can transport them directly as messages. This object-first model replaces message-handling scaffolding: you do not reconstruct state from events; the state reconstructs itself.
+Because the protocol is universal, the same live object can cross process boundaries and network layers untouched: renderers animate mutations; replicators persist them; frameworks like *[Webflo](https://github.com/webqit/webflo)* can transport them directly as messages. This object-first model replaces message-handling scaffolding: you do not reconstruct state from events; the state reconstructs itself.
 
 ---
 
