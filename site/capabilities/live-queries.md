@@ -411,13 +411,13 @@ LinkedQL’s live views are ordinary JavaScript objects and arrays. They simply 
 
 And here’s how that plays out across runtimes: because they use the [Observer API](https://github.com/webqit/observer) protocol, you get automatic binding and mutation-based reactivity across contexts or runtimes where mutations are a first-class concept.
 
-For example, with Webflo’s *live response* capability, `result.rows` — like any object — can be returned from a route, with reactivity preserved over the wire.
+For example, with the[ Webflo framework](https://github.com/webqit/webflo)’s *[live response](https://webflo.netlify.app/docs/concepts/realtime#live-responses)* capability, `result.rows` — like any object — can be returned from a route, with reactivity preserved over the wire.
 
 ```js
 export default async function(event) {
     const result = await client.query(`SELECT * FROM posts`, { live: true });
     event.waitUntilNavigate(); // Tell Webflo to keep the connection open until the user navigates away
-    return { list: result.rows };
+    return { posts: result.rows };
 }
 ```
 
