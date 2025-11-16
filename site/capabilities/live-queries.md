@@ -433,7 +433,7 @@ Observer.observe(data, console.log);
 </script>
 ```
 
-If the goal is to render, that, too, comes automatic: OOHTML gives you automatic data-binding over arbitrary objects and arrays — without a compile step:
+If the goal is to render, that, too, comes automatic: [OOHTML](https://github.com/webqit/oohtml) gives you automatic data-binding over arbitrary objects and arrays — without a compile step:
 
 ```html
 <script src="https://unpkg.com/@webqit/oohtml/dist/main.lite.js"></script>
