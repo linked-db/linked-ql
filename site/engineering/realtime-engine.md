@@ -457,7 +457,7 @@ The result is *fine-grained reactivity* that begins at the database and propagat
 
 ---
 
-###0 Scaling Behavior
+### Scaling Behavior
 
 The profound advantage of the query inheritance model is that computational cost scales *only* with **query diversity**, rather than linearly with subscription count.
 
@@ -478,7 +478,7 @@ The result is: you don't pay for features you don't use.
 
 ---
 
-###1 Key Takeaways
+### Key Takeaways
 
 Rather than isolating each query as an independent subscription, LinkedQL's Realtime engine organizes them into a hierarchy of shared computation.
 
