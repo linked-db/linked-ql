@@ -1,4 +1,5 @@
 import { AbstractNodeList } from './abstracts/AbstractNodeList.js';
+import { StdStmt } from './StdStmt.js';
 
 export class Script extends AbstractNodeList {
 
@@ -29,6 +30,8 @@ export class Script extends AbstractNodeList {
     /* API */
 
     static async parse(input, options = {}) {
+        const std = await StdStmt.parse(input);
+        if (std) return new this({ entries: [std] });
         const tokenStream = await this.toStream(input, options);
         const result = await super.parse(tokenStream, options);
         if (!tokenStream.done && tokenStream.current()) {

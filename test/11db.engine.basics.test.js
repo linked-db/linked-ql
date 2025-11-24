@@ -5,7 +5,7 @@ use(chaiAsPromised);
 import '../src/lang/index.js';
 import { matchRelationSelector, normalizeRelationSelectorArg } from '../src/entry/abstracts/util.js';
 import { StorageEngine } from '../src/flashql/StorageEngine.js';
-import { FlashClient } from '../src/flashql/FlashClient.js';
+import { FlashQL } from '../src/flashql/FlashQL.js';
 import { TableStorage } from '../src/flashql/TableStorage.js';
 
 describe('Util', () => {
@@ -140,12 +140,12 @@ describe('StorageEngine - Basic CRUD', () => {
 });
 
 const createClient = async (defaultNamespace = undefined, otherOptions = {}) => {
-    const client = new FlashClient({ defaultNamespace, ...otherOptions });
+    const client = new FlashQL({ defaultNamespace, ...otherOptions });
     await client.connect();
     return client;
 };
 
-describe('FlashClient - Basic DDL', () => {
+describe('FlashQL - Basic DDL', () => {
     let client;
 
     before(async () => {
@@ -300,7 +300,7 @@ describe('FlashClient - Basic DDL', () => {
     // ---------- ALTER (TODO)
 });
 
-describe('FlashClient - DDL Inference', () => {
+describe('FlashQL - DDL Inference', () => {
     let client;
 
     before(async () => {
@@ -456,7 +456,7 @@ describe('FlashClient - DDL Inference', () => {
     });
 });
 
-describe('FlashClient - DML', () => {
+describe('FlashQL - DML', () => {
     let client;
 
     // helper to read table storage rows (values)
@@ -705,7 +705,7 @@ describe('FlashClient - DML', () => {
     });
 });
 
-describe("FlashClient - DQL", () => {
+describe("FlashQL - DQL", () => {
 
     describe("SELECT - Basics", () => {
         let client, namespaceName = 'lq_test_dgl', t1 = "t1";
@@ -1385,7 +1385,7 @@ describe("FlashClient - DQL", () => {
     });
 });
 
-describe("FlashClient - CTEs", () => {
+describe("FlashQL - CTEs", () => {
     describe("SELECT - CTEs", () => {
         let client, namespaceName = 'lq_test_dgl', t3 = "t3_cte", t4 = "nums_cte";
 

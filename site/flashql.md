@@ -21,9 +21,9 @@ Modern applications need database power without a network layer or the overhead 
 Just spin up an instance in-app and run SQL:
 
 ```js
-import { FlashClient } from '@linked-db/linked-ql/flashql';
+import { FlashQL } from '@linked-db/linked-ql/flashql';
 
-const db = new FlashClient();
+const db = new FlashQL();
 await db.connect();
 
 const result = await db.query('SELECT 2::text AS value');
@@ -41,7 +41,7 @@ FlashQL supports both **PostgreSQL** and **MySQL** dialects.
 Set globally:
 
 ```js
-const db = new FlashClient({ dialect: 'postgres' });
+const db = new FlashQL({ dialect: 'postgres' });
 ```
 
 Optionally specify per query:
@@ -243,7 +243,7 @@ FlashQL’s in-memory engine is volatile by default. To persist or share state, 
 * **Custom (planned)** — plug-in adapter.
 
 ```js
-const db = new FlashClient({
+const db = new FlashQL({
   storage: new MyAdapter({
     onLoad: async () => { /* load from disk */ },
     onFlush: async (data) => { /* write to disk */ },

@@ -75,9 +75,9 @@ Here are two quick examples:
 FlashQL lets you run SQL queries entirely in memory — with zero setup.
 
 ```js
-import { FlashClient } from '@linked-db/linked-ql/flashql';
+import { FlashQL } from '@linked-db/linked-ql/flashql';
 
-const client = new FlashClient();
+const client = new FlashQL();
 
 const result = await client.query(`
   CREATE TABLE users (id SERIAL PRIMARY KEY, name TEXT);

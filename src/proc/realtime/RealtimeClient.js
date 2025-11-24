@@ -67,7 +67,7 @@ export class RealtimeClient {
         this.#windows.add(newWindow);
         newWindow.onClose(() => {
             this.#windows.delete(newWindow);
-            newWindow.disconnect();
+            newWindow.stop();
         });
 
         return newWindow;

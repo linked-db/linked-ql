@@ -134,9 +134,9 @@ Use as an in-memory alternative to engines like SQLite or PGLite.
 Provides an embeddable SQL runtime and supports multiple dialects.
 
 ```js
-import { FlashClient } from '@linked-db/linked-ql/flashql';
+import { FlashQL } from '@linked-db/linked-ql/flashql';
 
-const client = new FlashClient();
+const client = new FlashQL();
 await client.connect();
 
 // PostgreSQL-style syntax (default)
@@ -152,7 +152,7 @@ await client.disconnect();
 
 ### Client Options
 
-`FlashClient` can be configured via a few options.
+`FlashQL` can be configured via a few options.
 
 | Option    | Type                      | Default        | Description                                                                    |
 | :-------- | :------------------------ | :------------- | :----------------------------------------------------------------------------- |

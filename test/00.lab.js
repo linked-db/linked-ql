@@ -1,5 +1,5 @@
-import { FlashClient } from '../src/db/flash/FlashClient.js';
-import { PGClient } from '../src/db/classic/pg/PGClient.js';
+import { FlashQL } from '../src/flashql/FlashQL.js';
+import { PGClient } from '../src/entry/postgres/PGClient.js';
 import Observer from '@webqit/observer';
 
 const d = () => new Promise((r) => setTimeout(r, 600));
@@ -10,7 +10,7 @@ const d = () => new Promise((r) => setTimeout(r, 600));
 const client1 = new PGClient;
 await client1.connect();
 
-const client2 = new FlashClient({ onCreateRemoteClient: () => client1 });
+const client2 = new FlashQL({ onCreateRemoteClient: () => client1 });
 await client2.connect();
 
 // ------- INIT

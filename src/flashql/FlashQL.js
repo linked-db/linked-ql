@@ -6,7 +6,7 @@ import { StorageEngine } from './StorageEngine.js';
 import { QueryEngine } from './QueryEngine.js';
 import { registry } from '../lang/registry.js';
 
-export class FlashClient extends AbstractSQLClient {
+export class FlashQL extends AbstractSQLClient {
 
     #dialect;
 

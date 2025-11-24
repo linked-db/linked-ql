@@ -155,8 +155,8 @@ LinkedQL bundles an embeddable SQL engine, **FlashQL**, that brings its full cap
 > Run a full SQL engine in memory — same semantics, zero setup.
 
 ```js
-import { FlashClient } from '@linked-db/linked-ql/flashql';
-const client = new FlashClient();
+import { FlashQL } from '@linked-db/linked-ql/flashql';
+const client = new FlashQL();
 
 await client.query(`CREATE TABLE users (id SERIAL, name TEXT)`);
 await client.query(`INSERT INTO users (name) VALUES ('Alice'), ('Bob')`);

@@ -135,7 +135,7 @@ export class AbstractSQL0Client extends AbstractSQLClient {
             const baseQuery = `
                     SELECT ${Object.entries(fields).map(([k, v]) => `${v} AS ${k}`).join(', ')}
                     FROM information_schema.tables AS tbl
-                    WHERE tbl.table_schema = db.schema_name AND tbl.table_type = 'BASE TABLE'${$parts.tblWhere}
+                    WHERE tbl.table_schema = db.schema_name/* AND tbl.table_type = 'BASE TABLE'*/${$parts.tblWhere}
                 `;
             // Return as an aggregation
             const branches = detailed ? [`'columns'`, `(${buildColumns()})`, `'constraints'`, `(${buildConstraints()})`] : [];

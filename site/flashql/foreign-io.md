@@ -19,10 +19,10 @@ With Foreign I/O, you can stream data on demand, materialize remote datasets loc
 Each mode requires FlashQL to be initialized with a remote connection factory:
 
 ```js
-import { FlashClient } from '@linked-db/linked-ql/flashql';
+import { FlashQL } from '@linked-db/linked-ql/flashql';
 import { PGClient } from '@linked-db/linked-ql/postgres';
 
-const local = new FlashClient({
+const local = new FlashQL({
   onCreateRemoteClient: async (opts) => {
     const remote = new PGClient(opts);
     await remote.connect();

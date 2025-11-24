@@ -1,7 +1,7 @@
 import pg from 'pg';
 import Cursor from 'pg-cursor';
 import { LogicalReplicationService, PgoutputPlugin } from 'pg-logical-replication';
-import { AbstractSQL0Client } from '../../abstracts/AbstractSQL0Client.js';
+import { AbstractSQL0Client } from '../abstracts/AbstractSQL0Client.js';
 
 export class PGClient extends AbstractSQL0Client {
 
@@ -50,16 +50,16 @@ export class PGClient extends AbstractSQL0Client {
 
     async _connect() {
         const result = await this.#driver.connect();
-        this.#adminDriver = this.#poolMode
-            ? result // First available client
-            : this.#driver;
+        this.#adminDriver = this.#poolMode ? result : this.#driver;
         return result;
     }
 
     async _disconnect() {
         await this._teardownRealtime();
         try {
-            if (this.#poolMode) await this.#adminDriver.release();
+            if (this.#poolMode) {
+                await this.#adminDriver.release();
+            }
             await this.#driver.end();
         } catch { /* avoid hang */ }
     }
@@ -97,23 +97,33 @@ export class PGClient extends AbstractSQL0Client {
         if (this.#walInit) return;
         this.#walInit = true;
 
+        // Initialize replication connection
+        this.#walClient = new LogicalReplicationService(this.#connectionParams);
+        this.#walClient.on('error', (err) => {
+            this.emit('error', new Error(`WAL Client error: ${err}`));
+        });
+
         if (!this.#walSlotName)
             throw new Error(`Realtime requires a valid walSlotName name.`);
         if (!this.#pgPublications.length)
             throw new Error(`Realtime requires at least one publication.`);
 
         // Ensure slot exists
-        const checkSlotSql = `SELECT slot_name FROM pg_replication_slots WHERE slot_name = '${this.#walSlotName}'`;
+        const checkSlotSql = `SELECT * FROM pg_replication_slots WHERE slot_name = '${this.#walSlotName}'`;
         const slotCheck = await this.#adminDriver.query(checkSlotSql);
 
+        let confirmed_flush_lsn;
         if (!slotCheck.rows.length) {
             const createSlotSQL = this.#walSlotPersistence === 0  // 0 for temporary slot
                 ? `SELECT * FROM pg_create_logical_replication_slot('${this.#walSlotName}', 'pgoutput', true)`
                 : `SELECT * FROM pg_create_logical_replication_slot('${this.#walSlotName}', 'pgoutput')`;
-            await this.#adminDriver.query(createSlotSQL);
+            // IMPORTANT: use the same client to avoid session issues
+            const [walClientClient] = await this.#walClient.client();
+            await walClientClient.query(createSlotSQL);
+            // Poor patching - session needs to be persistent
+            this.#walClient.client = async () => [walClientClient, walClientClient.connection];
         } else if (this.#walSlotPersistence) { // advance slot
-            const { rows: [{ lsn }] } = await this.#adminDriver.query(`SELECT pg_current_wal_lsn() AS lsn`);
-            await this.#adminDriver.query(`SELECT pg_replication_slot_advance('${this.#walSlotName}', '${lsn}')`);
+            ({ rows: [{ confirmed_flush_lsn }] } = await this.#adminDriver.query(`SELECT confirmed_flush_lsn FROM pg_replication_slots WHERE slot_name = '${this.#walSlotName}'`));
         }
 
         // Ensure publication(s) exist
@@ -126,19 +136,13 @@ export class PGClient extends AbstractSQL0Client {
             }
         }));
 
-        // Initialize replication connection
-        this.#walClient = new LogicalReplicationService(this.#connectionParams);
-        this.#walClient.on('error', (err) => {
-            this.emit('error', new Error(`WAL Client error: ${err}`));
-        });
-
+        // Subscribe to WAL
         const walPlugin = new PgoutputPlugin({
             publicationNames: this.#pgPublications,
             protoVersion: 2,
         });
-
-        const sub = this.#walClient.subscribe(walPlugin, this.#walSlotName);
-        //await sub; // awaits forever
+        // DON'T AWAIT
+        this.#walClient.subscribe(walPlugin, this.#walSlotName, confirmed_flush_lsn);
 
         // Message handling
         let currentXid = null;
@@ -208,12 +212,8 @@ export class PGClient extends AbstractSQL0Client {
         if (!this.#walClient) return;
         try {
             await this.#walClient.stop();
-        } catch (err) { this.emit('warn', new Error(`Failed to stop WAL client: ${err.message}`)); }
-        if (this.#walSlotPersistence === 1) { // 2 for wholly externally-managed slot
-            try {
-                const sql = `SELECT pg_drop_replication_slot('${this.#walSlotName}')`;
-                await this.#adminDriver.query(sql);
-            } catch (e) { this.emit('warn', new Error(`Slot cleanup skipped: ${e.message}`)); }
+        } catch (e) {
+            this.emit('warn', new Error(`Failed to stop WAL client: ${e.message}`));
         }
         this.#walClient = null;
         this.#walInit = false;
