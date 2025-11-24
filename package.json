@@ -72,23 +72,5 @@
   "maintainers": [
     "Oxford Harrison <oxharris.dev@gmail.com>"
   ],
-  "contributors": [],
-  "funding": {
-    "type": "patreon",
-    "url": "https://patreon.com/ox_harris"
-  },
-  "badges": {
-    "list": [
-      "npmversion",
-      "npmdownloads",
-      "patreon"
-    ],
-    "config": {
-      "patreonUsername": "ox_harris",
-      "githubUsername": "linked-db",
-      "githubRepository": "linked-ql",
-      "githubSlug": "linked-db/linked-ql",
-      "npmPackageName": "linked-db/linked-ql"
-    }
-  }
+  "contributors": []
 }
