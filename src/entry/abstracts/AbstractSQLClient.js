@@ -34,7 +34,7 @@ export class AbstractSQLClient extends AbstractClient {
         // 1. ----------- SQL string
 
         if (typeof querySpec === 'string' || typeof querySpec === 'object' && typeof querySpec.query === 'string') {
-            let query = await registry.Script.parse(querySpec.query || querySpec, { dialect: options.dialect || this.dialect });
+            let query = await registry.Script.parse(querySpec.query || querySpec, { dialect: options.dialect || this.dialect, supportStdStmt: true });
             if (query.length === 1) query = query.entries()[0];
 
             if (dynamicWhereMode) {
@@ -83,7 +83,7 @@ export class AbstractSQLClient extends AbstractClient {
                     };
                     return registry.Script.fromJSON(
                         { entries: [queryJson] },
-                        { dialect: options.dialect, assert: true }
+                        { dialect: options.dialect, assert: true, supportStdStmt: true }
                     ).entries()[0];
                 };
             }
@@ -247,7 +247,7 @@ export class AbstractSQLClient extends AbstractClient {
                     };
                     return registry.Script.fromJSON(
                         { entries: [queryJson] },
-                        { dialect: options.dialect, assert: true }
+                        { dialect: options.dialect, assert: true, supportStdStmt: true }
                     ).entries()[0];
                 };
             }
@@ -262,7 +262,7 @@ export class AbstractSQLClient extends AbstractClient {
 
         return registry.Script.fromJSON(
             { entries: [queryJson] },
-            { dialect: options.dialect, assert: true }
+            { dialect: options.dialect, assert: true, supportStdStmt: true }
         ).entries()[0];
     }
 

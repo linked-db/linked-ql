@@ -26,7 +26,7 @@ export class StdStmt extends AbstractStmt {
 
     static async parse(sql, options = {}) {
         if (typeof sql !== 'string'
-            || /^(WITH|SELECT|DELETE|INSERT|UPDATE|UPSERT)\s/.test(sql)) return;
+            || /^(\((\s+)?)?(WITH|TABLE|SELECT|DELETE|INSERT|UPDATE|UPSERT|CREATE|DROP)\s+/i.test(sql.trimStart())) return;
         return new this({ sql }, { ...options });
     }
 

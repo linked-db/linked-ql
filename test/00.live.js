@@ -18,6 +18,8 @@ WHERE table_schema = 'public'
 const result = await client1.query(sql);
 console.log(result.rows);
 
+//await client1.query(`ALTER TABLE rrr RENAME COLUMN full_name TO fname`);
+
 //await client1.query(`SELECT pg_drop_replication_slot('linkedql_default_slot')`);
 //console.log((await client1.query(`SELECT * FROM pg_replication_slots`)).rows);
 
