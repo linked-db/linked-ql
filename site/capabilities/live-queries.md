@@ -415,7 +415,7 @@ For example, with the[ Webflo framework](https://github.com/webqit/webflo)’s *
 
 ```js
 export default async function(event) {
-    const result = await client.query(`SELECT * FROM posts`, { live: true });
+    const result = await client.query(`SELECT * FROM posts`, { live: true, signal: event.signal });
     event.waitUntilNavigate(); // Tell Webflo to keep the connection open until the user navigates away
     return { posts: result.rows };
 }
