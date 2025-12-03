@@ -4,7 +4,9 @@ import { matchRelationSelector, normalizeRelationSelectorArg } from '../entry/ab
 export class SchemaInference {
 
     #searchPath = ['public'];
-    get searchPath() { return this.#searchPath; }
+    get searchPath() {
+        return this.#searchPath;
+    }
 
     #driver;
     #queryHistory = new Map;

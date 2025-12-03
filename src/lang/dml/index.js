@@ -5,5 +5,6 @@ export * from './TA/index.js';
 export { DeleteStmt } from './DeleteStmt.js';
 export { InsertStmt } from './InsertStmt.js';
 export { MYSetStmt } from './MYSetStmt.js';
+export { PGSetStmt } from './PGSetStmt.js';
 export { UpdateStmt } from './UpdateStmt.js';
 export { UpsertStmt } from './UpsertStmt.js';

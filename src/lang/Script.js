@@ -14,11 +14,13 @@ export class Script extends AbstractNodeList {
             'UpdateStmt',
             'DeleteStmt',
             'MYSetStmt',
+            'PGSetStmt',
             'CTE',
             'CreateSchemaStmt',
             'DropSchemaStmt',
             'CreateTableStmt',
             'DropTableStmt',
+            'StdStmt',
         ];
     }
 
@@ -30,10 +32,6 @@ export class Script extends AbstractNodeList {
     /* API */
 
     static async parse(input, options = {}) {
-        if (options.supportStdStmt) {
-            const std = await StdStmt.parse(input);
-            if (std) return new this({ entries: [std] });
-        }
         const tokenStream = await this.toStream(input, options);
         const result = await super.parse(tokenStream, options);
         if (!tokenStream.done && tokenStream.current()) {
@@ -43,6 +41,14 @@ export class Script extends AbstractNodeList {
         }
         return result;
     }
+
+	static async _parseFromRules(tokenStream, syntaxRules, { left, minPrecedence, trail, ...options }, resultAST = {}) {
+        let rulesArray;
+        if (!options.supportStdStmt && (rulesArray = [].concat(syntaxRules)).length === 1 && Array.isArray(rulesArray[0].type) && rulesArray[0].type.includes('StdStmt')) {
+            syntaxRules = { ...rulesArray[0], type: rulesArray[0].type.filter((r) => r !== 'StdStmt') };
+        }
+		return super._parseFromRules(tokenStream, syntaxRules, { left, minPrecedence, trail, ...options }, resultAST);
+	}
 
     stringify(options = {}) { return `${super.stringify(options)};`; }
 }

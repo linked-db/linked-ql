@@ -35,7 +35,7 @@ export class NamespaceRef extends AbstractClassicRef {
             if (deepMatchCallback && !(result = deepMatchCallback(namespaceSchema))) return false;
             if (result instanceof AbstractNode || Array.isArray(result)) return result;
 
-            const resolvedNamespaceRef1 = ColumnRef2.fromJSON({
+            const resolvedNamespaceRef1 = registry.ColumnRef2.fromJSON({
                 ...namespaceSchema.name().jsonfy({ nodeNames: false }),
                 result_schema: namespaceSchema
             });

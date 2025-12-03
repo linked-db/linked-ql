@@ -83,6 +83,8 @@ export class QueryEngine extends SimpleEmitter {
         let returnValue;
         for (let stmtNode of (scriptNode instanceof registry.Script && scriptNode || [scriptNode])) {
             switch (stmtNode.NODE_NAME) {
+                // CONFIG
+                case 'PG_SET_STMT': returnValue = await this.#evaluatePG_SET_STMT(stmtNode, queryCtx); break;
                 // DDL
                 case 'CREATE_SCHEMA_STMT': returnValue = await this.#evaluateCREATE_SCHEMA_STMT(stmtNode, queryCtx); break;
                 case 'ALTER_SCHEMA_STMT': returnValue = await this.#evaluateALTER_SCHEMA_STMT(stmtNode, queryCtx); break;
@@ -101,10 +103,26 @@ export class QueryEngine extends SimpleEmitter {
                 case 'BASIC_SELECT_STMT':
                 case 'COMPLETE_SELECT_STMT': returnValue = await this.#evaluateSELECT_STMT(stmtNode, queryCtx); break;
                 case 'COMPOSITE_SELECT_STMT': returnValue = await this.#evaluateCOMPOSITE_SELECT_STMT(stmtNode, queryCtx); break;
+                // STD_STMT
+                case 'STD_STMT': console.error(`Not supported yet in the in-memory StorageEngine: ${stmtNode.stringify()}`); break;
+                // Throw
                 default: throw new Error(`Unknown statement type: ${stmtNode.NODE_NAME}`);
             }
         }
         return returnValue;
+    }
+
+    // -------- CONFIG
+
+    async #evaluatePG_SET_STMT(stmtNode, queryCtx) {
+        const scopeKW = stmtNode.scopeKW();
+        const left = stmtNode.left()?.toLowerCase();
+        const right = stmtNode.right();
+        if (left === 'search_path') {
+            const searchPath = right.map((r) => r.value());
+            this.#storageEngine.setSearchPath(...searchPath);
+            return true;
+        }
     }
 
     // -------- DDL

@@ -4,26 +4,34 @@ import { StorageNamespace } from './StorageNamespace.js';
 
 export class StorageEngine extends SimpleEmitter {
 
-    #defaultNamespace;
+    #searchPath;
     #options;
 
     #catalog = new Map;
     #init;
 
-    get defaultNamespace() { return this.#defaultNamespace; }
+    get defaultNamespace() { return this.#searchPath[0]; }
     get options() { return this.#options; }
 
     constructor({
-        defaultNamespace = 'public',
+        searchPath = ['public'],
         ...options
     } = {}) {
         super();
-        this.#defaultNamespace = defaultNamespace;
+        this.#searchPath = [].concat(searchPath || []);
         this.#options = options;
 
-        if (defaultNamespace) {
-            this.#init = this.createNamespace(defaultNamespace, { ifNotExists: true });
+        if (this.defaultNamespace) {
+            this.#init = this.createNamespace(this.defaultNamespace, { ifNotExists: true });
         }
+    }
+
+    async setSearchPath(...searchPath) {
+        this.#searchPath = searchPath;
+    }
+
+    async getSearchPath() {
+        return this.#searchPath.slice();
     }
 
     async startTransaction(txIdPrefix = '~tx') {

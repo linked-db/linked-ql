@@ -213,7 +213,7 @@ export class AbstractSQLClient extends AbstractClient {
                 };
 
                 break;
-            
+
             default: throw new Error(`Invalid query input`);
         }
 
@@ -270,12 +270,21 @@ export class AbstractSQLClient extends AbstractClient {
         // Parsing...
         if (!(query instanceof AbstractNode)) {
             query = await this.parse(query, options);
-        } else if (!(query instanceof registry.Script) && !(query instanceof AbstractStmt)) {
+        } else if (!(query instanceof registry.Script)
+            && !(query instanceof AbstractStmt)
+            && !(query instanceof registry.MYSetStmt)
+            && !(query instanceof registry.PGSetStmt)) {
             throw new TypeError('query must be a string or an instance of Script | AbstractStmt');
         }
         if (query instanceof registry.Script && query.length === 1) {
             query = query.entries()[0];
         }
+
+        // Return if query is a set statement or a standard statement
+        if (query instanceof registry.MYSetStmt
+            || query instanceof registry.PGSetStmt
+            || query instanceof registry.StdStmt
+        ) return query;
 
         // Determine by heuristics if desugaring needed
         if ((query instanceof registry.DDLStmt && !query.returningClause?.()) // Desugaring not applicable
@@ -286,6 +295,10 @@ export class AbstractSQLClient extends AbstractClient {
         const relationSelector = {};
         let anyFound = false;
         query.walkTree((v, k, scope) => {
+            if (v instanceof registry.MYSetStmt
+                || v instanceof registry.PGSetStmt
+                || v instanceof registry.StdStmt
+            ) return;
             if (v instanceof registry.DDLStmt
                 && !v.returningClause?.()) return;
             if (v instanceof registry.CTEItem) {

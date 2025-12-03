@@ -1,4 +1,5 @@
 import { AbstractStmt } from './abstracts/AbstractStmt.js';
+import { TokenStream } from './TokenStream.js';
 
 export class StdStmt extends AbstractStmt {
 
@@ -25,8 +26,37 @@ export class StdStmt extends AbstractStmt {
     sql() { return this._get('sql'); }
 
     static async parse(sql, options = {}) {
-        if (typeof sql !== 'string'
-            || /^(\((\s+)?)?(WITH|TABLE|SELECT|DELETE|INSERT|UPDATE|UPSERT|CREATE|DROP)\s+/i.test(sql.trimStart())) return;
+        const test = (sql) => (typeof sql === 'string'
+            && !/^(\((\s+)?)?(WITH|TABLE|SELECT|DELETE|INSERT|UPDATE|UPSERT|CREATE|DROP|SET)\s+/i.test(sql.trimStart()));
+        
+        if (sql instanceof TokenStream) {
+            const _sql = [];
+
+            if (sql.current()) {
+                if (!test(sql.current().value)) return;
+                _sql.push(sql.current().value);
+            }
+
+            await (async function render(tokenStream) {
+                for await (const tok of tokenStream) {
+                    if (tok.spaceBefore) _sql.push(tok.spaceBefore);
+                    if (tok.value instanceof TokenStream) {
+                        const tag = tok.type === 'bracket_block' ? ['{', '}'] : (
+                            tok.type === 'bracket_block' ? ['[', ']'] : ['(', ')']
+                        );
+                        _sql.push(tag[0]);
+                        await render(tok.value);
+                        _sql.push(tag[1]);
+                    } else _sql.push(tok.value);
+                    if (tok.value === ';') break;
+                }
+            })(sql);
+
+            sql = _sql.join('');
+        }
+
+        if (!sql || !test(sql)) return;
+
         return new this({ sql }, { ...options });
     }
 

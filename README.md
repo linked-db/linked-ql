@@ -35,7 +35,7 @@ LinkedQL solves **reactivity, relationships, JSON, schemas, embedding, federatio
 
 > [!IMPORTANT]
 > 🚀 **LinkedQL is in active development and evolving daily.** Current status = **alpha**.<br>
-> You’re welcome to experiment, but it’s not yet suited for production workloads.
+> You’re welcome to experiment, but it’s not yet suited for production apps.
 
 ---
 
@@ -79,9 +79,9 @@ import { FlashQL } from '@linked-db/linked-ql/flashql';
 
 const client = new FlashQL();
 
+await client.query(`CREATE TABLE users (id INT PRIMARY KEY, name TEXT)`);
 const result = await client.query(`
-  CREATE TABLE users (id SERIAL PRIMARY KEY, name TEXT);
-  INSERT INTO users (name) VALUES ('Ada'), ('Linus');
+  INSERT INTO users (id, name) VALUES (1, 'Ada'), (2, 'Linus');
   SELECT * FROM users;
 `);
 

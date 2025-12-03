@@ -101,7 +101,7 @@ export class TableStorage extends SimpleEmitter {
             for (const colSchema of this.#columns) {
                 const colName = colSchema.name().value();
 
-                const autoIncr = colSchema.identityConstraint() || colSchema.autoIncrementConstraint();
+                const autoIncr = colSchema.identityConstraint() || colSchema.dataType().value() === 'SERIAL' || colSchema.autoIncrementConstraint();
                 const isPKey = this.#keyColumns.includes(colName);
 
                 let v = row[colName];

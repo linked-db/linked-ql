@@ -9,6 +9,18 @@ export class DataType extends AbstractNode {
         return [
             {
                 syntaxes: [
+                    [
+                        { type: 'data_type', as: '.', value: ['TIME', 'TIMESTAMP'], dialect: 'postgres' },
+                        { type: 'data_type', as: '.', value: ['TIME', 'TIMESTAMP', 'DATETIME'], dialect: 'mysql' },
+                        {
+                            optional: true,
+                            dialect: 'postgres',
+                            syntax: [
+                                { type: 'keyword', as: 'pg_with_tz', value: ['WITH', 'WITHOUT'] },
+                                { type: 'keyword', value: 'TIME ZONE', assert: true },
+                            ]
+                        }
+                    ],
                     { type: 'data_type', as: '.' },
                     { type: 'keyword', as: '.', value: ['SET'] },
                 ]
@@ -33,4 +45,6 @@ export class DataType extends AbstractNode {
     // -- Postgres
 
     pgIsAggr() { return this._get('pg_is_aggr'); }
+
+    pgWithTZ() { return this._get('pg_with_tz'); }
 }

@@ -65,7 +65,7 @@ describe('StorageEngine - Basic CRUD', () => {
 
     describe('SCHEMA', () => {
         it('should create basic table namespace', async () => {
-            storageEngine = new StorageEngine({ defaultNamespace: 'lq_test_public' });
+            storageEngine = new StorageEngine({ searchPath: ['lq_test_public'] });
             lq_test_public = await storageEngine.getNamespace('lq_test_public');
 
             tbl1 = await lq_test_public.createTable('tbl1');
@@ -139,8 +139,8 @@ describe('StorageEngine - Basic CRUD', () => {
     });
 });
 
-const createClient = async (defaultNamespace = undefined, otherOptions = {}) => {
-    const client = new FlashQL({ defaultNamespace, ...otherOptions });
+const createClient = async (searchPath = undefined, otherOptions = {}) => {
+    const client = new FlashQL({ searchPath, ...otherOptions });
     await client.connect();
     return client;
 };

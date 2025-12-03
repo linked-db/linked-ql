@@ -17,12 +17,7 @@ export class ConfigAssignmentExprAlt2 extends BinaryExpr {
                 optional: true,
                 syntax: [
                     { type: 'operator', as: 'operator', value: '=' },
-                    {
-                        syntaxes: [
-                            { type: 'Expr', as: 'right' },
-                            { type: 'keyword', as: 'right' },
-                        ],
-                    },
+                    { type: ['Expr', 'KW'], as: 'right' },
                 ],
             }
         ];
