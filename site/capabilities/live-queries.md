@@ -13,8 +13,6 @@ You get back a *live view* of your query — in realtime.
 Live queries are a first-class concept in LinkedQL.
 They happen over the same `client.query()` API.
 
-The `client.query()` method simply additionally supports an `options.live` parameter for `SELECT` queries:
-
 ```js
 const result = await client.query(`SELECT * FROM posts`, { live: true });
 ```
@@ -28,7 +26,7 @@ console.table(result.rows);
 console.log(result.rows.length); // 4
 ```
 
-…but live:
+…but live and in sync with the underlying database tables:
 
 ```sql
 INSERT INTO posts (title) VALUES ('Post A');
@@ -39,7 +37,7 @@ console.table(result.rows);
 console.log(result.rows.length); // 5
 ```
 
-`result.rows` will grow, shrink, and mutate to reflect the latest truth of the query as changes happen to the underlying database. This applies to any SQL query — joins, aggregates, subqueries, even derived tables.
+`result.rows` will grow, shrink, and mutate to reflect the latest truth of the query as changes happen to the underlying database. This holds even with joins, aggregates, subqueries, derived tables, etc.
 
 Live mode can be stopped explicitly:
 
