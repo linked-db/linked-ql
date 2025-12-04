@@ -13,7 +13,7 @@ You get back a *live view* of your query — in realtime.
 Live queries are a first-class concept in LinkedQL.
 They happen over the same `client.query()` API.
 
-The `.query()` method does what you expect. But for a `SELECT` query, it also works in **live mode**:
+The `client.query()` method simply additionally supports an `options.live` parameter for `SELECT` queries:
 
 ```js
 const result = await client.query(`SELECT * FROM posts`, { live: true });
@@ -153,7 +153,7 @@ Essentially, LinkedQL extends reactivity to the full semantic surface of `SELECT
 
 ## Live Views in Detail
 
-`result.rows` is a self-updating array of objects — each element reflecting a row in real time.
+`result.rows` is a self-updating array of objects — each result row in the array reflecting the database in real time.
 
 For a query like the below:
 
@@ -194,7 +194,7 @@ UPDATE posts SET title = 'Hello Again' WHERE title = 'Hello World';
 [A, B, C^, D, E] // C updated
 ```
 
-When a row is deleted in the database, the corresponding row in the view disappears:
+When a row is deleted in the database, the corresponding row in the view leaves the view:
 
 ```sql
 DELETE FROM posts WHERE title = 'Hello Again';
@@ -218,19 +218,18 @@ const result = await client.query(
 );
 ```
 
-Database-level mutations — `INSERT`, `UPDATE`, or `DELETE` — on either side of a join can affect the **join relationship** itself.<br>
-A right-hand or left-hand side that once matched may suddenly match no more, or the reverse may be the case.
+Database-level mutations — `INSERT`, `UPDATE`, or `DELETE` — have a deeper semantic effect in the view. Given that rows are composed of data from multiple tables, each row in the view has to obey the join semantics as mutations happen on any of the underlying tables. A right-hand or left-hand side of a join that once matched may suddenly match no more, and the reverse may be the case.
 
 This means the result of an event like `INSERT` or `DELETE` may not always mean “add”, or “remove”, a row in the view.
-It might instead mean: *a row has transited from "no matching right-hand side" to "fully materialized"*, or the reverse.<br>
-This is **Join Transition**.
+It might instead mean: *a row has transited from "no matching right-hand side" to "a fully materialized join"*, or the reverse.<br>
+This is treated in LinkedQL as **Join Transition**.
 
-Join transitions would normally be observed as a "delete" + "add" effect — existing composition dissolves and a new one emerges.
+If interpreted naively, join transitions would be observed as a "delete" + "add" effect — that is, the existing composition dissolves and a new one emerges.
 But LinkedQL is designed to detect these phenomena and properly communicate them as **in-place updates**, preserving continuity and identity.
 
 Observers see an in-place update, not a *teardown + recreate* sequence:
 
-#### Example 1 — `INSERT` causes a join to materialize
+#### Scenario 1 — An `INSERT` causes a join to materialize
 
 ```sql
 INSERT INTO users (id, name) VALUES (42, 'Ada');
@@ -244,7 +243,7 @@ INSERT INTO users (id, name) VALUES (42, 'Ada');
 └──────────────────────────────────────────────────────────────┘
 ```
 
-#### Example 2 — `UPDATE` changes the join relationship
+#### Scenario 2 — An `UPDATE` changes the join relationship
 
 ```sql
 UPDATE posts SET author_id = 42 WHERE title = 'Untitled';
@@ -258,7 +257,7 @@ UPDATE posts SET author_id = 42 WHERE title = 'Untitled';
 └───────────────────────────────────────────────────────────────┘
 ```
 
-#### Example 3 — `DELETE` dissolves the join
+#### Scenario 3 — A `DELETE` dissolves the join
 
 ```sql
 DELETE FROM users WHERE id = 42;
@@ -272,14 +271,11 @@ DELETE FROM users WHERE id = 42;
 └──────────────────────────────────────────────────────────────┘
 ```
 
-*Overal:* identity persists.
-
-Essentially, LinkedQL interprets database mutations through the lens of query semantics —
-thus, join compositions remain continuous relationships over time.
+*Overal:* identity persists. The view stays true the join relationships without letting the underlying mutaions leak into the view.
 
 ### Frames and Ordinality
 
-Queries that have ordering, limits, or offsets applied are materialized with the semantics of each modifier automatically maintained in the view.
+Queries that have ordering, limits, or offsets applied materialize in the view with the semantics of each modifier fully maintained.
 
 ```js
 const top5 = (await client.query(
@@ -299,13 +295,13 @@ Initially:
 [A, B, C, D, E] // initial result
 ```
 
-Then on "_`INSERT` a new row `N`_":
+Then on "_`INSERT`ing a new row `N`_":
 
 ```text
 [N, A, B, C, D]   // N enters the view; E falls off because it’s now #6
 ```
 
-Then on "_`UPDATE` a post’s `created_at`_":
+Then on "_`UPDATE`ing a post’s `created_at` field and promoting it one step higher in the list_":
 
 ```text
 [N, A, C, B, D]   // C and B swap places without initiating a full re-ordering
@@ -315,9 +311,7 @@ Essentially, ordering and slicing remain stable relationships — they evolve as
 
 ### Precision and Granularity
 
-Live updates apply the smallest possible change needed to keep the view correct. This reflects a key design goal in LinkedQL: precision and granularity.
-
-This guarantees two things:
+Live updates apply the smallest possible change needed to keep the view correct. This is a key design goal in LinkedQL.
 
 **(a) Field-level updates**
 
@@ -349,7 +343,7 @@ After:  [A, C, B, D, E]
 
 **Why that matters:**
 
-Precision and granularity help keep costs low across consumers bound to the view. When rendering on the UI, for example:
+Precision and granularity keeps the system – all the way to the consumers bound to the view – highly efficient. When rendering on the UI, for example:
 
 * The UI maintains state, avoids unnecessary rerenders, and never flickers.
 * Components keyed by row identity keep their state.
@@ -361,7 +355,7 @@ Live views are not just auto-updating — they are also **observable**.
 
 LinkedQL exposes them through the [Observer API](https://github.com/webqit/observer). Observer is a general-purpose JavaScript API for observing object and array-level mutations.
 
-You pass a callback to observe root-level changes — which, for `result.rows`, would mean row additions and deletions:
+This makes `result.rows` observable like any object.
 
 ```js
 Observer.observe(result.rows, (mutations) => {
@@ -369,7 +363,9 @@ Observer.observe(result.rows, (mutations) => {
 });
 ```
 
-To go deeper and observe field-level changes, you use the `Observer.subtree()` directive:
+You pass a callback, as shown above, to observe root-level changes — which, for `result.rows`, would mean row additions and deletions:
+
+You observe field-level changes by adding the `Observer.subtree()` directive:
 
 ```js
 Observer.observe(result.rows, Observer.subtree(), (mutations) => {
@@ -377,7 +373,7 @@ Observer.observe(result.rows, Observer.subtree(), (mutations) => {
 });
 ```
 
-Observer guarantees that events are delivered with the atomicity of the underlying database transactions. In other words, all mutations that happen inside a single database transaction arrive together in one callback turn.
+LinkedQL leverages Observer's batching feature to preserve the atomicity of the database transactions behind the emitted events. It guarantees that all mutations that happen inside a single database transaction arrive together in one callback turn.
 
 For example:
 
@@ -403,15 +399,15 @@ Observer.observe(result.rows, Observer.subtree(), (mutations) => {
 });
 ```
 
-Essentially, you never see half a transaction.
+Essentially, transactions aren't torn across multiple emissions.
 
 ### Live Bindings
 
 LinkedQL’s live views are ordinary JavaScript objects and arrays. They simply happen to mutate over time as the database changes.
 
-And here’s how that plays out across runtimes: because they use the [Observer API](https://github.com/webqit/observer) protocol, you get automatic binding and mutation-based reactivity across contexts or runtimes where mutations are a first-class concept.
+Those mutations themselves are the basis for reactivity in the design. Because they happen via the [Observer API](https://github.com/webqit/observer) protocol, you get automatic binding and mutation-based reactivity across contexts or runtimes where mutations are a first-class concept.
 
-For example, with the[ Webflo framework](https://github.com/webqit/webflo)’s *[live response](https://webflo.netlify.app/docs/concepts/realtime#live-responses)* capability, `result.rows` — like any object — can be returned from a route, with reactivity preserved over the wire.
+For example, with the[ Webflo framework](https://github.com/webqit/webflo)’s *[live response](https://webflo.netlify.app/docs/concepts/realtime#live-responses)* capability, `result.rows` — like any object — can be returned from a route as live response, with reactivity preserved over the wire.
 
 ```js
 export default async function(event) {
@@ -421,7 +417,7 @@ export default async function(event) {
 }
 ```
 
-That object materializes on the client-side as the same live object, accessible via `document.bindings.data`:
+That object materializes in the client as the same live object, which in Webflo is accessible via `document.bindings.data`:
 
 ```html
 <script src="https://unpkg.com/@webqit/observer/main.js"></script>
@@ -433,14 +429,17 @@ Observer.observe(data, console.log);
 </script>
 ```
 
-If the goal is to render, that, too, comes automatic: [OOHTML](https://github.com/webqit/oohtml) gives you automatic data-binding over arbitrary objects and arrays — without a compile step:
+These live objects automatically bind to UI in any mutation-based data-binding framework like [OOHTML](https://github.com/webqit/oohtml). OOHTML is an addition to the DOM that brings mutation-based reactivity to the UI — without a compile step:
 
 ```html
 <script src="https://unpkg.com/@webqit/oohtml/dist/main.lite.js"></script>
 <div><?{ data.list.length }?></div>
 ```
 
-The UI updates as posts are added or removed — with no glue code. (List rendering has been omitted here for brevity. Try updating the posts table from a terminal to see the UI update the total count.)
+The UI in this example updates as posts are added or removed — with no glue code. (List rendering has been omitted here for brevity.)
+
+> [!TIP]
+> Try updating the posts table from a terminal to see the UI update the total count.
 
 Essentially, with the Observer protocol as the shared vocabulary of change, continuity stays intact from database to DOM. Each layer in the chain — LinkedQL → Webflo → OOHTML — simply makes or reacts to mutations.
 
@@ -453,12 +452,12 @@ That event stream is made of three event types:
 
 | Event    | Meaning                                                            |
 | :------- | :----------------------------------------------------------------- |
-| `result` | A full snapshot of the query result.                               |
+| `result` | A full snapshot of the query result – for when diffrential updates aren't feasible for the qiven query – typically queries with aggregates.                               |
 | `diff`   | Incremental inserts, updates, and deletes.                         |
 | `swap`   | Positional swaps that satisfy an `ORDER BY` clause                 |
 
 You can subscribe to these events directly and maintain your own state store.
-This is useful if you’re building a custom cache, animation layer, or replication layer.
+This is useful if you’re building a custom cache, or replication layer.
 
 ```js
 // Get a handle to the live query
@@ -536,11 +535,11 @@ That logic is **conceptually** what the built-in [`RealtimeResult`](../docs/quer
 * preserves ordering and LIMIT/OFFSET semantics;
 * exposes the final live state as `result.rows`.
 
-Compared to the default live view concept, custom event handling sits closer to the wire — meant for systems that need explicit control, like caches or replication layers.
+Compared to the default live view concept, custom event handling sits closer to the wire.
 
 ## Query Inheritance
 
-Live queries are efficient because LinkedQL does not treat each subscription as an isolated process.
+Live queries are highly efficient because LinkedQL does not treat each subscription as an isolated process.
 Instead, LinkedQL groups overlapping queries into a shared structure called a **query inheritance tree**.
 
 Example:
