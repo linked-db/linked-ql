@@ -29,7 +29,7 @@ await client.disconnect();
 
 ### Client Options
 
-`PGClient` can be configured via a few options, **including all options supported by `node-postgres`**.
+`PGClient` supports **all options supported by `node-postgres`**, including the following.
 
 | Option     | Type      | Default | Description                                                  |
 | :--------- | :-------- | :------ | :----------------------------------------------------------- |
@@ -74,7 +74,7 @@ await client.disconnect();
 
 ### Client Options
 
-`MySQLClient` can be configured via a few options, **including all options supported by `mysql2`**.
+`MySQLClient` supports **all options supported by `mysql2`**, including the following.
 
 | Option     | Type      | Default | Description                                                                            |
 | :--------- | :-------- | :------ | :------------------------------------------------------------------------------------- |
@@ -108,11 +108,7 @@ await client.disconnect();
 
 ### Client Options
 
-`MariaDBClient` accepts all options supported by `mariadb`.
-
-| Option                 | Type | Default    | Description                                           |
-| :--------------------- | :--- | :--------- | :---------------------------------------------------- |
-| - | —    | —          | - |
+`MariaDBClient` supports **all options supported by `mariadb`**.
 
 ::: tip Auto Pooling
 MariaDBClient always runs on a connection pool.
@@ -124,7 +120,7 @@ _Live Queries for MariaDB **coming soon**._
 
 ## FlashQL
 
-Use as an in place of SQLite, PGLite, and similar. Speaks both MySQL and PostgreSQL.
+Use in place of SQLite, PGLite, and similar. Speaks both MySQL and PostgreSQL.
 
 ```js
 import { FlashQL } from '@linked-db/linked-ql/flashql';
