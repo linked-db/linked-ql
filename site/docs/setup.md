@@ -6,7 +6,7 @@ For **PostgreSQL**, **MySQL**, and **MariaDB**, LinkedQL integrates directly wit
 
 ## PostgreSQL
 
-Use as a drop-in replacement for [`node-postgres`](https://www.npmjs.com/package/pg). Speaks native **PostgreSQL**.
+Use as a drop-in replacement for [`node-postgres`](https://www.npmjs.com/package/pg).
 
 ```js
 import { PGClient } from '@linked-db/linked-ql/postgres';
@@ -29,11 +29,10 @@ await client.disconnect();
 
 ### Client Options
 
-`PGClient` can be configured via a few options, including all options supported by `node-postgres`.
+`PGClient` can be configured via a few options, **including all options supported by `node-postgres`**.
 
 | Option     | Type      | Default | Description                                                  |
 | :--------- | :-------- | :------ | :----------------------------------------------------------- |
-| *(all native options)* | —    | —          | Fully compatible with `node-postgres` driver configuration. |
 | `poolMode` | `boolean` | `false` | When `true`, uses `pg.Pool`; when `false`, uses `pg.Client`. |
 
 ### Realtime Setup
@@ -43,7 +42,7 @@ LinkedQL’s realtime behavior can be tuned via:
 | Option               | Type                 | Default                          | Description                                                                                                                                                        |
 | :------------------- | :------------------- | :------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `walSlotName`        | `string`             | `'linkedql_default_slot'`        | Logical replication slot name used for change streaming.                                                                                                           |
-| `walSlotPersistence` | `0 \| 1 \| 2`        | `1`                              | Slot lifecycle policy:<br>`0` — ephemeral, managed by PostgreSQL;<br>`1` — ephemeral, managed by LinkedQL;<br>`2` — persistent, assumes external/admin management. |
+| `walSlotPersistence` | `0 \| 1`.            | `0`                              | Slot lifecycle policy:<br>`0` — ephemeral, droped by PostgreSQL at end of session;<br>`1` — persistent, dropped/managed by you.                                    |
 | `pgPublications`     | `string \| string[]` | `'linkedql_default_publication'` | Publication name(s) to subscribe to for changes.                                                                                                                   |
 
 ::: warning Logical Replication Required
@@ -53,7 +52,6 @@ To enable **Live Queries**, ensure PostgreSQL [logical replication](https://www.
 ## MySQL
 
 Use in place of [`mysql2`](https://www.npmjs.com/package/mysql2).
-Speaks native **MySQL**.
 
 ```js
 import { MySQLClient } from '@linked-db/linked-ql/mysql';
@@ -76,22 +74,19 @@ await client.disconnect();
 
 ### Client Options
 
-`MySQLClient` can be configured via a few options, including all options supported by `mysql2`.
+`MySQLClient` can be configured via a few options, **including all options supported by `mysql2`**.
 
 | Option     | Type      | Default | Description                                                                            |
 | :--------- | :-------- | :------ | :------------------------------------------------------------------------------------- |
-| *(all native options)* | —    | —          | Fully compatible with `mysql2` driver configuration. |
 | `poolMode` | `boolean` | `false` | When `true`, uses `mysql.createPool()`; when `false`, uses `mysql.createConnection()`. |
 
 ### Realtime Setup
 
-_Live Queries for MySQL is **coming soon**.
-Current client usage is for standard query execution._
+_Live Queries for MySQL **coming soon**._
 
 ## MariaDB
 
-Use in place of [`mariadb`](https://www.npmjs.com/package/mariadb`).
-Speaks native **MariaDB / MySQL**.
+Use in place of [`mariadb`](https://www.npmjs.com/package/mariadb`)/[`mysql2`](https://www.npmjs.com/package/mysql2).
 
 ```js
 import { MariaDBClient } from '@linked-db/linked-ql/mariadb';
@@ -113,11 +108,11 @@ await client.disconnect();
 
 ### Client Options
 
-`MariaDBClient` can be configured via a few options, including all options supported by `mariadb`.
+`MariaDBClient` accepts all options supported by `mariadb`.
 
 | Option                 | Type | Default    | Description                                           |
 | :--------------------- | :--- | :--------- | :---------------------------------------------------- |
-| *(all native options)* | —    | —          | Fully compatible with `mariadb` driver configuration. |
+| - | —    | —          | - |
 
 ::: tip Auto Pooling
 MariaDBClient always runs on a connection pool.
@@ -125,13 +120,11 @@ MariaDBClient always runs on a connection pool.
 
 ### Realtime Setup
 
-_Live Queries for MariaDB is **coming soon**.
-Current client usage is for standard query execution._
+_Live Queries for MariaDB **coming soon**._
 
 ## FlashQL
 
-Use as an in-memory alternative to engines like SQLite or PGLite.
-Provides an embeddable SQL runtime and supports multiple dialects.
+Use as an in place of SQLite, PGLite, and similar. Speaks both MySQL and PostgreSQL.
 
 ```js
 import { FlashQL } from '@linked-db/linked-ql/flashql';
