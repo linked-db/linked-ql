@@ -7,13 +7,13 @@
   <b>Oxford Harrison</b> — <span>November 2025</span>
 </div>
 
----
+The Realtime Engine is the core of LinkedQL’s [live queries](/capabilities/live-queries). It is **an *in-memory* compute + cache layer** that operates between storage and application code, responsible for converting storage-level mutations — WAL, binlog, or in-memory emitters — into logical change streams that materialize as live result sets in an application.
 
-The Realtime Engine is the core of LinkedQL’s [live queries](/capabilities/live-queries). It is **an _in-memory_ compute + cache layer** that lies between the storage layer and the application layer, transforming storage-level mutations — from WAL, binlog, or in-memory emitters — into logical events that materialize as live state, extending SQL’s reach from static queries to fully “live” queries.
+Most existing “live query” approaches are either non-SQL in design or too narrow in implementation scope. Systems such as **PGLite** enable live queries through a local-first database architecture where a local database replicates a portion of a mainstream database and serves as the execution context for live queries. While this is a valid and effective strategy, it introduces a **strong architectural constraint**. Reactivity depends on a special deployment topology, and live queries become a feature of a *local database*, rather than of SQL databases in general.
 
-Unlike replica-based "live query" solutions, like PGLite, that operate only against local databases or materialized stores, the engine is designed to operate seamlessly across storage backends — from local databases to traditional databases such as PostgreSQL and MySQL — allowing both to participate equally in the "realtime" space. LinkedQL thus brings reactivity into the realms of traditional SQL databases, erasing the local/remote distinction and making live queries a universal concept across storage backends.
+LinkedQL’s goal is to make reactivity a **universal capability of SQL databases** — across mainstream PostgreSQL and MySQL/MariaDB, as well as local and in-memory databases. This means designing to operate within the constraints of server-class database systems, including replication semantics, latency, shared compute, and limited change streams. **Embrace these constraints** in design is the significance of the LinkedQL realtime engine.
 
-This paper describes the engineering behind this design — from change detection and normalization to live, observable objects that self-update in real time.
+This paper focuses on the cost surface that emerges from that decision — and why conventional subscription-per-query models fail to scale when live SQL is applied directly to general-purpose databases.
 
 ---
 
@@ -27,9 +27,9 @@ This paper describes the engineering behind this design — from change detectio
 
 ### Introduction
 
-A fundamental inefficiency in reactive data systems is duplication of work across overlapping subscriptions. Traditional realtime architectures fulfill each subscription in isolation — maintaining its own feed, evaluating its own filters, and reconstructing the same result sets as its peers. The model is conceptually simple but operationally costly. Even a small variation in a subscription — such as an added predicate or ordering clause — becomes a full-fledged change stream.
+A fundamental inefficiency in reactive data systems is the duplication of work across overlapping subscriptions. Traditional realtime architectures treat each subscription as an isolated unit: each maintaining its own change feed, evaluating its own predicates, and reconstructing result sets as its peers. The model is conceptually simple, but operationally expensive. Even a minor variation in a new subscription — such as an additional predicate or a different ordering clause — forces a full-fledged computation pipeline.
 
-For LinkedQL's design goals: to enable reactivity over any database model — mainstream Postgres, MySQL/MariaDB, as well as client-side/local variants – cost is a critical consideration. Particulrly, the server realm presents compute, latency and network constraints that must be properly managed, given a system where *certain* subscriptions must be re-issued in response to upstream DB changes. Following the tradition subscription model over mainstream databases would quickly lead to high load and congestion as can be seen in two ways.
+For LinkedQL’s design goals — which extends reactivity to mainstream databases — cost is a critical consideration. Certain subscriptions will require re-querying as part of an internal strategy to maintain their result sets. Working this way with the traditional subscription model – over a mainstream database – would quickly lead to elevated load and perromance bottlenecks as can be seen in two ways.
 
 #### Linear Fan-Out (The Common Case)
 
