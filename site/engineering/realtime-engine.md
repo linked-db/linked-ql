@@ -9,11 +9,11 @@
 
 ---
 
-The Realtime Engine is the core of LinkedQL’s [live queries](/capabilities/live-queries). It lies between the storage layer and the application layer, transforming storage-level mutations — from WAL, binlog, or in-memory emitters — into logical events that materialize as live state, extending SQL’s reach from static queries to fully “live” queries.
+The Realtime Engine is the core of LinkedQL’s [live queries](/capabilities/live-queries). It is **an in-memory "compute + cache" layer** that lies between the storage layer and the application layer, transforming storage-level mutations — from WAL, binlog, or in-memory emitters — into logical events that materialize as live state, extending SQL’s reach from static queries to fully “live” queries.
 
-Unlike replica-based architectures that operate only against local databases or materialized stores, the engine is designed to operate seamlessly across storage backends — from local databases to traditional databases such as PostgreSQL and MySQL — allowing both to participate equally in the "realtime" world. LinkedQL thus brings reactivity into the realms of traditional SQL databases, erasing the local/remote distinction and making live queries a universal concept across storage backends.
+Unlike replica-based architectures that operate only against local databases or materialized stores, the engine is designed to operate seamlessly across storage backends — from local databases to traditional databases such as PostgreSQL and MySQL — allowing both to participate equally in the "realtime" space. LinkedQL thus brings reactivity into the realms of traditional SQL databases, erasing the local/remote distinction and making live queries a universal concept across storage backends.
 
-This paper describes the engineering behind this design — from change detection and normalization to live, observable objects that self-update in realtime.
+This paper describes the engineering behind this design — from change detection and normalization to live, observable objects that self-update in real time.
 
 ---
 
@@ -27,9 +27,9 @@ This paper describes the engineering behind this design — from change detectio
 
 ### Introduction
 
-A fundamental inefficiency in reactive data systems is duplication of work across overlapping subscriptions. Traditional realtime architectures fulfill each subscription in isolation — maintaining its own feed, evaluating its own filters, and reconstructing the same result sets as its peers. The model is conceptually simple but operationally costly. Even a small variation in a subscription — such as an added predicate or ordering clause — can trigger an entirely new reactive process.
+A fundamental inefficiency in reactive data systems is duplication of work across overlapping subscriptions. Traditional realtime architectures fulfill each subscription in isolation — maintaining its own feed, evaluating its own filters, and reconstructing the same result sets as its peers. The model is conceptually simple but operationally costly. Even a small variation in a subscription — such as an added predicate or ordering clause — becomes a full-fledged change stream.
 
-This becomes an especially critical concern for LinkedQL's design goals: to solve reactivity in SQL at the SQL level — Postgres, MySQL/MariaDB — rather than *just* at the client/local level (as with, e.g., PGLite). The server-first realm presents compute, latency and network costs challenges because the system will often need to re-issue subscribed queries in response to upstream DB changes. The cost of the traditional approach grows quickly as may be seen in two ways.
+For LinkedQL's design goals: to enable reactivity over any database model — mainstream Postgres, MySQL/MariaDB, as well as client-side/local variants – cost is a critical consideration. Particulrly, the server realm presents compute, latency and network constraints that must be properly managed, given a system where *certain* subscriptions must be re-issued in response to upstream DB changes. Following the tradition subscription model over mainstream databases would quickly lead to high load and congestion as can be seen in two ways.
 
 #### Linear Fan-Out (The Common Case)
 
