@@ -9,11 +9,11 @@
 
 The Realtime Engine is the core of LinkedQL’s [live queries](/capabilities/live-queries). It is **an *in-memory* compute + cache layer** that operates between storage and application code, responsible for converting storage-level mutations — WAL, binlog, or in-memory emitters — into logical change streams that materialize as live result sets in an application.
 
-Most existing “live query” approaches are either non-SQL in design or too narrow in implementation scope. The Live Query model enabled by PGLite, for example, requires a local-first database architecture, where a local database replicates a portion of an upstream database and serves as the execution context for live queries. While this is a valid and effective strategy, it introduces a **strong architectural constraint**. Reactivity depends on a special deployment topology, and live queries become a feature of a *local database*, rather than of SQL databases in general.
+Most existing “live query” approaches are either non-SQL in design or narrow in implementation scope. The live query model enabled by PGLite, for example, requires a local-first database architecture, where a local database replicates a portion of an upstream database and serves as the execution context for live queries. This is a valid and effective strategy, but it introduces a new architectural limitation: reactivity depends on a special deployment topology, and live queries become a feature of a local database, rather than of SQL databases in general.
 
-LinkedQL’s goal is to make reactivity a **universal concept across SQL databases** — mainstream PostgreSQL and MySQL/MariaDB, as well as local and in-memory databases. This means embracing the constraints of server-based database systems, including their strict replication semantics and network latency. Embracing these constraints by design is the significance of the LinkedQL realtime engine.
+LinkedQL’s goal is to make reactivity a **universal concept across SQL databases** — including mainstream PostgreSQL and MySQL/MariaDB, as well as local and in-memory databases. Operating directly over mainstream databases requires embracing constraints such as strict replication semantics and network latency. This design is a key differentiator of the LinkedQL realtime engine.
 
-This paper focuses on the cost surface that emerges from that decision — and why conventional subscription-per-query models fail to scale when live SQL is applied directly to general-purpose databases.
+This paper examines the engineering behind this design — from cost-profile analysis and execution strategies, to event-stream processing and the resulting live result sets.
 
 ---
 
