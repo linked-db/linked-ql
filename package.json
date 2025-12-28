@@ -46,7 +46,6 @@
     "site:preview": "vitepress preview site --port 4173"
   },
   "dependencies": {
-    "@webqit/observer": "^3.8.2",
     "@webqit/util": "^0.8.14",
     "dotenv": "^16.4.5",
     "enquirer": "^2.4.1",
@@ -57,7 +56,11 @@
     "pg-logical-replication": "^2.2.0",
     "yaml": "^2.5.0"
   },
+  "peerDependencies": {
+    "@webqit/observer": "^3.8.16"
+  },
   "devDependencies": {
+    "@webqit/observer": "^3.8.16",
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
     "chalk": "^5.4.1",
