@@ -57,10 +57,10 @@
     "yaml": "^2.5.0"
   },
   "peerDependencies": {
-    "@webqit/observer": "^3.8.16"
+    "@webqit/observer": "^3.8.17"
   },
   "devDependencies": {
-    "@webqit/observer": "^3.8.16",
+    "@webqit/observer": "^3.8.17",
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
     "chalk": "^5.4.1",
