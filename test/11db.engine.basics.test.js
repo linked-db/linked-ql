@@ -3,7 +3,7 @@ import chaiAsPromised from 'chai-as-promised';
 use(chaiAsPromised);
 
 import '../src/lang/index.js';
-import { matchRelationSelector, normalizeRelationSelectorArg } from '../src/entry/abstracts/util.js';
+import { matchRelationSelector, normalizeRelationSelectorArg } from '../src/clients/abstracts/util.js';
 import { StorageEngine } from '../src/flashql/StorageEngine.js';
 import { FlashQL } from '../src/flashql/FlashQL.js';
 import { TableStorage } from '../src/flashql/TableStorage.js';

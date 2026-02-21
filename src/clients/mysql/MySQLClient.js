@@ -1,7 +1,7 @@
 import mysql from 'mysql2/promise';
-import { AbstractSQL0Client } from '../AbstractSQL0Client.js';
+import { Abstract2SQLClient } from '../Abstract2SQLClient.js';
 
-export class MyAbstractSQLClient extends AbstractSQL0Client {
+export class MyAbstract1SQLClient extends Abstract2SQLClient {
 
     #driver;
     #adminDriver;
@@ -64,33 +64,23 @@ export class MyAbstractSQLClient extends AbstractSQL0Client {
         return { rows };
     }
 
-    async _cursor(query, { values = [], batchSize = 1000 } = {}) {
+    async _cursor(query, { values = [] } = {}) {
         const connection = await this.#driver.getConnection();
         const queryStream = connection.queryStream(query, values);
-        const reader = queryStream[Symbol.asyncIterator]();
-        let closed = false;
-        const iterator = {
+
+        return {
             async *[Symbol.asyncIterator]() {
-                let batch = [];
-                while (!closed) {
-                    const { value, done } = await reader.next();
-                    if (done) break;
-                    batch.push(value);
-                    if (batch.length >= batchSize) {
-                        yield* batch;
-                        batch = [];
+                try {
+                    for await (const row of queryStream) {
+                        yield row;
                     }
-                }
-                if (batch.length) yield* batch;
-            },
-            async close() {
-                if (!closed) {
-                    closed = true;
-                    queryStream.destroy();
+                } finally {
+                    if (typeof queryStream.destroy === 'function') {
+                        queryStream.destroy();
+                    }
                     await connection.release();
                 }
-            },
+            }
         };
-        return iterator;
     }
 }

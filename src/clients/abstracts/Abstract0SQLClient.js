@@ -1,24 +1,38 @@
-import { normalizeQueryArgs } from './util.js';
-import { AbstractClient } from './AbstractClient.js';
-import { AbstractNode } from '../../lang/abstracts/AbstractNode.js';
-import { AbstractStmt } from '../../lang/abstracts/AbstractStmt.js';
-import { RealtimeClient } from '../../proc/realtime/RealtimeClient.js';
+import '../../lang/index.js';
+import { SimpleEmitter } from './SimpleEmitter.js';
+import { normalizeRelationSelectorArg } from './util.js';
+import { SchemaInference } from '../../lang/SchemaInference.js';
 import { Transformer } from '../../lang/Transformer.js';
 import { registry } from '../../lang/registry.js';
-import { Result } from '../../entry/Result.js';
 
-export class AbstractSQLClient extends AbstractClient {
+export class Abstract0SQLClient extends SimpleEmitter {
 
-    get dialect() { throw new Error('Not implemented'); }
+    #subscribers = new Map;
 
-    #realtimeClient;
+    #schemaInference;
 
-    get realtimeClient() { return this.#realtimeClient; }
+    #capabilityOverride;
+    #workingCapability;
+
+    get schemaInference() { return this.#schemaInference; }
 
     constructor({ capability = {} } = {}) {
-        super({ capability });
-        this.#realtimeClient = new RealtimeClient(this);
+        super();
+        this.#capabilityOverride = capability;
+        this.#workingCapability = capability;
+        this.#schemaInference = new SchemaInference({ driver: this });
     }
+
+    async connect() {
+        await this._connect();
+    }
+
+    async disconnect() {
+        await this.setCapability({ realtime: false });
+        await this._disconnect();
+    }
+
+    // ---------
 
     async parse(querySpec, { alias = null, dynamicWhereMode = false, ...options } = {}) {
         if (!querySpec) return;
@@ -56,7 +70,7 @@ export class AbstractSQLClient extends AbstractClient {
                 let queryJson = query.jsonfy();
                 const baseExpr = queryJson.where_clause?.expr;
 
-                return (dynamicWhere) => {
+                const dynamicQueryCallback = (dynamicWhere) => {
                     // Rewrite column qualifiers to baseAlias?
                     if (dynamicWhere && alias && baseAlias && alias !== baseAlias) {
                         const transformer = new Transformer((node, defaultTransform) => {
@@ -86,6 +100,12 @@ export class AbstractSQLClient extends AbstractClient {
                         { dialect: options.dialect, assert: true, supportStdStmt: true }
                     ).entries()[0];
                 };
+
+                if (options.dynamicWhere) {
+                    return await dynamicQueryCallback(options.dynamicWhere);
+                }
+
+                return dynamicQueryCallback;
             }
 
             return query;
@@ -231,7 +251,7 @@ export class AbstractSQLClient extends AbstractClient {
             }
 
             if (dynamicWhereMode) {
-                return (dynamicWhere) => {
+                const dynamicQueryCallback = (dynamicWhere) => {
                     // Dummy condition
                     if (!dynamicWhere || dynamicWhere === true) {
                         dynamicWhere = { nodeName: registry.BoolLiteral.NODE_NAME, value: 'TRUE' };
@@ -250,6 +270,12 @@ export class AbstractSQLClient extends AbstractClient {
                         { dialect: options.dialect, assert: true, supportStdStmt: true }
                     ).entries()[0];
                 };
+                
+                if (options.dynamicWhere) {
+                    return await dynamicQueryCallback(options.dynamicWhere);
+                }
+
+                return dynamicQueryCallback;
             }
 
             if (baseExpr) {
@@ -267,91 +293,92 @@ export class AbstractSQLClient extends AbstractClient {
     }
 
     async resolve(query, options = {}) {
-        // Parsing...
-        if (!(query instanceof AbstractNode)) {
-            query = await this.parse(query, options);
-        } else if (!(query instanceof registry.Script)
-            && !(query instanceof AbstractStmt)
-            && !(query instanceof registry.MYSetStmt)
-            && !(query instanceof registry.PGSetStmt)) {
-            throw new TypeError('query must be a string or an instance of Script | AbstractStmt');
-        }
-        if (query instanceof registry.Script && query.length === 1) {
-            query = query.entries()[0];
-        }
-
-        // Return if query is a set statement or a standard statement
-        if (query instanceof registry.MYSetStmt
-            || query instanceof registry.PGSetStmt
-            || query instanceof registry.StdStmt
-        ) return query;
-
-        // Determine by heuristics if desugaring needed
-        if ((query instanceof registry.DDLStmt && !query.returningClause?.()) // Desugaring not applicable
-            || query.originSchemas?.()?.length // Desugaring already done
-        ) return query;
-
-        // Schema inference...
-        const relationSelector = {};
-        let anyFound = false;
-        query.walkTree((v, k, scope) => {
-            if (v instanceof registry.MYSetStmt
-                || v instanceof registry.PGSetStmt
-                || v instanceof registry.StdStmt
-            ) return;
-            if (v instanceof registry.DDLStmt
-                && !v.returningClause?.()) return;
-            if (v instanceof registry.CTEItem) {
-                const alias = v.alias()?._get('delim')
-                    ? v.alias().value()
-                    : v.alias()?.value().toLowerCase();
-                scope.set(alias, true);
-                return v;
-            }
-            if ((!(v instanceof registry.TableRef2) || v.parentNode instanceof registry.ColumnIdent)
-                && (!(v instanceof registry.TableRef1) || v.parentNode instanceof registry.ColumnRef1)) {
-                return v;
-            }
-            const namespaceName = v.qualifier()?._get('delim')
-                ? v.qualifier().value()
-                : v.qualifier()?.value().toLowerCase() || '*';
-            const tableName = v._get('delim')
-                ? v.value()
-                : v.value().toLowerCase();
-            if (namespaceName === '*' && scope.has(tableName)) return;
-            if (!(namespaceName in relationSelector)) {
-                relationSelector[namespaceName] = [];
-            }
-            if (!relationSelector[namespaceName].includes(tableName)) {
-                relationSelector[namespaceName].push(tableName);
-                anyFound = true;
-            }
-        }, true);
-
-        if (anyFound) await this.schemaInference.provide(relationSelector);
-
-        // DeSugaring...
-        return query.deSugar(true, {}, null, this.schemaInference);
+        throw new Error(`resolve() is unimplemented`);
     }
 
     async query(...args) {
-        const [_query, options] = normalizeQueryArgs(...args);
-        const query = await this.resolve(_query, options);
-        // Realtime query?
-        if (options.live && query.fromClause?.()) {
-            return await this.#realtimeClient.query(query, options);
-        }
-        const result = await this._query(query, options);
-        return new Result({ rows: result.rows, rowCount: result.rowCount });
+        throw new Error(`resolve() is unimplemented`);
     }
 
     async cursor(...args) {
-        const [_query, options] = normalizeQueryArgs(...args);
-        const query = await this.resolve(_query, options);
-        return await this._cursor(query, options);
+        throw new Error(`resolve() is unimplemented`);
     }
 
     async showCreate(selector, structured = false) {
-        return await this._showCreate(selector, structured);
+        throw new Error(`resolve() is unimplemented`);
+    }
+
+    async subscribe(selector, callback) {
+        await this.setCapability({ realtime: true });
+
+        if (typeof selector === 'function') {
+            callback = selector;
+            selector = '*';
+        }
+
+        const flattenedSelectorSet = normalizeRelationSelectorArg(selector, true);
+        this.#subscribers.set(callback, flattenedSelectorSet);
+
+        return async () => {
+            this.#subscribers.delete(callback);
+            if (!this.#subscribers.size) {
+                await this.setCapability({ realtime: false });
+            }
+        };
+    }
+
+    async setCapability(capMap) {
+        const _capMap = Object.fromEntries(Object.entries(capMap).filter(([k, v]) => {
+            return !v || this.#capabilityOverride[k] !== false;
+        }));
+        // realtime?
+        if (_capMap.realtime === false) {
+            await this._teardownRealtime();
+        } else if (_capMap.realtime) {
+            await this._setupRealtime();
+        }
+        // Publish...
+        this.#workingCapability = {
+            ...this.#workingCapability,
+            ..._capMap,
+        };
+    }
+
+    // ---------
+
+    _fanout(events) {
+        const eventsAndPatterns = [];
+        const allPatterns = new Set;
+        for (const event of events) {
+            const patterns = [
+                JSON.stringify([event.relation.namespace, event.relation.name]),
+                JSON.stringify(['*', event.relation.name]),
+                JSON.stringify([event.relation.namespace, '*']),
+            ];
+            eventsAndPatterns.push({ event, patterns });
+            allPatterns.add(patterns[0]);
+            allPatterns.add(patterns[1]);
+            allPatterns.add(patterns[2]);
+        }
+        for (const [cb, flattenedSelectorSet] of this.#subscribers.entries()) {
+            let _events = [];
+            // Match and filter
+            for (const pattern of flattenedSelectorSet) {
+                if (pattern === '["*","*"]') {
+                    _events = [...events];
+                    break;
+                } else if (allPatterns.has(pattern)) {
+                    for (const { event, patterns } of eventsAndPatterns) {
+                        if (patterns.includes(pattern)) {
+                            _events.push(event);
+                        }
+                    }
+                    break;
+                }
+            }
+            if (!_events.length) continue;
+            // Successful match
+            cb(_events);
+        }
     }
 }

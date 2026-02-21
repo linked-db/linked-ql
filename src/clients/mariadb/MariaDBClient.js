@@ -1,7 +1,7 @@
 import mariadb from 'mariadb';
-import { AbstractSQL0Client } from '../AbstractSQL0Client.js';
+import { Abstract2SQLClient } from '../Abstract2SQLClient.js';
 
-export class MariaDBClient extends AbstractSQL0Client {
+export class MariaDBClient extends Abstract2SQLClient {
 
     #driver;
     #adminDriver;
@@ -55,15 +55,20 @@ export class MariaDBClient extends AbstractSQL0Client {
     async _cursor(query, { values = [], batchSize = 1000 } = {}) {
         const connection = await this.#driver.getConnection();
         const queryStream = connection.queryStream(query, values, { highWaterMark: batchSize });
-        const iterator = queryStream[Symbol.asyncIterator]();
+
         return {
             async *[Symbol.asyncIterator]() {
-                for await (const row of iterator) yield row;
-            },
-            async close() {
-                queryStream.destroy();
-                connection.release();
-            },
+                try {
+                    for await (const row of queryStream) {
+                        yield row;
+                    }
+                } finally {
+                    if (typeof queryStream.destroy === 'function') {
+                        queryStream.destroy();
+                    }
+                    await connection.release();
+                }
+            }
         };
     }
 }

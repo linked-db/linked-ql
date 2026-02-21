@@ -1,5 +1,4 @@
 import { AbstractNodeList } from './abstracts/AbstractNodeList.js';
-import { StdStmt } from './StdStmt.js';
 
 export class Script extends AbstractNodeList {
 

@@ -29,9 +29,11 @@
   "exports": {
     ".": "./src/flashql/FlashQL.js",
     "./flashql": "./src/flashql/FlashQL.js",
-    "./postgres": "./src/entry/postgres/PGClient.js",
-    "./mysql": "./src/entry/mysql/MySQLClient.js",
-    "./mariadb": "./src/entry/mariadb/MariaDBClient.js",
+    "./edge": "./src/clients/edge/EdgeClient.js",
+    "./edge-worker": "./src/clients/edge/EdgeWorker.js",
+    "./postgres": "./src/clients/postgres/PGClient.js",
+    "./mysql": "./src/clients/mysql/MySQLClient.js",
+    "./mariadb": "./src/clients/mariadb/MariaDBClient.js",
     "./realtime": "./src/proc/realtime/RealtimeClient.js"
   },
   "scripts": {
@@ -57,10 +59,14 @@
     "yaml": "^2.5.0"
   },
   "peerDependencies": {
-    "@webqit/observer": "^3.8.19"
+    "@webqit/fetch-plus": "^0.1.33",
+    "@webqit/observer": "^3.8.19",
+    "@webqit/port-plus": "^0.1.23"
   },
   "devDependencies": {
+    "@webqit/fetch-plus": "^0.1.33",
     "@webqit/observer": "^3.8.19",
+    "@webqit/port-plus": "^0.1.23",
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
     "chalk": "^5.4.1",

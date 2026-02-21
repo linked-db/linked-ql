@@ -11,11 +11,21 @@ export const OriginSchemasMixin = (Class) => class extends Class {
 		if (!inputJson || inputJson instanceof AbstractNode) {
 			return super.fromJSON(inputJson, options, callback);
 		}
-		const { origin_schemas, ...restJson } = inputJson;
+		let { origin_schemas, ...restJson } = inputJson;
 		const instance = super.fromJSON(restJson, options, callback);
 		if (instance && origin_schemas) {
 			if (!Array.isArray(origin_schemas)) {
 				throw new Error(`Invalid list passed at inputJson.origin_schemas`);
+			}
+			if (origin_schemas.length && !(origin_schemas[0] instanceof AbstractNode)) {
+				if (origin_schemas[0]?.nodeName) {
+					origin_schemas = registry.JSONSchema.fromJSON(
+						{ entries: origin_schemas },
+						{ dialect: options.dialect, assert: true }
+					).entries();
+				} else {
+					throw new Error(`Invalid list passed at inputJson.origin_schemas`);
+				}
 			}
 			instance.#origin_schemas = origin_schemas;
 		}

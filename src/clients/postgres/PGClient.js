@@ -1,9 +1,9 @@
 import pg from 'pg';
 import Cursor from 'pg-cursor';
 import { LogicalReplicationService, PgoutputPlugin } from 'pg-logical-replication';
-import { AbstractSQL0Client } from '../abstracts/AbstractSQL0Client.js';
+import { Abstract2SQLClient } from '../abstracts/Abstract2SQLClient.js';
 
-export class PGClient extends AbstractSQL0Client {
+export class PGClient extends Abstract2SQLClient {
 
     #driver;
     #adminDriver;
@@ -74,23 +74,20 @@ export class PGClient extends AbstractSQL0Client {
 
     async _cursor(query, { values = [], batchSize = 1000 } = {}) {
         const pgCursor = this.#driver.query(new Cursor(query + '', values));
-        let closed = false;
-        const iterator = {
+
+        return {
             async *[Symbol.asyncIterator]() {
-                while (!closed) {
-                    const rows = await pgCursor.read(batchSize);
-                    if (!rows.length) break;
-                    yield* rows;
-                }
-            },
-            async close() {
-                if (!closed) {
-                    closed = true;
+                try {
+                    while (true) {
+                        const rows = await pgCursor.read(batchSize);
+                        if (!rows.length) break;
+                        yield* rows;
+                    }
+                } finally {
                     await pgCursor.close();
                 }
-            },
+            }
         };
-        return iterator;
     }
 
     async _setupRealtime() {

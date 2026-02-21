@@ -1,5 +1,6 @@
 import { _eq } from '../../lang/abstracts/util.js';
-import { Result } from '../../entry/Result.js';
+import { Result } from '../../clients/Result.js';
+import { Observer } from '@webqit/observer';
 
 export class RealtimeResult extends Result {
 
@@ -20,10 +21,10 @@ export class RealtimeResult extends Result {
     abort() { this.#abortLine(); }
 
     async _apply(eventName, eventData) {
-        const Obs = typeof Observer === 'undefined' 
-            ? (await import('@webqit/observer')).default
-            : Observer;
+        const Obs = Observer;
         const $rows = Obs.proxy(this.rows);
+        const $hashes = Obs.proxy(this.hashes);
+
         if (eventName === 'diff') {
             Obs.batch(this.rows, () => {
                 for (let event of eventData) {
@@ -31,20 +32,20 @@ export class RealtimeResult extends Result {
                         const i = this.#hashes.indexOf(event.oldHash);
                         if (i > -1) {
                             Obs.set(this.rows[i], event.new, { diff: true });
-                            this.#hashes[i] = event.newHash;
+                            $hashes[i] = event.newHash;
                         } else {
                             event = { ...event, type: 'insert' };
                         }
                     }
                     if (event.type === 'insert') {
                         $rows.push(event.new);
-                        this.#hashes.push(event.newHash);
+                        $hashes.push(event.newHash);
                     }
                     if (event.type === 'delete') {
                         const i = this.#hashes.indexOf(event.oldHash);
                         if (i > -1) {
                             $rows.splice(i, 1);
-                            this.#hashes.splice(i, 1);
+                            $hashes.splice(i, 1);
                         }
                     }
                 }
@@ -59,13 +60,15 @@ export class RealtimeResult extends Result {
                     const i_a = _hashes.indexOf(hash);
                     const i_b = _hashes.indexOf(targetHash);
                     $rows[i_b] = _rows[i_a];
-                    this.#hashes[i_b] = hash;
+                    $hashes[i_b] = hash;
                 }
             });
         }
 
         if (eventName === 'result') {
-            this.#hashes = eventData.hashes;
+            $hashes.splice(0);
+            $hashes.push(...eventData.hashes);
+
             Obs.batch(this.rows, () => {
                 const maxLen = Math.max(this.rows.length, eventData.rows.length);
                 for (let i = 0; i < maxLen; i ++) {
@@ -79,5 +82,12 @@ export class RealtimeResult extends Result {
                 }
             });
         }
+    }
+
+    toJSON() {
+        return {
+            rows: this.rows,
+            hashes: this.#hashes,
+        };
     }
 }

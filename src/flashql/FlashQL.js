@@ -1,12 +1,14 @@
-import { AbstractSQLClient } from '../entry/abstracts/AbstractSQLClient.js';
-import { matchRelationSelector, normalizeRelationSelectorArg } from '../entry/abstracts/util.js';
-import { AbstractFetchClient } from './fetch/AbstractFetchClient.js';
+import {
+    matchRelationSelector,
+    normalizeRelationSelectorArg
+} from '../clients/abstracts/util.js';
+import { Abstract1SQLClient } from '../clients/abstracts/Abstract1SQLClient.js';
 import { ConflictError } from './ConflictError.js';
 import { StorageEngine } from './StorageEngine.js';
 import { QueryEngine } from './QueryEngine.js';
 import { registry } from '../lang/registry.js';
 
-export class FlashQL extends AbstractSQLClient {
+export class FlashQL extends Abstract1SQLClient {
 
     #dialect;
 
@@ -80,16 +82,21 @@ export class FlashQL extends AbstractSQLClient {
     }
 
     async _cursor(query, options) {
-        let closed = false;
+        const _this = this;
         return {
             async *[Symbol.asyncIterator]() {
-                const { rows } = await this._query(query, options);
-                for await (const row of rows) {
-                    if (closed) return;
-                    yield row;
+                let rows;
+                try {
+                    ({ rows } = await _this._query(query, options));
+                    for await (const row of rows) {
+                        yield row;
+                    }
+                } finally {
+                    if (typeof rows.return === 'function') {
+                        await rows.return();
+                    }
                 }
-            },
-            async close() { closed = true; },
+            }
         };
     }
 
@@ -257,14 +264,14 @@ export class FlashQL extends AbstractSQLClient {
             // Inser records
             let stream, hashes = [];
             if (options.live) {
-                const result = await remoteClient[remoteClient instanceof AbstractFetchClient ? 'query' : 'request'](
+                const result = await remoteClient.query(
                     query,
                     (eventName, eventData) => this.#handleInSync(tableStorage, eventName, eventData),
                     { live: true }
                 );
                 ({ rows: stream, hashes } = result);
                 abortLines.push(result.abort.bind(result));
-            } else stream = await remoteClient[remoteClient instanceof AbstractFetchClient ? 'cursor' : 'stream'](query);
+            } else stream = await remoteClient.cursor(query);
 
             let i = 0;
             for await (const row of stream) {

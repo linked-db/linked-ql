@@ -1,23 +1,22 @@
-import { SimpleEmitter } from '../entry/abstracts/SimpleEmitter.js';
+import { SimpleEmitter } from '../clients/abstracts/SimpleEmitter.js';
 import { ConflictError } from './ConflictError.js';
 
 export class TableStorage extends SimpleEmitter {
 
     #name;
-    #schema;
     #parentNode;
 
     #materialized;
     #querySpec;
     #options;
 
+    #schema;
     #columns = [];
     #keyColumns = [];
 
     #keys = new Map;
-    #rows = new Map;
-
     #counters = new Map;
+    #rows = new Map;
 
     get name() { return this.#name; }
     get schema() { return this.#schema; }

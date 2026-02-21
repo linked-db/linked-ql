@@ -1,0 +1,163 @@
+import { MessagePortPlus } from '@webqit/port-plus';
+
+export class EdgeWorker {
+
+    static webWorker(options) {
+        MessagePortPlus.upgradeInPlace(self);
+
+        const worker = new EdgeWorker({ ...options, type: 'worker' });
+        
+        self.addRequestListener('message', async (e) => {
+            const { data: { op, args }, ports: [port] } = e;
+        
+            await worker.handle(op, args, port);
+        });
+    }
+
+    // -------------
+
+    #client;
+    get client() { return this.#client; }
+
+    #type;
+    get type() { return this.#type; }
+
+    #cursorStreaming;
+    #workerEventNamespace;
+
+    constructor({
+        client,
+        type = 'http',
+        cursorStreaming = 'port',
+        workerEventNamespace = 'lnkd_',
+    }) {
+        if (!client) throw new Error('No client specified');
+        if (!['http', 'worker', 'shared_worker'].includes(type))
+            throw new Error(`Invalid type: ${type}`);
+
+        this.#client = client;
+        this.#type = type;
+
+        this.#cursorStreaming = cursorStreaming;
+        this.#workerEventNamespace = workerEventNamespace;
+    }
+
+    async handle(op, args, port, liveModeCallback = null) {
+        const _result = await this.exec(op, args, port, liveModeCallback);
+        const result = typeof _result === 'object' && _result?.toJSON
+            ? _result.toJSON()
+            : _result;
+
+        if (this.#type === 'http') {
+            return result;
+        }
+
+        if (result) {
+            const live = op === 'query' && args.options?.live && !args.options?.callback;
+            port.postMessage(result, { live });
+        }
+    }
+
+    async exec(op, args, port, liveModeCallback = null) {
+        if (op === 'show_create') {
+            return await this.#client.showCreate(...Object.values(args));
+        }
+
+        if (op === 'parse') {
+            return await this.#client.parse(...Object.values(args));
+        }
+
+        if (op === 'resolve') {
+            return await this.#client.resolve(...Object.values(args));
+        }
+
+        if (op === 'query') {
+            let result;
+
+            if (args.options?.live) {
+                if (!port) throw new Error('Port required');
+                liveModeCallback?.();
+
+                if (args.options?.callback === true) {
+                    args.options.callback = (type, data) => {
+                        port.postMessage({ type, data }, { type: `${this.#workerEventNamespace}event` });
+                    };
+                }
+
+                const gc = () => result?.abort();
+                port.readyStateChange('close').then(gc);
+            }
+
+            result = await this.#client.query(...Object.values(args));
+            return result;
+        }
+
+        if (op === 'cursor') {
+            const asyncIterable = await this.#client.cursor(...Object.values(args));
+            if (this.#type === 'http' && this.#cursorStreaming !== 'port') {
+                return asyncIterable;
+            }
+
+            if (!port) throw new Error('Port required');
+
+            liveModeCallback?.();
+            return await this.#streamCursorOverPort(asyncIterable, port, args.options?.batchSize);
+        }
+
+        if (op === 'subscribe') {
+            if (!port) throw new Error('Port required');
+            liveModeCallback?.();
+
+            args.callback = (events) => {
+                port.postMessage(events, { type: `${this.#workerEventNamespace}event` });
+            };
+
+            const gc = await this.#client.subscribe(...Object.values(args));
+            port.readyStateChange('close').then(gc);
+            return;
+        }
+    }
+
+    async #streamCursorOverPort(iterator, port, batchSize = 100) {
+        if (iterator[Symbol.asyncIterator]) {
+            iterator = await iterator[Symbol.asyncIterator]();
+        }
+
+        const gc = () => iterator.return?.();
+        port.readyStateChange('close').then(gc).catch(() => { });
+
+        const _signal = (sig) => {
+            return new Promise((res) => {
+                port.addEventListener(
+                    'ctrl',
+                    (e) => res(e.data === sig),
+                    { once: true }
+                );
+            });
+        };
+
+        const _sendN = async (batchSize) => {
+            const rows = [];
+            let value, done;
+
+            while (rows.length < batchSize) {
+                ({ value, done } = await iterator.next());
+                if (done) break;
+                rows.push(value);
+            }
+
+            port.postMessage({ rows, done }, { type: `${this.#workerEventNamespace}result` });
+            return !done;
+        };
+
+        (async () => {
+            try {
+                do await _sendN(batchSize); while (await _signal('next'));
+            } catch (err) {
+                port.postMessage({ message: err.message }, { type: `${this.#workerEventNamespace}error` });
+            } finally {
+                port.close();
+            }
+        })();
+    }
+}

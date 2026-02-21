@@ -1,4 +1,4 @@
-import { SimpleEmitter } from '../entry/abstracts/SimpleEmitter.js';
+import { SimpleEmitter } from '../clients/abstracts/SimpleEmitter.js';
 import { TableStorage } from './TableStorage.js';
 import { registry } from '../lang/registry.js';
 

@@ -1,6 +1,5 @@
-import { SimpleEmitter } from '../entry/abstracts/SimpleEmitter.js';
+import { SimpleEmitter } from '../clients/abstracts/SimpleEmitter.js';
 import { AbstractNode } from '../lang/abstracts/AbstractNode.js';
-import { AbstractFetchClient } from './fetch/AbstractFetchClient.js';
 import { ConflictError } from './ConflictError.js';
 import { ExprEngine } from './ExprEngine.js';
 import { registry } from '../lang/registry.js';
@@ -687,10 +686,7 @@ export class QueryEngine extends SimpleEmitter {
         const [nsDef, tblDef] = this.#isRemoteRef(firstItem.expr?.(), queryCtx.options);
         let remoteStream;
         if (tblDef) {
-            const remoteQuery = await nsDef.client.parse(tblDef.querySpec);
-            remoteStream = nsDef.client instanceof AbstractFetchClient
-                ? await nsDef.client.stream(remoteQuery)
-                : await nsDef.client.cursor(remoteQuery);
+            remoteStream = await nsDef.client.cursor(tblDef.querySpec);
         }
 
         let leftStream = this.evaluateFromItem(firstItem, _originSchema(firstItemAlias), { ...queryCtx, remoteStream });
@@ -816,7 +812,7 @@ export class QueryEngine extends SimpleEmitter {
                         }
                     }
                     if (!$pushDownLogic && !someTruthy) return;
-                    return remoteQuery_Where($pushDownLogic);
+                    return await remoteQuery_Where($pushDownLogic);
                 };
 
                 // Initialize process
@@ -828,9 +824,7 @@ export class QueryEngine extends SimpleEmitter {
                     if (i === 0 || i > $i) {
                         if (i > $i) remoteQuery = await concatWhere(); // lazily
                         if (remoteQuery) {
-                            remoteStream = nsDef.client instanceof AbstractFetchClient
-                                ? await nsDef.client.stream(remoteQuery)
-                                : await nsDef.client.cursor(remoteQuery);
+                            remoteStream = await nsDef.client.cursor(remoteQuery);
                         } else remoteStream = (async function* () { })();
                     }
                     return remoteStream;
@@ -841,9 +835,7 @@ export class QueryEngine extends SimpleEmitter {
                     let pushDownLogic = await this.#exprEngine.evaluate(conditionExpr, { ...lateralCtx, [rightAlias]: TBL_PLACEHOLDER }, queryCtx);
                     if (pushDownLogic instanceof AbstractNode || (pushDownLogic = Boolean(pushDownLogic))) {
                         const remoteQuery = remoteQuery_Where(pushDownLogic);
-                        return nsDef.client instanceof AbstractFetchClient
-                            ? await nsDef.client.stream(remoteQuery)
-                            : await nsDef.client.cursor(remoteQuery);
+                        return await nsDef.client.cursor(remoteQuery);
                     }
                     return (async function* () { })();
                 };
@@ -852,16 +844,11 @@ export class QueryEngine extends SimpleEmitter {
             }
         } else {
             // No WHERE at all
-            const remoteQuery = await nsDef.client.parse(tblDef.querySpec);
             if (joinStrategy.memoization) {
-                const remoteStream = nsDef.client instanceof AbstractFetchClient
-                    ? await nsDef.client.stream(remoteQuery)
-                    : await nsDef.client.cursor(remoteQuery);
+                const remoteStream = await nsDef.client.cursor(tblDef.querySpec);
                 createRemoteStream = this.#memoizeStream(remoteStream);
             } else {
-                createRemoteStream = async () => nsDef.client instanceof AbstractFetchClient
-                    ? await nsDef.client.stream(remoteQuery)
-                    : await nsDef.client.cursor(remoteQuery);
+                createRemoteStream = async () => await nsDef.client.cursor(tblDef.querySpec);
             }
         }
 

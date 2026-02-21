@@ -1,8 +1,8 @@
 import { normalizeRelationSelectorArg, parseRelationSelectors } from './util.js';
-import { AbstractSQLClient } from './AbstractSQLClient.js';
+import { Abstract1SQLClient } from './Abstract1SQLClient.js';
 import { registry } from '../../lang/registry.js';
 
-export class AbstractSQL0Client extends AbstractSQLClient {
+export class Abstract2SQLClient extends Abstract1SQLClient {
 
     async _showCreate(selector, structured = false) {
         selector = normalizeRelationSelectorArg(selector);

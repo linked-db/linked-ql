@@ -11,4 +11,13 @@ export class Result {
         this.#rows = rows;
         this.#rowCount = rowCount;
     }
+
+    jsonfy() { return this.toJSON(); }
+
+    toJSON() {
+        return {
+            rows: this.#rows,
+            rowCount: this.#rowCount,
+        };
+    }
 }
