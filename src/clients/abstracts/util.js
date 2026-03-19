@@ -37,11 +37,13 @@ export function parseRelationSelectors(enums) {
         if (/^!/.test(e)) return [names, _names.concat(e.slice(1)), patterns, _patterns];
         return [names.concat(e), _names, patterns, _patterns];
     }, [[], [], [], []]);
-    return [names, _names, patterns, _patterns];
+    const result = [names, _names, patterns, _patterns];
+    enums.__patters = result;
+    return result;
 }
 
 export function matchRelationSelector(ident, enums) {
-    const [names, _names, patterns, _patterns] = parseRelationSelectors(enums);
+    const [names, _names, patterns, _patterns] = enums.__patters || parseRelationSelectors(enums);
     const $names = names.length ? names.includes(ident) || (names.length === 1 && names[0] === '*') : false;
     const $_names = _names.length ? !_names.includes(ident) : false;
     const $patterns = patterns.length ? patterns.some((s) => (new RegExp(s.replace('%', '.+?')).test(ident))) : false;

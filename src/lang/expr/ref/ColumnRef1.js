@@ -121,7 +121,7 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
         if (name === '*') {
             const compositeResult = registry.ColumnRef0.fromJSON({
                 value: this.value(),
-                result_schema: registry.JSONSchema.fromJSON({ entries: resultSet.map((s) => s.clone()) }, { assert: true }),
+                result_schema: registry.JSONSchema.fromJSON({ entries: resultSet.filter((s) => !s.value().startsWith('__')).map((s) => s.clone()) }, { assert: true }),
             });
             this.parentNode._adoptNodes(compositeResult);
             resultSet = [compositeResult];

@@ -1,34 +1,95 @@
 import {
-    NamespaceSchema
-} from './ddl/namespace/NamespaceSchema.js';
-import {
     matchRelationSelector,
     normalizeRelationSelectorArg
 } from '../clients/abstracts/util.js';
+import { AbstractStmt } from './abstracts/AbstractStmt.js';
+import { registry } from './registry.js';
 
 export class SchemaInference {
 
-    #searchPath = ['public'];
-    get searchPath() {
-        return this.#searchPath;
-    }
-
-    #driver;
+    #dialect;
+    #catalog;
+    #searchPath;
     #queryHistory = new Map;
 
-    #catalog;
+    get dialect() { return this.#dialect; }
     get catalog() { return this.#catalog; }
+    get searchPath() { return this.#searchPath; }
 
-    #options;
-    get options() { return this.#options; }
-
-    constructor({ driver, catalog = [] } = {}, options = {}) {
-        this.#driver = driver;
+    constructor({ dialect = null, catalog = [], searchPath = ['public'] } = {}) {
+        this.#dialect = dialect;
         this.#catalog = new Set(catalog);
-        this.#options = options;
+        this.#searchPath = searchPath;
     }
 
-    async provide(selector) {
+    async resolveQuery(query, options = {}) {
+        // Parsing...
+        if (!(query instanceof registry.SQLScript)
+            && !(query instanceof AbstractStmt)
+            && !(query instanceof registry.MYSetStmt)
+            && !(query instanceof registry.PGSetStmt)) {
+            throw new TypeError('query must be an instance of SQLScript | AbstractStmt');
+        }
+        if (query instanceof registry.SQLScript
+            && query.length === 1) {
+            query = query.entries()[0];
+        }
+
+        // Return if query is a set statement or a standard statement
+        if (query instanceof registry.MYSetStmt
+            || query instanceof registry.PGSetStmt
+            || query instanceof registry.StdStmt
+        ) return query;
+
+        // Determine by heuristics if desugaring needed
+        if ((query instanceof registry.DDLStmt && !query.returningClause?.()) // Desugaring not applicable
+            || query.originSchemas?.()?.length // Desugaring already done
+        ) return query;
+
+        // Schema inference...
+        const relationSelector = {};
+        let anyFound = false;
+        query.walkTree((v, k, scope) => {
+            if (v instanceof registry.MYSetStmt
+                || v instanceof registry.PGSetStmt
+                || v instanceof registry.StdStmt
+            ) return;
+            if (v instanceof registry.DDLStmt
+                && !v.returningClause?.()) return;
+            if (v instanceof registry.CTEItem) {
+                const alias = v.alias()?._get('delim')
+                    ? v.alias().value()
+                    : v.alias()?.value().toLowerCase();
+                scope.set(alias, true);
+                return v;
+            }
+            if ((!(v instanceof registry.TableRef2) || v.parentNode instanceof registry.ColumnIdent)
+                && (!(v instanceof registry.TableRef1) || v.parentNode instanceof registry.ColumnRef1)) {
+                return v;
+            }
+            const namespaceName = v.qualifier()?._get('delim')
+                ? v.qualifier().value()
+                : v.qualifier()?.value().toLowerCase() || '*';
+            const tableName = v._get('delim')
+                ? v.value()
+                : v.value().toLowerCase();
+            if (namespaceName === '*' && scope.has(tableName)) return;
+            if (!(namespaceName in relationSelector)) {
+                relationSelector[namespaceName] = [];
+            }
+            if (!relationSelector[namespaceName].includes(tableName)) {
+                relationSelector[namespaceName].push(tableName);
+                anyFound = true;
+            }
+        }, true);
+
+        if (anyFound) await this.preload(relationSelector, options);
+
+        // DeSugaring...
+        return query.deSugar(true, {}, null, this);
+    }
+
+    async preload(selector, { dialect = this.dialect, tx = null } = {}) {
         const currentEntries = [...this.#queryHistory.entries()];
         const diffedSelectors = {};
         let intersectionFound = false;
@@ -92,7 +153,7 @@ export class SchemaInference {
         let currentFulfilment,
             totalFulfilment = Promise.resolve(0);
         if (Object.keys(diffedSelectors).length) {
-            currentFulfilment = this.#driver?.showCreate(diffedSelectors, true);
+            currentFulfilment = this.showCreate(diffedSelectors, { structured: true, tx });
             pendingFulfilments.push(currentFulfilment);
             for (const newRecord of newRecords) {
                 newRecord.fulfilment = currentFulfilment;
@@ -112,7 +173,7 @@ export class SchemaInference {
         if (resultSchemas?.length) {
             for (const resultSchema of resultSchemas) {
                 // Instantiate...
-                const newNamespaceSchema = NamespaceSchema.fromJSON(resultSchema, { dialect: this.#driver.dialect });
+                const newNamespaceSchema = registry.NamespaceSchema.fromJSON(resultSchema, { dialect });
                 for (const existingNamespaceSchema of this.#catalog) {
                     if (existingNamespaceSchema.name().identifiesAs(newNamespaceSchema.name())) {
                         // Inherit existing tables from existingNamespaceSchema
@@ -130,5 +191,9 @@ export class SchemaInference {
             }
         }
         return await totalFulfilment;
+    }
+
+    async showCreate(selector, options = {}) {
+        throw new Error(`showCreate() must be called on a child class`);
     }
 }

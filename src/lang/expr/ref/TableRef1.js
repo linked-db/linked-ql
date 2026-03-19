@@ -42,7 +42,7 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 			? this.statementNode?.parentNode
 			: null;
 		const canTraverseUp = isFromItemRef // Can reference CTE
-			|| !enclosingDerivedQuery 
+			|| !enclosingDerivedQuery
 			|| !(enclosingDerivedQuery.parentNode instanceof registry.FromItem)
 			|| !(enclosingDerivedQuery.parentNode/* FromItem */.parentNode/* FromClause */?.parentNode/* SelectStmt */ instanceof registry.SelectStmt)
 			|| enclosingDerivedQuery.parentNode.lateralKW();
@@ -127,7 +127,7 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 		// 3. Resolve normally
 		if (!deepMatchCallback/* we're not trying to qualify a column */ && (inGrepMode || !resultSet.length)) {
 			const tempNamespaceRef = new registry.NamespaceRef(this.qualifier()?.jsonfy() || {});
-            this._adoptNodes(tempNamespaceRef);
+			this._adoptNodes(tempNamespaceRef);
 			resultSet = resultSet.concat(tempNamespaceRef.lookup(
 				(namespaceSchema) => {
 

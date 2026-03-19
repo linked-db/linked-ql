@@ -1,9 +1,9 @@
 import '../../lang/index.js';
-import { Abstract1SQLClient } from '../../clients/abstracts/Abstract1SQLClient.js';
+import { registry } from '../../lang/registry.js';
+import { AbstractSQLClient } from '../../clients/abstracts/AbstractSQLClient.js';
 import { normalizeQueryArgs } from '../../clients/abstracts/util.js';
 import { RealtimeResult } from './RealtimeResult.js';
 import { QueryWindow } from './QueryWindow.js';
-import { registry } from '../../lang/registry.js';
 
 export class RealtimeClient {
 
@@ -13,35 +13,55 @@ export class RealtimeClient {
     get size() { return this.#windows.size; }
 
     constructor(driver) {
-        if (!(driver instanceof Abstract1SQLClient)) {
-            throw new TypeError('driver must be an instance of Abstract1SQLClient');
+        if (!(driver instanceof AbstractSQLClient)) {
+            throw new TypeError('driver must be an instance of AbstractSQLClient');
         }
         this.#driver = driver;
     }
 
     async query(...args) {
         const [query, { callback, signal, ...options }] = normalizeQueryArgs(...args);
-        
-        if (!(query instanceof registry.BasicSelectStmt)) {
-            throw new Error('Only SELECT statements are supported in live mode');
-        }
-        if (!query.fromClause()) {
-            throw new Error('Query has no FROM clause');
+
+        let queryWindow;
+        let resultJson;
+
+        if (options.id && (queryWindow = await this.findWindow(async (w) => await w.sync.hasSlot(options.id)))) {
+            resultJson = callback
+                ? { rows: [], hashes: [], mode: 'streaming_only' } // Resume streaming
+                : await queryWindow.currentRendering();
+        } else {
+            queryWindow = await this.createWindow(query, options);
+            resultJson = { ...await queryWindow.currentRendering(), mode: callback ? 'streaming' : 'live' };
         }
 
-        const queryWindow = await this.createWindow(query, options);
-        const resultJson = await queryWindow.currentRendering();
-        const realtimeResult = new RealtimeResult(resultJson, () => abortLines.forEach((c) => c()), signal);
+        const realtimeResult = new RealtimeResult(resultJson, async ({ forget = false } = {}) => {
+            await unsubscribeCallback({ forget });
+        }, signal);
 
-        const changeHandler = callback || ((eventName, eventData) => realtimeResult._apply(eventName, eventData));
-        const abortLines = ['result', 'diff', 'swap'].map((eventName) => {
-            return queryWindow.on(eventName, (eventData) => changeHandler(eventName, eventData));
-        });
+        const changeHandler = callback || ((commit) => realtimeResult._apply(commit));
+        const unsubscribeCallback = await queryWindow.sync.subscribe(changeHandler, { id: options.id });
 
         return realtimeResult;
     }
 
+    async forget(id) {
+        const queryWindow = await this.findWindow(async (w) => await w.sync.hasSlot(id));
+        return !!queryWindow && await queryWindow.unsubscribe(id, { forget: true });
+    }
+
+    async findWindow(callback) {
+        for (const window of this.#windows) {
+            if (await callback(window)) return window;
+        }
+    }
+
     async createWindow(query, options) {
+        if (!(query instanceof registry.BasicSelectStmt))
+            throw new Error('Only SELECT statements are supported in live mode');
+
+        if (!query.fromClause())
+            throw new Error('Query has no FROM clause');
+
         const newWindow = new QueryWindow(this.#driver, query, options);
 
         const windows_depthFirst = [...this.#windows]
@@ -53,7 +73,7 @@ export class RealtimeClient {
             if (await newWindow.inherit(potentialParentWindow)) break;
             potentialSubWindows.unshift(potentialParentWindow);
         }
-        
+
         // 2. No parent window found. We run as root
         if (!newWindow.parentWindow) {
             await newWindow.start();

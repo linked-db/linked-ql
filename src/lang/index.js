@@ -7,7 +7,7 @@ import * as qualif from './qualif/index.js';
 import * as type from './type/index.js';
 import { JSONSchema } from './abstracts/JSONSchema.js';
 import { StdStmt } from './StdStmt.js';
-import { Script } from './Script.js';
+import { SQLScript } from './SQLScript.js';
 import { registry } from './registry.js';
 
-Object.assign(registry, { ...cte, ...ddl, ...dml, ...dql, ...expr, ...qualif, ...type, StdStmt, Script, JSONSchema });
+Object.assign(registry, { ...cte, ...ddl, ...dml, ...dql, ...expr, ...qualif, ...type, StdStmt, SQLScript, JSONSchema });

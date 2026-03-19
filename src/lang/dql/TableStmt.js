@@ -32,7 +32,7 @@ export class TableStmt extends AbstractNonDDLStmt {
             const tableSchema = resultJson.table_ref.result_schema;
             resultJson = {
                 ...resultJson,
-                result_schema: registry.JSONSchema.fromJSON({ entries: tableSchema.jsonfy().entries }),
+                result_schema: registry.JSONSchema.fromJSON({ entries: tableSchema.columns().filter((e) => !e.name().value().startsWith('__')).map((c) => c.jsonfy()) }),
                 origin_schemas: [tableSchema], // or this.getOriginSchemas(transformer)
             };
         }

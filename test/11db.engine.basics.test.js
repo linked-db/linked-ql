@@ -4,9 +4,9 @@ use(chaiAsPromised);
 
 import '../src/lang/index.js';
 import { matchRelationSelector, normalizeRelationSelectorArg } from '../src/clients/abstracts/util.js';
-import { StorageEngine } from '../src/flashql/StorageEngine.js';
+import { StorageEngine } from '../src/flashql/storage/StorageEngine.js';
 import { FlashQL } from '../src/flashql/FlashQL.js';
-import { TableStorage } from '../src/flashql/TableStorage.js';
+import { TableStorage } from '../src/flashql/storage/TableStorage.js';
 
 describe('Util', () => {
 
@@ -60,89 +60,18 @@ describe('Util', () => {
     });
 });
 
-describe('StorageEngine - Basic CRUD', () => {
-    let storageEngine, lq_test_public, tbl1;
-
-    describe('SCHEMA', () => {
-        it('should create basic table namespace', async () => {
-            storageEngine = new StorageEngine({ searchPath: ['lq_test_public'] });
-            lq_test_public = await storageEngine.getNamespace('lq_test_public');
-
-            tbl1 = await lq_test_public.createTable('tbl1');
-            expect(tbl1).to.be.instanceOf(TableStorage);
-        });
-
-        it('should reject creating an existing table namespace', async () => {
-            expect(lq_test_public.createTable('tbl1')).to.be.rejected;
-        });
-
-        it('should retrieve just-created table namespace', async () => {
-            const tableNames = await lq_test_public.tableNames();
-            expect(tableNames).to.include('tbl1');
-
-            const tblSchema = tbl1.schema;
-            expect(tblSchema).to.be.an('object');
-        });
-    });
-
-    describe('INSERT', () => {
-        it('should do basic INSERT', async () => {
-            const row = await tbl1.insert({ id: 34, name: 'John' });
-            expect(row).to.deep.eq({ id: 34, name: 'John' });
-        });
-
-        it('should reject duplicate-key INSERT', async () => {
-            expect(tbl1.insert({ id: 34, name: 'John' })).to.be.rejected;
-        });
-
-        it('should do auto-increment', async () => {
-            const row1 = await tbl1.insert({ name: 'John' });
-            expect(row1).to.deep.eq({ name: 'John', id: 1 });
-
-            const row2 = await tbl1.insert({ name: 'John' });
-            expect(row2).to.deep.eq({ name: 'John', id: 2 });
-        });
-    });
-
-    describe('UPDATE', () => {
-        it('should do basic UPDATE', async () => {
-            const row = await tbl1.update({ id: 34 }, { id: 34, name: 'John2' });
-            expect(row).to.deep.eq({ id: 34, name: 'John2' });
-        });
-    });
-
-    describe('READ', () => {
-        it('should do basic READ', async () => {
-            const record = await tbl1.get({ id: 34 });
-            expect(record).to.deep.eq({ id: 34, name: 'John2' });
-        });
-
-        it('should do basic scan', async () => {
-            const records = tbl1;
-            const _records = [];
-            for await (const record of records) {
-                _records.push(record);
-            }
-            expect(_records).to.have.length(3);
-            expect(_records[0]).to.deep.eq({ id: 34, name: 'John2' });
-        });
-    });
-
-    describe('DELETE', () => {
-        it('should do basic DELETE', async () => {
-            const row = await tbl1.delete({ id: 34 });
-            expect(row).to.deep.eq({ id: 34, name: 'John2' });
-
-            const record = await tbl1.get({ id: 34 });
-            expect(record).to.be.undefined;
-        });
-    });
-});
-
 const createClient = async (searchPath = undefined, otherOptions = {}) => {
     const client = new FlashQL({ searchPath, ...otherOptions });
     await client.connect();
     return client;
+};
+
+const listNamespaces = async (client) => {
+    return await client.storageEngine.transaction(async (tx) => tx.listNamespaces());
+};
+
+const listTables = async (client, namespace) => {
+    return await client.storageEngine.transaction(async (tx) => tx.listTables({ namespace }));
 };
 
 describe('FlashQL - Basic DDL', () => {
@@ -162,7 +91,7 @@ describe('FlashQL - Basic DDL', () => {
         it('should create namespace with IF NOT EXISTS', async () => {
             const result = await client.query('CREATE SCHEMA IF NOT EXISTS lq_test_namespace');
             expect(result).to.exist;
-            const namespaces = await client.storageEngine.namespaceNames();
+            const namespaces = await listNamespaces(client);
             expect(namespaces).to.include('lq_test_namespace');
         });
 
@@ -175,7 +104,7 @@ describe('FlashQL - Basic DDL', () => {
         it('should support CREATE SCHEMA ... AUTHORIZATION', async () => {
             const result = await client.query('CREATE SCHEMA IF NOT EXISTS lq_auth AUTHORIZATION current_user');
             expect(result).to.exist;
-            const namespaces = await client.storageEngine.namespaceNames();
+            const namespaces = await listNamespaces(client);
             expect(namespaces).to.include('lq_auth');
         });
     });
@@ -189,7 +118,7 @@ describe('FlashQL - Basic DDL', () => {
         it('should drop namespace with IF EXISTS', async () => {
             const result = await client.query('DROP SCHEMA IF EXISTS lq_test_drop CASCADE');
             expect(result).to.exist;
-            const namespaces = await client.storageEngine.namespaceNames();
+            const namespaces = await listNamespaces(client);
             expect(namespaces).to.not.include('lq_test_drop');
         });
 
@@ -203,7 +132,7 @@ describe('FlashQL - Basic DDL', () => {
             await client.query('CREATE SCHEMA IF NOT EXISTS lq_multi2');
             const result = await client.query('DROP SCHEMA IF EXISTS lq_multi1, lq_multi2 CASCADE');
             expect(result).to.exist;
-            const namespaces = await client.storageEngine.namespaceNames();
+            const namespaces = await listNamespaces(client);
             expect(namespaces).to.not.include('lq_multi1');
             expect(namespaces).to.not.include('lq_multi2');
         });
@@ -215,7 +144,7 @@ describe('FlashQL - Basic DDL', () => {
             await expect(client.query('DROP SCHEMA lq_restrict RESTRICT')).to.be.rejected;
             const result = await client.query('DROP SCHEMA lq_restrict CASCADE');
             expect(result).to.exist;
-            const namespaces = await client.storageEngine.namespaceNames();
+            const namespaces = await listNamespaces(client);
             expect(namespaces).to.not.include('lq_restrict');
         });
     });
@@ -227,10 +156,9 @@ describe('FlashQL - Basic DDL', () => {
 
         it('should create table in namespace', async () => {
             const result = await client.query('CREATE TABLE lq_test_table.tbl1 (id INT PRIMARY KEY, name TEXT)');
-            const lq_test_table = await client.storageEngine.getNamespace('lq_test_table');
 
             expect(result).to.exist;
-            const tables = await lq_test_table.tableNames();
+            const tables = await listTables(client, 'lq_test_table');
             expect(tables).to.include('tbl1');
         });
 
@@ -256,8 +184,7 @@ describe('FlashQL - Basic DDL', () => {
         it('should drop table with IF EXISTS', async () => {
             const result = await client.query('DROP TABLE IF EXISTS lq_test_table.tbl2');
             expect(result).to.exist;
-            const lq_test_table = await client.storageEngine.getNamespace('lq_test_table');
-            const tables = await lq_test_table.tableNames();
+            const tables = await listTables(client, 'lq_test_table');
             expect(tables).to.not.include('tbl2');
         });
 
@@ -270,8 +197,7 @@ describe('FlashQL - Basic DDL', () => {
             await client.query('CREATE TABLE IF NOT EXISTS lq_test_table.tbl4 (id INT PRIMARY KEY)');
             const result = await client.query('DROP TABLE IF EXISTS lq_test_table.tbl3, lq_test_table.tbl4');
             expect(result).to.exist;
-            const lq_test_table = await client.storageEngine.getNamespace('lq_test_table');
-            const tables = await lq_test_table.tableNames();
+            const tables = await listTables(client, 'lq_test_table');
             expect(tables).to.not.include('tbl3');
             expect(tables).to.not.include('tbl4');
         });
@@ -281,8 +207,7 @@ describe('FlashQL - Basic DDL', () => {
             await client.query('CREATE TABLE IF NOT EXISTS lq_test_table.parent (id INT PRIMARY KEY)');
             await client.query('CREATE TABLE IF NOT EXISTS lq_test_table.child (id INT PRIMARY KEY, pid INT REFERENCES lq_test_table.parent(id))');
             await expect(client.query('DROP TABLE lq_test_table.parent CASCADE')).to.not.be.rejected;
-            const lq_test_table = await client.storageEngine.getNamespace('lq_test_table');
-            const tables = await lq_test_table.tableNames();
+            const tables = await listTables(client, 'lq_test_table');
             expect(tables).to.not.include('parent');
             //expect(tables).to.not.include('child'); // TODO
         });
@@ -328,40 +253,40 @@ describe('FlashQL - DDL Inference', () => {
     describe('SHOW CREATE', () => {
 
         it('should show create for namespace', async () => {
-            const result = await client.showCreate({ lq_test_show: ['*'] }, true);
+            const result = await client.createSchemaInference().showCreate({ lq_test_show: ['*'] }, { structured: true });
             expect(result).to.have.lengthOf(1);
             expect(result[0].name().value()).to.eq('lq_test_show');
             expect(result[0].tables()).to.have.lengthOf(2);
         });
 
         it('should show create for specific table', async () => {
-            const result = await client.showCreate({ lq_test_show: ['tbl1'] }, true);
+            const result = await client.createSchemaInference().showCreate({ lq_test_show: ['tbl1'] }, { structured: true });
             expect(result).to.have.lengthOf(1);
             expect(result[0].tables()).to.have.lengthOf(1);
             expect(result[0].tables()[0].name().value()).to.eq('tbl1');
         });
 
         it('should show create for negated table', async () => {
-            const result = await client.showCreate({ lq_test_show: ['!tbl1'] }, true);
+            const result = await client.createSchemaInference().showCreate({ lq_test_show: ['!tbl1'] }, { structured: true });
             expect(result).to.have.lengthOf(1);
             expect(result[0].tables()).to.have.lengthOf(1);
             expect(result[0].tables()[0].name().value()).to.eq('tbl2');
         });
 
         it('should show create for wildcard namespace', async () => {
-            const result = await client.showCreate({ ['*']: ['tbl1'] }, true);
+            const result = await client.createSchemaInference().showCreate({ ['*']: ['tbl1'] }, { structured: true });
             expect(result.some(s => s.tables().some(t => t.name().value() === 'tbl1'))).to.be.true;
         });
 
         // --- Extended usage patterns ---
 
         it('should showCreate() for given selector (1)', async () => {
-            const a = await client.showCreate({ lq_test_public: ['*'] }, true);
+            const a = await client.createSchemaInference().showCreate({ lq_test_public: ['*'] }, { structured: true });
             expect(a).to.have.lengthOf(1);
             expect(a[0].name().value()).to.eq('lq_test_public');
 
-            const b = await client.showCreate([{ namespace: 'lq_test_public', tables: ['*'] }], true);
-            const c = await client.showCreate({ lq_test_public: ['*'] }, true);
+            const b = await client.createSchemaInference().showCreate([{ namespace: 'lq_test_public', tables: ['*'] }], { structured: true });
+            const c = await client.createSchemaInference().showCreate({ lq_test_public: ['*'] }, { structured: true });
 
             expect(b).to.have.lengthOf(1);
             expect(c).to.have.lengthOf(1);
@@ -374,8 +299,8 @@ describe('FlashQL - DDL Inference', () => {
         });
 
         it('should showCreate() for given selector (2)', async () => {
-            const b = await client.showCreate({ lq_test_public: ['tbl1'] }, true);
-            const c = await client.showCreate({ lq_test_public: ['!tbl1'] }, true);
+            const b = await client.createSchemaInference().showCreate({ lq_test_public: ['tbl1'] }, { structured: true });
+            const c = await client.createSchemaInference().showCreate({ lq_test_public: ['!tbl1'] }, { structured: true });
 
             expect(b).to.have.lengthOf(1);
             expect(c).to.have.lengthOf(1);
@@ -388,11 +313,11 @@ describe('FlashQL - DDL Inference', () => {
         });
 
         it('should showCreate() for given selector (3)', async () => {
-            const b = await client.showCreate({ ['*']: ['tbl1'] }, true);
-            const c = await client.showCreate({ ['*']: ['!tbl1'] }, true);
+            const b = await client.createSchemaInference().showCreate({ ['*']: ['tbl1'] }, { structured: true });
+            const c = await client.createSchemaInference().showCreate({ ['*']: ['!tbl1'] }, { structured: true });
 
-            expect(b).to.have.lengthOf(4); // Plus the default "public" namespace
-            expect(c).to.have.lengthOf(4); // Plus the default "public" namespace
+            expect(b).to.have.lengthOf(3);
+            expect(c).to.have.lengthOf(4);
 
             expect(b[1].tables()).to.have.lengthOf(1);
             expect(b[1].tables()[0].name().value()).to.eq('tbl1');
@@ -403,18 +328,19 @@ describe('FlashQL - DDL Inference', () => {
         });
 
         it('should showCreate() for given selector (4)', async () => {
-            const b = await client.showCreate({ ['*']: ['tbl1'] });
-            const c = await client.showCreate({ ['*']: ['*'] });
+            const b = await client.createSchemaInference().showCreate({ ['*']: ['tbl1'] });
+            const c = await client.createSchemaInference().showCreate({ ['*']: ['*'] });
 
             expect(b.map((t) => t.name().value())).to.deep.eq(['tbl1', 'tbl1', 'tbl1']);
-            expect(c.map((t) => t.name().value())).to.deep.eq(['tbl1', 'tbl2', 'tbl1', 'tbl2', 'tbl1', 'tbl2']);
+            expect(c.map((t) => t.name().value())).to.deep.eq(['test'/* default */, 'tbl1', 'tbl2', 'tbl1', 'tbl2', 'tbl1', 'tbl2']);
         });
     });
 
     describe('PROVIDE', () => {
         it('should provide() the specified namespace', async () => {
-            const resultCode = await client.schemaInference.provide([{ namespace: 'lq_test_%', tables: ['tbl1'] }]);
-            const catalog = [...client.schemaInference.catalog];
+            const schemaInference = client.createSchemaInference();
+            const resultCode = await schemaInference.preload([{ namespace: 'lq_test_%', tables: ['tbl1'] }]);
+            const catalog = [...schemaInference.catalog];
 
             expect(resultCode).to.eq(1);
             expect(catalog).to.have.lengthOf(3);
@@ -428,19 +354,20 @@ describe('FlashQL - DDL Inference', () => {
             expect(lq_test_private.tables()).to.have.lengthOf(1);
 
             // ----------------- heuristic caching
-            const resultCode2 = await client.schemaInference.provide([{ namespace: 'lq_test_%', tables: ['tbl1'] }]);
+            const resultCode2 = await schemaInference.preload([{ namespace: 'lq_test_%', tables: ['tbl1'] }]);
             expect(resultCode2).to.eq(0);
-            const resultCode3 = await client.schemaInference.provide([{ namespace: 'lq_test_private', tables: ['tbl1'] }]);
+            const resultCode3 = await schemaInference.preload([{ namespace: 'lq_test_private', tables: ['tbl1'] }]);
             expect(resultCode3).to.eq(0);
-            const resultCode4 = await client.schemaInference.provide([{ namespace: 'lq_test_foo', tables: ['tbl1'] }]);
+            const resultCode4 = await schemaInference.preload([{ namespace: 'lq_test_foo', tables: ['tbl1'] }]);
             expect(resultCode4).to.eq(0);
-            const resultCode5 = await client.schemaInference.provide([{ namespace: 'lq_test_%', tables: ['tbl1', 'tbl_1'] }]);
+            const resultCode5 = await schemaInference.preload([{ namespace: 'lq_test_%', tables: ['tbl1', 'tbl_1'] }]);
             expect(resultCode5).to.eq(2);
         });
 
         it('should incrementally provide() the specified namespace', async () => {
-            const resultCode = await client.schemaInference.provide([{ namespace: 'lq_test_%', tables: ['tbl2'] }]);
-            const catalog = [...client.schemaInference.catalog];
+            const schemaInference = client.createSchemaInference();
+            const resultCode = await schemaInference.preload([{ namespace: 'lq_test_%', tables: ['tbl2'] }]);
+            const catalog = [...schemaInference.catalog];
 
             expect(resultCode).to.eq(1);
             expect(catalog).to.have.lengthOf(3);
@@ -449,9 +376,9 @@ describe('FlashQL - DDL Inference', () => {
             const lq_test_public = catalog.find((s) => s.identifiesAs('lq_test_public'));
             const lq_test_private = catalog.find((s) => s.identifiesAs('lq_test_private'));
 
-            expect(lq_test_show.tables()).to.have.lengthOf(2);
-            expect(lq_test_public.tables()).to.have.lengthOf(2);
-            expect(lq_test_private.tables()).to.have.lengthOf(2);
+            expect(lq_test_show.tables()).to.have.lengthOf(1);
+            expect(lq_test_public.tables()).to.have.lengthOf(1);
+            expect(lq_test_private.tables()).to.have.lengthOf(1);
         });
     });
 });
@@ -461,18 +388,18 @@ describe('FlashQL - DML', () => {
 
     // helper to read table storage rows (values)
     async function tableRows(tableName, namespace = 'lq_test_dml') {
-        const namespaceObject = await await client.storageEngine.getNamespace(namespace);
-        const tableStorage = await namespaceObject.getTable(tableName);
-        const rows = [];
-        for await (const row of tableStorage) rows.push(row);
-        return rows;
+        return await client.storageEngine.transaction(async (tx) => {
+            const tableStorage = tx.getTable({ namespace, name: tableName });
+            return tableStorage.getAll();
+        });
     }
 
     // helper to clear tables by name
     async function clearTable(tableName, namespace = 'lq_test_dml') {
-        const namespaceObject = await await client.storageEngine.getNamespace(namespace);
-        const tableStorage = await namespaceObject.getTable(tableName);
-        await tableStorage.truncate();
+        return await client.storageEngine.transaction(async (tx) => {
+            const tableStorage = tx.getTable({ namespace, name: tableName });
+            await tableStorage.truncate();
+        });
     }
 
     before(async () => {
@@ -714,8 +641,10 @@ describe("FlashQL - DQL", () => {
 
             // prepare namespace + tables used across the tests
             await client.query(`CREATE SCHEMA IF NOT EXISTS ${namespaceName}`);
-            await client.query(`CREATE TABLE ${t1} (id INT PRIMARY KEY, val TEXT)`);
-            await client.query(`INSERT INTO ${t1} (id, val) VALUES (1, 'a'), (2, 'b'), (3, NULL)`);
+            await client.query(`
+                CREATE TABLE ${namespaceName}.${t1} (id INT PRIMARY KEY, val TEXT);
+                INSERT INTO ${namespaceName}.${t1} (id, val) VALUES (1, 'a'), (2, 'b'), (3, NULL);
+            `);
         });
 
         it("should select a literal", async () => {
@@ -773,8 +702,10 @@ describe("FlashQL - DQL", () => {
 
             // prepare namespace + tables used across the tests
             await client.query(`CREATE SCHEMA IF NOT EXISTS ${namespaceName}`);
-            await client.query(`CREATE TABLE ${t1} (id INT, val TEXT)`);
-            await client.query(`INSERT INTO ${t1} (id, val) VALUES (1, 'a'), (2, 'b')`);
+            await client.query(`
+                CREATE TABLE ${namespaceName}.${t1} (id INT, val TEXT);
+                INSERT INTO ${namespaceName}.${t1} (id, val) VALUES (1, 'a'), (2, 'b');
+            `);
         });
 
         it("should select from a table", async () => {
@@ -824,11 +755,13 @@ describe("FlashQL - DQL", () => {
             client = await createClient(namespaceName);
             await client.query(`CREATE SCHEMA IF NOT EXISTS ${namespaceName}`);
             // tables
-            await client.query(`CREATE TABLE expr_nums (id INT PRIMARY KEY, a INT, b INT, txt TEXT)`);
-            await client.query(`INSERT INTO expr_nums (id, a, b, txt) VALUES
-                (1, 10, 3, 'alpha'),
-                (2, 5, NULL, 'beta'),
-                (3, -2, 4, NULL)`); // includes NULLs, negative, etc.
+            await client.query(`
+                CREATE TABLE expr_nums (id INT PRIMARY KEY, a INT, b INT, txt TEXT);
+                INSERT INTO expr_nums (id, a, b, txt) VALUES
+                    (1, 10, 3, 'alpha'),
+                    (2, 5, NULL, 'beta'),
+                    (3, -2, 4, NULL);
+            `); // includes NULLs, negative, etc.
         });
 
         after(async () => {
@@ -1049,11 +982,13 @@ describe("FlashQL - DQL", () => {
         });
 
         it('LATERAL subquery can reference outer columns', async () => {
+            globalThis.___ = 4;
             const { rows } = await client.query(`
                 SELECT t.id, sub.dbl FROM lateral_nums t
                 JOIN LATERAL (SELECT t.n * 2 AS dbl) sub ON true
                 ORDER BY t.id
             `);
+            globalThis.___ = 0;
             // each outer row should have dbl = n*2
             expect(rows).to.deep.equal([{ id: 1, dbl: 4 }, { id: 2, dbl: 2 }, { id: 3, dbl: 0 }]);
         });
@@ -1081,10 +1016,10 @@ describe("FlashQL - DQL", () => {
             client = await createClient(namespaceName);
             await client.query(`CREATE SCHEMA IF NOT EXISTS ${namespaceName}`);
             // tables
-            await client.query(`CREATE TABLE ${t1} (id INT, val TEXT)`);
             await client.query(`
+                CREATE TABLE ${t1} (id INT, val TEXT);
                 INSERT INTO ${t1} (id, val) VALUES
-                (1, 'b'), (2, 'a'), (3, NULL), (4, 'c')
+                (1, 'b'), (2, 'a'), (3, NULL), (4, 'c');
             `);
         });
 
@@ -1969,7 +1904,6 @@ describe("SET OPERATIONS - UNION / INTERSECT / EXCEPT", () => {
     });
 
     it("ORDER BY ordinal should work after UNION", async () => {
-        globalThis._ = 3;
         const { rows } = await client.query(`
             SELECT 1 AS id, 'x' AS val
             UNION
@@ -1978,7 +1912,6 @@ describe("SET OPERATIONS - UNION / INTERSECT / EXCEPT", () => {
             SELECT 2, 'y'
             ORDER BY 1 DESC;
         `);
-        globalThis._ = 0;
 
         expect(rows.map(r => r.id)).to.deep.eq([3, 2, 1]);
     });

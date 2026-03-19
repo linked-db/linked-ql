@@ -1,18 +1,45 @@
+import { SchemaInference as BaseSchemaInference } from '../../lang/SchemaInference.js';
 import { normalizeRelationSelectorArg, parseRelationSelectors } from './util.js';
-import { Abstract1SQLClient } from './Abstract1SQLClient.js';
 import { registry } from '../../lang/registry.js';
 
-export class Abstract2SQLClient extends Abstract1SQLClient {
+export class SchemaInference extends BaseSchemaInference {
 
-    async _showCreate(selector, structured = false) {
-        selector = normalizeRelationSelectorArg(selector);
-        const sql = this._composeShowCreateSQL(selector);
-        const result = await this.driver.query(sql);
-        return await this._formatShowCreateResult(result.rows || result, structured);
+    #client;
+
+    constructor({ client, ...options }) {
+        super(options);
+        this.#client = client;
     }
 
-    _composeShowCreateSQL(selector) {
-        const utils = this._createCommonSQLUtils();
+    async showCreate(selector, { structured = false, tx = null } = {}) {
+        selector = normalizeRelationSelectorArg(selector);
+        const sql = this.#composeShowCreateSQL(selector);
+        const result = await this.#client._query(sql, { tx }); // Must be _query() not query()
+        return await this.#formatShowCreateResult(result.rows, structured);
+    }
+
+    #createCommonSQLUtils() {
+        const utils = {
+            //groupConcat: (col, orderBy) => this.dialect === 'mysql' ? `GROUP_CONCAT(${col}${orderBy ? ` ORDER BY ${orderBy}` : ``} SEPARATOR ',')` : `STRING_AGG(${col}, ','${orderBy ? ` ORDER BY ${orderBy}` : ``})`,
+            ident: (name) => registry.Identifier.fromJSON({ value: name }, { dialect: this.dialect }),
+            str: (value) => registry.StringLiteral.fromJSON({ value }, { dialect: this.dialect }),
+            jsonBuildObject: (exprs) => this.dialect === 'mysql' ? `JSON_OBJECT(${exprs.join(', ')})` : `JSON_BUILD_OBJECT(${exprs.join(', ')})`,
+            jsonAgg: (expr) => this.dialect === 'mysql' ? `JSON_ARRAYAGG(${expr})` : `JSON_AGG(${expr})`,
+            anyValue: (col) => this.dialect === 'mysql' ? col : `MAX(${col})`,
+            matchRelationSelector: (ident, enums) => {
+                const [names, _names, patterns, _patterns] = parseRelationSelectors(enums);
+                const $names = names.length && !(names.length === 1 && names[0] === '*') ? `${ident} IN (${names.map(utils.str).join(', ')})` : null;
+                const $_names = _names.length ? `${ident} NOT IN (${_names.map(utils.str).join(', ')})` : null;
+                const $patterns = patterns.length ? patterns.map((p) => `${ident} ILIKE ${utils.str(p.replace(/_/g, '\\_'))} ESCAPE '\\'`).join(' AND ') : null;
+                const $_patterns = _patterns.length ? patterns.map((p) => `${ident} NOT ILIKE ${utils.str(p.replace(/_/g, '\\_'))} ESCAPE '\\'`).join(' AND ') : null;
+                return [$names, $_names, $patterns, $_patterns].filter((s) => s).join(' AND ');
+            }
+        };
+        return utils;
+    }
+
+    #composeShowCreateSQL(selector) {
+        const utils = this.#createCommonSQLUtils();
         const $parts = {
             fields: [],
             dbWhere: '',
@@ -63,11 +90,11 @@ export class Abstract2SQLClient extends Abstract1SQLClient {
                 generation_expression: `cols.generation_expression`,
             };
             const baseQuery = `
-                    SELECT ${Object.entries(fields).map(([k, v]) => `${v} AS ${k}`).join(', ')}
-                    FROM information_schema.columns AS cols
-                    WHERE cols.table_schema = tbl.table_schema AND cols.table_name = tbl.table_name
-                    ORDER BY cols.ordinal_position
-                `;
+                SELECT ${Object.entries(fields).map(([k, v]) => `${v} AS ${k}`).join(', ')}
+                FROM information_schema.columns AS cols
+                WHERE cols.table_schema = tbl.table_schema AND cols.table_name = tbl.table_name
+                ORDER BY cols.ordinal_position
+            `;
             // Return as an aggregation
             return `SELECT ${utils.jsonAgg(
                 utils.jsonBuildObject(Object.keys(fields).reduce(($fields, f) => $fields.concat(`'${f}'`, `cols.${f}`), []))
@@ -99,30 +126,30 @@ export class Abstract2SQLClient extends Abstract1SQLClient {
                 delete_rule: utils.anyValue(`relation.delete_rule`),
             };
             const baseQuery = `
-                    SELECT ${Object.entries(fields).map(([k, v]) => `${v} AS ${k}`).join(', ')}
-                    FROM information_schema.table_constraints AS cons
-                    LEFT JOIN information_schema.key_column_usage AS cons_details
-                        ON cons_details.constraint_name = cons.constraint_name
-                        AND cons_details.table_name = cons.table_name
-                        AND cons_details.constraint_schema = cons.constraint_schema
-                        AND cons_details.constraint_catalog = cons.constraint_catalog
-                    LEFT JOIN information_schema.check_constraints AS check_constraints_details
-                        ON check_constraints_details.constraint_name = cons.constraint_name
-                        AND check_constraints_details.constraint_schema = cons.constraint_schema
-                        AND check_constraints_details.constraint_catalog = cons.constraint_catalog
-                    LEFT JOIN information_schema.referential_constraints AS relation
-                        ON relation.constraint_name = cons.constraint_name
-                        AND relation.constraint_schema = cons.constraint_schema
-                        AND relation.constraint_catalog = cons.constraint_catalog
-                    ${this.dialect === 'mysql' ? '' : `
-                    LEFT JOIN information_schema.key_column_usage AS relation_details
-                        ON relation_details.constraint_name = relation.unique_constraint_name
-                        AND relation_details.constraint_schema = relation.unique_constraint_schema
-                        AND relation_details.constraint_catalog = relation.unique_constraint_catalog
-                        ` }
-                    WHERE cons.table_schema = tbl.table_schema AND cons.table_name = tbl.table_name
-                    GROUP BY cons.constraint_name
-                `;
+                SELECT ${Object.entries(fields).map(([k, v]) => `${v} AS ${k}`).join(', ')}
+                FROM information_schema.table_constraints AS cons
+                LEFT JOIN information_schema.key_column_usage AS cons_details
+                    ON cons_details.constraint_name = cons.constraint_name
+                    AND cons_details.table_name = cons.table_name
+                    AND cons_details.constraint_schema = cons.constraint_schema
+                    AND cons_details.constraint_catalog = cons.constraint_catalog
+                LEFT JOIN information_schema.check_constraints AS check_constraints_details
+                    ON check_constraints_details.constraint_name = cons.constraint_name
+                    AND check_constraints_details.constraint_schema = cons.constraint_schema
+                    AND check_constraints_details.constraint_catalog = cons.constraint_catalog
+                LEFT JOIN information_schema.referential_constraints AS relation
+                    ON relation.constraint_name = cons.constraint_name
+                    AND relation.constraint_schema = cons.constraint_schema
+                    AND relation.constraint_catalog = cons.constraint_catalog
+                ${this.dialect === 'mysql' ? '' : `
+                LEFT JOIN information_schema.key_column_usage AS relation_details
+                    ON relation_details.constraint_name = relation.unique_constraint_name
+                    AND relation_details.constraint_schema = relation.unique_constraint_schema
+                    AND relation_details.constraint_catalog = relation.unique_constraint_catalog
+                    ` }
+                WHERE cons.table_schema = tbl.table_schema AND cons.table_name = tbl.table_name
+                GROUP BY cons.constraint_name
+            `;
             // Return as an aggregation
             return `SELECT ${utils.jsonAgg(
                 utils.jsonBuildObject(Object.keys(fields).reduce(($fields, f) => $fields.concat(`'${f}'`, `cons.${f}`), []))
@@ -133,10 +160,10 @@ export class Abstract2SQLClient extends Abstract1SQLClient {
             // Composition
             const fields = { table_name: `tbl.table_name`, table_schema: `tbl.table_schema` };
             const baseQuery = `
-                    SELECT ${Object.entries(fields).map(([k, v]) => `${v} AS ${k}`).join(', ')}
-                    FROM information_schema.tables AS tbl
-                    WHERE tbl.table_schema = db.schema_name/* AND tbl.table_type = 'BASE TABLE'*/${$parts.tblWhere}
-                `;
+                SELECT ${Object.entries(fields).map(([k, v]) => `${v} AS ${k}`).join(', ')}
+                FROM information_schema.tables AS tbl
+                WHERE tbl.table_schema = db.schema_name/* AND tbl.table_type = 'BASE TABLE'*/${$parts.tblWhere}
+            `;
             // Return as an aggregation
             const branches = detailed ? [`'columns'`, `(${buildColumns()})`, `'constraints'`, `(${buildConstraints()})`] : [];
             return `SELECT ${utils.jsonAgg(
@@ -154,27 +181,7 @@ export class Abstract2SQLClient extends Abstract1SQLClient {
         return sql;
     }
 
-    _createCommonSQLUtils() {
-        const utils = {
-            //groupConcat: (col, orderBy) => this.dialect === 'mysql' ? `GROUP_CONCAT(${col}${orderBy ? ` ORDER BY ${orderBy}` : ``} SEPARATOR ',')` : `STRING_AGG(${col}, ','${orderBy ? ` ORDER BY ${orderBy}` : ``})`,
-            ident: (name) => registry.Identifier.fromJSON({ value: name }, { dialect: this.dialect }),
-            str: (value) => registry.StringLiteral.fromJSON({ value }, { dialect: this.dialect }),
-            jsonBuildObject: (exprs) => this.dialect === 'mysql' ? `JSON_OBJECT(${exprs.join(', ')})` : `JSON_BUILD_OBJECT(${exprs.join(', ')})`,
-            jsonAgg: (expr) => this.dialect === 'mysql' ? `JSON_ARRAYAGG(${expr})` : `JSON_AGG(${expr})`,
-            anyValue: (col) => this.dialect === 'mysql' ? col : `MAX(${col})`,
-            matchRelationSelector: (ident, enums) => {
-                const [names, _names, patterns, _patterns] = parseRelationSelectors(enums);
-                const $names = names.length && !(names.length === 1 && names[0] === '*') ? `${ident} IN (${names.map(utils.str).join(', ')})` : null;
-                const $_names = _names.length ? `${ident} NOT IN (${_names.map(utils.str).join(', ')})` : null;
-                const $patterns = patterns.length ? patterns.map((p) => `${ident} ILIKE ${utils.str(p.replace(/_/g, '\\_'))} ESCAPE '\\'`).join(' AND ') : null;
-                const $_patterns = _patterns.length ? patterns.map((p) => `${ident} NOT ILIKE ${utils.str(p.replace(/_/g, '\\_'))} ESCAPE '\\'`).join(' AND ') : null;
-                return [$names, $_names, $patterns, $_patterns].filter((s) => s).join(' AND ');
-            }
-        };
-        return utils;
-    }
-
-    async _formatShowCreateResult(result, structured) {
+    async #formatShowCreateResult(result, structured) {
         // Util:
         const formatRelation = async (cons) => {
             const consSchema = {

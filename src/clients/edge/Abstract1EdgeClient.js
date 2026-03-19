@@ -1,18 +1,23 @@
 import { registry } from '../../lang/registry.js';
 import { Abstract0SQLClient } from '../abstracts/Abstract0SQLClient.js';
 import { RealtimeResult } from '../../proc/realtime/RealtimeResult.js';
+import { SQLParser } from '../../lang/SQLParser.js';
 import { Result } from '../Result.js';
 
 export class Abstract1EdgeClient extends Abstract0SQLClient {
 
+    #parser;
     #workerEventNamespace;
     #realtimeMode;
 
     #realtime;
     #gcArray = [];
 
+    get parser() { return this.#parser; }
+
     constructor({ workerEventNamespace, realtimeMode = 0, ...options }) {
         super(options);
+        this.#parser = SQLParser({ dialect: options.dialect });
         this.#workerEventNamespace = workerEventNamespace;
         this.#realtimeMode = realtimeMode;
     }
@@ -22,7 +27,6 @@ export class Abstract1EdgeClient extends Abstract0SQLClient {
     async showCreate(selector, structured = false) {
         const responseJson = await this._showCreate(selector, structured);
         if (!responseJson) return;
-
         return registry.JSONSchema.fromJSON(
             { entries: responseJson },
             { assert: true }
@@ -31,7 +35,7 @@ export class Abstract1EdgeClient extends Abstract0SQLClient {
 
     async parse(querySpec, { preferRemote = false, alias = null, dynamicWhereMode = false, ...options } = {}) {
         if (!preferRemote) {
-            return await super.parse(querySpec, { alias, dynamicWhereMode, ...options });
+            return await this.#parser.parse(querySpec, { alias, dynamicWhereMode, ...options });
         }
 
         if (dynamicWhereMode) {
@@ -84,8 +88,8 @@ export class Abstract1EdgeClient extends Abstract0SQLClient {
         return result;
     }
 
-    async cursor(query, options) {
-        return await this._cursor(query, options);
+    async stream(query, options) {
+        return await this._stream(query, options);
     }
 
     async subscribe(...args) {
@@ -124,20 +128,20 @@ export class Abstract1EdgeClient extends Abstract0SQLClient {
 
     #loadAST(responseJson, options) {
         if (!responseJson) return;
-        if (responseJson.nodeName === registry.Script.NODE_NAME) {
-            return registry.Script.fromJSON(responseJson, {
+        if (responseJson.nodeName === registry.SQLScript.NODE_NAME) {
+            return registry.SQLScript.fromJSON(responseJson, {
                 dialect: options.dialect,
                 assert: true,
                 supportStdStmt: true
             });
         }
         if (Array.isArray(responseJson)) {
-            return registry.Script.fromJSON(
+            return registry.SQLScript.fromJSON(
                 { entries: responseJson },
                 { dialect: options.dialect, assert: true, supportStdStmt: true }
             ).entries();
         }
-        return registry.Script.fromJSON(
+        return registry.SQLScript.fromJSON(
             { entries: [responseJson] },
             { dialect: options.dialect, assert: true, supportStdStmt: true }
         ).entries()[0];

@@ -1,6 +1,6 @@
-import { AbstractNode } from '../lang/abstracts/AbstractNode.js';
-import { _eq } from '../lang/abstracts/util.js';
-import { registry } from '../lang/registry.js';
+import { AbstractNode } from '../../lang/abstracts/AbstractNode.js';
+import { _eq } from '../../lang/abstracts/util.js';
+import { registry } from '../../lang/registry.js';
 
 const TBL_PLACEHOLDER = Symbol.for('tbl_placeholder');
 const GROUPING_META = Symbol.for('grouping_meta');
@@ -527,7 +527,7 @@ export class ExprEngine {
 
         // Classic functions
 
-        const args = await Promise.all(node.arguments().map((a) => this.evaluate(a, compositeRow, queryCtx)));
+        const args = await Promise.all(node.arguments()?.map((a) => this.evaluate(a, compositeRow, queryCtx)) || []);
         // ----------- asPartial
         if (args.some((x) => x instanceof AbstractNode)) {
             return registry.CallExpr.fromJSON(
@@ -561,6 +561,43 @@ export class ExprEngine {
                 }
                 return buildObj;
             }
+
+            
+            case 'NOW': return new Date();
+
+            case 'CURRENT_DATE': return new Date().toISOString().slice(0, 10);
+
+            case 'CURRENT_TIME': return new Date().toISOString().slice(11, 19);
+
+            case 'CURRENT_TIMESTAMP': return new Date().toISOString();
+
+            case 'EXTRACT':
+                const [field, date1] = args;
+                const dateObj1 = new Date(date1);
+                const fieldName = field.toUpperCase();
+                switch (fieldName) {
+                    case 'YEAR': return dateObj1.getFullYear();
+                    case 'MONTH': return dateObj1.getMonth() + 1;
+                    case 'DAY': return dateObj1.getDate();
+                    case 'HOUR': return dateObj1.getHours();
+                    case 'MINUTE': return dateObj1.getMinutes();
+                    case 'SECOND': return dateObj1.getSeconds();
+                    default: throw new Error(`Unsupported date/time field ${field}`);
+                }
+
+            case 'DATE_TRUNC':
+                const [dateUnit, date2] = args;
+                const dateObj2 = new Date(date2);
+                const unitName = dateUnit.toUpperCase();
+                switch (unitName) {
+                    case 'YEAR': return `${dateObj2.getFullYear()}-01-01`;
+                    case 'MONTH': return `${dateObj2.getFullYear()}-${String(dateObj2.getMonth() + 1).padStart(2, '0')}-01`;
+                    case 'DAY': return `${dateObj2.getFullYear()}-${String(dateObj2.getMonth() + 1).padStart(2, '0')}-${String(dateObj2.getDate()).padStart(2, '0')}`;
+                    case 'HOUR': return `${dateObj2.getFullYear()}-${String(dateObj2.getMonth() + 1).padStart(2, '0')}-${String(dateObj2.getDate()).padStart(2, '0')}T${String(dateObj2.getHours()).padStart(2, '0')}:00:00`;
+                    case 'MINUTE': return `${dateObj2.getFullYear()}-${String(dateObj2.getMonth() + 1).padStart(2, '0')}-${String(dateObj2.getDate()).padStart(2, '0')}T${String(dateObj2.getHours()).padStart(2, '0')}:${String(dateObj2.getMinutes()).padStart(2, '0')}:00`;
+                    case 'SECOND': return `${dateObj2.getFullYear()}-${String(dateObj2.getMonth() + 1).padStart(2, '0')}-${String(dateObj2.getDate()).padStart(2, '0')}T${String(dateObj2.getHours()).padStart(2, '0')}:${String(dateObj2.getMinutes()).padStart(2, '0')}:${String(dateObj2.getSeconds()).padStart(2, '0')}`;
+                    default: throw new Error(`Unsupported date/time unit ${dateUnit}`);
+                }
 
             default: throw new Error(`ExprEngine: Unsupported function ${node.name()}`);
         }

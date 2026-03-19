@@ -10,13 +10,13 @@ export class EdgeClient extends Abstract1EdgeClient {
     #fetch;
     #worker;
 
-    #cursorStreaming;
+    #rowsStreaming;
     #workerEventNamespace;
 
     constructor({
         url,
         type = 'http',
-        cursorStreaming = 'port',
+        rowsStreaming = 'port',
         workerEventNamespace = 'lnkd_',
         fetchApi = null,
         ...options
@@ -31,7 +31,7 @@ export class EdgeClient extends Abstract1EdgeClient {
         this.#type = type;
 
         this.#workerEventNamespace = workerEventNamespace;
-        this.#cursorStreaming = cursorStreaming;
+        this.#rowsStreaming = rowsStreaming;
 
         if (this.#type === 'http') {
             this.#fetch = async (...args) => {
@@ -51,12 +51,12 @@ export class EdgeClient extends Abstract1EdgeClient {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                ...(streamMode && this.#cursorStreaming !== 'port'
+                ...(streamMode && this.#rowsStreaming !== 'port'
                     ? {} : { 'Accept': 'application/json' }),
             },
         }).then(async (res) => {
             if (streamMode) {
-                if (this.#cursorStreaming) {
+                if (this.#rowsStreaming) {
                     const { port } = await LiveResponse.from(res).now();
                     return this.#portToAsyncIterable(port);
                 } else return this.#streamToAsyncIterable(
@@ -110,8 +110,8 @@ export class EdgeClient extends Abstract1EdgeClient {
         );
     }
 
-    async _cursor(query, options) {
-        return await this.#exec('cursor', { query, options }, { streamMode: true });
+    async _stream(query, options) {
+        return await this.#exec('stream', { query, options }, { streamMode: true });
     }
 
     async _subscribe(...args) {

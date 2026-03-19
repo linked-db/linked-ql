@@ -1,482 +1,441 @@
-import {
-    matchRelationSelector,
-    normalizeRelationSelectorArg
-} from '../clients/abstracts/util.js';
-import { Abstract1SQLClient } from '../clients/abstracts/Abstract1SQLClient.js';
-import { ConflictError } from './ConflictError.js';
-import { StorageEngine } from './StorageEngine.js';
-import { QueryEngine } from './QueryEngine.js';
+import { normalizeQueryArgs } from '../clients/abstracts/util.js';
+import { AbstractSQLClient } from '../clients/abstracts/AbstractSQLClient.js';
+import { RealtimeClient } from '../proc/realtime/RealtimeClient.js';
+import { StorageEngine } from './storage/StorageEngine.js';
+import { QueryEngine } from './eval/QueryEngine.js';
+import { SQLParser } from '../lang/SQLParser.js';
 import { registry } from '../lang/registry.js';
+import { Result } from '../clients/Result.js';
 
-export class FlashQL extends Abstract1SQLClient {
+export class FlashQL extends AbstractSQLClient {
 
     #dialect;
+    #parser;
+    #sync;
+    #realtimeClient;
 
     #storageEngine;
     #queryEngine;
 
-    #onCreateRemoteClient;
-    #remoteClients = new Map;
-
-    #realtimeAbortLine;
-
     get dialect() { return this.#dialect; }
-    get storageEngine() { return this.#storageEngine; }
+    get parser() { return this.#parser; }
+    get sync() { return this.#sync; }
+    get realtimeClient() { return this.#realtimeClient; }
 
-    constructor({ dialect = 'postgres', capability = {}, onCreateRemoteClient = null, ...options } = {}, storageEngine = null) {
+    get storageEngine() { return this.#storageEngine; }
+    get queryEngine() { return this.#queryEngine; }
+
+    #managedSyncAbortLines = new Map;
+
+    constructor({
+        dialect = 'postgres',
+        capability = {},
+        keyval = null,
+        storageEngine = null,
+        queryEngine = null,
+        ...options
+    } = {}) {
         super({ capability });
+
         this.#dialect = dialect;
-        this.#storageEngine = storageEngine || new StorageEngine({ dialect, ...options });
-        this.#queryEngine = new QueryEngine(this.#storageEngine, { dialect, ...options });
-        this.#onCreateRemoteClient = onCreateRemoteClient;
+        this.#parser = new SQLParser({ dialect: this.dialect });
+
+        this.#storageEngine = storageEngine || new StorageEngine({ client: this, dialect, keyval, ...options });
+        this.#queryEngine = queryEngine || new QueryEngine(this.#storageEngine, { dialect, ...options });
+
+        this.#sync = this.#storageEngine.sync;
+        this.#realtimeClient = new RealtimeClient(this);
     }
 
-    async _connect() { }
+    async connect() {
+        await super.connect();
+        await this.#storageEngine.init();
+    }
 
-    async _disconnect() { }
+    async disconnect() {
+        for (const abortLine of this.#managedSyncAbortLines.values())
+            abortLine?.();
+        this.#managedSyncAbortLines.clear();
+        await this.#storageEngine.close();
+        await super.disconnect();
+    }
 
-    async _query(query, options) {
-        const unmaterializedMirrors = await this.#storageEngine.showMirrors({ materialized: false });
-        const effectiveMirrorsSpec = new Map;
+    createSchemaInference() {
+        return this.#storageEngine.createSchemaInference();
+    }
 
-        if (unmaterializedMirrors.size) {
-            let resolutionHint = 0;
+    async query(...args) {
+        const [_query, options] = normalizeQueryArgs(...args);
+        const query = await this.#parser.parse(_query, options);
+
+        if (options.live && query.fromClause?.()) {
+            const schemaInference = this.createSchemaInference();
+            const resolvedQuery = await schemaInference.resolveQuery(query, options);
+            return await this.#realtimeClient.query(resolvedQuery, options);
+        }
+
+        const tx = this.#storageEngine.begin();
+        let canDirectlyForwardTo = null;
+
+        try {
             query.walkTree((v) => {
-                let nsName,
-                    tblName;
+                if (canDirectlyForwardTo === false) return;
+                let nsName, tblName;
+
                 if (v instanceof registry.TableRef1
                     && (nsName = v.qualifier()?.value())
                     && (tblName = v.value())) {
-                    const nsDef = unmaterializedMirrors.get(nsName);
-                    const tblDef = nsDef?.tables.get(tblName);
-                    if (!tblDef) return;
 
-                    if (!effectiveMirrorsSpec.has(nsName)) {
-                        effectiveMirrorsSpec.set(nsName, { type: nsDef.type, origin: nsDef.origin, tables: new Map });
-                    }
-                    effectiveMirrorsSpec.get(nsName).tables.set(tblName, tblDef);
+                    const tblDef = tx.showView({ namespace: nsName, name: tblName }, { ifExists: true });
 
-                    if (nsDef.type === 'API'
-                        || tblDef?.querySpec.query
-                        || tblDef.querySpec.namespace !== nsName) {
-                        resolutionHint = -1;
-                    } else if (resolutionHint !== -1) {
-                        resolutionHint = 1;
+                    if (tblDef?.namespace_id.replication_origin
+                        && tblDef.persistence === 'origin'
+                        && tblDef.view_spec.namespace === nsName
+                        && tblDef.view_spec.name === tblName
+                        && !tblDef.view_spec.filters
+                        && (canDirectlyForwardTo === null || canDirectlyForwardTo.name === nsName)) {
+                        canDirectlyForwardTo = canDirectlyForwardTo || tblDef.namespace_id;
+                    } else {
+                        canDirectlyForwardTo = false;
                     }
                 } else return v;
             }, true);
 
-            let lastClient;
-            for (const nsDef of effectiveMirrorsSpec.values()) {
-                lastClient = await this.getRemoteClient(nsDef.origin);
-                nsDef.client = lastClient;
+            if (canDirectlyForwardTo) {
+                await tx.abort(); // Abandon tx
+                const client = await this.#storageEngine.getForeignClient(canDirectlyForwardTo.replication_origin);
+                return await client.query(query, options);
             }
 
-            if (resolutionHint === 1
-                && effectiveMirrorsSpec.size === 1) {
-                return await lastClient.query(query, options);
-            }
+            const result = await this.#queryEngine.query(query, { ...options, tx });
+            await tx.commit();
+
+            return new Result({ rows: result.rows, rowCount: result.rowCount });
+        } catch (e) {
+            await tx.abort();
+            throw e;
         }
-
-        return await this.#queryEngine.query(query, { ...options, effectiveMirrorsSpec });
     }
 
-    async _cursor(query, options) {
+    async stream(...args) {
+        const [_query, options] = normalizeQueryArgs(...args);
         const _this = this;
         return {
             async *[Symbol.asyncIterator]() {
-                let rows;
+                let stream;
                 try {
-                    ({ rows } = await _this._query(query, options));
-                    for await (const row of rows) {
-                        yield row;
-                    }
+                    (stream = await _this.query(_query, { ...options, live: false, bufferResultRows: false }));
+                    for await (const row of stream) yield row;
                 } finally {
-                    if (typeof rows.return === 'function') {
-                        await rows.return();
+                    if (typeof stream?.return === 'function') {
+                        await stream.return();
                     }
                 }
             }
         };
     }
 
-    async _showCreate(selector, structured = false) {
-        selector = normalizeRelationSelectorArg(selector);
-        const namespaceSchemas = [];
-        for (const nsName of await this.#storageEngine.namespaceNames()) {
+    /*
+    async #federate(specifiers, options, origin, materializeCallback = null, relationType = MIRROR_RELATION_TYPES.FEDERATED) {
+        const remoteClient = await this.getForeignClient(origin);
 
-            const objectNames = Object.entries(selector).reduce((arr, [_namespaceName, objectNames]) => {
-                return matchRelationSelector(nsName, [_namespaceName])
-                    ? arr.concat(objectNames)
-                    : arr;
-            }, []);
-            if (!objectNames.length) continue;
+        await this.#storageEngine.transaction(async (tx) => {
+            for (const [nsName, queryObjects] of specifiers.entries()) {
 
-            // Schema def:
-            const namespaceJson = {
-                nodeName: registry.NamespaceSchema.NODE_NAME,
-                name: { nodeName: registry.NamespaceIdent.NODE_NAME, value: nsName },
-                entries: [],
-            };
+                for (const querySpec of queryObjects) {
+                    let query = null;
+                    let payload;
 
-            // Schema tables:
-            const namespaceObject = await this.#storageEngine.getNamespace(nsName);
-            for (const tblName of await namespaceObject.tableNames()) {
-                if (!matchRelationSelector(tblName, objectNames)) continue;
-                const tableStorage = await namespaceObject.getTable(tblName);
-                const tableSchemaJson = tableStorage.schema.jsonfy();
-                tableSchemaJson.name.nodeName = registry.TableIdent.NODE_NAME;
-                tableSchemaJson.name.qualifier = { nodeName: registry.NamespaceRef.NODE_NAME, value: nsName };
-                (structured
-                    ? namespaceJson.entries
-                    : namespaceSchemas).push(registry.TableSchema.fromJSON(tableSchemaJson, { assert: true, dialect: this.dialect }));
-            }
-
-            if (structured) {
-                namespaceSchemas.push(registry.NamespaceSchema.fromJSON(namespaceJson, { dialect: this.dialect }));
-            }
-        }
-
-        return namespaceSchemas;
-    }
-
-    async _setupRealtime() {
-        if (this.#realtimeAbortLine) return; // Indempotency
-        this.#realtimeAbortLine = this.#storageEngine.on('changefeed', (events) => this._fanout(events));
-    }
-
-    async _teardownRealtime() {
-        this.#realtimeAbortLine?.();
-        this.#realtimeAbortLine = null;
-    }
-
-    // --------- FlashQL extras
-
-    async subscribe(selector, callback) {
-        if (typeof selector === 'function') return super.subscribe(selector);
-
-        const unmaterializedMirrors = await this.#storageEngine.showMirrors({ materialized: false });
-        if (unmaterializedMirrors.size) {
-
-            const abortLines = [];
-            const relationSelector = normalizeRelationSelectorArg(selector);
-
-            const localMap = {}, remoteMapMap = {};
-            for (const [nsName, tblNames] of Object.entries(relationSelector)) {
-                const remoteTablesMap = unmaterializedMirrors.get(nsName)?.tables;
-                if (remoteTablesMap) {
-                    for (const tblName of tblNames) {
-                        const remoteNsName = remoteTablesMap.get(tblName)?.querySpec.namespace || '*';
-                        // querySpec.query explocitly excluded from here
-                        if (remoteNsName) {
-                            if (!remoteMapMap[nsName]) remoteMapMap[nsName] = {};
-                            if (!remoteMapMap[nsName][remoteNsName]) remoteMapMap[nsName][remoteNsName] = [];
-                            remoteMapMap[nsName][remoteNsName].push(tblName);
-                        } else {
-                            if (!localMap[nsName]) localMap[nsName] = [];
-                            localMap[nsName].push(tblName);
-                        }
+                    if (querySpec.schema) {
+                        payload = Object.freeze({
+                            namespace: nsName,
+                            name: querySpec.name,
+                            columns: Object.freeze([...(querySpec.schema.columns || [])].map((col) => Object.freeze({ ...col }))),
+                            constraints: Object.freeze([...(querySpec.schema.constraints || [])].map((con) => Object.freeze({ ...con }))),
+                            indexes: Object.freeze([...(querySpec.schema.indexes || [])].map((idx) => Object.freeze({ ...idx }))),
+                        });
+                    } else {
+                        query = await remoteClient.resolve(querySpec);
+                        const tableSchema = registry.TableSchema.fromJSON({
+                            name: { nodeName: registry.Identifier.NODE_NAME, value: querySpec.name },
+                            entries: query.resultSchema().entries().map((e) => e.jsonfy()),
+                        }, { assert: true });
+                        payload = this.#queryEngine.tableSchemaToCreatePayload(tableSchema, nsName);
                     }
-                } else {
-                    localMap[nsName] = tblNames;
+
+                    await this.#storageEngine.upsertMirror({
+                        namespace: nsName,
+                        name: querySpec.name,
+                        mirrorType: options.type,
+                        origin,
+                        querySpec,
+                        relationType,
+                        tablePayload: payload,
+                        ifNotExists: options.ifNotExists,
+                        tx,
+                    });
+
+                    if (materializeCallback) {
+                        if (!query) query = await remoteClient.resolve(querySpec);
+                        const tableStorage = tx.getTable({ namespace: nsName, name: querySpec.name });
+                        await materializeCallback(tableStorage, query, tx, remoteClient, nsName, querySpec.name);
+                    }
                 }
-            }
-
-            if (Object.keys(localMap).length) {
-                abortLines.push(await super.subscribe(localMap, callback));
-            }
-            for (const nsName in remoteMapMap) {
-                const remoteClient = await this.getRemoteClient(unmaterializedMirrors.get(nsName).origin);
-                abortLines.push(await remoteClient.subscribe(remoteMapMap[nsName], (events) => {
-                    events = events.map((e) => ({ ...e, relation: { ...e.relation, namespace: nsName } }));
-                    callback(events);
-                }));
-            }
-
-            return () => abortLines.forEach((c) => c());
-        }
-
-        return super.subscribe(selector, callback);
-    }
-
-    async federate(...args) {
-        const [specifiers, options, origin] = this.#normalizeMirroringSpec(true, ...args);
-        return await this.#federate(specifiers, options, origin);
-    }
-
-    async materialize(...args) {
-        const [specifiers, options, origin] = this.#normalizeMirroringSpec(true, ...args);
-        return await this.#materialize(specifiers, options, origin);
-    }
-
-    async sync(...args) {
-        const [specifiers, options, origin] = this.#normalizeMirroringSpec(false, ...args);
-        return await this.#sync(specifiers, options, origin);
-    }
-
-    async getRemoteClient(origin) {
-        if (!this.#onCreateRemoteClient)
-            throw new Error(`Cannot process remote operation; missing options.onCreateRemoteClient`);
-        if (!this.#remoteClients.has(origin)) { // TODO: derive stable hashing
-            this.#remoteClients.set(origin, await this.#onCreateRemoteClient(origin));
-        }
-        return this.#remoteClients.get(origin);
-    }
-
-    // --------- standard client hooks
-
-    async #federate(specifiers, options, origin, materializeCallback = null) {
-        const storageEngine = this.#storageEngine;
-        const queryCtx = { transaction: await storageEngine.startTransaction('~sync~init') };
-        const remoteClient = await this.getRemoteClient(origin);
-
-        for (const [nsName, queryObjects] of specifiers.entries()) {
-            const namespaceObject = await storageEngine.createNamespace(nsName, { ifNotExists: options.ifNotExists, type: options.type, mirrored: true, origin }, queryCtx);
-
-            for (const querySpec of queryObjects) {
-                const query = await remoteClient.resolve(querySpec);
-                const tableSchema = registry.TableSchema.fromJSON({
-                    name: { nodeName: registry.Identifier.NODE_NAME, value: querySpec.name },
-                    entries: query.resultSchema().entries().map((e) => e.jsonfy()),
-                }, { assert: true });
-
-                const tableStorage = await namespaceObject.createTable(
-                    tableSchema,
-                    { ifNotExists: options.ifNotExists, materialized: !!materializeCallback, querySpec },
-                    queryCtx
-                );
-
-                if (materializeCallback) {
-                    await materializeCallback(tableStorage, query, queryCtx, remoteClient);
-                }
-            }
-        }
-
-        await queryCtx.transaction.done();
-    }
-
-    async #materialize(specifiers, options, origin) {
-        const keyOpts = { keyName: '~sync' };
-        const abortLines = [];
-
-        await this.#federate(specifiers, options, origin, async (tableStorage, query, queryCtx, remoteClient) => {
-            await tableStorage.createKey(keyOpts.keyName);
-            // Inser records
-            let stream, hashes = [];
-            if (options.live) {
-                const result = await remoteClient.query(
-                    query,
-                    (eventName, eventData) => this.#handleInSync(tableStorage, eventName, eventData),
-                    { live: true }
-                );
-                ({ rows: stream, hashes } = result);
-                abortLines.push(result.abort.bind(result));
-            } else stream = await remoteClient.cursor(query);
-
-            let i = 0;
-            for await (const row of stream) {
-                try {
-                    await tableStorage.insert(row, hashes[i] && { ...keyOpts, newKey: hashes[i] }, queryCtx);
-                } catch (e) {
-                    if (e instanceof ConflictError) {
-                        if (!options.ifNotExists) {
-                            await tableStorage.update(e.existing, row, hashes[i] && { ...keyOpts, newKey: hashes[i] }, queryCtx);
-                        }
-                    } else throw e;
-                }
-                i++;
             }
         });
+    }
 
-        return () => abortLines.forEach((c) => c());
+    async #materialize(specifiers, options, origin, { relationType = MIRROR_RELATION_TYPES.SNAPSHOT } = {}) {
+        const gcArray = [];
+
+        for (const [nsName, queryObjects] of specifiers.entries()) {
+            for (const querySpec of queryObjects) {
+
+                const singleSpec = new Map([[nsName, new Set([querySpec])]]);
+                const effectiveRelationType =
+                    options.live && relationType === MIRROR_RELATION_TYPES.SNAPSHOT
+                        ? MIRROR_RELATION_TYPES.REPLICA_IN
+                        : relationType;
+
+                await this.#federate(singleSpec, options, origin, async (tableStorage, query, tx, remoteClient, _nsName, tblName) => {
+                    let stream;
+
+                    if (options.live) {
+                        const tblDef = tx.showTable({ namespace: nsName, name: tblName }, { ifExists: true });
+                        const lastSeenCommit = Number.isInteger(tblDef?.replication_last_seen_commit)
+                            ? tblDef.replication_last_seen_commit
+                            : 0;
+
+                        const result = await remoteClient.query(
+                            query,
+                            (eventName, eventData) => this.#handleInSync({ namespace: nsName, name: tblName }, eventName, eventData),
+                            { live: true, last_seen_commit: lastSeenCommit }
+                        );
+                        stream = result.isNullResultSet ? null : result.rows;
+
+                        gcArray.push(result.abort?.bind(result));
+
+                        if (stream !== null) {
+                            if (lastSeenCommit) {
+                                await tx.alterTable({ namespace: nsName, name: tblName }, { replication_last_seen_commit: 0 });
+                            }
+                            await this.#resetTableData(tableStorage);
+                        }
+                    } else {
+                        await this.#resetTableData(tableStorage);
+                        stream = await remoteClient.stream(query);
+                    }
+
+                    if (stream !== null) {
+                        for await (const row of stream) {
+                            try {
+                                await tableStorage.insert(row);
+                            } catch (e) {
+                                if (e instanceof ConflictError) {
+                                    if (!options.ifNotExists) {
+                                        await tableStorage.update(e.existing, row);
+                                    }
+                                } else throw e;
+                            }
+                        }
+                    }
+                }, effectiveRelationType);
+            }
+        }
+
+        return () => gcArray.forEach((c) => c && c());
     }
 
     async #sync(specifiers, options, origin) {
-        const inSyncAbortLine = await this.#materialize(specifiers, { ...options, live: true }, origin);
-        const abortLines = [inSyncAbortLine];
+        if (!this.#storageEngine.keyval) {
+            throw new Error('Sync requires keyval persistence to be enabled.');
+        }
+        const gcArray = [];
 
         for (const [nsName, queryObjects] of specifiers.entries()) {
             for (const querySpec of queryObjects) {
-                abortLines.push(await this.subscribe(
+
+                const tableRef = { namespace: nsName, name: querySpec.name };
+
+                const singleSpec = new Map([[nsName, new Set([querySpec])]]);
+                const inSyncAbortLine = await this.#materialize(singleSpec, { ...options, live: true }, origin, { relationType: MIRROR_RELATION_TYPES.REPLICA_BI });
+                gcArray.push(inSyncAbortLine);
+
+                const outSyncAbortLine = await this.subscribe(
                     { [nsName]: [querySpec.name] },
-                    (events) => this.#handleOutSync(events, querySpec, origin)
-                ));
+                    (events) => this.#handleOutSync(events, querySpec, origin, tableRef)
+                );
+                gcArray.push(outSyncAbortLine);
+
+                this.#setManagedSyncAbortLine(tableRef, () => {
+                    inSyncAbortLine?.();
+                    outSyncAbortLine?.();
+                });
             }
         }
 
-        return () => abortLines.forEach((c) => c());
+        return () => gcArray.forEach((c) => c && c());
     }
 
-    async #handleInSync(tableStorage, eventName, eventData) {
-        const storageEngine = this.#storageEngine;
-        const queryCtx = { transaction: await storageEngine.startTransaction('~sync~in') };
-        const keyOpts = { keyName: '~sync' };
+    async #handleInSync(tableRef, eventName, eventData) {
+        if (eventName !== 'diff' || !Array.isArray(eventData)) return;
 
-        if (eventName === 'diff') {
-            for (let event of eventData) {
-                if (event.type === 'update') {
-                    const existing = await tableStorage.get(event.newHash, keyOpts);
+        await this.#storageEngine.transaction(async (tx) => {
+            const tableStorage = tx.getTable(tableRef);
 
-                    if (existing) {
-                        await tableStorage.update(event.oldHash, event.new, { ...keyOpts, newKey: event.newHash }, queryCtx);
-                    } else {
-                        event = { ...event, type: 'insert' };
-                    }
-                }
-
-                if (event.type === 'insert') {
-                    await tableStorage.insert(event.new, { ...keyOpts, newKey: event.newHash }, queryCtx);
-                }
-
-                if (event.type === 'delete') {
-                    await tableStorage.delete(event.newHash, keyOpts, queryCtx);
+            for (const event of eventData) {
+                if (event.type === 'insert' && event.new) {
+                    await tableStorage.insert(event.new);
+                } else if (event.type === 'update' && event.old && event.new) {
+                    await tableStorage.update(event.old, event.new);
+                } else if (event.type === 'delete') {
+                    const key = event.old || event.key || event.new;
+                    if (key) await tableStorage.delete(key);
                 }
             }
-        }
-
-        if (eventName === 'swap') {
-            const displaced = new Map;
-
-            for (const [hash, targetHash] of eventData) {
-                const sourceRecord = displaced.get(hash)
-                    || await tableStorage.get(hash, keyOpts);
-
-                const targetRedord = await tableStorage.get(targetHash, keyOpts);
-                displaced.set(targetHash, targetRedord);
-
-                await tableStorage.update(targetHash, sourceRecord, keyOpts);
-            }
-        }
-
-        if (eventName === 'result') {
-            const keys = await tableStorage.showKeys(keyOpts.keyName);
-            const allKeys = [...eventData.hashes, ...keys];
-
-            let existing;
-            for (let i = 0; i < allKeys.length; i++) {
-                if (!eventData.rows[i]) {
-                    await tableStorage.delete(allKeys[i], keyOpts, queryCtx);
-                } else if (existing = await tableStorage.get(allKeys[i], keyOpts)) {
-                    if (_eq(eventData.rows[i], existing)) continue;
-                    await tableStorage.update(allKeys[i], eventData.rows[i], keyOpts, queryCtx);
-                } else {
-                    await tableStorage.insert(eventData.rows[i], { ...keyOpts, newKey: allKeys[i] }, queryCtx);
-                }
-            }
-        }
-
-        await queryCtx.transaction.done();
+        }, { meta: { source: 'sync' } });
     }
 
-    async #handleOutSync(events, querySpec, origin) {
-        const outQueryObjects = [];
+    async #handleOutSync(events, querySpec, origin, tableRef) {
+        await this.#enqueueOutsyncEvents(events, querySpec, origin, tableRef);
+        await this.#drainOutsyncQueue();
+    }
 
-        for (const event of events) {
-            if (event.txId.startsWith('~sync')) continue;
-
-            const outQueryObject = { ...querySpec, command: event.type };
-
-            if (event.type === 'insert') {
-                outQueryObject.payload = [{ ...(querySpec.filters || {}), ...event.new }];
-            } else if (event.type === 'update' || event.type === 'delete') {
-                const key = event.key || Object.fromEntries(event.relation.keyColumns.map((k) => [k, event.old[k]]));
-                outQueryObject.filters = { ...(querySpec.filters || {}), ...key };
-
-                if (event.type === 'update') {
-                    outQueryObject.payload = event.new;
-                }
-            }
-
-            outQueryObjects.push(outQueryObject);
-        }
-
-        if (outQueryObjects.length) {
-            // TODO: implement an outbound queue for these quesries and handle failures
-            //const remoteClient = await this.getRemoteClient(origin);
-            //const result = await remoteClient.query(outQueryObjects.join(';'));
+    async #resetTableData(tableStorage) {
+        const rows = tableStorage.getAll();
+        for (const row of rows) {
+            await tableStorage.delete(row);
         }
     }
 
-    #normalizeMirroringSpec(allowQueries, ...args) {
-        const spec = args.shift();
-        const origin = args.pop(); // Last arg
-        const options = args.pop() || {}; // Middle, optional arg
+    #setManagedSyncAbortLine(tableRef, abortLine) {
+        const key = `${tableRef.namespace}.${tableRef.name}`;
+        const previous = this.#managedSyncAbortLines.get(key);
+        previous?.();
 
-        if (!(typeof spec === 'object' && spec) || Array.isArray(spec)) {
-            throw new TypeError('Mirroring spec must be a non-array object spec');
-        }
-        if (!origin || !['object', 'string'].includes(typeof origin)) {
-            throw new TypeError('Origin spec must be a string or an object');
-        }
+        if (abortLine) this.#managedSyncAbortLines.set(key, abortLine);
+        else this.#managedSyncAbortLines.delete(key);
+    }
 
-        const specifiers = new Map;
+    async #enqueueOutsyncEvents(events, querySpec, origin, tableRef) {
+        await this.#storageEngine.transaction(async (tx) => {
+            const tblDef = tx.showTable(tableRef, { ifExists: true });
+            if (!tblDef) return;
 
-        for (const nsName in spec) {
-            specifiers.set(nsName, new Set);
+            const queue = tx.getTable({ namespace: 'sys', name: 'sys_outsync_queue' });
+            const now = Date.now();
 
-            for (const subSpec of [].concat(spec[nsName])) {
-                const tableSpec = {};
+            for (const event of events) {
+                if (event.meta?.source === 'sync') continue;
+                if (!['insert', 'update', 'delete'].includes(event.op)) continue;
 
-                if (typeof subSpec === 'string') {
-                    if (options.type === 'API') {
-                        specifiers.get(nsName).add({
-                            name: subSpec,
-                        });
-                    } else {
-                        specifiers.get(nsName).add({
-                            namespace: nsName,
-                            name: subSpec,
-                        });
-                    }
-                } else {
-                    let keys;
-                    if (!(typeof subSpec === 'object' && subSpec)
-                        || !(keys = Object.keys(subSpec)).length
-                        || keys.filter((k) => k !== 'namespace' && k !== 'name' && k !== 'query' && k !== 'url' && k !== 'filters' && k !== 'joinStrategy').length) {
-                        throw new SyntaxError(`Given table spec ${JSON.stringify(subSpec)} invalid`);
-                    }
+                await queue.insert({
+                    relation_id: tblDef.id,
+                    origin,
+                    query_spec: querySpec,
+                    event_payload: event,
+                    status: 'pending',
+                    retry_count: 0,
+                    last_error: null,
+                    created_at: now,
+                    updated_at: now,
+                });
+            }
+        });
+    }
 
-                    if (!subSpec.name)
-                        throw new SyntaxError(`Missing attribute "name" in ${JSON.stringify(subSpec)}`);
+    async #drainOutsyncQueue() {
+        if (this.#isDrainingOutsync) return;
+        this.#isDrainingOutsync = true;
 
-                    if (options.type === 'API') {
-                        if (subSpec.query)
-                            throw new SyntaxError(`Unsupported attribute "query" in API-type mirror spec: ${JSON.stringify(subSpec)}`);
-                        if (subSpec.namespace || subSpec.filters)
-                            throw new SyntaxError(`Mutually-exclusive attributes "namespace|filters" in ${JSON.stringify(subSpec)}`);
-                        specifiers.get(nsName).add({
-                            name: subSpec.name,
-                            url: subSpec.url,
-                            joinStrategy: subSpec.joinStrategy
-                        });
-                    } else {
-                        if (subSpec.url)
-                            throw new SyntaxError(`Unsupported attribute "url" in SQL-type mirror spec: ${JSON.stringify(subSpec)}`);
-                        if (subSpec.query) {
-                            if (!allowQueries)
-                                throw new SyntaxError(`Arbitrary queries ${JSON.stringify(tableSpec)} not supported on this operation`);
-                            if (subSpec.namespace || subSpec.filters)
-                                throw new SyntaxError(`Mutually-exclusive attributes "namespace|filters" in ${JSON.stringify(subSpec)}`);
-                            specifiers.get(nsName).add({
-                                name: subSpec.name,
-                                query: subSpec.query,
-                                joinStrategy: subSpec.joinStrategy
-                            });
-                        } else {
-                            if (subSpec.filters && typeof subSpec.filters !== 'object')
-                                throw new SyntaxError(`Invalid attribute "filter" in ${JSON.stringify(subSpec)}`);
-                            specifiers.get(nsName).add({
-                                namespace: subSpec.namespace || nsName,
-                                name: subSpec.name,
-                                filters: subSpec.filters,
-                                joinStrategy: subSpec.joinStrategy
-                            });
+        const queueRef = { namespace: 'sys', name: 'sys_outsync_queue' };
+        const batchSize = this.#outsyncBatchSize;
+        const processingTimeoutMs = this.#outsyncProcessingTimeoutMs;
+        const remoteClientCache = new Map;
+
+        try {
+            while (true) {
+                const items = await this.#storageEngine.transaction(async (tx) => {
+                    const queue = tx.getTable(queueRef);
+
+                    const rows = queue.getAll();
+                    if (rows.length === 0) return [];
+
+                    const now = Date.now();
+                    const staleBefore = now - processingTimeoutMs;
+
+                    const batch = rows
+                        .filter((row) => {
+                            const updatedAt = typeof row.updated_at === 'number' ? row.updated_at : 0;
+                            const isStaleProcessing = row.status === 'processing' && updatedAt < staleBefore;
+                            return row.status === 'pending' || row.status === 'error' || isStaleProcessing;
+                        })
+                        .sort((a, b) => a.id - b.id)
+                        .slice(0, batchSize);
+
+                    if (batch.length === 0) return [];
+
+                    for (const row of batch) {
+                        const updatedAt = typeof row.updated_at === 'number' ? row.updated_at : 0;
+                        const isStaleProcessing = row.status === 'processing' && updatedAt < staleBefore;
+                        const update = { status: 'processing', updated_at: now };
+                        if (isStaleProcessing) {
+                            update.retry_count = (row.retry_count || 0) + 1;
+                            update.last_error = 'Processing timeout';
                         }
+                        await queue.update(row, update);
+                    }
+
+                    return batch;
+                });
+
+                if (items.length === 0) break;
+
+                for (const item of items) {
+                    try {
+                        const event = item.event_payload || {};
+
+                        let remoteClient = remoteClientCache.get(item.origin);
+                        if (!remoteClient) {
+                            remoteClient = await this.getForeignClient(item.origin);
+                            remoteClientCache.set(item.origin, remoteClient);
+                        }
+                        await this.#executeOutsyncItem(remoteClient, item, event);
+
+                        await this.#storageEngine.transaction(async (tx) => {
+                            const queue = tx.getTable(queueRef);
+                            await queue.delete(item);
+                        });
+                    } catch (e) {
+                        await this.#storageEngine.transaction(async (tx) => {
+                            const queue = tx.getTable(queueRef);
+                            await queue.update(item, {
+                                status: 'error',
+                                retry_count: (item.retry_count || 0) + 1,
+                                last_error: String(e?.message || e),
+                                updated_at: Date.now(),
+                            });
+                        });
                     }
                 }
             }
+        } finally {
+            this.#isDrainingOutsync = false;
+        }
+    }
+
+    async #executeOutsyncItem(remoteClient, item, event) {
+        const outQueryObject = { ...item.query_spec, command: event.op };
+        if (event.op === 'insert') {
+            outQueryObject.payload = [{ ...(item.query_spec?.filters || {}), ...event.new }];
+        } else {
+            const keyCols = event.relation?.keyColumns || [];
+            const key = Object.fromEntries(keyCols.map((k) => [k, event.old?.[k]]));
+            outQueryObject.filters = { ...(item.query_spec?.filters || {}), ...key };
+            if (event.op === 'update') outQueryObject.payload = event.new;
         }
 
-        return [specifiers, options, origin];
+        await remoteClient.query([outQueryObject]);
     }
+    */
 }

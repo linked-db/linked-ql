@@ -1,9 +1,9 @@
 import pg from 'pg';
-import Cursor from 'pg-cursor';
+import PGCursor from 'pg-cursor';
 import { LogicalReplicationService, PgoutputPlugin } from 'pg-logical-replication';
-import { Abstract2SQLClient } from '../abstracts/Abstract2SQLClient.js';
+import { MainstreamSQLClient } from '../abstracts/MainstreamSQLClient.js';
 
-export class PGClient extends Abstract2SQLClient {
+export class PGClient extends MainstreamSQLClient {
 
     #driver;
     #adminDriver;
@@ -48,13 +48,14 @@ export class PGClient extends Abstract2SQLClient {
         });
     }
 
-    async _connect() {
+    async connect() {
         const result = await this.#driver.connect();
         this.#adminDriver = this.#poolMode ? result : this.#driver;
+        await super.connect();
         return result;
     }
 
-    async _disconnect() {
+    async disconnect() {
         await this._teardownRealtime();
         try {
             if (this.#poolMode) {
@@ -62,29 +63,42 @@ export class PGClient extends Abstract2SQLClient {
             }
             await this.#driver.end();
         } catch { /* avoid hang */ }
+        await super.disconnect();
     }
 
-    async _query(query, { values = [], prepared = null }) {
-        return await this.#driver.query({
+    async _transaction(cb) {
+        const driver = await this.connect();
+        await driver.query('BEGIN');
+        try {
+            const result = await cb({ driver });
+            await driver.query('COMMIT');
+            return result;
+        } catch (e) {
+            await driver.query('ROLLBACK');
+            throw e;
+        }
+    }
+
+    async _query(query, { values = [], prepared = null, tx = null }) {
+        return await (tx?.driver || this.#driver).query({
             text: query + '',
             values,
             name: prepared,
         });
     }
 
-    async _cursor(query, { values = [], batchSize = 1000 } = {}) {
-        const pgCursor = this.#driver.query(new Cursor(query + '', values));
-
+    async _stream(query, { values = [], batchSize = 1000 } = {}) {
+        const pgPGCursor = this.#driver.query(new PGCursor(query + '', values));
         return {
             async *[Symbol.asyncIterator]() {
                 try {
                     while (true) {
-                        const rows = await pgCursor.read(batchSize);
+                        const rows = await pgPGCursor.read(batchSize);
                         if (!rows.length) break;
                         yield* rows;
                     }
                 } finally {
-                    await pgCursor.close();
+                    await pgPGCursor.close();
                 }
             }
         };

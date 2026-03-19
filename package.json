@@ -38,6 +38,7 @@
   },
   "scripts": {
     "test": "mocha --extension .test.js --recursive --timeout 5000 --exit",
+    "test-storage": "mocha \"test/**/*.storage*.test.js\" --timeout 5000 --exit",
     "lab": "mocha --extension .lab.js --recursive --timeout 5000 --exit",
     "build": "esbuild main=src/index.js flashql=src/flashql/FlashQL.js --bundle --minify --sourcemap --outdir=dist",
     "preversion": "npm run test && npm run build && git add -A dist",
@@ -65,6 +66,7 @@
   },
   "devDependencies": {
     "@webqit/fetch-plus": "^0.1.33",
+    "@webqit/keyval": "^0.2.18",
     "@webqit/observer": "^3.8.19",
     "@webqit/port-plus": "^0.1.23",
     "chai": "^4.3.4",

@@ -22,13 +22,13 @@ export class EdgeWorker {
     #type;
     get type() { return this.#type; }
 
-    #cursorStreaming;
+    #rowsStreaming;
     #workerEventNamespace;
 
     constructor({
         client,
         type = 'http',
-        cursorStreaming = 'port',
+        rowsStreaming = 'port',
         workerEventNamespace = 'lnkd_',
     }) {
         if (!client) throw new Error('No client specified');
@@ -38,7 +38,7 @@ export class EdgeWorker {
         this.#client = client;
         this.#type = type;
 
-        this.#cursorStreaming = cursorStreaming;
+        this.#rowsStreaming = rowsStreaming;
         this.#workerEventNamespace = workerEventNamespace;
     }
 
@@ -79,8 +79,8 @@ export class EdgeWorker {
                 liveModeCallback?.();
 
                 if (args.options?.callback === true) {
-                    args.options.callback = (type, data) => {
-                        port.postMessage({ type, data }, { type: `${this.#workerEventNamespace}event` });
+                    args.options.callback = (commit) => {
+                        port.postMessage({ commit }, { type: `${this.#workerEventNamespace}event` });
                     };
                 }
 
@@ -92,9 +92,9 @@ export class EdgeWorker {
             return result;
         }
 
-        if (op === 'cursor') {
-            const asyncIterable = await this.#client.cursor(...Object.values(args));
-            if (this.#type === 'http' && this.#cursorStreaming !== 'port') {
+        if (op === 'stream') {
+            const asyncIterable = await this.#client.stream(...Object.values(args));
+            if (this.#type === 'http' && this.#rowsStreaming !== 'port') {
                 return asyncIterable;
             }
 
@@ -108,8 +108,8 @@ export class EdgeWorker {
             if (!port) throw new Error('Port required');
             liveModeCallback?.();
 
-            args.callback = (events) => {
-                port.postMessage(events, { type: `${this.#workerEventNamespace}event` });
+            args.callback = (commit) => {
+                port.postMessage(commit, { type: `${this.#workerEventNamespace}event` });
             };
 
             const gc = await this.#client.subscribe(...Object.values(args));

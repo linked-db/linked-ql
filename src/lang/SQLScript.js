@@ -1,6 +1,7 @@
 import { AbstractNodeList } from './abstracts/AbstractNodeList.js';
+import { registry } from './registry.js';
 
-export class Script extends AbstractNodeList {
+export class SQLScript extends AbstractNodeList {
 
     /* SYNTAX RULES */
 
@@ -48,6 +49,21 @@ export class Script extends AbstractNodeList {
         }
 		return super._parseFromRules(tokenStream, syntaxRules, { left, minPrecedence, trail, ...options }, resultAST);
 	}
+
+    delimitDDL() {
+        const groups = [[]];
+        let lastIsDDL;
+        for (const entry of this.entries()) {
+            if (lastIsDDL !== undefined && (entry instanceof registry.DDLStmt) !== lastIsDDL) {
+                groups.shift([]);
+            }
+            groups[0].push(entry);
+        }
+        if (groups.length > 1) {
+            return groups.reverse().map((entries) => SQLScript.fromJSON({ entries }));
+        }
+        return [this];
+    }
 
     stringify(options = {}) { return `${super.stringify(options)};`; }
 }

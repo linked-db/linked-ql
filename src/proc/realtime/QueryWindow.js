@@ -1,6 +1,7 @@
 import { SimpleEmitter } from '../../clients/abstracts/SimpleEmitter.js';
 import { matchExpr } from '../../clients/abstracts/util.js';
-import { ExprEngine } from '../../flashql/ExprEngine.js';
+import { ExprEngine } from '../../flashql/eval/ExprEngine.js';
+import { SyncEngine } from '../sync/SyncEngine.js';
 import { registry } from "../../lang/registry.js";
 import { _eq } from "../../lang/abstracts/util.js";
 
@@ -233,6 +234,8 @@ export class QueryWindow extends SimpleEmitter {
     #resolvedOrderElements = [];
     #fromJsonOpts;
 
+    #sync;
+
     get driver() { return this.#driver; }
 
     get analysis() { return this.#analysis; }
@@ -243,6 +246,8 @@ export class QueryWindow extends SimpleEmitter {
 
     get parentWindow() { return this.#parentWindow; }
     get inheritanceDepth() { return this.#inheritanceDepth; }
+
+    get sync() { return this.#sync; }
 
     constructor(driver, query, options = {}) {
         super();
@@ -260,6 +265,8 @@ export class QueryWindow extends SimpleEmitter {
         this.#query = query;
         this.#queryJson = this.#query.jsonfy({ resultSchemas: false, originSchemas: false });
         this.#options = options; // { noOffsetRevalidate, forceDiffing }
+
+        this.#sync = new SyncEngine({ drainMode: 'drain' });
 
         this.#fromJsonOpts = { dialect: this.#driver.dialect, assert: true };;
 
@@ -419,6 +426,7 @@ export class QueryWindow extends SimpleEmitter {
         await this.#abortLine?.();
         this.#abortLine = null;
         this.#status = 0;
+        await this.#sync.close({ destroy: true });
     }
 
     // -------------
@@ -550,41 +558,43 @@ export class QueryWindow extends SimpleEmitter {
 
         // Connect to WAL events or equivalent
         // Drivers must implement the interface
-        this.#abortLine = await this.#driver.subscribe(analysis.fromItemsBySchema, async (events) => {
-            await this.#handleEvents(events);
+        this.#abortLine = await this.#driver.subscribe(analysis.fromItemsBySchema, (commit) => {
+            this.#handleCommit(commit).catch((e) => {
+                this.emit('error', e);
+            });
         });
     }
 
     async #initializeAsSub() {
         // Handle "rawresult"
-        const abortLine1 = this.#parentWindow.on('rawresult', async (resultRecords) => {
+        const abortLine1 = this.#parentWindow.on('rawresult', async ({ entries: resultRecords, ...commitMeta }) => {
             resultRecords = await this.#applySubwindowConstraints(resultRecords);
-            await this.#commitResult(resultRecords, true);
+            await this.#commitResult(commitMeta, resultRecords, true);
         });
 
         // Handle "rawdiff"
-        const abortLine2 = this.#parentWindow.on('rawdiff', async (diffEvents) => {
+        const abortLine2 = this.#parentWindow.on('rawdiff', async ({ entries: diffEvents, ...commitMeta }) => {
             const _diffEvents = new Set;
 
             for (let diffEvent of diffEvents) {
-                if (diffEvent.type === 'delete') {
+                if (diffEvent.op === 'delete') {
                     // Ignore if not in this window
                     if (!this.#localRecords.has(diffEvent.oldHash)) continue;
                 } else {
                     const passesWhere = await this.#applySubwindowWheres(diffEvent.logicalRecord);
                     if (this.#localRecords.has(diffEvent.oldHash)) {
                         diffEvent = !passesWhere
-                            ? { ...diffEvent, type: 'delete' } // drop
+                            ? { ...diffEvent, op: 'delete' } // drop
                             : { ...diffEvent }; // keep
                         _diffEvents.add(diffEvent);
                     } else if (passesWhere) {
                         // Cast to insert; even if update
-                        diffEvent = { ...diffEvent, type: 'insert' };
+                        diffEvent = { ...diffEvent, op: 'insert' };
                         _diffEvents.add(diffEvent);
                     }
                 }
             }
-            if (_diffEvents.size) await this.#commitDiffs(_diffEvents);
+            if (_diffEvents.size) await this.#commitDiffs(commitMeta, _diffEvents);
         });
 
         // Set abortLine
@@ -601,7 +611,7 @@ export class QueryWindow extends SimpleEmitter {
         const strategy = this.#strategy;
 
         let resultEntries = [];
-        for (const [logicalHash, logicalRecord] of resultRecords.entries()) {
+        for (const [logicalHash, logicalRecord] of resultRecords) {
             if (await this.#applySubwindowWheres(logicalRecord)) {
                 resultEntries.push([logicalHash, logicalRecord]);
             }
@@ -614,7 +624,7 @@ export class QueryWindow extends SimpleEmitter {
             const effectiveLimit = await this.#exprEngine.evaluate(this.#query.limitClause().expr(), {}, this.#queryCtx);
             resultEntries = resultEntries.slice(this.#subwindowConstraints.offset, effectiveLimit);
         }
-        return new Map(resultEntries);
+        return resultEntries;
     }
 
     async #applySubwindowWheres(logicalRecord) {
@@ -640,17 +650,18 @@ export class QueryWindow extends SimpleEmitter {
 
     async currentRecords() {
         if (!this.#firstRun) {
-            let resultRecords;
+            let resultEntries;
             if (this.#parentWindow) {
-                resultRecords = await this.#parentWindow.currentRecords();
-                resultRecords = await this.#applySubwindowConstraints(resultRecords);
+                resultEntries = await this.#parentWindow.currentRecords();
+                resultEntries = await this.#applySubwindowConstraints(resultEntries);
             } else {
-                resultRecords = await this.#queryHeadless();
+                resultEntries = await this.#queryHeadless();
             }
-            await this.#commitResult(resultRecords);
+            const commitMeta = { commitTime: 0, computed: true };
+            await this.#commitResult(commitMeta, resultEntries);
             this.#firstRun = true;
         }
-        return this.#localRecords;
+        return [...this.#localRecords];
     }
 
     async #queryHeadless(extraWhere = null) {
@@ -680,15 +691,15 @@ export class QueryWindow extends SimpleEmitter {
 
         const result = await this.#driver.query(logicalQuery);
 
-        const resultMap = new Map;
+        const resultEntries = [];
         for (const [i, logicalRecord] of result.rows.entries()) {
             const logicalHash = strategy.diffing
                 ? this.#deriveLogicalHash(logicalRecord)
                 : `$${i}`;
-            resultMap.set(logicalHash, logicalRecord);
+            resultEntries.push([logicalHash, logicalRecord]);
         }
 
-        return resultMap;
+        return resultEntries;
     }
 
     // -------------
@@ -762,7 +773,7 @@ export class QueryWindow extends SimpleEmitter {
         const allAffectedAliases = new Set;
 
         for (const e of events) {
-            if (!(e.type === 'insert' || e.type === 'update' || e.type === 'delete')) continue;
+            if (!(e.op === 'insert' || e.op === 'update' || e.op === 'delete')) continue;
             const relationHash = JSON.stringify([e.relation.namespace, e.relation.name]);
 
             const affectedAliasesEntries = [...this.#originSchemas.entries()].filter(([, originSchema]) => originSchema.relationHashes.has(relationHash));
@@ -789,21 +800,21 @@ export class QueryWindow extends SimpleEmitter {
             let rowKeyHash_new, previous;
 
             if ((previous = normalizedEventsMap.get(rowKeyHash_old))
-                // Or if previous type was an update with key change... we see if rowKeyHash_old === previos' rowKeyHash_new
+                // Or if previous op was an update with key change... we see if rowKeyHash_old === previos' rowKeyHash_new
                 || keyHistoryMap.has(rowKeyHash_old) && (previous = normalizedEventsMap.get(rowKeyHash_old = keyHistoryMap.get(rowKeyHash_old)))) {
-                if (previous.type === 'insert' && normalizedEvent.type === 'delete') {
+                if (previous.op === 'insert' && normalizedEvent.op === 'delete') {
                     // Ignore; inconsequential
                     continue;
                 }
-                if (previous.type === 'delete' && normalizedEvent.type === 'insert') {
+                if (previous.op === 'delete' && normalizedEvent.op === 'insert') {
                     // Treat as update should in case props were changed before reinsertion
-                    const _normalizedEvent = { ...normalizedEvent, type: 'update', old: previous.old };
+                    const _normalizedEvent = { ...normalizedEvent, op: 'update', old: previous.old };
                     normalizedEventsMap.set(rowKeyHash_old, _normalizedEvent);
                     continue;
                 }
-                if (previous.type === 'insert' && normalizedEvent.type === 'update') {
+                if (previous.op === 'insert' && normalizedEvent.op === 'update') {
                     // Use the lastest state of said record for the insert
-                    const _normalizedEvent = { ...normalizedEvent, oldKeys: previous.oldKeys, old: null, type: 'insert' };
+                    const _normalizedEvent = { ...normalizedEvent, oldKeys: previous.oldKeys, old: null, op: 'insert' };
                     normalizedEventsMap.delete(rowKeyHash_old); // Don't retain old slot; must come first
                     normalizedEventsMap.set(rowKeyHash_old, _normalizedEvent);
                     // Handle key changes
@@ -812,7 +823,7 @@ export class QueryWindow extends SimpleEmitter {
                     }
                     continue;
                 }
-                if (previous.type === 'update' && normalizedEvent.type === 'update') {
+                if (previous.op === 'update' && normalizedEvent.op === 'update') {
                     // Honour latest update, but mapped to old identity
                     const _normalizedEvent = { ...normalizedEvent, oldKeys: previous.oldKeys, old: previous.old };
                     normalizedEventsMap.delete(rowKeyHash_old); // Don't retain old slot; must come first
@@ -823,14 +834,14 @@ export class QueryWindow extends SimpleEmitter {
                     }
                     continue;
                 }
-                if (previous.type === 'update' && normalizedEvent.type === 'delete') {
+                if (previous.op === 'update' && normalizedEvent.op === 'delete') {
                     // Honour latest event using same ID
                     normalizedEventsMap.delete(rowKeyHash_old); // Don't retain old slot
                     normalizedEventsMap.set(rowKeyHash_old, normalizedEvent);
                     continue;
                 }
             } else {
-                if (normalizedEvent.type === 'update') {
+                if (normalizedEvent.op === 'update') {
                     // Handle key changes
                     if ((rowKeyHash_new = this.#stringifyLogicalHash([e.relation.namespace, e.relation.name, normalizedEvent.newKeys])) !== rowKeyHash_old) {
                         keyHistoryMap.set(rowKeyHash_new, rowKeyHash_old);
@@ -843,41 +854,45 @@ export class QueryWindow extends SimpleEmitter {
         return [normalizedEventsMap, keyHistoryMap, allAffectedAliases];
     }
 
-    async #handleEvents(events) {
+    async #handleCommit(commit) {
+        if (commit.computed) {
+            throw new Error('Table-level commits expected but computed commit received');
+        }
         const analysis = this.#analysis;
         const strategy = this.#strategy;
+        const commitMeta = { ...commit, computed: true, entries: null };
         if (strategy.requeryMode === 'wholistic') {
             // Aggr functions in the house
-            return await this.#diffWithOrigin_Wholistic();
+            return await this.#diffWithOrigin_Wholistic(commitMeta);
         }
-        const normalizeEvents = this.#normalizeEvents(events);
+        const normalizeEvents = this.#normalizeEvents(commit.entries);
         if (normalizeEvents === true) {
-            return await this.#diffWithOrigin_Wholistic();
+            return await this.#diffWithOrigin_Wholistic(commitMeta);
         }
         if (analysis.isSingleTable) {
             const [normalizedEventsMap] = normalizeEvents;
-            return await this.#diffWithLocal(normalizedEventsMap);
+            return await this.#diffWithLocal(commitMeta, normalizedEventsMap);
         }
         const [normalizedEventsMap, keyHistoryMap, allAffectedAliases] = normalizeEvents;
-        return await this.#diffWithOrigin_Selective(normalizedEventsMap, keyHistoryMap, allAffectedAliases);
+        return await this.#diffWithOrigin_Selective(commitMeta, normalizedEventsMap, keyHistoryMap, allAffectedAliases);
     }
 
-    async #diffWithLocal(normalizedEventsMap) {
+    async #diffWithLocal(commitMeta, normalizedEventsMap) {
         const diffEvents = new Set;
 
         for (const normalizedEvent of normalizedEventsMap.values()) {
 
-            if (normalizedEvent.type === 'insert') {
+            if (normalizedEvent.op === 'insert') {
                 const newHash = this.#stringifyLogicalHash([normalizedEvent.newKeys]);
                 const logicalRecord = { [normalizedEvent.affectedAliases[0]]: normalizedEvent.new };
                 const passesWhere = !this.#query.whereClause()
                     || await this.#exprEngine.evaluate(this.#query.whereClause().expr(), logicalRecord, this.#queryCtx);
                 if (!passesWhere) continue;
-                const diffEvent = { type: 'insert', newHash, logicalRecord };
+                const diffEvent = { op: 'insert', newHash, logicalRecord };
                 diffEvents.add(diffEvent);
             }
 
-            if (normalizedEvent.type === 'update') {
+            if (normalizedEvent.op === 'update') {
                 const oldHash = this.#stringifyLogicalHash([normalizedEvent.oldKeys]);
                 const newHash = this.#stringifyLogicalHash([normalizedEvent.newKeys]);
                 const logicalRecord = { [normalizedEvent.affectedAliases[0]]: normalizedEvent.new };
@@ -886,27 +901,27 @@ export class QueryWindow extends SimpleEmitter {
                     || await this.#exprEngine.evaluate(this.#query.whereClause().expr(), logicalRecord, this.#queryCtx);
                 if (this.#localRecords.has(oldHash)) {
                     diffEvent = !passesWhere
-                        ? { type: 'delete', oldHash }
-                        : { type: 'update', oldHash, newHash, logicalRecord };
+                        ? { op: 'delete', oldHash }
+                        : { op: 'update', oldHash, newHash, logicalRecord };
                 } else if (passesWhere) {
-                    diffEvent = { type: 'insert', newHash, logicalRecord };
+                    diffEvent = { op: 'insert', newHash, logicalRecord };
                 }
                 if (diffEvent) diffEvents.add(diffEvent);
             }
 
-            if (normalizedEvent.type === 'delete') {
+            if (normalizedEvent.op === 'delete') {
                 const oldHash = this.#stringifyLogicalHash([normalizedEvent.oldKeys]);
                 if (this.#localRecords.has(oldHash)) {
-                    const diffEvent = { type: 'delete', oldHash, logicalRecord: this.#localRecords.get(oldHash) };
+                    const diffEvent = { op: 'delete', oldHash, logicalRecord: this.#localRecords.get(oldHash) };
                     diffEvents.add(diffEvent);
                 }
             }
         }
 
-        return await this.#commitDiffs(diffEvents);
+        return await this.#commitDiffs(commitMeta, diffEvents);
     }
 
-    async #diffWithOrigin_Selective(normalizedEventsMap, keyHistoryMap, allAffectedAliases) {
+    async #diffWithOrigin_Selective(commitMeta, normalizedEventsMap, keyHistoryMap, allAffectedAliases) {
         const strategy = this.#strategy;
 
         const composeSelectionLogic = (alias, keyColumns, keyValues, nullTest = 0) => {
@@ -965,21 +980,21 @@ export class QueryWindow extends SimpleEmitter {
         for (const normalizedEvent of normalizedEventsMap.values()) {
             let diffingFilters = [];
             const affectedAliases = normalizedEvent.affectedAliases;
-            if (normalizedEvent.type === 'insert') {
+            if (normalizedEvent.op === 'insert') {
                 // keyColumn === null // keyColumn IN [null, newKey]
                 diffingFilters = [
                     affectedAliases.map((alias) => composeSelectionLogic(alias, normalizedEvent.keyColumns, normalizedEvent.oldKeys, 0)),
                     affectedAliases.map((alias) => composeSelectionLogic(alias, normalizedEvent.keyColumns, normalizedEvent.newKeys, 2/* IMPORTANT */)),
                 ];
             }
-            if (normalizedEvent.type === 'update') {
+            if (normalizedEvent.op === 'update') {
                 // keyColumn IN [null, oldKey] // keyColumn IN [null, newKey]
                 diffingFilters = [
                     affectedAliases.map((alias) => composeSelectionLogic(alias, normalizedEvent.keyColumns, normalizedEvent.oldKeys, 2)),
                     affectedAliases.map((alias) => composeSelectionLogic(alias, normalizedEvent.keyColumns, normalizedEvent.newKeys, 2)),
                 ];
             }
-            if (normalizedEvent.type === 'delete') {
+            if (normalizedEvent.op === 'delete') {
                 // keyColumn IN [null, oldKey] // keyColumn === null
                 diffingFilters = [
                     affectedAliases.map((alias) => composeSelectionLogic(alias, normalizedEvent.keyColumns, normalizedEvent.oldKeys, 2/* IMPORTANT */)),
@@ -1042,8 +1057,8 @@ export class QueryWindow extends SimpleEmitter {
                         if ((possibleEventId = JSON.stringify([relation.namespace, relation.name, oldHash_parsed[i]]))
                             && (normalizedEvent = normalizedEventsMap.get(possibleEventId))) {
                             matches = matches.filter(([k]) => {
-                                // Remote hash would be null on normalizedEvent.type === 'delete'
-                                return normalizedEvent.type === 'delete' ? k[i] === null : _eq(normalizedEvent.newKeys, k[i]);
+                                // Remote hash would be null on normalizedEvent.op === 'delete'
+                                return normalizedEvent.op === 'delete' ? k[i] === null : _eq(normalizedEvent.newKeys, k[i]);
                             });
                         }
                     }
@@ -1059,17 +1074,17 @@ export class QueryWindow extends SimpleEmitter {
         // ----------------
 
         const remoteRecords = await this.#queryHeadless(diffingFilters_allEvents);
-        return await this.#createDiffs(localRecords, remoteRecords, resolveTransition);
+        return await this.#createDiffs(commitMeta, localRecords, remoteRecords, resolveTransition);
     }
 
-    async #diffWithOrigin_Wholistic() {
+    async #diffWithOrigin_Wholistic(commitMeta) {
         const remoteRecords = await this.#queryHeadless();
         return !this.#strategy.diffing
-            ? await this.#commitResult(remoteRecords, true)
-            : await this.#createDiffs(this.#localRecords, remoteRecords);
+            ? await this.#commitResult(commitMeta, remoteRecords, true)
+            : await this.#createDiffs(commitMeta, this.#localRecords, remoteRecords);
     }
 
-    async #createDiffs(localRecords, remoteRecords, resolveTransition = null) {
+    async #createDiffs(commitMeta, localRecords, remoteRecords, resolveTransition = null) {
         const diffEvents = new Set;
 
         const parseRemoteRecords = () => [...remoteRecords.entries()].map(([k, v]) => [this.#parseLogicalHash(k), v]);
@@ -1080,7 +1095,7 @@ export class QueryWindow extends SimpleEmitter {
                 const logicalRecord_new = remoteRecords.get(logicalHash_existing);
                 remoteRecords.delete(logicalHash_existing);
                 remoteRecords_parsed = parseRemoteRecords(); // refresh
-                const diffEvent = { type: 'update', oldHash: logicalHash_existing, newHash: logicalHash_existing, logicalRecord: logicalRecord_new };
+                const diffEvent = { op: 'update', oldHash: logicalHash_existing, newHash: logicalHash_existing, logicalRecord: logicalRecord_new };
                 diffEvents.add(diffEvent);
                 continue;
             }
@@ -1089,24 +1104,24 @@ export class QueryWindow extends SimpleEmitter {
                 if (logicalHash_new) {
                     remoteRecords.delete(logicalHash_new);
                     remoteRecords_parsed = parseRemoteRecords(); // refresh
-                    const diffEvent = { type: 'update', oldHash: logicalHash_existing, newHash: logicalHash_new, logicalRecord: logicalRecord_new };
+                    const diffEvent = { op: 'update', oldHash: logicalHash_existing, newHash: logicalHash_new, logicalRecord: logicalRecord_new };
                     diffEvents.add(diffEvent);
                     continue;
                 }
             }
-            const diffEvent = { type: 'delete', oldHash: logicalHash_existing, logicalRecord: logicalRecord_existing };
+            const diffEvent = { op: 'delete', oldHash: logicalHash_existing, logicalRecord: logicalRecord_existing };
             diffEvents.add(diffEvent);
         }
 
         for (const [logicalHash_new, logicalRecord_new] of remoteRecords.entries()) {
-            const diffEvent = { type: 'insert', newHash: logicalHash_new, logicalRecord: logicalRecord_new };
+            const diffEvent = { op: 'insert', newHash: logicalHash_new, logicalRecord: logicalRecord_new };
             diffEvents.add(diffEvent);
         }
 
-        return await this.#commitDiffs(diffEvents);
+        return await this.#commitDiffs(commitMeta, diffEvents);
     }
 
-    async #commitDiffs(diffEvents) {
+    async #commitDiffs(commitMeta, diffEvents) {
         if (!diffEvents?.size) return false;
         const analysis = this.#analysis;
         const _diffEvents = new Map;
@@ -1121,8 +1136,8 @@ export class QueryWindow extends SimpleEmitter {
         const render = async (diffEvent) => {
             const row = await this.#renderLogicalRecord(diffEvent.logicalRecord);
             const outputEvent = {
-                type: diffEvent.type,
-                ...(diffEvent.type === 'update' ? { oldHash: diffEvent.oldHash, old: diffEvent.old } : {}),
+                op: diffEvent.op,
+                ...(diffEvent.op === 'update' ? { oldHash: diffEvent.oldHash, old: diffEvent.old } : {}),
                 newHash: diffEvent.newHash,
                 new: row,
             };
@@ -1130,11 +1145,10 @@ export class QueryWindow extends SimpleEmitter {
         };
 
         for (const diffEvent of diffEvents) {
-
             // Handle deletes
-            if (diffEvent.type === 'delete') {
+            if (diffEvent.op === 'delete') {
                 const outputEvent = {
-                    type: diffEvent.type,
+                    op: diffEvent.op,
                     oldHash: diffEvent.oldHash,
                 };
                 this.#localDelete(diffEvent.oldHash);
@@ -1142,11 +1156,12 @@ export class QueryWindow extends SimpleEmitter {
                 outputEvents.set(diffEvent.oldHash, outputEvent);
                 continue;
             }
+
             // Handle updates & inserts
-            if (diffEvent.type === 'update'
+            if (diffEvent.op === 'update'
                 && diffEvent.newHash !== diffEvent.oldHash) {
                 idChanges.set(diffEvent.oldHash, diffEvent.newHash);
-            } else if (diffEvent.type === 'insert'
+            } else if (diffEvent.op === 'insert'
                 && effectiveLimit
                 && !analysis.hasOrderByClause
                 && this.#localRecords.size === effectiveLimit) {
@@ -1171,8 +1186,8 @@ export class QueryWindow extends SimpleEmitter {
                 reorderedLocalRecords,
                 sortedEntries,
                 originalEntires
-            ] = await this.#applySorting(this.#localRecords, true);
-            await this.#commitResult(reorderedLocalRecords);
+            ] = await this.#applySorting([...this.#localRecords], true);
+            await this.#commitResult(commitMeta, reorderedLocalRecords);
 
             // Apply limit
             const splicedHashes = [];
@@ -1185,19 +1200,19 @@ export class QueryWindow extends SimpleEmitter {
                     splicedHashes.push(logicalHash);
 
                     // If part of events queue, remove
-                    if (_diffEvents.get(logicalHash)?.type === 'insert') {
+                    if (_diffEvents.get(logicalHash)?.op === 'insert') {
                         // Simply remove
                         _diffEvents.delete(logicalHash);
                         outputEvents.delete(logicalHash);
                     } else {
                         // Change updates to deletes
                         _diffEvents.set(logicalHash, {
-                            type: 'delete',
+                            op: 'delete',
                             oldHash: logicalHash,
                             old: logicalRecord,
                         });
                         outputEvents.set(logicalHash, {
-                            type: 'delete',
+                            op: 'delete',
                             oldHash: logicalHash,
                         });
                     }
@@ -1241,28 +1256,45 @@ export class QueryWindow extends SimpleEmitter {
         }
 
         // Emit events
-        if (_diffEvents.size) this.emit('rawdiff', [..._diffEvents.values()]);
-        if (outputEvents.size) this.emit('diff', [...outputEvents.values()]);
-        if (swaps.length) this.emit('swap', swaps);
+        if (_diffEvents.size) {
+            // System event
+            const rawdiffEvent = { ...commitMeta, type: 'rawdiff', entries: [..._diffEvents.values()] };
+            this.emit('rawdiff', rawdiffEvent);
+        }
+
+        if (outputEvents.size) {
+            // Sync event
+            const syncEvent = { ...commitMeta, type: 'diff', entries: [...outputEvents.values()] };
+            this.#sync.dispatch(syncEvent);
+        }
+
+        if (swaps.length) {
+            // Sync event
+            const syncEvent = { ...commitMeta, type: 'swap', entries: swaps };
+            this.#sync.dispatch(syncEvent);
+        }
 
         return true;
     }
 
-    async #commitResult(resultRecords, emit = false) {
+    async #commitResult(commitMeta, resultRecords, emit = false) {
         this.#localRecords.clear();
         for (const [logicalHash, logicalRecord] of resultRecords.entries()) {
             this.#localSet(logicalHash, logicalRecord);
         }
         if (emit) {
-            this.emit('rawresult', new Map(this.#localRecords));
-            this.emit('result', await this.currentRendering());
+            // System event
+            const rawresultEvent = { ...commitMeta, type: 'rawresult', entries: [...this.#localRecords] };
+            this.emit('rawresult', rawresultEvent);
+
+            // Sync event
+            const syncEvent = { ...commitMeta, type: 'result', ...await this.currentRendering() };
+            this.#sync.dispatch(syncEvent);
         }
     }
 
     async #applySorting(logicalRecords, withEntries = false) {
-        const entries = !Array.isArray(logicalRecords)
-            ? [...logicalRecords.entries()]
-            : logicalRecords;
+        const entries = logicalRecords;
 
         let decorated;
         if (this.#strategy.ssr) {

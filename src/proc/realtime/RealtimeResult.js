@@ -1,47 +1,50 @@
-import { _eq } from '../../lang/abstracts/util.js';
-import { Result } from '../../clients/Result.js';
 import { Observer } from '@webqit/observer';
+import { Result } from '../../clients/Result.js';
+import { _eq } from '../../lang/abstracts/util.js';
 
 export class RealtimeResult extends Result {
 
     #hashes;
     #abortLine;
+    #mode;
 
     get hashes() { return this.#hashes; }
+    get mode() { return this.#mode; }
     
-    constructor({ rows = [], hashes = [] } = {}, abortLine = (() => undefined), signal = undefined) {
+    constructor({ rows = [], hashes = [], mode = 'live' } = {}, abortLine = (() => undefined), signal = undefined) {
         super({ rows });
 
         this.#hashes = hashes;
+        this.#mode = mode;
 
         this.#abortLine = abortLine;
         if (signal) signal.addEventListener('abort', () => this.abort());
     }
 
-    abort() { this.#abortLine(); }
+    abort({ forget = false } = {}) { this.#abortLine({ forget }); }
 
-    async _apply(eventName, eventData) {
+    async _apply(commit) {
         const Obs = Observer;
         const $rows = Obs.proxy(this.rows);
         const $hashes = Obs.proxy(this.hashes);
 
-        if (eventName === 'diff') {
+        if (commit.type === 'diff') {
             Obs.batch(this.rows, () => {
-                for (let event of eventData) {
-                    if (event.type === 'update') {
+                for (let event of commit.entries) {
+                    if (event.op === 'update') {
                         const i = this.#hashes.indexOf(event.oldHash);
                         if (i > -1) {
                             Obs.set(this.rows[i], event.new, { diff: true });
                             $hashes[i] = event.newHash;
                         } else {
-                            event = { ...event, type: 'insert' };
+                            event = { ...event, op: 'insert' };
                         }
                     }
-                    if (event.type === 'insert') {
+                    if (event.op === 'insert') {
                         $rows.push(event.new);
                         $hashes.push(event.newHash);
                     }
-                    if (event.type === 'delete') {
+                    if (event.op === 'delete') {
                         const i = this.#hashes.indexOf(event.oldHash);
                         if (i > -1) {
                             $rows.splice(i, 1);
@@ -52,11 +55,11 @@ export class RealtimeResult extends Result {
             });
         }
 
-        if (eventName === 'swap') {
+        if (commit.type === 'swap') {
             Obs.batch(this.rows, () => {
                 const _rows = this.rows.slice(0);
                 const _hashes = this.#hashes.slice(0);
-                for (const [hash, targetHash] of eventData) {
+                for (const [hash, targetHash] of commit.entries) {
                     const i_a = _hashes.indexOf(hash);
                     const i_b = _hashes.indexOf(targetHash);
                     $rows[i_b] = _rows[i_a];
@@ -65,19 +68,19 @@ export class RealtimeResult extends Result {
             });
         }
 
-        if (eventName === 'result') {
+        if (commit.type === 'result') {
             $hashes.splice(0);
-            $hashes.push(...eventData.hashes);
+            $hashes.push(...commit.hashes);
 
             Obs.batch(this.rows, () => {
-                const maxLen = Math.max(this.rows.length, eventData.rows.length);
+                const maxLen = Math.max(this.rows.length, commit.rows.length);
                 for (let i = 0; i < maxLen; i ++) {
-                    if (!eventData.rows[i]) {
+                    if (!commit.rows[i]) {
                         $rows.splice(i);
                         break;
                     }
-                    if (!_eq(eventData.rows[i], this.rows[i])) {
-                        $rows[i] = eventData.rows[i];
+                    if (!_eq(commit.rows[i], this.rows[i])) {
+                        $rows[i] = commit.rows[i];
                     }
                 }
             });
@@ -88,6 +91,7 @@ export class RealtimeResult extends Result {
         return {
             rows: this.rows,
             hashes: this.#hashes,
+            mode: this.#mode,
         };
     }
 }
