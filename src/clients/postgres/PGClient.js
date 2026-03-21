@@ -1,9 +1,9 @@
 import pg from 'pg';
 import PGCursor from 'pg-cursor';
 import { LogicalReplicationService, PgoutputPlugin } from 'pg-logical-replication';
-import { MainstreamSQLClient } from '../abstracts/MainstreamSQLClient.js';
+import { MainstreamDBClient } from '../abstracts/MainstreamDBClient.js';
 
-export class PGClient extends MainstreamSQLClient {
+export class PGClient extends MainstreamDBClient {
 
     #driver;
     #adminDriver;
@@ -17,7 +17,6 @@ export class PGClient extends MainstreamSQLClient {
     #walClient;
     #walInit = false;
 
-    get dialect() { return 'postgres'; }
     get driver() { return this.#driver; }
     get poolMode() { return this.#poolMode; }
     get walSlotName() { return this.#walSlotName; }
@@ -29,9 +28,10 @@ export class PGClient extends MainstreamSQLClient {
         walSlotPersistence = 0, // 2 for wholly externally-managed slot
         pgPublications = 'linkedql_default_publication',
         capability = {},
+        nonDDLMode = false,
         ...connectionParams
     } = {}) {
-        super({ capability });
+        super({ dialect: 'postgres', capability, nonDDLMode });
 
         this.#poolMode = poolMode;
         this.#connectionParams = connectionParams;
@@ -56,7 +56,6 @@ export class PGClient extends MainstreamSQLClient {
     }
 
     async disconnect() {
-        await this._teardownRealtime();
         try {
             if (this.#poolMode) {
                 await this.#adminDriver.release();
@@ -70,7 +69,8 @@ export class PGClient extends MainstreamSQLClient {
         const driver = await this.connect();
         await driver.query('BEGIN');
         try {
-            const result = await cb({ driver });
+            const tx = { driver };
+            const result = await cb(tx);
             await driver.query('COMMIT');
             return result;
         } catch (e) {
@@ -157,16 +157,15 @@ export class PGClient extends MainstreamSQLClient {
 
         // Message handling
         let currentXid = null;
-        const walTransactions = new Map();
+        const walCommits = new Map();
         const walRelations = new Map();
 
         // Listen to changes
-        this.#walClient.on('data', (lsn, msg) => {
+        this.#walClient.on('data', async (lsn, msg) => {
             switch (msg.tag) {
 
                 case 'begin':
-                    currentXid = msg.xid;
-                    walTransactions.set(currentXid, []);
+                    walCommits.set(msg.xid, { txId: msg.xid, entries: [] });
                     break;
 
                 case 'relation':
@@ -180,37 +179,39 @@ export class PGClient extends MainstreamSQLClient {
                 case 'insert':
                 case 'update':
                 case 'delete': {
-                    const rel = walRelations.get(msg.relation.relationOid) || {
+                    const rel = msg.relation ? {
                         namespace: msg.relation.schema,
                         name: msg.relation.name,
                         keyColumns: msg.relation.keyColumns,
-                    };
-                    const evt = {
-                        type: msg.tag,
+                    } : walRelations.get(msg.relation.relationOid);
+                    const entry = {
+                        op: msg.tag,
                         relation: rel
                     };
                     if (msg.tag === 'insert') {
-                        evt.new = msg.new;
+                        entry.new = msg.new;
+                        entry.newKey = msg.key || Object.fromEntries(rel.keyColumns.map((k) => [k, msg.new[k]]));
                     } else if (msg.tag === 'update') {
-                        evt.key = msg.key
-                            || Object.fromEntries(rel.keyColumns.map((k) => [k, msg.old?.[k] || msg.new?.[k]]));
-                        evt.new = msg.new;
-                        evt.old = msg.old; // If REPLICA IDENTITY FULL
+                        entry.old = msg.old; // If REPLICA IDENTITY FULL
+                        entry.new = msg.new;
+                        entry.oldKey = msg.key
+                            || Object.fromEntries(rel.keyColumns.map((k) => [k, (msg.old || msg.new)[k]]));
+                        entry.newKey = Object.fromEntries(rel.keyColumns.map((k) => [k, msg.new[k]]));
                     } else if (msg.tag === 'delete') {
-                        evt.key = msg.key || Object.fromEntries(rel.keyColumns.map((k) => [k, msg.old[k]]));
-                        evt.old = msg.old; // If REPLICA IDENTITY FULL
+                        entry.old = msg.old; // If REPLICA IDENTITY FULL
+                        entry.oldKey = msg.key || Object.fromEntries(rel.keyColumns.map((k) => [k, msg.old[k]]));
                     }
-                    walTransactions.get(currentXid)?.push(evt);
+                    walCommits.get(msg.xid)?.entries.push(entry);
                     break;
                 }
 
                 case 'commit': {
-                    const events = walTransactions.get(currentXid);
-                    if (events?.length) this._fanout(events);
-                    walTransactions.delete(currentXid);
-                    currentXid = null;
+                    const commit = walCommits.get(msg.xid);
+                    if (commit) await this.sync.dispatch(commit);
+
+                    walCommits.delete(msg.xid);
                     // clear stale relations every 100 transactions
-                    if (walRelations.size > 100) walRelations.clear();
+                    if (walRelations.size > 1000) walRelations.clear();
                     break;
                 }
 

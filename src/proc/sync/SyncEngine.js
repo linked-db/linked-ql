@@ -51,8 +51,8 @@ export class SyncEngine {
 
     // ----------- streaming
 
-    async hasSlot(slotId) {
-        return await this.#slotsKV.has(slotId);
+    async hasSlot(slotName) {
+        return await this.#slotsKV.has(slotName);
     }
 
     async latestCommit() {
@@ -70,7 +70,7 @@ export class SyncEngine {
 
             if (end && commitTime >= end) break;
             if (cursor++ % CHUNK_SIZE === 0) {
-                await new Promise(r => setImmediate(r));
+                await new Promise(r => _setImmediate(r));
             }
         }
     }
@@ -90,15 +90,15 @@ export class SyncEngine {
         }
 
         const selectorSet = normalizeRelationSelectorArg(selector, true);
-        const { id: slotId = null } = options;
+        const { id: slotName = null } = options;
 
         const sub = {
-            id: slotId || Symbol('ephemeral_id'),
+            id: slotName || Symbol('ephemeral_id'),
             selector,
             selectorSet,
             cb,
             lastSeenCommit: null,
-            catchingUp: !!slotId,
+            catchingUp: !!slotName,
             queue: []
         };
 
@@ -110,7 +110,7 @@ export class SyncEngine {
         }
 
         if (typeof sub.id !== 'symbol') {
-            const existing = await this.#slotsKV.get(slotId);
+            const existing = await this.#slotsKV.get(slotName);
             if (existing) {
                 sub.lastSeenCommit = existing.lastSeenCommit;
             } else {
@@ -275,7 +275,7 @@ export class SyncEngine {
             if (await this.#dispatchTo(sub, commit, true) === false) break;
 
             if ((i + 1) % CHUNK_SIZE === 0) {
-                await new Promise(r => setImmediate(r));
+                await new Promise(r => _setImmediate(r));
             }
         }
 
@@ -293,7 +293,7 @@ export class SyncEngine {
         if (this.#drainScheduled) return;
         this.#drainScheduled = true;
 
-        setImmediate(async () => {
+        _setImmediate(async () => {
             this.#drainScheduled = false;
             await this.#runDrain();
         });
@@ -320,4 +320,10 @@ export class SyncEngine {
         }
         return min === Infinity ? null : min;
     }
+}
+
+const _setImmediate = (cb) => {
+    if (typeof setImmediate === 'function') {
+        setImmediate(cb);
+    } else setTimeout(cb, 0);
 }

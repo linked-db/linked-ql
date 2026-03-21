@@ -1,5 +1,5 @@
 import '../../lang/index.js';
-import { SchemaInference } from '../eval/SchemaInference.js';
+import { SchemaInference } from './SchemaInference.js';
 import { matchRelationSelector, normalizeRelationSelectorArg } from '../../clients/abstracts/util.js';
 import { DEFAULT_USERSPACE_DATA } from './bootstrap/catalog.bootstrap.js';
 import { MVCCEngine } from './MVCCEngine.js';
@@ -56,7 +56,7 @@ export class StorageEngine extends MVCCEngine {
         await this.#sync.close({ destroy: true });
     }
 
-    createSchemaInference() {
+    getResolver() {
         return new SchemaInference({ storageEngine: this });
     }
 

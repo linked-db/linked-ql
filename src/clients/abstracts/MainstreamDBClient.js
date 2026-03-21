@@ -1,28 +1,37 @@
-import { AbstractSQLClient } from './AbstractSQLClient.js';
+import { LinkedQLClient } from './LinkedQLClient.js';
 import { RealtimeClient } from '../../proc/realtime/RealtimeClient.js';
 import { SchemaInference } from './SchemaInference.js';
 import { SyncEngine } from '../../proc/sync/SyncEngine.js';
 import { SQLParser } from '../../lang/SQLParser.js';
+import { registry } from '../../lang/registry.js';
 import { normalizeQueryArgs } from './util.js';
 import { Result } from '../Result.js';
-import { registry } from '../../lang/registry.js';
 
-export class MainstreamSQLClient extends AbstractSQLClient {
+export class MainstreamDBClient extends LinkedQLClient {
+
+    // Standard getters: parsers, resolver, sync
 
     #parser;
     #sync;
-    #realtimeClient;
 
     get parser() { return this.#parser; }
+    get resolver() {
+        return super.resolveGetResolver(() =>
+            new SchemaInference({ client: this }));
+    }
     get sync() { return this.#sync; }
-    get realtimeClient() { return this.#realtimeClient; }
 
-    async connect() {
-        if (this.#parser) return;
+    // Internal
+    
+    #realtimeClient;
+
+    // ------------
+
+    constructor(options) {
+        super(options);
 
         this.#parser = new SQLParser({ dialect: this.dialect });
         this.#sync = new SyncEngine({
-            dialect: this.dialect,
             drainMode: 'drain',
             lifecycleHook: async (status) => {
                 await this.setCapability({ realtime: !!status });
@@ -30,44 +39,21 @@ export class MainstreamSQLClient extends AbstractSQLClient {
         });
 
         this.#realtimeClient = new RealtimeClient(this);
-        await super.connect();
     }
 
     async disconnect() {
-        await super.disconnect();
         await this.#sync.close({ destroy: true });
+        await super.disconnect();
     }
 
-    async setCapability(capMap) {
-        capMap = await super.setCapability(capMap);
-        // realtime?
-        if (capMap.realtime === false) {
-            await this._teardownRealtime();
-        } else if (capMap.realtime) {
-            await this._setupRealtime();
-        }
-        return capMap;
-    }
-
-    #lifetimeSchemaInference;
-
-    createSchemaInference() {
-        if (this.options.nonDDLMode) {
-            // We've been promised no DDL operations will
-            // happen while we're running
-            if (!this.#lifetimeSchemaInference)
-                this.#lifetimeSchemaInference = new SchemaInference({ client: this });
-            return this.#lifetimeSchemaInference;
-        }
-        return new SchemaInference({ client: this });
-    }
+    // ------------
 
     async query(...args) {
         const [_query, options] = normalizeQueryArgs(...args);
         const query = await this.#parser.parse(_query, options);
 
         const resolveQuery = async (query, tx = null) => {
-            const schemaInference = this.createSchemaInference();
+            const schemaInference = this.resolver;
             return await schemaInference.resolveQuery(query, { tx });
         };
 
@@ -104,7 +90,7 @@ export class MainstreamSQLClient extends AbstractSQLClient {
         const [_query, options] = normalizeQueryArgs(...args);
         const query = await this.#parser.parse(_query, options);
 
-        const schemaInference = this.createSchemaInference();
+        const schemaInference = this.resolver;
         const resolvedQuery = await schemaInference.resolveQuery(query, options);
 
         return await this._stream(resolvedQuery, options);

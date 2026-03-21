@@ -342,13 +342,13 @@ export class Transaction {
         replication_origin_type = null,
         engine_attrs = null
     }, { ifNotExists = false } = {}) {
-        if (!/^\w/.test(name))
+        if (!/^[a-zA-Z_]/.test(name))
             throw new Error(`Namespace name must start with a letter or underscore`);
 
         if (!['schema'].includes(kind))
             throw new Error(`Invalid namespace kind ${kind}`);
 
-        if (!/^\w/.test(owner))
+        if (!/^[a-zA-Z_]/.test(owner))
             throw new Error(`Namespace owner name must start with a letter or underscore`);
 
         if (replication_origin_type && !replication_origin)
@@ -385,13 +385,13 @@ export class Transaction {
         const newDef = {};
 
         if (newName) {
-            if (!/^\w/.test(newName))
+            if (!/^[a-zA-Z_]/.test(newName))
                 throw new Error(`[NAMESPACE] Namespace name must start with a letter or underscore`);
             newDef.name = newName;
         }
 
         if (newOwner) {
-            if (!/^\w/.test(newOwner))
+            if (!/^[a-zA-Z_]/.test(newOwner))
                 throw new Error(`[NAMESPACE] Owner name must start with a letter or underscore`);
             newDef.owner = newOwner;
         }
@@ -502,7 +502,7 @@ export class Transaction {
         constraints = [],
         indexes = [],
     }, { ifNotExists = false } = {}) {
-        if (!/^\w/.test(name))
+        if (!/^[a-zA-Z_]/.test(name))
             throw new Error(`Relation name must start with a letter or underscore`);
 
         const nsDef = this.showNamespace({ name: namespace });
@@ -515,21 +515,26 @@ export class Transaction {
             throw new ConflictError(`Relation ${JSON.stringify(name)} already exists`, existing);
         }
 
+        let reservedColumnConflict;
+        if (reservedColumnConflict = columns.find((col) => col.name.startsWith('__'))) {
+            throw new Error(`[${reservedColumnConflict}] Reserved column namespace "__*"`);
+        }
+
         if (!['table', 'view'].includes(kind))
             throw new Error(`Invalid relation kind setting ${kind}`);
 
         if (kind === 'table') {
             if (!['permanent', 'temporary'].includes(persistence))
-                throw new Error(`Invalid persistence setting ${persistence}`);
+                throw new Error(`Invalid persistence setting ${persistence} for a non-view relation`);
             if (view_spec)
                 throw new Error(`Unexpected property "view_spec" for a non-view relation`);
         } else /* view */ {
             if (!['materialized', 'realtime', 'origin'].includes(persistence))
-                throw new Error(`Invalid persistence setting ${persistence}`);
+                throw new Error(`Invalid persistence setting ${persistence} for a view relation`);
             if (!view_spec)
                 throw new Error(`Missing required property "view_spec" for a view relation`);
             if (typeof view_spec !== 'object')
-                throw new Error(`The property "view_spec" must be an object`);
+                throw new Error(`The "view_spec" property must be an object`);
 
             if (view_spec.query) {
                 const validQueryKeys = ['query', 'joinStrategy'];
@@ -540,6 +545,22 @@ export class Transaction {
 
                 if (columns.length)
                     throw new Error(`Unexpected column list for query-type view`);
+                
+                if (constraints.length)
+                    throw new Error(`Unexpected constraints list for query-type view`);
+
+                const schemaInference = nsDef.replication_origin
+                    ? (await this.#engine.getForeignClient(nsDef.replication_origin)).resolver
+                    : this.#engine.resolver;
+                const query = await this.#parser.parse(view_spec);
+                const resolvedQuery = await schemaInference.resolveQuery(query, { tx: this });
+
+                columns = resolvedQuery.resultSchema().entries().map((col) => this.#parser.columnAST_to_columnDef(col));
+
+                if (persistence === 'realtime') {
+                    columns = [{ name: '__id', type: 'TEXT', not_null: true, engine_attrs: { is_system_column: true } }].concat(columns);
+                    constraints = [{ kind: 'PRIMARY KEY', columns: ['__id'] }].concat(constraints);
+                }
             } else {
                 // Validation for Reference-defined source
                 const validRefKeys = ['namespace', 'name', 'filters', 'joinStrategy'];
@@ -555,21 +576,17 @@ export class Transaction {
                     if (typeof view_spec.filters !== 'object' || Array.isArray(view_spec.filters))
                         throw new TypeError(`Property "filters" in view spec must be an object`);
                 }
-            }
 
-            if (!columns.length) {
-                const schemaInference = nsDef.replication_origin
-                    ? (await this.#engine.getForeignClient(nsDef.replication_origin)).createSchemaInference()
-                    : this.#engine.createSchemaInference();
-                const query = await this.#parser.parse(view_spec);
-                const resolvedQuery = await schemaInference.resolveQuery(query, { tx: this });
-                columns = resolvedQuery.resultSchema().entries().map((col) => this.#parser.columnAST_to_columnDef(col));
-            }
-        }
+                if (!columns.length) {
+                    const schemaInference = nsDef.replication_origin
+                        ? (await this.#engine.getForeignClient(nsDef.replication_origin)).resolver
+                        : this.#engine.resolver;
+                    const originNs = view_spec.namespace || namespace;
+                    const tblSchema = await schemaInference.showCreate({ [originNs]: view_spec.name }, { tx: this });
 
-        let reservedColumnConflict;
-        if (reservedColumnConflict = columns.find((col) => col.name.startsWith('__'))) {
-            throw new Error(`[${reservedColumnConflict}] Reserved column namespace "__*"`);
+                    [columns, constraints] = this.#parser.tableAST_to_tableDef(tblSchema, originNs);
+                }
+            }
         }
 
         if (!constraints.find((con) => con.kind === 'PRIMARY KEY')) {
@@ -637,7 +654,7 @@ export class Transaction {
         }
 
         if (newName) {
-            if (!/^\w/.test(newName))
+            if (!/^[a-zA-Z_]/.test(newName))
                 throw new Error(`Relation name must start with a letter or underscore`);
             newDef.name = newName;
             newDef.version_major = tblDef.version_major + 1;

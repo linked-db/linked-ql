@@ -1,8 +1,8 @@
-import { Abstract1EdgeClient } from './Abstract1EdgeClient.js';
+import { BaseEdgeClient } from './BaseEdgeClient.js';
 import { MessagePortPlus } from '@webqit/port-plus';
 import { LiveResponse } from '@webqit/fetch-plus';
 
-export class EdgeClient extends Abstract1EdgeClient {
+export class EdgeClient extends BaseEdgeClient {
 
     #url;
     #type;
@@ -82,41 +82,10 @@ export class EdgeClient extends Abstract1EdgeClient {
         });
     }
 
-    async #exec(op, args, { liveMode = false, streamMode = false } = {}) {
+    async _exec(op, args, { liveMode = false, streamMode = false } = {}) {
         return this.#type === 'http'
             ? await this.#callHttp(op, args, { liveMode, streamMode })
             : await this.#callWorker(op, args, { liveMode, streamMode });
-    }
-
-    // ------------
-
-    async _showCreate(selector, structured = false) {
-        return await this.#exec('show_create', { selector, structured });
-    }
-
-    async _parse(querySpec, options) {
-        return await this.#exec('parse', { querySpec, options });
-    }
-
-    async _resolve(query, options) {
-        return await this.#exec('resolve', { query, options });
-    }
-
-    async _query(query, { callback, signal, ...options }) {
-        return await this.#exec(
-            'query',
-            { query, options: { callback: !!callback, ...options } },
-            { liveMode: options.live }
-        );
-    }
-
-    async _stream(query, options) {
-        return await this.#exec('stream', { query, options }, { streamMode: true });
-    }
-
-    async _subscribe(...args) {
-        const _args = args.length ? { selector: args.pop() } : {};
-        return await this.#exec('subscribe', _args, { liveMode: true });
     }
 
     // ------------

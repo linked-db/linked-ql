@@ -1,5 +1,5 @@
 import { normalizeQueryArgs } from '../clients/abstracts/util.js';
-import { AbstractSQLClient } from '../clients/abstracts/AbstractSQLClient.js';
+import { LinkedQLClient } from '../clients/abstracts/LinkedQLClient.js';
 import { RealtimeClient } from '../proc/realtime/RealtimeClient.js';
 import { StorageEngine } from './storage/StorageEngine.js';
 import { QueryEngine } from './eval/QueryEngine.js';
@@ -7,43 +7,53 @@ import { SQLParser } from '../lang/SQLParser.js';
 import { registry } from '../lang/registry.js';
 import { Result } from '../clients/Result.js';
 
-export class FlashQL extends AbstractSQLClient {
+export class FlashQL extends LinkedQLClient {
 
-    #dialect;
+    // Standard getters: parsers, resolver, sync
+
     #parser;
     #sync;
-    #realtimeClient;
 
+    get parser() { return this.#parser; }
+    get resolver() {
+        return super.resolveGetResolver(() =>
+            this.#storageEngine.getResolver());
+    }
+    get sync() { return this.#sync; }
+
+    // FlashQL-specific
+
+    #keyval;
     #storageEngine;
     #queryEngine;
 
-    get dialect() { return this.#dialect; }
-    get parser() { return this.#parser; }
-    get sync() { return this.#sync; }
-    get realtimeClient() { return this.#realtimeClient; }
-
+    get keyval() { return this.#keyval; }
     get storageEngine() { return this.#storageEngine; }
     get queryEngine() { return this.#queryEngine; }
 
+    // Internal
+
+    #realtimeClient;
     #managedSyncAbortLines = new Map;
+
+    // ------------
 
     constructor({
         dialect = 'postgres',
-        capability = {},
         keyval = null,
         storageEngine = null,
         queryEngine = null,
         ...options
     } = {}) {
-        super({ capability });
+        super({ dialect, ...options });
 
-        this.#dialect = dialect;
+        this.#keyval = keyval;
+        this.#storageEngine = storageEngine || new StorageEngine({ client: this, dialect: this.dialect, keyval, ...options });
+        this.#queryEngine = queryEngine || new QueryEngine(this.#storageEngine, { dialect: this.dialect, ...options });
+
         this.#parser = new SQLParser({ dialect: this.dialect });
-
-        this.#storageEngine = storageEngine || new StorageEngine({ client: this, dialect, keyval, ...options });
-        this.#queryEngine = queryEngine || new QueryEngine(this.#storageEngine, { dialect, ...options });
-
         this.#sync = this.#storageEngine.sync;
+
         this.#realtimeClient = new RealtimeClient(this);
     }
 
@@ -60,16 +70,14 @@ export class FlashQL extends AbstractSQLClient {
         await super.disconnect();
     }
 
-    createSchemaInference() {
-        return this.#storageEngine.createSchemaInference();
-    }
+    // ------------
 
     async query(...args) {
         const [_query, options] = normalizeQueryArgs(...args);
         const query = await this.#parser.parse(_query, options);
 
         if (options.live && query.fromClause?.()) {
-            const schemaInference = this.createSchemaInference();
+            const schemaInference = this.resolver;
             const resolvedQuery = await schemaInference.resolveQuery(query, options);
             return await this.#realtimeClient.query(resolvedQuery, options);
         }
@@ -110,6 +118,7 @@ export class FlashQL extends AbstractSQLClient {
             const result = await this.#queryEngine.query(query, { ...options, tx });
             await tx.commit();
 
+            if (options.bufferResultRows === false) return result;
             return new Result({ rows: result.rows, rowCount: result.rowCount });
         } catch (e) {
             await tx.abort();
@@ -125,7 +134,9 @@ export class FlashQL extends AbstractSQLClient {
                 let stream;
                 try {
                     (stream = await _this.query(_query, { ...options, live: false, bufferResultRows: false }));
-                    for await (const row of stream) yield row;
+                    for await (const row of stream) {
+                        yield row;
+                    }
                 } finally {
                     if (typeof stream?.return === 'function') {
                         await stream.return();

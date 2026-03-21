@@ -1,5 +1,4 @@
 import { registry } from '../../lang/registry.js';
-import { SimpleEmitter } from '../../clients/abstracts/SimpleEmitter.js';
 import { AbstractNode } from '../../lang/abstracts/AbstractNode.js';
 import { ConflictError } from '../ConflictError.js';
 import { SQLParser } from '../../lang/SQLParser.js';
@@ -9,7 +8,7 @@ const TBL_PLACEHOLDER = Symbol.for('tbl_placeholder');
 const GROUPING_META = Symbol.for('grouping_meta');
 const WINDOW_META = Symbol.for('window_meta');
 
-export class QueryEngine extends SimpleEmitter {
+export class QueryEngine {
 
     #storageEngine;
     #exprEngine;
@@ -17,8 +16,6 @@ export class QueryEngine extends SimpleEmitter {
     #options;
 
     constructor(storageEngine, { dialect = 'postgres', ...options } = {}) {
-        super();
-
         this.#storageEngine = storageEngine;
         this.#options = { dialect, ...options };
 
@@ -96,7 +93,7 @@ export class QueryEngine extends SimpleEmitter {
             
             // Resolve query
             if (isRootQuery) {
-                if (!queryCtx.schemaInference) queryCtx.schemaInference = this.#storageEngine.createSchemaInference();
+                if (!queryCtx.schemaInference) queryCtx.schemaInference = this.#storageEngine.getResolver();
                 const inferenceOpts = { dialect: queryCtx.options.dialect, tx: queryCtx.tx };
                 stmtNode = await queryCtx.schemaInference.resolveQuery(stmtNode, inferenceOpts);
             }

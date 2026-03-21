@@ -253,40 +253,40 @@ describe('FlashQL - DDL Inference', () => {
     describe('SHOW CREATE', () => {
 
         it('should show create for namespace', async () => {
-            const result = await client.createSchemaInference().showCreate({ lq_test_show: ['*'] }, { structured: true });
+            const result = await client.resolver.showCreate({ lq_test_show: ['*'] }, { structured: true });
             expect(result).to.have.lengthOf(1);
             expect(result[0].name().value()).to.eq('lq_test_show');
             expect(result[0].tables()).to.have.lengthOf(2);
         });
 
         it('should show create for specific table', async () => {
-            const result = await client.createSchemaInference().showCreate({ lq_test_show: ['tbl1'] }, { structured: true });
+            const result = await client.resolver.showCreate({ lq_test_show: ['tbl1'] }, { structured: true });
             expect(result).to.have.lengthOf(1);
             expect(result[0].tables()).to.have.lengthOf(1);
             expect(result[0].tables()[0].name().value()).to.eq('tbl1');
         });
 
         it('should show create for negated table', async () => {
-            const result = await client.createSchemaInference().showCreate({ lq_test_show: ['!tbl1'] }, { structured: true });
+            const result = await client.resolver.showCreate({ lq_test_show: ['!tbl1'] }, { structured: true });
             expect(result).to.have.lengthOf(1);
             expect(result[0].tables()).to.have.lengthOf(1);
             expect(result[0].tables()[0].name().value()).to.eq('tbl2');
         });
 
         it('should show create for wildcard namespace', async () => {
-            const result = await client.createSchemaInference().showCreate({ ['*']: ['tbl1'] }, { structured: true });
+            const result = await client.resolver.showCreate({ ['*']: ['tbl1'] }, { structured: true });
             expect(result.some(s => s.tables().some(t => t.name().value() === 'tbl1'))).to.be.true;
         });
 
         // --- Extended usage patterns ---
 
         it('should showCreate() for given selector (1)', async () => {
-            const a = await client.createSchemaInference().showCreate({ lq_test_public: ['*'] }, { structured: true });
+            const a = await client.resolver.showCreate({ lq_test_public: ['*'] }, { structured: true });
             expect(a).to.have.lengthOf(1);
             expect(a[0].name().value()).to.eq('lq_test_public');
 
-            const b = await client.createSchemaInference().showCreate([{ namespace: 'lq_test_public', tables: ['*'] }], { structured: true });
-            const c = await client.createSchemaInference().showCreate({ lq_test_public: ['*'] }, { structured: true });
+            const b = await client.resolver.showCreate([{ namespace: 'lq_test_public', tables: ['*'] }], { structured: true });
+            const c = await client.resolver.showCreate({ lq_test_public: ['*'] }, { structured: true });
 
             expect(b).to.have.lengthOf(1);
             expect(c).to.have.lengthOf(1);
@@ -299,8 +299,8 @@ describe('FlashQL - DDL Inference', () => {
         });
 
         it('should showCreate() for given selector (2)', async () => {
-            const b = await client.createSchemaInference().showCreate({ lq_test_public: ['tbl1'] }, { structured: true });
-            const c = await client.createSchemaInference().showCreate({ lq_test_public: ['!tbl1'] }, { structured: true });
+            const b = await client.resolver.showCreate({ lq_test_public: ['tbl1'] }, { structured: true });
+            const c = await client.resolver.showCreate({ lq_test_public: ['!tbl1'] }, { structured: true });
 
             expect(b).to.have.lengthOf(1);
             expect(c).to.have.lengthOf(1);
@@ -313,8 +313,8 @@ describe('FlashQL - DDL Inference', () => {
         });
 
         it('should showCreate() for given selector (3)', async () => {
-            const b = await client.createSchemaInference().showCreate({ ['*']: ['tbl1'] }, { structured: true });
-            const c = await client.createSchemaInference().showCreate({ ['*']: ['!tbl1'] }, { structured: true });
+            const b = await client.resolver.showCreate({ ['*']: ['tbl1'] }, { structured: true });
+            const c = await client.resolver.showCreate({ ['*']: ['!tbl1'] }, { structured: true });
 
             expect(b).to.have.lengthOf(3);
             expect(c).to.have.lengthOf(4);
@@ -328,8 +328,8 @@ describe('FlashQL - DDL Inference', () => {
         });
 
         it('should showCreate() for given selector (4)', async () => {
-            const b = await client.createSchemaInference().showCreate({ ['*']: ['tbl1'] });
-            const c = await client.createSchemaInference().showCreate({ ['*']: ['*'] });
+            const b = await client.resolver.showCreate({ ['*']: ['tbl1'] });
+            const c = await client.resolver.showCreate({ ['*']: ['*'] });
 
             expect(b.map((t) => t.name().value())).to.deep.eq(['tbl1', 'tbl1', 'tbl1']);
             expect(c.map((t) => t.name().value())).to.deep.eq(['test'/* default */, 'tbl1', 'tbl2', 'tbl1', 'tbl2', 'tbl1', 'tbl2']);
@@ -338,7 +338,7 @@ describe('FlashQL - DDL Inference', () => {
 
     describe('PROVIDE', () => {
         it('should provide() the specified namespace', async () => {
-            const schemaInference = client.createSchemaInference();
+            const schemaInference = client.resolver;
             const resultCode = await schemaInference.preload([{ namespace: 'lq_test_%', tables: ['tbl1'] }]);
             const catalog = [...schemaInference.catalog];
 
@@ -365,7 +365,7 @@ describe('FlashQL - DDL Inference', () => {
         });
 
         it('should incrementally provide() the specified namespace', async () => {
-            const schemaInference = client.createSchemaInference();
+            const schemaInference = client.resolver;
             const resultCode = await schemaInference.preload([{ namespace: 'lq_test_%', tables: ['tbl2'] }]);
             const catalog = [...schemaInference.catalog];
 

@@ -27,7 +27,10 @@ export const SYSTEM_BOOTSTRAP_DATA = {
         { id: 11, namespace_id: 1, name: 'INT', kind: 'base', base_type_id: null, enum_values: null, domain_constraints_ast: null },
         { id: 12, namespace_id: 1, name: 'TEXT', kind: 'base', base_type_id: null, enum_values: null, domain_constraints_ast: null },
         { id: 13, namespace_id: 1, name: 'JSON', kind: 'base', base_type_id: null, enum_values: null, domain_constraints_ast: null },
-        { id: 14, namespace_id: 1, name: 'BOOLEAN', kind: 'base', base_type_id: null, enum_values: null, domain_constraints_ast: null }
+        { id: 14, namespace_id: 1, name: 'BOOLEAN', kind: 'base', base_type_id: null, enum_values: null, domain_constraints_ast: null },
+        { id: 15, namespace_id: 1, name: 'SERIAL', kind: 'base', base_type_id: null, enum_values: null, domain_constraints_ast: null },
+        { id: 16, namespace_id: 1, name: 'INTEGER', kind: 'base', base_type_id: null, enum_values: null, domain_constraints_ast: null },
+        { id: 17, namespace_id: 1, name: 'TIMESTAMP', kind: 'base', base_type_id: null, enum_values: null, domain_constraints_ast: null }
     ],
 
     sys_columns: [

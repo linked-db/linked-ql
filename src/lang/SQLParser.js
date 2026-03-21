@@ -1,3 +1,4 @@
+import { AbstractNode } from './abstracts/AbstractNode.js';
 import { Transformer } from './Transformer.js';
 import { registry } from './registry.js';
 import './index.js';
@@ -13,6 +14,7 @@ export class SQLParser {
 
     async parse(querySpec, { alias = null, ...options } = {}) {
         if (!querySpec) return;
+        if (querySpec instanceof AbstractNode) return querySpec;
 
         // 1. --- SQL script
         if (typeof querySpec === 'string' || typeof querySpec === 'object' && querySpec.query) {
@@ -41,7 +43,7 @@ export class SQLParser {
 
         return registry.SQLScript.fromJSON(
             { entries: [queryJson] },
-            { dialect: options.dialect || this.#dialect, assert: true, supportStdStmt: true }
+            { assert: true, dialect: options.dialect || this.#dialect, supportStdStmt: true }
         ).entries()[0];
     }
 

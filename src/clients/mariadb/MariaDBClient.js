@@ -1,7 +1,7 @@
 import mariadb from 'mariadb';
-import { MainstreamSQLClient } from '../MainstreamSQLClient.js';
+import { MainstreamDBClient } from '../MainstreamDBClient.js';
 
-export class MariaDBClient extends MainstreamSQLClient {
+export class MariaDBClient extends MainstreamDBClient {
 
     #driver;
     #adminDriver;
@@ -13,7 +13,6 @@ export class MariaDBClient extends MainstreamSQLClient {
     #walClient;
     #walInit = false;
 
-    get dialect() { return 'mysql'; }
     get driver() { return this.#driver; }
     get poolMode() { return true; }
     get walSlotName() { return this.#walSlotName; }
@@ -22,9 +21,11 @@ export class MariaDBClient extends MainstreamSQLClient {
         walSlotName = 'linkedql_default_slot',
         walSlotPersistence = 1, // 2 for wholly externally-managed slot
         capability = {},
+        nonDDLMode = false,
         ...connectionParams
     } = {}) {
-        super({ capability });
+        super({ dialect: 'mysql', capability, nonDDLMode });
+
         this.#connectionParams = connectionParams;
         this.#walSlotName = walSlotName;
         this.#walSlotPersistence = walSlotPersistence;
@@ -43,7 +44,6 @@ export class MariaDBClient extends MainstreamSQLClient {
     }
 
     async disconnect() {
-        await this._teardownRealtime();
         await this.#adminDriver.release();
         await this.#driver.end();
         await super.disconnect();

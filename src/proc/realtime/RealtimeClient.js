@@ -1,6 +1,6 @@
 import '../../lang/index.js';
 import { registry } from '../../lang/registry.js';
-import { AbstractSQLClient } from '../../clients/abstracts/AbstractSQLClient.js';
+import { LinkedQLClient } from '../../clients/abstracts/LinkedQLClient.js';
 import { normalizeQueryArgs } from '../../clients/abstracts/util.js';
 import { RealtimeResult } from './RealtimeResult.js';
 import { QueryWindow } from './QueryWindow.js';
@@ -13,8 +13,8 @@ export class RealtimeClient {
     get size() { return this.#windows.size; }
 
     constructor(driver) {
-        if (!(driver instanceof AbstractSQLClient)) {
-            throw new TypeError('driver must be an instance of AbstractSQLClient');
+        if (!(driver instanceof LinkedQLClient)) {
+            throw new TypeError('driver must be an instance of LinkedQLClient');
         }
         this.#driver = driver;
     }

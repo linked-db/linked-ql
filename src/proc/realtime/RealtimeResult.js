@@ -21,7 +21,7 @@ export class RealtimeResult extends Result {
         if (signal) signal.addEventListener('abort', () => this.abort());
     }
 
-    abort({ forget = false } = {}) { this.#abortLine({ forget }); }
+    async abort({ forget = false } = {}) { return this.#abortLine({ forget }); }
 
     async _apply(commit) {
         const Obs = Observer;

@@ -558,7 +558,7 @@ export class QueryWindow extends SimpleEmitter {
 
         // Connect to WAL events or equivalent
         // Drivers must implement the interface
-        this.#abortLine = await this.#driver.subscribe(analysis.fromItemsBySchema, (commit) => {
+        this.#abortLine = await this.#driver.sync.subscribe(analysis.fromItemsBySchema, (commit) => {
             this.#handleCommit(commit).catch((e) => {
                 this.emit('error', e);
             });
@@ -638,9 +638,9 @@ export class QueryWindow extends SimpleEmitter {
     // -------------
 
     async currentRendering() {
-        const resultRecords = await this.currentRecords();
+        const resultEntries = await this.currentRecords();
         const rows = [], hashes = [];
-        for (const [logicalHash, logicalRecord] of resultRecords.entries()) {
+        for (const [logicalHash, logicalRecord] of resultEntries) {
             const row = await this.#renderLogicalRecord(logicalRecord);
             rows.push(row);
             hashes.push(logicalHash);
@@ -773,7 +773,8 @@ export class QueryWindow extends SimpleEmitter {
         const allAffectedAliases = new Set;
 
         for (const e of events) {
-            if (!(e.op === 'insert' || e.op === 'update' || e.op === 'delete')) continue;
+            if (!(e.op === 'insert' || e.op === 'update' || e.op === 'delete')
+                || !e.relation?.keyColumns) continue;
             const relationHash = JSON.stringify([e.relation.namespace, e.relation.name]);
 
             const affectedAliasesEntries = [...this.#originSchemas.entries()].filter(([, originSchema]) => originSchema.relationHashes.has(relationHash));
@@ -787,16 +788,16 @@ export class QueryWindow extends SimpleEmitter {
             for (const alias of affectedAliases) allAffectedAliases.add(alias);
 
             const keyColumns = e.relation.keyColumns;
-            const oldKeys = e.key
-                ? Object.values(e.key)
-                : keyColumns.map((k) => e.new[k]);
-            const newKeys = e.new
-                ? keyColumns.map((k) => e.new[k])
-                : oldKeys.slice(0);
+            const oldKey = e.oldKey
+                ? Object.values(e.oldKey)
+                : keyColumns.map((k) => (e.old || e.new)[k]);
+            const newKey = e.newKey
+                ? Object.values(e.newKey)
+                : keyColumns.map((k) => (e.new || e.old)[k]);
 
-            const normalizedEvent = { ...e, keyColumns, oldKeys, newKeys, relationHash, affectedAliases };
+            const normalizedEvent = { ...e, keyColumns, oldKey, newKey, relationHash, affectedAliases };
 
-            let rowKeyHash_old = this.#stringifyLogicalHash([e.relation.namespace, e.relation.name, normalizedEvent.oldKeys]);
+            let rowKeyHash_old = this.#stringifyLogicalHash([e.relation.namespace, e.relation.name, normalizedEvent.oldKey]);
             let rowKeyHash_new, previous;
 
             if ((previous = normalizedEventsMap.get(rowKeyHash_old))
@@ -814,22 +815,22 @@ export class QueryWindow extends SimpleEmitter {
                 }
                 if (previous.op === 'insert' && normalizedEvent.op === 'update') {
                     // Use the lastest state of said record for the insert
-                    const _normalizedEvent = { ...normalizedEvent, oldKeys: previous.oldKeys, old: null, op: 'insert' };
+                    const _normalizedEvent = { ...normalizedEvent, oldKey: previous.oldKey, old: null, op: 'insert' };
                     normalizedEventsMap.delete(rowKeyHash_old); // Don't retain old slot; must come first
                     normalizedEventsMap.set(rowKeyHash_old, _normalizedEvent);
                     // Handle key changes
-                    if ((rowKeyHash_new = this.#stringifyLogicalHash([e.relation.namespace, e.relation.name, normalizedEvent.newKeys])) !== rowKeyHash_old) {
+                    if ((rowKeyHash_new = this.#stringifyLogicalHash([e.relation.namespace, e.relation.name, normalizedEvent.newKey])) !== rowKeyHash_old) {
                         keyHistoryMap.set(rowKeyHash_new, rowKeyHash_old);
                     }
                     continue;
                 }
                 if (previous.op === 'update' && normalizedEvent.op === 'update') {
                     // Honour latest update, but mapped to old identity
-                    const _normalizedEvent = { ...normalizedEvent, oldKeys: previous.oldKeys, old: previous.old };
+                    const _normalizedEvent = { ...normalizedEvent, oldKey: previous.oldKey, old: previous.old };
                     normalizedEventsMap.delete(rowKeyHash_old); // Don't retain old slot; must come first
                     normalizedEventsMap.set(rowKeyHash_old, _normalizedEvent);
                     // Handle key changes
-                    if ((rowKeyHash_new = this.#stringifyLogicalHash([e.relation.namespace, e.relation.name, normalizedEvent.newKeys])) !== rowKeyHash_old) {
+                    if ((rowKeyHash_new = this.#stringifyLogicalHash([e.relation.namespace, e.relation.name, normalizedEvent.newKey])) !== rowKeyHash_old) {
                         keyHistoryMap.set(rowKeyHash_new, rowKeyHash_old);
                     }
                     continue;
@@ -843,7 +844,7 @@ export class QueryWindow extends SimpleEmitter {
             } else {
                 if (normalizedEvent.op === 'update') {
                     // Handle key changes
-                    if ((rowKeyHash_new = this.#stringifyLogicalHash([e.relation.namespace, e.relation.name, normalizedEvent.newKeys])) !== rowKeyHash_old) {
+                    if ((rowKeyHash_new = this.#stringifyLogicalHash([e.relation.namespace, e.relation.name, normalizedEvent.newKey])) !== rowKeyHash_old) {
                         keyHistoryMap.set(rowKeyHash_new, rowKeyHash_old);
                     }
                 }
@@ -883,7 +884,7 @@ export class QueryWindow extends SimpleEmitter {
         for (const normalizedEvent of normalizedEventsMap.values()) {
 
             if (normalizedEvent.op === 'insert') {
-                const newHash = this.#stringifyLogicalHash([normalizedEvent.newKeys]);
+                const newHash = this.#stringifyLogicalHash([normalizedEvent.newKey]);
                 const logicalRecord = { [normalizedEvent.affectedAliases[0]]: normalizedEvent.new };
                 const passesWhere = !this.#query.whereClause()
                     || await this.#exprEngine.evaluate(this.#query.whereClause().expr(), logicalRecord, this.#queryCtx);
@@ -893,8 +894,8 @@ export class QueryWindow extends SimpleEmitter {
             }
 
             if (normalizedEvent.op === 'update') {
-                const oldHash = this.#stringifyLogicalHash([normalizedEvent.oldKeys]);
-                const newHash = this.#stringifyLogicalHash([normalizedEvent.newKeys]);
+                const oldHash = this.#stringifyLogicalHash([normalizedEvent.oldKey]);
+                const newHash = this.#stringifyLogicalHash([normalizedEvent.newKey]);
                 const logicalRecord = { [normalizedEvent.affectedAliases[0]]: normalizedEvent.new };
                 let diffEvent;
                 const passesWhere = !this.#query.whereClause()
@@ -910,7 +911,7 @@ export class QueryWindow extends SimpleEmitter {
             }
 
             if (normalizedEvent.op === 'delete') {
-                const oldHash = this.#stringifyLogicalHash([normalizedEvent.oldKeys]);
+                const oldHash = this.#stringifyLogicalHash([normalizedEvent.oldKey]);
                 if (this.#localRecords.has(oldHash)) {
                     const diffEvent = { op: 'delete', oldHash, logicalRecord: this.#localRecords.get(oldHash) };
                     diffEvents.add(diffEvent);
@@ -983,22 +984,22 @@ export class QueryWindow extends SimpleEmitter {
             if (normalizedEvent.op === 'insert') {
                 // keyColumn === null // keyColumn IN [null, newKey]
                 diffingFilters = [
-                    affectedAliases.map((alias) => composeSelectionLogic(alias, normalizedEvent.keyColumns, normalizedEvent.oldKeys, 0)),
-                    affectedAliases.map((alias) => composeSelectionLogic(alias, normalizedEvent.keyColumns, normalizedEvent.newKeys, 2/* IMPORTANT */)),
+                    affectedAliases.map((alias) => composeSelectionLogic(alias, normalizedEvent.keyColumns, normalizedEvent.oldKey, 0)),
+                    affectedAliases.map((alias) => composeSelectionLogic(alias, normalizedEvent.keyColumns, normalizedEvent.newKey, 2/* IMPORTANT */)),
                 ];
             }
             if (normalizedEvent.op === 'update') {
                 // keyColumn IN [null, oldKey] // keyColumn IN [null, newKey]
                 diffingFilters = [
-                    affectedAliases.map((alias) => composeSelectionLogic(alias, normalizedEvent.keyColumns, normalizedEvent.oldKeys, 2)),
-                    affectedAliases.map((alias) => composeSelectionLogic(alias, normalizedEvent.keyColumns, normalizedEvent.newKeys, 2)),
+                    affectedAliases.map((alias) => composeSelectionLogic(alias, normalizedEvent.keyColumns, normalizedEvent.oldKey, 2)),
+                    affectedAliases.map((alias) => composeSelectionLogic(alias, normalizedEvent.keyColumns, normalizedEvent.newKey, 2)),
                 ];
             }
             if (normalizedEvent.op === 'delete') {
                 // keyColumn IN [null, oldKey] // keyColumn === null
                 diffingFilters = [
-                    affectedAliases.map((alias) => composeSelectionLogic(alias, normalizedEvent.keyColumns, normalizedEvent.oldKeys, 2/* IMPORTANT */)),
-                    affectedAliases.map((alias) => composeSelectionLogic(alias, normalizedEvent.keyColumns, normalizedEvent.newKeys, 0)),
+                    affectedAliases.map((alias) => composeSelectionLogic(alias, normalizedEvent.keyColumns, normalizedEvent.oldKey, 2/* IMPORTANT */)),
+                    affectedAliases.map((alias) => composeSelectionLogic(alias, normalizedEvent.keyColumns, normalizedEvent.newKey, 0)),
                 ];
             }
             top: for (const [logicalHash, logicalRecord] of this.#localRecords.entries()) {
@@ -1058,7 +1059,7 @@ export class QueryWindow extends SimpleEmitter {
                             && (normalizedEvent = normalizedEventsMap.get(possibleEventId))) {
                             matches = matches.filter(([k]) => {
                                 // Remote hash would be null on normalizedEvent.op === 'delete'
-                                return normalizedEvent.op === 'delete' ? k[i] === null : _eq(normalizedEvent.newKeys, k[i]);
+                                return normalizedEvent.op === 'delete' ? k[i] === null : _eq(normalizedEvent.newKey, k[i]);
                             });
                         }
                     }
@@ -1134,12 +1135,12 @@ export class QueryWindow extends SimpleEmitter {
             : 0;
 
         const render = async (diffEvent) => {
-            const row = await this.#renderLogicalRecord(diffEvent.logicalRecord);
+            const newRow = await this.#renderLogicalRecord(diffEvent.logicalRecord);
             const outputEvent = {
                 op: diffEvent.op,
                 ...(diffEvent.op === 'update' ? { oldHash: diffEvent.oldHash, old: diffEvent.old } : {}),
                 newHash: diffEvent.newHash,
-                new: row,
+                new: newRow,
             };
             return outputEvent;
         };
@@ -1277,9 +1278,9 @@ export class QueryWindow extends SimpleEmitter {
         return true;
     }
 
-    async #commitResult(commitMeta, resultRecords, emit = false) {
+    async #commitResult(commitMeta, resultEntries, emit = false) {
         this.#localRecords.clear();
-        for (const [logicalHash, logicalRecord] of resultRecords.entries()) {
+        for (const [logicalHash, logicalRecord] of resultEntries) {
             this.#localSet(logicalHash, logicalRecord);
         }
         if (emit) {

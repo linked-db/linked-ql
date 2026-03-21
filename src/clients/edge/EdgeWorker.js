@@ -6,10 +6,10 @@ export class EdgeWorker {
         MessagePortPlus.upgradeInPlace(self);
 
         const worker = new EdgeWorker({ ...options, type: 'worker' });
-        
+
         self.addRequestListener('message', async (e) => {
             const { data: { op, args }, ports: [port] } = e;
-        
+
             await worker.handle(op, args, port);
         });
     }
@@ -59,41 +59,33 @@ export class EdgeWorker {
     }
 
     async exec(op, args, port, liveModeCallback = null) {
-        if (op === 'show_create') {
-            return await this.#client.showCreate(...Object.values(args));
-        }
-
-        if (op === 'parse') {
-            return await this.#client.parse(...Object.values(args));
-        }
-
-        if (op === 'resolve') {
-            return await this.#client.resolve(...Object.values(args));
-        }
-
         if (op === 'query') {
             let result;
 
             if (args.options?.live) {
-                if (!port) throw new Error('Port required');
+                if (!port) throw new Error('Port required for live query requests');
                 liveModeCallback?.();
 
-                if (args.options?.callback === true) {
-                    args.options.callback = (commit) => {
-                        port.postMessage({ commit }, { type: `${this.#workerEventNamespace}event` });
-                    };
+                if (args.options.callback === true) {
+                    args.options.callback = (commit) =>
+                        port.postMessage({ commit }, { type: `${this.#workerEventNamespace}commit` });
                 }
 
-                const gc = () => result?.abort();
+                port.addRequestListener('forget', async () => {
+                    return await result?.abort({ forget: true });
+                });
+
+                const gc = async () => await result?.abort();
                 port.readyStateChange('close').then(gc);
             }
 
-            result = await this.#client.query(...Object.values(args));
+            result = await this.#client.query(args.query, args.options);
             return result;
         }
 
         if (op === 'stream') {
-            const asyncIterable = await this.#client.stream(...Object.values(args));
+            const asyncIterable = await this.#client.stream(args.query, args.options);
+
             if (this.#type === 'http' && this.#rowsStreaming !== 'port') {
                 return asyncIterable;
             }
@@ -104,17 +96,32 @@ export class EdgeWorker {
             return await this.#streamCursorOverPort(asyncIterable, port, args.options?.batchSize);
         }
 
-        if (op === 'subscribe') {
+        // -----------
+
+        if (op === 'resolver:show_create') {
+            return await this.#client.resolver.showCreate(args.selector, args.options);
+        }
+
+        if (op === 'parser:parse') {
+            return await this.#client.parser.parse(args.query, args.options);
+        }
+
+        if (op === 'sync:subscribe') {
             if (!port) throw new Error('Port required');
             liveModeCallback?.();
 
-            args.callback = (commit) => {
-                port.postMessage(commit, { type: `${this.#workerEventNamespace}event` });
-            };
+            args.callback = (commit) =>
+                port.postMessage({ commit }, { type: `${this.#workerEventNamespace}commit` });
 
-            const gc = await this.#client.subscribe(...Object.values(args));
+            const gc = args.selector
+                ? await this.#client.sync.subscribe(args.selector, args.callback, args.options)
+                : await this.#client.sync.subscribe(args.callback, args.options);
             port.readyStateChange('close').then(gc);
             return;
+        }
+
+        if (op === 'sync:forget') {
+            return await this.#client.sync.unsubscribe(args.id, { forget: true });
         }
     }
 

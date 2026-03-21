@@ -1,7 +1,7 @@
 import mysql from 'mysql2/promise';
-import { MainstreamSQLClient } from '../MainstreamSQLClient.js';
+import { MainstreamDBClient } from '../MainstreamDBClient.js';
 
-export class MyAbstractSQLClient extends MainstreamSQLClient {
+export class MySQLClient extends MainstreamDBClient {
 
     #driver;
     #adminDriver;
@@ -14,7 +14,6 @@ export class MyAbstractSQLClient extends MainstreamSQLClient {
     #walClient;
     #walInit = false;
 
-    get dialect() { return 'mysql'; }
     get driver() { return this.#driver; }
     get poolMode() { return this.#poolMode; }
     get walSlotName() { return this.#walSlotName; }
@@ -24,9 +23,11 @@ export class MyAbstractSQLClient extends MainstreamSQLClient {
         walSlotName = 'linkedql_default_slot',
         walSlotPersistence = 1, // 2 for wholly externally-managed slot
         capability = {},
+        nonDDLMode = false,
         ...connectionParams
     } = {}) {
-        super({ capability });
+        super({ dialect: 'mysql', capability, nonDDLMode });
+
         this.#poolMode = poolMode;
         this.#connectionParams = connectionParams;
         this.#walSlotName = walSlotName;
@@ -54,7 +55,6 @@ export class MyAbstractSQLClient extends MainstreamSQLClient {
     }
 
     async disconnect() {
-        await this._teardownRealtime();
         if (this.#poolMode) await this.#adminDriver.release();
         await this.#driver.end();
         await super.disconnect();
