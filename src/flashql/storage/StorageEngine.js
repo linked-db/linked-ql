@@ -1,9 +1,11 @@
 import '../../lang/index.js';
+import { registry } from '../../lang/registry.js';
 import { SchemaInference } from './SchemaInference.js';
 import { matchRelationSelector, normalizeRelationSelectorArg } from '../../clients/abstracts/util.js';
 import { DEFAULT_USERSPACE_DATA } from './bootstrap/catalog.bootstrap.js';
 import { MVCCEngine } from './MVCCEngine.js';
-import { SyncEngine } from './SyncEngine.js';
+import { WalEngine } from './WalEngine.js';
+import { SyncManager } from '../SyncManager.js';
 
 export class StorageEngine extends MVCCEngine {
 
@@ -11,7 +13,14 @@ export class StorageEngine extends MVCCEngine {
     #dialect;
     #keyval;
     #options;
+    #wal;
     #sync;
+
+    #forcedReadOnly;
+    #readOnly;
+    #overwriteForward;
+    #forwardHistoryTruncated;
+    #openedCommitTime = null;
 
     #onCreateForeignClient;
     #foreignClients = new Map;
@@ -25,35 +34,106 @@ export class StorageEngine extends MVCCEngine {
     get dialect() { return this.#dialect; }
     get keyval() { return this.#keyval; }
     get options() { return { ...this.#options }; }
+    get wal() { return this.#wal; }
     get sync() { return this.#sync; }
+
+    get readOnly() { return this.#readOnly; }
+    get openedCommitTime() { return this.#openedCommitTime; }
 
     get _catalog() { return this.#catalog; }
 
-    constructor({ client = null, dialect = 'postgres', keyval = null, onCreateForeignClient = null, ...options } = {}) {
+    constructor({ client = null, dialect = 'postgres', keyval = null, onCreateForeignClient = null, readOnly = false, ...options } = {}) {
         super();
 
         this.#client = client;
         this.#dialect = dialect;
         this.#keyval = keyval;
-        this.#keyval = keyval;
         this.#options = options;
 
-        this.#sync = new SyncEngine({ storageEngine: this, keyval: keyval ?? undefined, drainMode: 'never' });
+        this.#forcedReadOnly = !!readOnly;
+        this.#readOnly = this.#forcedReadOnly;
+        this.#overwriteForward = false;
+        this.#forwardHistoryTruncated = true;
+
+        this.#wal = new WalEngine({ storageEngine: this, keyval: keyval ?? undefined, drainMode: 'never' });
+        this.#sync = new SyncManager(this);
     }
 
-    async init() {
+    async open({ versionStop = null, overwriteForward = false } = {}) {
         if (this.#initCalled) return;
         this.#initCalled = true;
 
-        if (await this.#sync.latestCommit()) {
-            await this.#hydrateFromPersistence();
+        if (overwriteForward && !versionStop) {
+            throw new TypeError('open({ overwriteForward }) requires versionStop');
+        }
+        if (this.#forcedReadOnly && overwriteForward) {
+            throw new TypeError('Cannot use overwriteForward when engine is configured readOnly');
+        }
+        if (versionStop) {
+            this.#overwriteForward = !!overwriteForward;
+            this.#readOnly = this.#forcedReadOnly || !overwriteForward;
+            this.#forwardHistoryTruncated = !overwriteForward;
+        } else {
+            this.#overwriteForward = false;
+            this.#readOnly = this.#forcedReadOnly;
+            this.#forwardHistoryTruncated = true;
+        }
+
+        if (typeof versionStop === 'string') {
+            const tblRefNode = await registry.TableRef1.parse(versionStop);
+            if (!tblRefNode)
+                throw new TypeError(`Invalid version stop argument ${versionStop}`);
+            versionStop = {
+                namespace: tblRefNode.qualifier()?.value(),
+                name: tblRefNode.value(),
+                versionSpec: tblRefNode.versionSpec()?.value(),
+            };
+            if (!versionStop.namespace)
+                throw new TypeError(`Version stop table spec must include namespace qualification: ${versionStop}`);
+        } else if (versionStop) {
+            if (typeof versionStop !== 'object')
+                throw new TypeError('Version stop argument must be either a string or an object');
+            for (const k in versionStop) {
+                if (k !== 'namespace' && k !== 'name' && k !== 'versionSpec')
+                    throw new TypeError(`Unexpected property ${k} in version stop argument`);
+            }
+            if (!versionStop.namespace || !versionStop.name)
+                throw new TypeError('Version stop object must include both "namespace" and "name"');
+        }
+
+        const throwNoMatch = () => {
+            throw new Error(`No table version matched ${JSON.stringify(versionStop.namespace)}.${JSON.stringify(versionStop.name)}${versionStop.versionSpec ? '@' + versionStop.versionSpec : ''} to boot to`);
+        }
+
+        if (await this.#wal.latestCommit()) {
+            if (versionStop) {
+                const { lastMatchedCommitTime } = await this.#hydrateFromPersistence({ versionStop, findLastMatch: true });
+                if (!lastMatchedCommitTime) throwNoMatch();
+
+                this.#catalog = new Map;
+                this.#sequences.clear();
+
+                const { lastReplayedCommitTime } = await this.#hydrateFromPersistence({ stopAtCommitTime: lastMatchedCommitTime });
+                this.#openedCommitTime = lastReplayedCommitTime;
+            } else {
+                const { lastReplayedCommitTime } = await this.#hydrateFromPersistence({});
+                this.#openedCommitTime = lastReplayedCommitTime;
+            }
         } else {
             await this.#hydrateFromDefaults();
+            if (versionStop) {
+                const hasMatch = await this.transaction(async (tx) => {
+                    return !!tx.showTable(versionStop, { ifExists: true });
+                });
+                if (!hasMatch) throwNoMatch();
+            }
+            this.#openedCommitTime = await this.#wal.latestCommit();
         }
     }
 
-    async close() {
-        await this.#sync.close({ destroy: true });
+    async close({ destroy = false } = {}) {
+        await this.#sync.shutdown();
+        await this.#wal.close({ destroy });
     }
 
     getResolver() {
@@ -69,6 +149,21 @@ export class StorageEngine extends MVCCEngine {
         return this.#foreignClients.get(origin);
     }
 
+    async getSourceClient(namespaceDef = null) {
+        if (namespaceDef?.replication_origin) {
+            return await this.getForeignClient(namespaceDef.replication_origin);
+        }
+        if (this.#client) return this.#client;
+        throw new Error('Operation requires a source client; configure StorageEngine with options.client or namespace replication origins');
+    }
+
+    async getSourceResolver(namespaceDef = null) {
+        if (namespaceDef?.replication_origin) {
+            return (await this.getSourceClient(namespaceDef)).resolver;
+        }
+        return this.getResolver();
+    }
+
     // ----- bootloader/WAL
 
     async #hydrateFromDefaults() {
@@ -76,23 +171,39 @@ export class StorageEngine extends MVCCEngine {
             await tx.replay(DEFAULT_USERSPACE_DATA));
     }
 
-    async #hydrateFromPersistence() {
+    async #hydrateFromPersistence({ versionStop = null, findLastMatch = false, stopAtCommitTime = null } = {}) {
         this.#isHydrating = true;
+        let lastMatchedCommitTime = null;
+        let lastReplayedCommitTime = null;
 
         try {
-            for await (const commit of this.#sync.streamCommits()) {
+            for await (const commit of this.#wal.streamCommits()) {
+                if (Number.isInteger(stopAtCommitTime) && commit.commitTime > stopAtCommitTime) {
+                    break;
+                }
+
                 await this.transaction(async (tx) => {
                     await tx.replay(commit.entries);
+
+                    if (findLastMatch && versionStop) {
+                        const tblDef = tx.showTable(versionStop, { ifExists: true });
+                        if (tblDef) {
+                            lastMatchedCommitTime = commit.commitTime;
+                        }
+                    }
                 });
 
                 const sequenceHeads = commit.sequenceHeads || {};
                 for (const [seqId, seqValue] of Object.entries(sequenceHeads)) {
                     this.#sequences.set(seqId, seqValue);
                 }
+                lastReplayedCommitTime = commit.commitTime;
             }
         } finally {
             this.#isHydrating = false;
         }
+
+        return { lastMatchedCommitTime, lastReplayedCommitTime };
     }
 
     async #persistCommit(tx) {
@@ -110,7 +221,7 @@ export class StorageEngine extends MVCCEngine {
             timestamp: Date.now(),
         };
 
-        await this.#sync.dispatch(commit);
+        await this.#wal.dispatch(commit);
     }
 
     // ----- sessionConfig
@@ -123,13 +234,17 @@ export class StorageEngine extends MVCCEngine {
         }
 
         const prev = this.#sessionConfig.get(name);
+        // We only store String instances internally for instance checks later
         const _new = typeof value === 'string'
             ? new String(value)
-            : value;
+            : (typeof value === 'number'
+                ? new Number(value)
+                : value);
 
         this.#sessionConfig.set(name, _new);
 
         tx?.addUndo(() => {
+            // Instance checks
             if (this.#sessionConfig.get(name) !== _new) return;
             this.#sessionConfig.set(name, prev);
         });
@@ -139,7 +254,15 @@ export class StorageEngine extends MVCCEngine {
         const value = this.#sessionConfig.get(name);
         return value instanceof String
             ? value + ''
-            : value;
+            : (value instanceof Number
+                ? value + 0
+                : value);
+    }
+
+    defaultNamespace(tx = null) {
+        const searchPath = this.getSessionConfig('search_path', tx) || [];
+        if (searchPath.length) return searchPath[0];
+        return 'public';
     }
 
     // ----- sequences
@@ -166,8 +289,6 @@ export class StorageEngine extends MVCCEngine {
     }
 
     // ----- Schemas
-
-
 
     async _resolveRelationSelector(selector, handle, { handlerMode = 'sync', tx: inputTx = null } = {}) {
         const tx = inputTx || this.begin();
@@ -227,10 +348,22 @@ export class StorageEngine extends MVCCEngine {
     }
 
     async commit(tx) {
+        if (this.#readOnly && !this.#isHydrating && tx._changeLog.length) {
+            throw new Error('StorageEngine is read-only');
+        }
         const returnValue = await super.commit(tx);
 
         if (!this.#isHydrating) {
+            if (this.#overwriteForward && !this.#forwardHistoryTruncated && tx._changeLog.length) {
+                await this.#wal.truncateForward(this.#openedCommitTime);
+                this.#forwardHistoryTruncated = true;
+            }
             await this.#persistCommit(tx);
+            // Keep the original versionStop anchor intact until first mutating commit
+            // performs forward-history truncation.
+            if (!(this.#overwriteForward && !this.#forwardHistoryTruncated && !tx._changeLog.length)) {
+                this.#openedCommitTime = this.txMeta(tx.id)?.commitTime;
+            }
         }
 
         return returnValue;

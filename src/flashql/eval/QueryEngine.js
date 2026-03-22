@@ -153,13 +153,11 @@ export class QueryEngine {
     }
 
     #defaultNamespace(queryCtx) {
-        const searchPath = this.#storageEngine.getSessionConfig('search_path', queryCtx?.tx) || [];
-        if (searchPath.length) return searchPath[0];
-        return 'public';
+        return this.#storageEngine.defaultNamespace(queryCtx?.tx);
     }
 
-    #getTable(nsName, tblName, queryCtx) {
-        return queryCtx.tx.getTable({ namespace: nsName, name: tblName });
+    #getTable(nsName, tblName, versionSpec, queryCtx) {
+        return queryCtx.tx.getTable({ namespace: nsName, name: tblName, versionSpec });
     }
 
     // -------- CONFIG
@@ -299,8 +297,9 @@ export class QueryEngine {
 
         // Resolve table
         const tblName = stmtNode.tableRef().value();
+        const versionSpec = stmtNode.tableRef().versionSpec()?.value();
         const tableAlias = stmtNode.pgTableAlias()?.value() || tblName;
-        const tableStorage = this.#getTable(nsName, tblName, queryCtx);
+        const tableStorage = this.#getTable(nsName, tblName, versionSpec, queryCtx);
 
         // Resolve table schema
         const tableSchema = _.originSchemas[0];
@@ -441,10 +440,11 @@ export class QueryEngine {
                 const tableRef = item.expr?.() || item.tableRef();
 
                 const tblName = tableRef.value();
+                const versionSpec = tableRef.versionSpec()?.value();
                 const tableAlias = item.alias()?.value() || tblName;
                 const nsName = tableRef.qualifier()?.value() || this.#defaultNamespace(queryCtx);
 
-                return [tableAlias, tblName, nsName];
+                return [tableAlias, tblName, nsName, versionSpec];
             });
         } else {
             const tableExpr = stmtNode.tableExpr();
@@ -456,10 +456,11 @@ export class QueryEngine {
             // Derive update targets
             const nsName = tableExpr.tableRef().qualifier()?.value() || this.#defaultNamespace(queryCtx);
             const tblName = tableExpr.tableRef().value();
+            const versionSpec = tableExpr.tableRef().versionSpec()?.value();
             const tableAlias = tableExpr.alias()?.value() || tblName;
 
             updateTargets = [
-                [tableAlias, tblName, nsName],
+                [tableAlias, tblName, nsName, versionSpec],
             ];
         }
 
@@ -479,10 +480,10 @@ export class QueryEngine {
             // Exec update
             const newLogicalRecord = await this.#renderSetClause(logicalRecord, setClause, _.originSchemas, queryCtx);
 
-            for (const [tableAlias, tblName, nsName] of updateTargets) {
+            for (const [tableAlias, tblName, nsName, versionSpec] of updateTargets) {
                 if (newLogicalRecord[tableAlias] === logicalRecord[tableAlias]) continue;
 
-                const tableStorage = this.#getTable(nsName, tblName, queryCtx);
+                const tableStorage = this.#getTable(nsName, tblName, versionSpec, queryCtx);
 
                 newLogicalRecord[tableAlias] = await tableStorage.update(logicalRecord[tableAlias], newLogicalRecord[tableAlias]);
             }
@@ -524,12 +525,11 @@ export class QueryEngine {
             deleteTargets = _.myDeleteList.map((item) => {
                 const fromItem = _combinedFromItems.find((fi) => (fi.alias() || fi.expr()).identifiesAs(item));
                 const tableRef = fromItem.expr();
-                const tblName = tableRef.value?.();
-
-                if (!tblName) throw new Error(`Cannot delete from ${item}; ${fromItem} isn't a table reference.`);
+                const tblName = tableRef.value();
+                const versionSpec = tableRef.versionSpec()?.value();
 
                 const nsName = tableRef.qualifier()?.value() || this.#defaultNamespace(queryCtx);
-                return [item.value(), tblName, nsName];
+                return [item.value(), tblName, nsName, versionSpec];
             });
         } else {
             const tableExpr = stmtNode.tableExpr();
@@ -541,11 +541,12 @@ export class QueryEngine {
             // Derive update targets
             const tableRef = tableExpr.tableRef();
             const tblName = tableRef.value();
+            const versionSpec = tableRef.versionSpec()?.value();
             const tableAlias = tableExpr.alias()?.value() || tblName;
             const nsName = tableRef.qualifier()?.value() || this.#defaultNamespace(queryCtx);
 
             deleteTargets = [
-                [tableAlias, tblName, nsName],
+                [tableAlias, tblName, nsName, versionSpec],
             ];
         }
 
@@ -561,9 +562,9 @@ export class QueryEngine {
         const returningClause = stmtNode.returningClause();
 
         for await (let logicalRecord of stream) {
-            for (const [tableAlias, tblName, nsName] of deleteTargets) {
+            for (const [tableAlias, tblName, nsName, versionSpec] of deleteTargets) {
 
-                const tableStorage = this.#getTable(nsName, tblName, queryCtx);
+                const tableStorage = this.#getTable(nsName, tblName, versionSpec, queryCtx);
 
                 logicalRecord[tableAlias] = await tableStorage.delete(logicalRecord[tableAlias]);
             }
@@ -646,8 +647,9 @@ export class QueryEngine {
         // Resolve namespace/table spec
         const tableRef = stmtNode.tableRef();
         const tblName = tableRef.value();
+        const versionSpec = tableRef.versionSpec()?.value();
         const nsName = tableRef.qualifier()?.value() || this.#defaultNamespace(queryCtx);
-        const tableStorage = this.#getTable(nsName, tblName, queryCtx);
+        const tableStorage = this.#getTable(nsName, tblName, versionSpec, queryCtx);
 
         // Exedute table scan
         let allRows = tableStorage.getAll();
@@ -920,9 +922,7 @@ export class QueryEngine {
         if (!tblDef) return [];
 
         const nsDef = tblDef.namespace_id;
-        const foreignClient = nsDef.replication_origin
-            ? await this.#storageEngine.getForeignClient(nsDef.replication_origin)
-            : this.#storageEngine.client;
+        const foreignClient = await this.#storageEngine.getSourceClient(nsDef);
 
         return [foreignClient, tblDef];
     }
@@ -967,10 +967,11 @@ export class QueryEngine {
 
             // Part2 resolution: table scan
             const tblName = tableRef.value();
+            const versionSpec = tableRef.versionSpec()?.value();
             const aliasName = tableAlias?.value() || tblName;
 
             const nsName = tableRef.qualifier()?.value() || this.#defaultNamespace(queryCtx);
-            const tableStorage = this.#getTable(nsName, tblName, queryCtx);
+            const tableStorage = this.#getTable(nsName, tblName, versionSpec, queryCtx);
 
             for (let row of tableStorage.getAll()) {
                 yield { [aliasName]: row };
@@ -1162,7 +1163,8 @@ export class QueryEngine {
             if (typeof stream[Symbol.asyncIterator] !== 'function') throw new Error(`Implied CTE ${tblName} does not return a record set`);
         } else {
             const nsName = fromItemExpr.qualifier()?.value() || this.#defaultNamespace(queryCtx);
-            const tableStorage = this.#getTable(nsName, tblName, queryCtx);
+            const versionSpec = fromItemExpr.versionSpec()?.value();
+            const tableStorage = this.#getTable(nsName, tblName, versionSpec, queryCtx);
             // Whole tableStorage is stream
             stream = (async function* () { yield* tableStorage.getAll(); })();
         }

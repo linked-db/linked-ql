@@ -25,6 +25,10 @@ export class EdgeWorker {
     #rowsStreaming;
     #workerEventNamespace;
 
+    
+    #transactions = new Map;
+    #transactionCounter = 0;
+
     constructor({
         client,
         type = 'http',
@@ -59,6 +63,65 @@ export class EdgeWorker {
     }
 
     async exec(op, args, port, liveModeCallback = null) {
+        const resolveTx = (options = {}) => {
+            if (!options || !options.tx) return options;
+
+            const tx = this.#transactions.get(options.tx);
+            if (!tx) {
+                throw new Error(`Unknown transaction id: ${options.tx}`);
+            }
+
+            return { ...options, tx };
+        };
+
+        const beginTransaction = async (options = {}) => {
+            const client = this.#client;
+            if (typeof client._beginTransaction !== 'function') {
+                throw new Error('Client does not support explicit transactions');
+            }
+
+            const tx = await client._beginTransaction(options);
+            const id = `tx_${++this.#transactionCounter}`;
+            this.#transactions.set(id, tx);
+            return { id };
+        };
+
+        const commitTransaction = async (id) => {
+            const client = this.#client;
+            const tx = this.#transactions.get(id);
+            if (!tx) throw new Error(`Unknown transaction id: ${id}`);
+            if (typeof client._commitTransaction !== 'function') {
+                throw new Error('Client does not support explicit transactions');
+            }
+            this.#transactions.delete(id);
+            await client._commitTransaction(tx);
+            return true;
+        };
+
+        const rollbackTransaction = async (id) => {
+            const client = this.#client;
+            const tx = this.#transactions.get(id);
+            if (!tx) throw new Error(`Unknown transaction id: ${id}`);
+            if (typeof client._rollbackTransaction !== 'function') {
+                throw new Error('Client does not support explicit transactions');
+            }
+            this.#transactions.delete(id);
+            await client._rollbackTransaction(tx);
+            return true;
+        };
+
+        if (op === 'transaction:begin') {
+            return await beginTransaction(args.options || {});
+        }
+
+        if (op === 'transaction:commit') {
+            return await commitTransaction(args.id);
+        }
+
+        if (op === 'transaction:rollback') {
+            return await rollbackTransaction(args.id);
+        }
+
         if (op === 'query') {
             let result;
 
@@ -79,12 +142,12 @@ export class EdgeWorker {
                 port.readyStateChange('close').then(gc);
             }
 
-            result = await this.#client.query(args.query, args.options);
+            result = await this.#client.query(args.query, resolveTx(args.options));
             return result;
         }
 
         if (op === 'stream') {
-            const asyncIterable = await this.#client.stream(args.query, args.options);
+            const asyncIterable = await this.#client.stream(args.query, resolveTx(args.options));
 
             if (this.#type === 'http' && this.#rowsStreaming !== 'port') {
                 return asyncIterable;
@@ -106,7 +169,7 @@ export class EdgeWorker {
             return await this.#client.parser.parse(args.query, args.options);
         }
 
-        if (op === 'sync:subscribe') {
+        if (op === 'wal:subscribe') {
             if (!port) throw new Error('Port required');
             liveModeCallback?.();
 
@@ -114,14 +177,14 @@ export class EdgeWorker {
                 port.postMessage({ commit }, { type: `${this.#workerEventNamespace}commit` });
 
             const gc = args.selector
-                ? await this.#client.sync.subscribe(args.selector, args.callback, args.options)
-                : await this.#client.sync.subscribe(args.callback, args.options);
+                ? await this.#client.wal.subscribe(args.selector, args.callback, args.options)
+                : await this.#client.wal.subscribe(args.callback, args.options);
             port.readyStateChange('close').then(gc);
             return;
         }
 
-        if (op === 'sync:forget') {
-            return await this.#client.sync.unsubscribe(args.id, { forget: true });
+        if (op === 'wal:forget') {
+            return await this.#client.wal.unsubscribe(args.id, { forget: true });
         }
     }
 

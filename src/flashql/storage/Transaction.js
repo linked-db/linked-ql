@@ -3,6 +3,7 @@ import { ConflictError } from '../ConflictError.js';
 import { bootstrapCatalog } from './bootstrap/catalog.bootstrap.js';
 import { TableStorage } from './TableStorage.js';
 import { SYSTEM_TAG } from './TableStorage.js';
+import { satisfiesVersionSpec, formatVersion } from './versionSpec.js';
 
 export class Transaction {
 
@@ -181,7 +182,7 @@ export class Transaction {
         if (bootstrap) return bootstrapCatalog;
         if (this.#sysCatalog) return this.#sysCatalog;
 
-        const sysCatalog = new Map(['sys_namespaces', 'sys_relations', 'sys_types', 'sys_columns', 'sys_constraints', 'sys_indexes', 'sys_dependencies', 'sys_outsync_queue'].map(
+        const sysCatalog = new Map(['sys_namespaces', 'sys_relations', 'sys_types', 'sys_columns', 'sys_constraints', 'sys_indexes', 'sys_dependencies', 'sys_sync_jobs', 'sys_outsync_queue'].map(
             (n) => [n, this.getTable({ namespace: 'sys', name: n })],
         ));
         this.#sysCatalog = sysCatalog;
@@ -419,7 +420,11 @@ export class Transaction {
     // Table
     // ----------
 
-    listTables(filter = null) {
+    listTables(filter = null, { details = false } = {}) {
+        if (typeof filter === 'boolean') {
+            details = filter;
+            filter = null;
+        }
         const filterFn = typeof filter === 'function' ? filter : null;
         const { namespace, kind, persistence } = typeof filter === 'object' && filter ? filter : {};
 
@@ -434,19 +439,21 @@ export class Transaction {
             if (!nsDef) throw new Error(`Namespace ${JSON.stringify(namespace)} does not exist`);
 
             tblDefs = sysTables.get({ namespace_id: nsDef.id }, { using: 'sys_relations__namespace_id_idx', multiple: true });
-        } else {
-            tblDefs = sysTables.getAll();
+        } else tblDefs = sysTables.getAll();
 
-            if (filterFn) tblDefs = tblDefs.filter(filterFn);
-        }
+        if (filterFn) tblDefs = tblDefs.filter(filterFn);
 
         if (kind) tblDefs = tblDefs.filter((tblDef) => tblDef.kind === kind);
         if (persistence) tblDefs = tblDefs.filter((tblDef) => tblDef.persistence === persistence);
 
-        return tblDefs.map((tblDef) => tblDef.name);
+        if (!details) return tblDefs.map((tblDef) => tblDef.name);
+        return tblDefs.map((tblDef) => Object.freeze({
+            ...tblDef,
+            namespace_id: Object.freeze(this.showNamespace({ id: tblDef.namespace_id })),
+        }));
     }
 
-    showTable({ namespace, namespace_id = null, name, id = null }, { schema = false, ifExists = false, assertIsView = false } = {}) {
+    showTable({ namespace, namespace_id = null, name, id = null, versionSpec = null }, { schema = false, ifExists = false, assertIsView = false } = {}) {
         const sysCatalog = this.#getSysCatalog(namespace === 'sys' || namespace_id === 1);
         let nsDef, tblDef;
 
@@ -479,6 +486,21 @@ export class Transaction {
         if (assertIsView && tblDef.kind !== 'view') {
             if (ifExists) return null;
             throw new Error(`Relation ${JSON.stringify(namespace)}.${JSON.stringify(name)} is not a view`);
+        }
+
+        if (versionSpec && !satisfiesVersionSpec({
+            major: tblDef.version_major,
+            minor: tblDef.version_minor,
+            patch: tblDef.version_patch,
+        }, versionSpec)) {
+            if (ifExists) return null;
+            const relationName = `${JSON.stringify(nsDef?.name || namespace)}.${JSON.stringify(tblDef.name || name)}`;
+            const currentVersion = formatVersion({
+                major: tblDef.version_major,
+                minor: tblDef.version_minor,
+                patch: tblDef.version_patch,
+            });
+            throw new Error(`Relation ${relationName} is at version ${currentVersion}, which does not satisfy ${JSON.stringify(versionSpec)}`);
         }
 
         const resultDef = Object.freeze({
@@ -549,9 +571,7 @@ export class Transaction {
                 if (constraints.length)
                     throw new Error(`Unexpected constraints list for query-type view`);
 
-                const schemaInference = nsDef.replication_origin
-                    ? (await this.#engine.getForeignClient(nsDef.replication_origin)).resolver
-                    : this.#engine.resolver;
+                const schemaInference = await this.#engine.getSourceResolver(nsDef);
                 const query = await this.#parser.parse(view_spec);
                 const resolvedQuery = await schemaInference.resolveQuery(query, { tx: this });
 
@@ -578,13 +598,14 @@ export class Transaction {
                 }
 
                 if (!columns.length) {
-                    const schemaInference = nsDef.replication_origin
-                        ? (await this.#engine.getForeignClient(nsDef.replication_origin)).resolver
-                        : this.#engine.resolver;
+                    const schemaInference = await this.#engine.getSourceResolver(nsDef);
                     const originNs = view_spec.namespace || namespace;
-                    const tblSchema = await schemaInference.showCreate({ [originNs]: view_spec.name }, { tx: this });
+                    const [tblSchema] = await schemaInference.showCreate({ [originNs]: view_spec.name }, { tx: this });
+                    if (!tblSchema) {
+                        throw new ReferenceError(`Origin relation ${JSON.stringify(originNs)}.${JSON.stringify(view_spec.name)} could not be resolved`);
+                    }
 
-                    [columns, constraints] = this.#parser.tableAST_to_tableDef(tblSchema, originNs);
+                    ({ columns, constraints } = this.#parser.tableAST_to_tableDef(tblSchema, originNs));
                 }
             }
         }
@@ -600,8 +621,6 @@ export class Transaction {
             kind,
             persistence,
             view_spec,
-            replication_slot_name: null,
-            replication_last_seen_commit: null,
             version_major: 1,
             version_minor: 0,
             version_patch: 0,
@@ -623,8 +642,6 @@ export class Transaction {
         namespace: newNamespace = null,
         name: newName = null,
         view_spec: newViewSpec = null,
-        replication_slot_name: newReplicationSlotName = null,
-        replication_last_seen_commit: newReplicationLastSeenCommit = null,
         engine_attrs: newEngineAttrs = null,
         changes = [],
         assertIsView = false,
@@ -634,10 +651,6 @@ export class Transaction {
         if (tblDef.kind === 'table') {
             if (newViewSpec)
                 throw new Error(`Unexpected "view_spec" attribute for a non-view relation`);
-            if (newReplicationSlotName)
-                throw new Error(`Unexpected "replication_slot_name" attribute for a non-view relation`);
-            if (newReplicationLastSeenCommit)
-                throw new Error(`Unexpected "replication_last_seen_commit" attribute for a non-view relation`);
         }
 
         const newDef = {};
@@ -661,8 +674,6 @@ export class Transaction {
         }
 
         if (newViewSpec) newDef.view_spec = newViewSpec;
-        if (newReplicationSlotName) newDef.replication_slot_name = newReplicationSlotName;
-        if (newReplicationLastSeenCommit) newDef.replication_last_seen_commit = newReplicationLastSeenCommit;
         if (newEngineAttrs) newDef.engine_attrs = newEngineAttrs;
 
         if (changes?.length) {
@@ -686,18 +697,22 @@ export class Transaction {
     // View
     // ----------
 
-    listViews(filter = null) {
+    listViews(filter = null, { details = false } = {}) {
+        if (typeof filter === 'boolean') {
+            details = filter;
+            filter = null;
+        }
         const filterFn = typeof filter === 'function' ? filter : null;
         const { namespace, persistence } = typeof filter === 'object' && filter ? filter : {};
 
         if (filterFn) {
             return this.listTables((tblDef) => {
-                if (!tblDef.kind !== 'view') return false;
+                if (tblDef.kind !== 'view') return false;
                 return filterFn(tblDef);
-            });
+            }, { details });
         }
 
-        return this.listTables({ namespace, kind: 'view', persistence });
+        return this.listTables({ namespace, kind: 'view', persistence }, { details });
     }
 
     showView({ namespace, namespace_id = null, name, id = null }, { schema = false, ifExists = false } = {}) {
@@ -719,11 +734,6 @@ export class Transaction {
     async resetView(tableRef) {
         const tableStorage = this.getTable(tableRef, { assertIsView: true });
         await tableStorage.truncate();
-
-        await this.alterTable(tableRef, {
-            assertIsView: true,
-            replication_last_seen_commit: 0,
-        });
     }
 
     // ----------

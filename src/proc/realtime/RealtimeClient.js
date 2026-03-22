@@ -25,7 +25,7 @@ export class RealtimeClient {
         let queryWindow;
         let resultJson;
 
-        if (options.id && (queryWindow = await this.findWindow(async (w) => await w.sync.hasSlot(options.id)))) {
+        if (options.id && (queryWindow = await this.findWindow(async (w) => await w.wal.hasSlot(options.id)))) {
             resultJson = callback
                 ? { rows: [], hashes: [], mode: 'streaming_only' } // Resume streaming
                 : await queryWindow.currentRendering();
@@ -35,17 +35,17 @@ export class RealtimeClient {
         }
 
         const realtimeResult = new RealtimeResult(resultJson, async ({ forget = false } = {}) => {
-            await unsubscribeCallback({ forget });
+            return await unsubscribeCallback({ forget });
         }, signal);
 
         const changeHandler = callback || ((commit) => realtimeResult._apply(commit));
-        const unsubscribeCallback = await queryWindow.sync.subscribe(changeHandler, { id: options.id });
+        const unsubscribeCallback = await queryWindow.wal.subscribe(changeHandler, { id: options.id });
 
         return realtimeResult;
     }
 
     async forget(id) {
-        const queryWindow = await this.findWindow(async (w) => await w.sync.hasSlot(id));
+        const queryWindow = await this.findWindow(async (w) => await w.wal.hasSlot(id));
         return !!queryWindow && await queryWindow.unsubscribe(id, { forget: true });
     }
 

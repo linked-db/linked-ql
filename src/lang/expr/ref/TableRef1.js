@@ -178,7 +178,7 @@ export class TableRef1 extends PathMixin(AbstractClassicRef) {
 			resultJson = super.jsonfy(options, transformer, schemaInference);
 		}
 		// Drop version specs...
-		if ((options.deSugar === true || options.deSugar?.dropVersionSpecs) && resultJson.version_spec) {
+		if (options.deSugar?.dropVersionSpecs && resultJson.version_spec) {
 			resultJson = { ...resultJson, version_spec: undefined };
 		}
 		return resultJson;

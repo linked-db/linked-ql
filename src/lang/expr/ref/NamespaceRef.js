@@ -67,7 +67,7 @@ export class NamespaceRef extends AbstractClassicRef {
             resultJson = { ...resultJson, value: resultJson.value.toLowerCase() };
         }
         // Drop version specs...
-        if ((options.deSugar === true || options.deSugar?.dropVersionSpecs) && resultJson.version_spec) {
+        if (options.deSugar?.dropVersionSpecs && resultJson.version_spec) {
             resultJson = { ...resultJson, version_spec: undefined };
         }
         return resultJson;

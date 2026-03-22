@@ -898,6 +898,35 @@ describe("FlashQL - DQL", () => {
             expect(row2.bval).to.be.null;
         });
 
+        it('LEFT JOIN binds version-qualified table refs on both sides', async () => {
+            await client.query(`CREATE TABLE ${namespaceName}.vja (id INT PRIMARY KEY, rel INT)`);
+            await client.query(`CREATE TABLE ${namespaceName}.vjb (id INT PRIMARY KEY, val TEXT)`);
+            await client.query(`INSERT INTO ${namespaceName}.vja (id, rel) VALUES (1, 1), (2, 2)`);
+            await client.query(`INSERT INTO ${namespaceName}.vjb (id, val) VALUES (1, 'B1')`);
+
+            await client.storageEngine.transaction(async (tx) => {
+                await tx.alterTable({ namespace: namespaceName, name: 'vja' }, { name: 'vja_v2' });
+                await tx.alterTable({ namespace: namespaceName, name: 'vja_v2' }, { name: 'vja' });
+                await tx.alterTable({ namespace: namespaceName, name: 'vjb' }, { name: 'vjb_v2' });
+                await tx.alterTable({ namespace: namespaceName, name: 'vjb_v2' }, { name: 'vjb' });
+            });
+
+            await client.query(`INSERT INTO ${namespaceName}.vja (id, rel) VALUES (3, 3)`);
+            await client.query(`INSERT INTO ${namespaceName}.vjb (id, val) VALUES (3, 'B3')`);
+
+            const { rows } = await client.query(`
+                SELECT a.id AS aid, a.rel, b.val
+                FROM ${namespaceName}.vja@=1 a LEFT JOIN ${namespaceName}.vjb@=1 b ON a.rel = b.id
+                ORDER BY a.id
+            `);
+
+            expect(rows).to.deep.equal([
+                { aid: 1, rel: 1, val: 'B1' },
+                { aid: 2, rel: 2, val: null },
+                { aid: 3, rel: 3, val: 'B3' },
+            ]);
+        });
+
         it('RIGHT JOIN preserves right side rows (if supported)', async () => {
             const { rows } = await client.query(`
                 SELECT a.id AS aid, b.id AS bid

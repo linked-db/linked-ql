@@ -5,7 +5,8 @@
 _A modern take on SQL and SQL databases_
 
 [![npm version][npm-version-src]][npm-version-href]
-[![npm downloads][npm-downloads-src]][npm-downloads-href]
+<!-- [![npm downloads][npm-downloads-src]][npm-downloads-href] -->
+[![coverage][coverage-src]][coverage-href]
 [![bundle][bundle-src]][bundle-href]
 [![License][license-src]][license-href]
 
@@ -224,6 +225,8 @@ MIT — see [LICENSE](https://github.com/linked-db/linked-ql?tab=MIT-1-ov-file)
 [npm-version-href]: https://npmjs.com/package/@linked-db/linked-ql
 [npm-downloads-src]: https://img.shields.io/npm/dm/@linked-db/linked-ql?style=flat&colorA=18181B&colorB=F0DB4F
 [npm-downloads-href]: https://npmjs.com/package/@linked-db/linked-ql
+[coverage-src]: https://img.shields.io/coverallsCoverage/github/linked-db/linked-ql?style=flat&colorA=18181B&colorB=F0DB4F
+[coverage-href]: https://coveralls.io/github/linked-db/linked-ql
 [bundle-src]: https://img.shields.io/bundlephobia/minzip/@linked-db/linked-ql?style=flat&colorA=18181B&colorB=F0DB4F
 [bundle-href]: https://bundlephobia.com/result?p=@linked-db/linked-ql
 [license-src]: https://img.shields.io/github/license/linked-db/linked-ql.svg?style=flat&colorA=18181B&colorB=F0DB4F

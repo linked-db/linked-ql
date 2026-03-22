@@ -5,6 +5,14 @@ import { registry } from '../../lang/registry.js';
 const INDEX_KEY_CACHE = Symbol.for('flashql:index_key_cache');
 export const SYSTEM_TAG = Symbol.for('system_tag');
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_REGEX = /^\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?$/;
+const TIMESTAMPTZ_REGEX = /^\d{4}-\d{2}-\d{2}[ t]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:z|[+-]\d{2}(?::?\d{2})?)$/i;
+const TIMESTAMP_REGEX = /^\d{4}-\d{2}-\d{2}[ t]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?$/i;
+const INTERVAL_REGEX = /^[-+]?(\d+\s+(years?|mons?|months?|days?|hours?|mins?|minutes?|secs?|seconds?)(\s+\d+\s+(years?|mons?|months?|days?|hours?|mins?|minutes?|secs?|seconds?))*)$/i;
+const NUMERIC_REGEX = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?$/i;
+
 export class TableStorage {
 
     #tx;
@@ -153,6 +161,7 @@ export class TableStorage {
             const autoIncr =
                 col.is_generated && !col.generation_expr_ast ||
                 col.type_id.name === 'SERIAL' ||
+                col.type_id.name === 'BIGSERIAL' ||
                 col.engine_attrs?.auto_increment;
 
             if (autoIncr ||
@@ -222,6 +231,7 @@ export class TableStorage {
             const autoIncr =
                 col.is_generated && !col.generation_expr_ast ||
                 col.type_id.name === 'SERIAL' ||
+                col.type_id.name === 'BIGSERIAL' ||
                 col.engine_attrs?.auto_increment;
 
             if (!autoIncr) continue;
@@ -236,21 +246,49 @@ export class TableStorage {
     }
 
     #runTypeChecks(input) {
+        const isIntegerNumber = (v) => typeof v === 'number' && Number.isFinite(v) && Number.isInteger(v);
+        const isNumber = (v) => typeof v === 'number' && Number.isFinite(v);
+        const isJsonValue = (v) => {
+            if (v === undefined || typeof v === 'function' || typeof v === 'symbol') return false;
+            return true;
+        };
+
         for (const [colName, col] of this.#schema.columns) {
             const value = input[colName];
             if (value === undefined || value === null) continue;
 
             switch (col.type_id.name) {
+                case 'SMALLINT':
+                    if (!isIntegerNumber(value) || value < -32768 || value > 32767) {
+                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected SMALLINT`);
+                    }
+                    break;
                 case 'INT':
+                case 'INTEGER':
                 case 'BIGINT':
                 case 'SERIAL':
-                    if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value)) {
+                case 'BIGSERIAL':
+                    if (!isIntegerNumber(value)) {
+                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected ${col.type_id.name}`);
+                    }
+                    break;
+                case 'NUMERIC':
+                case 'DECIMAL':
+                    if (!(isNumber(value) || (typeof value === 'string' && NUMERIC_REGEX.test(value)))) {
+                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected ${col.type_id.name}`);
+                    }
+                    break;
+                case 'REAL':
+                case 'DOUBLE PRECISION':
+                    if (!isNumber(value)) {
                         throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected ${col.type_id.name}`);
                     }
                     break;
                 case 'TEXT':
+                case 'VARCHAR':
+                case 'CHAR':
                     if (typeof value !== 'string') {
-                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected TEXT`);
+                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected ${col.type_id.name}`);
                     }
                     break;
                 case 'BOOLEAN':
@@ -259,8 +297,53 @@ export class TableStorage {
                     }
                     break;
                 case 'JSON':
-                    if (typeof value === 'function' || typeof value === 'symbol' || value === undefined) {
-                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected JSON`);
+                case 'JSONB':
+                    if (!isJsonValue(value)) {
+                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected ${col.type_id.name}`);
+                    }
+                    break;
+                case 'UUID':
+                    if (typeof value !== 'string' || !UUID_REGEX.test(value)) {
+                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected UUID`);
+                    }
+                    break;
+                case 'BYTEA':
+                    if (!(
+                        value instanceof Uint8Array ||
+                        (typeof Buffer !== 'undefined' && value instanceof Buffer) ||
+                        value instanceof ArrayBuffer
+                    )) {
+                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected BYTEA`);
+                    }
+                    break;
+                case 'ARRAY':
+                    if (!Array.isArray(value)) {
+                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected ARRAY`);
+                    }
+                    break;
+                case 'DATE':
+                    if (!(typeof value === 'string' && DATE_REGEX.test(value))) {
+                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected DATE`);
+                    }
+                    break;
+                case 'TIME':
+                    if (!(typeof value === 'string' && TIME_REGEX.test(value))) {
+                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected TIME`);
+                    }
+                    break;
+                case 'TIMESTAMP':
+                    if (!(value instanceof Date || (typeof value === 'string' && TIMESTAMP_REGEX.test(value)))) {
+                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected TIMESTAMP`);
+                    }
+                    break;
+                case 'TIMESTAMPTZ':
+                    if (!(value instanceof Date || (typeof value === 'string' && TIMESTAMPTZ_REGEX.test(value)))) {
+                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected TIMESTAMPTZ`);
+                    }
+                    break;
+                case 'INTERVAL':
+                    if (!(typeof value === 'string' && INTERVAL_REGEX.test(value.trim()))) {
+                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected INTERVAL`);
                     }
                     break;
                 default:

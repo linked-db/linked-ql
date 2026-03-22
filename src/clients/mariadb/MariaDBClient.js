@@ -1,5 +1,5 @@
 import mariadb from 'mariadb';
-import { MainstreamDBClient } from '../MainstreamDBClient.js';
+import { MainstreamDBClient } from '../abstracts/MainstreamDBClient.js';
 
 export class MariaDBClient extends MainstreamDBClient {
 
@@ -49,21 +49,22 @@ export class MariaDBClient extends MainstreamDBClient {
         await super.disconnect();
     }
 
-    async _transaction(cb) {
-        const driver = await this.connect();
-        await driver.query('BEGIN TRANSACTION');
-        try {
-            const result = await cb({ driver });
-            await driver.query('COMMIT');
-            return result;
-        } catch (e) {
-            await driver.query('ROLLBACK');
-            throw e;
-        }
+    async _beginTransaction() {
+        const conn = await this.connect();
+        await conn.query('BEGIN TRANSACTION');
+        return { conn };
+    }
+
+    async _commitTransaction(tx) {
+        await tx.conn.query('COMMIT');
+    }
+
+    async _rollbackTransaction(tx) {
+        await tx.conn.query('ROLLBACK');
     }
 
     async _query(query, { values = [], tx = null }) {
-        const rows = await (tx?.driver || this.#driver).query(query, values);
+        const rows = await (tx?.conn || this.#driver).query(query, values);
         if (rows.affectedRows) return { rowCount: rows.affectedRows };
         if (rows.changedRows) return { rowCount: rows.changedRows };
         return { rows };

@@ -1,7 +1,7 @@
 import { LinkedQLClient } from './LinkedQLClient.js';
 import { RealtimeClient } from '../../proc/realtime/RealtimeClient.js';
 import { SchemaInference } from './SchemaInference.js';
-import { SyncEngine } from '../../proc/sync/SyncEngine.js';
+import { WalEngine } from '../../proc/sync/WalEngine.js';
 import { SQLParser } from '../../lang/SQLParser.js';
 import { registry } from '../../lang/registry.js';
 import { normalizeQueryArgs } from './util.js';
@@ -9,17 +9,17 @@ import { Result } from '../Result.js';
 
 export class MainstreamDBClient extends LinkedQLClient {
 
-    // Standard getters: parsers, resolver, sync
+    // Standard getters: parsers, resolver, wal
 
     #parser;
-    #sync;
+    #wal;
 
     get parser() { return this.#parser; }
     get resolver() {
         return super.resolveGetResolver(() =>
             new SchemaInference({ client: this }));
     }
-    get sync() { return this.#sync; }
+    get wal() { return this.#wal; }
 
     // Internal
     
@@ -31,7 +31,7 @@ export class MainstreamDBClient extends LinkedQLClient {
         super(options);
 
         this.#parser = new SQLParser({ dialect: this.dialect });
-        this.#sync = new SyncEngine({
+        this.#wal = new WalEngine({
             drainMode: 'drain',
             lifecycleHook: async (status) => {
                 await this.setCapability({ realtime: !!status });
@@ -42,8 +42,32 @@ export class MainstreamDBClient extends LinkedQLClient {
     }
 
     async disconnect() {
-        await this.#sync.close({ destroy: true });
+        await this.#wal.close({ destroy: true });
         await super.disconnect();
+    }
+
+    // ------------
+
+    async transaction(cb) {
+        if (typeof cb !== 'function') {
+            throw new TypeError('transaction(cb): cb must be a function');
+        }
+        if (typeof this._beginTransaction !== 'function'
+            || typeof this._commitTransaction !== 'function'
+            || typeof this._rollbackTransaction !== 'function') {
+            throw new Error('Transaction not supported by this client implementation');
+        }
+
+        const tx = await this._beginTransaction();
+
+        try {
+            const result = await cb(tx);
+            await this._commitTransaction(tx);
+            return result;
+        } catch (e) {
+            await this._rollbackTransaction(tx);
+            throw e;
+        }
     }
 
     // ------------
@@ -58,8 +82,9 @@ export class MainstreamDBClient extends LinkedQLClient {
         };
 
         // Realtime query?
-        if (options.live && resolvedQuery.fromClause?.()) {
-            return await this.#realtimeClient.query(await resolveQuery(query), options);
+        if (options.live) {
+            const resolvedQuery = await resolveQuery(query);
+            return await this.#realtimeClient.query(resolvedQuery, options);
         }
 
         let result;
@@ -70,7 +95,7 @@ export class MainstreamDBClient extends LinkedQLClient {
             : [query];
 
         if (stmtGroups.length > 1) {
-            await this._transaction(async (tx) => {
+            await this.transaction(async (tx) => {
                 for (const query of stmtGroups) {
                     result = await this._query(
                         await resolveQuery(query, tx),

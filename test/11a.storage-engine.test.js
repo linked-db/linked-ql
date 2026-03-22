@@ -9,7 +9,7 @@ import { InMemoryKV } from '@webqit/keyval/inmemory';
 
 const createEngine = async () => {
     const storageEngine = new StorageEngine();
-    await storageEngine.init();
+    await storageEngine.open();
     return storageEngine;
 };
 
@@ -242,6 +242,99 @@ describe('StorageEngine - TableStorage CRUD And Constraints', () => {
 
     it('rejects invalid typed values', async () => {
         await expect(users.insert({ fname: 123 })).to.be.rejectedWith('expected TEXT');
+    });
+
+    it('supports common pg-like scalar types', async () => {
+        await tx.createTable({
+            namespace: 'public',
+            name: 'pg_like_types',
+            columns: [
+                { name: 'id', type: 'INT', not_null: true },
+                { name: 'small_v', type: 'SMALLINT' },
+                { name: 'big_v', type: 'BIGINT' },
+                { name: 'num_v', type: 'NUMERIC' },
+                { name: 'real_v', type: 'REAL' },
+                { name: 'dbl_v', type: 'DOUBLE PRECISION' },
+                { name: 'txt_v', type: 'TEXT' },
+                { name: 'varchar_v', type: 'VARCHAR' },
+                { name: 'char_v', type: 'CHAR' },
+                { name: 'bool_v', type: 'BOOLEAN' },
+                { name: 'json_v', type: 'JSON' },
+                { name: 'jsonb_v', type: 'JSONB' },
+                { name: 'uuid_v', type: 'UUID' },
+                { name: 'bytea_v', type: 'BYTEA' },
+                { name: 'arr_v', type: 'ARRAY' },
+                { name: 'date_v', type: 'DATE' },
+                { name: 'time_v', type: 'TIME' },
+                { name: 'ts_v', type: 'TIMESTAMP' },
+                { name: 'tstz_v', type: 'TIMESTAMPTZ' },
+                { name: 'interval_v', type: 'INTERVAL' },
+            ],
+            constraints: [{ kind: 'PRIMARY KEY', columns: ['id'] }],
+        });
+
+        const tbl = tx.getTable({ namespace: 'public', name: 'pg_like_types' });
+        await tbl.insert({
+            id: 1,
+            small_v: 12,
+            big_v: 1234567890,
+            num_v: '1234.567',
+            real_v: 1.5,
+            dbl_v: 2.5,
+            txt_v: 'text',
+            varchar_v: 'v',
+            char_v: 'c',
+            bool_v: true,
+            json_v: { a: 1 },
+            jsonb_v: ['x', 2],
+            uuid_v: '550e8400-e29b-41d4-a716-446655440000',
+            bytea_v: new Uint8Array([1, 2, 3]),
+            arr_v: [1, 'two', false],
+            date_v: '2026-03-01',
+            time_v: '11:22:33',
+            ts_v: '2026-03-01 11:22:33',
+            tstz_v: '2026-03-01T11:22:33Z',
+            interval_v: '2 days 3 hours',
+        });
+
+        const row = tbl.get({ id: 1 });
+        expect(row.uuid_v).to.eq('550e8400-e29b-41d4-a716-446655440000');
+        expect(row.arr_v).to.deep.eq([1, 'two', false]);
+        expect([...row.bytea_v]).to.deep.eq([1, 2, 3]);
+    });
+
+    it('rejects invalid values for common pg-like scalar types', async () => {
+        await tx.createTable({
+            namespace: 'public',
+            name: 'pg_like_invalids',
+            columns: [
+                { name: 'id', type: 'INT', not_null: true },
+                { name: 'small_v', type: 'SMALLINT' },
+                { name: 'num_v', type: 'NUMERIC' },
+                { name: 'uuid_v', type: 'UUID' },
+                { name: 'bytea_v', type: 'BYTEA' },
+                { name: 'arr_v', type: 'ARRAY' },
+                { name: 'date_v', type: 'DATE' },
+                { name: 'time_v', type: 'TIME' },
+                { name: 'ts_v', type: 'TIMESTAMP' },
+                { name: 'tstz_v', type: 'TIMESTAMPTZ' },
+                { name: 'interval_v', type: 'INTERVAL' },
+            ],
+            constraints: [{ kind: 'PRIMARY KEY', columns: ['id'] }],
+        });
+
+        const tbl = tx.getTable({ namespace: 'public', name: 'pg_like_invalids' });
+
+        await expect(tbl.insert({ id: 1, small_v: 50000 })).to.be.rejectedWith('expected SMALLINT');
+        await expect(tbl.insert({ id: 2, num_v: 'not-a-number' })).to.be.rejectedWith('expected NUMERIC');
+        await expect(tbl.insert({ id: 3, uuid_v: 'not-a-uuid' })).to.be.rejectedWith('expected UUID');
+        await expect(tbl.insert({ id: 4, bytea_v: [1, 2, 3] })).to.be.rejectedWith('expected BYTEA');
+        await expect(tbl.insert({ id: 5, arr_v: 'not-array' })).to.be.rejectedWith('expected ARRAY');
+        await expect(tbl.insert({ id: 6, date_v: '2026/03/01' })).to.be.rejectedWith('expected DATE');
+        await expect(tbl.insert({ id: 7, time_v: '11:22' })).to.be.rejectedWith('expected TIME');
+        await expect(tbl.insert({ id: 8, ts_v: '2026-03-01' })).to.be.rejectedWith('expected TIMESTAMP');
+        await expect(tbl.insert({ id: 9, tstz_v: '2026-03-01 11:22:33' })).to.be.rejectedWith('expected TIMESTAMPTZ');
+        await expect(tbl.insert({ id: 10, interval_v: 'P2D' })).to.be.rejectedWith('expected INTERVAL');
     });
 
     it('enforces UNIQUE constraints', async () => {
@@ -483,7 +576,7 @@ describe('StorageEngine - Persistent WAL Integration', () => {
         const keyval = new InMemoryKV({ path: ['linkedql-test'], registry });
 
         const engine1 = new StorageEngine({ keyval });
-        await engine1.init();
+        await engine1.open();
 
         await engine1.transaction(async (tx) => {
             await tx.createTable({
@@ -506,7 +599,7 @@ describe('StorageEngine - Persistent WAL Integration', () => {
         });
 
         const engine2 = new StorageEngine({ keyval: new InMemoryKV({ path: ['linkedql-test'], registry }) });
-        await engine2.init();
+        await engine2.open();
 
         const tx2 = engine2.begin();
         const users2 = tx2.getTable({ namespace: 'public', name: 'persist_users' });
@@ -515,6 +608,171 @@ describe('StorageEngine - Persistent WAL Integration', () => {
 
         const r3 = await users2.insert({ name: 'C' });
         expect(r3.id).to.eq(3);
+    });
+
+    it('open({ versionStop }) replays to last matching table version by name', async () => {
+        const registry = new Map();
+        const keyval = new InMemoryKV({ path: ['linkedql-test-version-stop'], registry });
+
+        const engine1 = new StorageEngine({ keyval });
+        await engine1.open();
+
+        await engine1.transaction(async (tx) => {
+            await tx.createTable({
+                namespace: 'public',
+                name: 'versioned_tbl',
+                columns: [
+                    { name: 'id', type: 'INT', not_null: true },
+                ],
+                constraints: [{ kind: 'PRIMARY KEY', columns: ['id'] }],
+            });
+        });
+
+        await engine1.transaction(async (tx) => {
+            const t = tx.getTable({ namespace: 'public', name: 'versioned_tbl' });
+            await t.insert({ id: 1 });
+        });
+
+        await engine1.transaction(async (tx) => {
+            await tx.alterTable({ namespace: 'public', name: 'versioned_tbl' }, { name: 'versioned_tbl_v2' });
+        });
+
+        await engine1.transaction(async (tx) => {
+            await tx.alterTable({ namespace: 'public', name: 'versioned_tbl_v2' }, { name: 'versioned_tbl' });
+        });
+
+        await engine1.transaction(async (tx) => {
+            const t = tx.getTable({ namespace: 'public', name: 'versioned_tbl' });
+            await t.insert({ id: 2 });
+        });
+
+        const engine2 = new StorageEngine({ keyval: new InMemoryKV({ path: ['linkedql-test-version-stop'], registry }) });
+        await engine2.open({ versionStop: 'public.versioned_tbl@=1' });
+
+        const tx2 = engine2.begin();
+        const t2 = tx2.getTable({ namespace: 'public', name: 'versioned_tbl', versionSpec: '=1' });
+        expect(t2.getAll().map((r) => r.id)).to.deep.eq([1]);
+        expect(() => tx2.getTable({ namespace: 'public', name: 'versioned_tbl', versionSpec: '>=2' })).to.throw();
+    });
+
+    it('open({ versionStop }) throws when replay completes without a match', async () => {
+        const registry = new Map();
+        const keyval = new InMemoryKV({ path: ['linkedql-test-version-stop-no-match'], registry });
+
+        const engine1 = new StorageEngine({ keyval });
+        await engine1.open();
+
+        await engine1.transaction(async (tx) => {
+            await tx.createTable({
+                namespace: 'public',
+                name: 'no_match_tbl',
+                columns: [{ name: 'id', type: 'INT', not_null: true }],
+                constraints: [{ kind: 'PRIMARY KEY', columns: ['id'] }],
+            });
+        });
+
+        const engine2 = new StorageEngine({ keyval: new InMemoryKV({ path: ['linkedql-test-version-stop-no-match'], registry }) });
+        await expect(engine2.open({ versionStop: 'public.no_match_tbl@>=5' })).to.be.rejectedWith('No table version matched');
+    });
+
+    it('open({ versionStop: string }) requires explicit namespace qualification', async () => {
+        const storageEngine = new StorageEngine();
+        await expect(storageEngine.open({ versionStop: 'users@1' })).to.be.rejectedWith('include namespace qualification');
+    });
+
+    it('open({ overwriteForward: true }) requires versionStop', async () => {
+        const storageEngine = new StorageEngine();
+        await expect(storageEngine.open({ overwriteForward: true })).to.be.rejectedWith('requires versionStop');
+    });
+
+    it('readOnly engine rejects open({ overwriteForward: true })', async () => {
+        const storageEngine = new StorageEngine({ readOnly: true });
+        await expect(storageEngine.open({
+            versionStop: 'public.test@1',
+            overwriteForward: true,
+        })).to.be.rejectedWith('configured readOnly');
+    });
+
+    it('StorageEngine.open({ versionStop }) read-only snapshot rejects writes', async () => {
+        const registry = new Map();
+        const sourceKeyval = new InMemoryKV({ path: ['linkedql-openat-ro-src'], registry });
+
+        const source = new StorageEngine({ keyval: sourceKeyval });
+        await source.open();
+        await source.transaction(async (tx) => {
+            await tx.createTable({
+                namespace: 'public',
+                name: 'openat_ro_tbl',
+                columns: [{ name: 'id', type: 'INT', not_null: true }],
+                constraints: [{ kind: 'PRIMARY KEY', columns: ['id'] }],
+            });
+        });
+        await source.close({ destroy: false });
+
+        const snapshot = new StorageEngine({ keyval: new InMemoryKV({ path: ['linkedql-openat-ro-src'], registry }) });
+        await snapshot.open({ versionStop: 'public.openat_ro_tbl@1' });
+
+        const tx = snapshot.begin();
+        const t = tx.getTable({ namespace: 'public', name: 'openat_ro_tbl' });
+        await t.insert({ id: 1 });
+        await expect(tx.commit()).to.be.rejectedWith('read-only');
+        await snapshot.close();
+    });
+
+    it('StorageEngine.open({ versionStop, overwriteForward }) truncates only on first mutating commit', async () => {
+        const registry = new Map();
+        const sourcePath = ['linkedql-openat-overwrite-src'];
+        const sourceKv = new InMemoryKV({ path: sourcePath, registry });
+
+        const source = new StorageEngine({ keyval: sourceKv });
+        await source.open();
+        await source.transaction(async (tx) => {
+            await tx.createTable({
+                namespace: 'public',
+                name: 'overwrite_tbl',
+                columns: [{ name: 'id', type: 'INT', not_null: true }],
+                constraints: [{ kind: 'PRIMARY KEY', columns: ['id'] }],
+            });
+        });
+        await source.transaction(async (tx) => {
+            const t = tx.getTable({ namespace: 'public', name: 'overwrite_tbl' });
+            await t.insert({ id: 1 });
+        });
+        await source.transaction(async (tx) => {
+            await tx.alterTable({ namespace: 'public', name: 'overwrite_tbl' }, { name: 'overwrite_tbl_tmp' });
+        });
+        await source.transaction(async (tx) => {
+            await tx.alterTable({ namespace: 'public', name: 'overwrite_tbl_tmp' }, { name: 'overwrite_tbl' });
+        });
+        await source.transaction(async (tx) => {
+            const t = tx.getTable({ namespace: 'public', name: 'overwrite_tbl' });
+            await t.insert({ id: 2 });
+        });
+        await source.close();
+
+        const overwritten = new StorageEngine({ keyval: new InMemoryKV({ path: sourcePath, registry }) });
+        await overwritten.open({
+            versionStop: 'public.overwrite_tbl@1',
+            overwriteForward: true,
+        });
+
+        const beforeMutation = new StorageEngine({ keyval: new InMemoryKV({ path: sourcePath, registry }) });
+        await beforeMutation.open();
+        const beforeTx = beforeMutation.begin();
+        expect(beforeTx.getTable({ namespace: 'public', name: 'overwrite_tbl' }).getAll().map((r) => r.id)).to.deep.eq([1, 2]);
+        await beforeMutation.close({ destroy: false });
+
+        await overwritten.transaction(async (tx) => {
+            const t = tx.getTable({ namespace: 'public', name: 'overwrite_tbl' });
+            await t.insert({ id: 3 });
+        });
+        await overwritten.close({ destroy: false });
+
+        const verify = new StorageEngine({ keyval: new InMemoryKV({ path: sourcePath, registry }) });
+        await verify.open();
+        const tx = verify.begin();
+        expect(tx.getTable({ namespace: 'public', name: 'overwrite_tbl' }).getAll().map((r) => r.id)).to.deep.eq([1, 3]);
+        await verify.close();
     });
 });
 
@@ -554,6 +812,24 @@ describe('StorageEngine - Error And Validation Paths', () => {
         await expect(tx.replay([
             { op: 'upsert', relation: { namespace: 'public', name: 'test' }, new: { id: 1, name: 'X' } }
         ])).to.be.rejectedWith('Unknown op type');
+    });
+
+    it('tx.getTable() enforces versionSpec and respects ifExists on mismatch', async () => {
+        const storageEngine = await createEngine();
+        const tx = storageEngine.begin();
+
+        await tx.createTable({
+            namespace: 'public',
+            name: 'version_gate_tbl',
+            columns: [{ name: 'id', type: 'INT', not_null: true }],
+            constraints: [{ kind: 'PRIMARY KEY', columns: ['id'] }],
+        });
+
+        expect(() => tx.getTable({ namespace: 'public', name: 'version_gate_tbl', versionSpec: '>=2' })).to.throw('does not satisfy');
+        expect(tx.showTable(
+            { namespace: 'public', name: 'version_gate_tbl', versionSpec: '>=2' },
+            { ifExists: true }
+        )).to.be.null;
     });
 
     it('rejects createTable on invalid namespace/kind/persistence', async () => {
@@ -962,7 +1238,7 @@ describe('StorageEngine - Persistence Metadata Nuances', () => {
         const registry = new Map();
         const keyval = new InMemoryKV({ path: ['linkedql-meta-1'], registry });
         const storageEngine = new StorageEngine({ keyval });
-        await storageEngine.init();
+        await storageEngine.open();
 
         const metaKV = keyval.enter(['meta']);
         expect(await metaKV.get('latestCommit')).to.be.a('number');
@@ -972,7 +1248,7 @@ describe('StorageEngine - Persistence Metadata Nuances', () => {
         const registry = new Map();
         const keyval = new InMemoryKV({ path: ['linkedql-meta-2'], registry });
         const storageEngine = new StorageEngine({ keyval });
-        await storageEngine.init();
+        await storageEngine.open();
 
         await storageEngine.transaction(async (tx) => {
             await tx.createTable({
@@ -998,7 +1274,7 @@ describe('StorageEngine - Persistence Metadata Nuances', () => {
         const registry = new Map();
         const keyval = new InMemoryKV({ path: ['linkedql-meta-3'], registry });
         const storageEngine = new StorageEngine({ keyval });
-        await storageEngine.init();
+        await storageEngine.open();
 
         const tx = storageEngine.begin();
         expect(tx.listTables({ namespace: 'public' })).to.include('test');

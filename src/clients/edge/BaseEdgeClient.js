@@ -2,23 +2,23 @@ import { registry } from '../../lang/registry.js';
 import { LinkedQLClient } from '../abstracts/LinkedQLClient.js';
 import { RealtimeResult } from '../../proc/realtime/RealtimeResult.js';
 import { SchemaInference } from './SchemaInference.js';
-import { SyncEngine } from './SyncEngine.js';
+import { WalEngine } from './WalEngine.js';
 import { SQLParser } from './SQLParser.js';
 import { Result } from '../Result.js';
 
 export class BaseEdgeClient extends LinkedQLClient {
 
-    // Standard getters: parsers, resolver, sync
+    // Standard getters: parsers, resolver, wal
 
     #parser;
-    #sync;
+    #wal;
 
     get parser() { return this.#parser; }
     get resolver() {
         return super.resolveGetResolver(() =>
             new SchemaInference({ client: this }));
     }
-    get sync() { return this.#sync; }
+    get wal() { return this.#wal; }
 
     // Internal
 
@@ -35,7 +35,7 @@ export class BaseEdgeClient extends LinkedQLClient {
         this.#workerEventNamespace = workerEventNamespace;
 
         this.#parser = new SQLParser({ dialect: this.dialect });
-        this.#sync = new SyncEngine({
+        this.#wal = new WalEngine({
             client: this,
             drainMode: 'drain',
             lifecycleHook: async (status) => {
@@ -49,12 +49,54 @@ export class BaseEdgeClient extends LinkedQLClient {
         await super.disconnect();
     }
 
+    async transaction(cb, options = {}) {
+        if (typeof cb !== 'function') {
+            throw new TypeError('transaction(cb): cb must be a function');
+        }
+
+        const tx = await this._exec('transaction:begin', { options });
+        let completed = false;
+        const txId = tx?.id || tx;
+        const txToken = {
+            id: txId,
+            query: async (query, queryOptions = {}) => {
+                return await this.query(query, { ...queryOptions, tx: txId });
+            },
+            stream: async (query, streamOptions = {}) => {
+                return await this.stream(query, { ...streamOptions, tx: txId });
+            },
+            commit: async () => {
+                if (completed) return;
+                await this._exec('transaction:commit', { id: txId });
+                completed = true;
+            },
+            rollback: async () => {
+                if (completed) return;
+                await this._exec('transaction:rollback', { id: txId });
+                completed = true;
+            },
+        };
+
+        try {
+            const result = await cb(txToken);
+            await txToken.commit();
+            return result;
+        } catch (e) {
+            await txToken.rollback();
+            throw e;
+        }
+    }
+
     // ------------
 
-    async query(query, { callback, signal, ...options }) {
+    async query(query, { callback, signal, ...options } = {}) {
+        const tx = options.tx && typeof options.tx === 'object' ? options.tx.id : options.tx;
+        if (options.live && tx) {
+            throw new Error('Live queries are not supported inside explicit transactions');
+        }
         const responseJson = await this._exec(
             'query',
-            { query, options: { callback: !!callback, ...options } },
+            { query, options: { callback: !!callback, ...options, tx } },
             { liveMode: options.live }
         );
         if (!responseJson) return;
@@ -68,7 +110,9 @@ export class BaseEdgeClient extends LinkedQLClient {
 
             result = new RealtimeResult(responseJson.data, async ({ forget = false }) => {
                 if (forget && options.id) {
-                    const result = await responseJson.port.postRequest('forget');
+                    const result = await new Promise((resolve) => {
+                        responseJson.port.postRequest(null, (e) => resolve(e.data), { once: true, type: 'forget' });
+                    });
                     if (typeof result !== 'boolean')
                         throw new Error('Could not execute forget() on remote stream');
                 }
@@ -96,9 +140,10 @@ export class BaseEdgeClient extends LinkedQLClient {
     }
 
     async stream(query, options) {
+        const tx = options?.tx && typeof options.tx === 'object' ? options.tx.id : options?.tx;
         return await this._exec(
             'stream',
-            { query, options },
+            { query, options: { ...options, tx } },
             { streamMode: true }
         );
     }
@@ -130,7 +175,7 @@ export class BaseEdgeClient extends LinkedQLClient {
         return this.#loadAST(responseJson, options);
     }
 
-    // Called by this.#sync.subscribe() if options.preferRemote
+    // Called by this.#wal.subscribe() if options.preferRemote
     async _subscribe(...args) {
         return await this.#subscribe(...args);
     }
@@ -139,7 +184,7 @@ export class BaseEdgeClient extends LinkedQLClient {
 
     async _setupRealtime() {
         if (this.#realtimeGc) return;
-        this.#realtimeGc = await this.#subscribe(async (commit) => this.#sync.dispatch(commit));
+        this.#realtimeGc = await this.#subscribe(async (commit) => this.#wal.dispatch(commit));
     }
 
     async _teardownRealtime() {
@@ -160,7 +205,7 @@ export class BaseEdgeClient extends LinkedQLClient {
 
         const gcArray = [];
 
-        const responseJson = await this._exec('sync:subscribe', { selector, options }, { liveMode: true });
+        const responseJson = await this._exec('wal:subscribe', { selector, options }, { liveMode: true });
         if (!responseJson?.port) throw new Error('Could not obtain upstream port');
 
         responseJson.port.readyStateChange('close').then(async () => {
@@ -175,7 +220,7 @@ export class BaseEdgeClient extends LinkedQLClient {
             responseJson.port?.close();
 
             if (forget && options.id) {
-                return await this._exec('sync:forget', { id: options.id });
+                return await this._exec('wal:forget', { id: options.id });
             }
         };
         this.#gcArray.push(gc);

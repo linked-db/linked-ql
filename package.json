@@ -38,6 +38,10 @@
   },
   "scripts": {
     "test": "mocha --extension .test.js --recursive --timeout 5000 --exit",
+    "test:coverage": "rm -rf .coverage coverage && NODE_V8_COVERAGE=.coverage npm test && node scripts/generate-lcov.mjs",
+    "coverage:upload": "npm run test:coverage && coveralls < coverage/lcov.info",
+    "test:targeted": "npm test -- test/13client.transaction.test.js test/14realtime.stress.test.js test/15edge.client.test.js test/16edge.worker.integration.test.js test/17edge.worker.port.integration.test.js",
+    "test:tx-integration": "npm test -- test/18mainstreamdb.transaction.integration.test.js",
     "test-storage": "mocha \"test/**/*.storage*.test.js\" --timeout 5000 --exit",
     "lab": "mocha --extension .lab.js --recursive --timeout 5000 --exit",
     "build": "esbuild main=src/index.js flashql=src/flashql/FlashQL.js --bundle --minify --sourcemap --outdir=dist",
@@ -69,6 +73,7 @@
     "@webqit/keyval": "^0.2.18",
     "@webqit/observer": "^3.8.19",
     "@webqit/port-plus": "^0.1.23",
+    "c8": "^11.0.0",
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
     "chalk": "^5.4.1",

@@ -1,6 +1,6 @@
-import { SyncEngine as BaseSyncEngine } from '../../proc/sync/SyncEngine.js';
+import { WalEngine as BaseWalEngine } from '../../proc/sync/WalEngine.js';
 
-export class SyncEngine extends BaseSyncEngine {
+export class WalEngine extends BaseWalEngine {
 
     #storageEngine;
 
@@ -36,11 +36,7 @@ export class SyncEngine extends BaseSyncEngine {
         const gcArray = [];
 
         for (const [nsName, subs] of Object.entries(viewSubsMap)) {
-            const replicationOrigin = nsDefs.get(nsName).replication_origin;
-
-            const viewClient = replicationOrigin
-                ? await this.#storageEngine.getForeignClient(replicationOrigin)
-                : this.#storageEngine.client;
+            const viewClient = await this.#storageEngine.getSourceClient(nsDefs.get(nsName));
             if (!viewClient)
                 throw new Error(`Could not derive the query client for given view subscription`);
 
@@ -50,7 +46,7 @@ export class SyncEngine extends BaseSyncEngine {
                     gcArray.push(() => rtResult.abort());
                     // TODO: decide what happens on first result
                 } else {
-                    gcArray.push(viewClient.sync.subscribe({ [viewSpec.namespace]: viewSpec.name }, async (commit) => {
+                    gcArray.push(viewClient.wal.subscribe({ [viewSpec.namespace]: viewSpec.name }, async (commit) => {
                         if (!commit.computed) {
                             const remappedEntries = commit.entries.map((e) => ({ ...e, relation: { ...e.relation, namespace: nsName, name: tblName } }));
                             await callback({ ...commit, entries: remappedEntries });

@@ -1,5 +1,5 @@
 import mysql from 'mysql2/promise';
-import { MainstreamDBClient } from '../MainstreamDBClient.js';
+import { MainstreamDBClient } from '../abstracts/MainstreamDBClient.js';
 
 export class MySQLClient extends MainstreamDBClient {
 
@@ -60,23 +60,24 @@ export class MySQLClient extends MainstreamDBClient {
         await super.disconnect();
     }
 
-    async _transaction(cb) {
-        const driver = await this.connect();
-        await driver.query('BEGIN TRANSACTION');
-        try {
-            const result = await cb({ driver });
-            await driver.query('COMMIT');
-            return result;
-        } catch (e) {
-            await driver.query('ROLLBACK');
-            throw e;
-        }
+    async _beginTransaction() {
+        const conn = await this.connect();
+        await conn.query('BEGIN TRANSACTION');
+        return { conn };
+    }
+
+    async _commitTransaction(tx) {
+        await tx.conn.query('COMMIT');
+    }
+
+    async _rollbackTransaction(tx) {
+        await tx.conn.query('ROLLBACK');
     }
 
     async _query(query, { values = [], name = null, tx = null }) {
         const [rows] = name === true
-            ? await (tx?.drive || this.#driver).execute(query, values)
-            : await (tx?.drive || this.#driver).query(query, values);
+            ? await (tx?.conn || this.#driver).execute(query, values)
+            : await (tx?.conn || this.#driver).query(query, values);
         if (rows.affectedRows) return { rowCount: rows.affectedRows };
         if (rows.changedRows) return { rowCount: rows.changedRows };
         return { rows };

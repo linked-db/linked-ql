@@ -65,22 +65,22 @@ export class PGClient extends MainstreamDBClient {
         await super.disconnect();
     }
 
-    async _transaction(cb) {
-        const driver = await this.connect();
-        await driver.query('BEGIN');
-        try {
-            const tx = { driver };
-            const result = await cb(tx);
-            await driver.query('COMMIT');
-            return result;
-        } catch (e) {
-            await driver.query('ROLLBACK');
-            throw e;
-        }
+    async _beginTransaction() {
+        const conn = await this.connect();
+        await conn.query('BEGIN');
+        return { conn };
+    }
+
+    async _commitTransaction(tx) {
+        await tx.conn.query('COMMIT');
+    }
+
+    async _rollbackTransaction(tx) {
+        await tx.conn.query('ROLLBACK');
     }
 
     async _query(query, { values = [], prepared = null, tx = null }) {
-        return await (tx?.driver || this.#driver).query({
+        return await (tx?.conn || this.#driver).query({
             text: query + '',
             values,
             name: prepared,
@@ -207,7 +207,7 @@ export class PGClient extends MainstreamDBClient {
 
                 case 'commit': {
                     const commit = walCommits.get(msg.xid);
-                    if (commit) await this.sync.dispatch(commit);
+                    if (commit) await this.wal.dispatch(commit);
 
                     walCommits.delete(msg.xid);
                     // clear stale relations every 100 transactions

@@ -1,6 +1,6 @@
-import { SyncEngine as BaseSyncEngine } from '../../proc/sync/SyncEngine.js';
+import { WalEngine as BaseWalEngine } from '../../proc/sync/WalEngine.js';
 
-export class SyncEngine extends BaseSyncEngine {
+export class WalEngine extends BaseWalEngine {
 
     #client;
 

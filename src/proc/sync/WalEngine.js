@@ -3,7 +3,7 @@ import { normalizeRelationSelectorArg } from '../../clients/abstracts/util.js';
 const E_PATTERNS = Symbol('patterns');
 const ALL_MATCH = '["*","*"]';
 
-export class SyncEngine {
+export class WalEngine {
 
     #keyval;
     #drainMode;
@@ -78,6 +78,42 @@ export class SyncEngine {
     async #appendCommit(commit) {
         await this.#commitsKV.set(commit.commitTime, commit);
         await this.#metaKV.set('latestCommit', commit.commitTime);
+    }
+
+    async truncateForward(commitTime) {
+        if (!Number.isInteger(commitTime) || commitTime < 0) {
+            throw new TypeError('truncateForward(commitTime): commitTime must be a non-negative integer');
+        }
+
+        let deleted = 0;
+        for (const persistedCommitTime of await this.#commitsKV.keys()) {
+            if (persistedCommitTime > commitTime) {
+                await this.#commitsKV.delete(persistedCommitTime);
+                deleted++;
+            }
+        }
+
+        let latestCommit = null;
+        for (const persistedCommitTime of await this.#commitsKV.keys()) {
+            if (!Number.isInteger(latestCommit) || persistedCommitTime > latestCommit) {
+                latestCommit = persistedCommitTime;
+            }
+        }
+
+        if (Number.isInteger(latestCommit)) {
+            await this.#metaKV.set('latestCommit', latestCommit);
+        } else {
+            await this.#metaKV.delete('latestCommit');
+        }
+
+        for (const [slotName, slot] of await this.#slotsKV.entries()) {
+            if (Number.isInteger(slot?.lastSeenCommit)
+                && (!Number.isInteger(latestCommit) || slot.lastSeenCommit > latestCommit)) {
+                await this.#slotsKV.set(slotName, { ...slot, lastSeenCommit: latestCommit });
+            }
+        }
+
+        return { deleted, latestCommit };
     }
 
     // ----------- subscription
@@ -247,7 +283,13 @@ export class SyncEngine {
         if (commit.computed) return null;
 
         const entries = commit.entries.filter((e) => {
-            for (const p of e[E_PATTERNS]) {
+            const patterns = e[E_PATTERNS] || [
+                JSON.stringify([e.relation.namespace, e.relation.name]),
+                JSON.stringify(['*', e.relation.name]),
+                JSON.stringify([e.relation.namespace, '*']),
+                ALL_MATCH,
+            ];
+            for (const p of patterns) {
                 if (selectorSet.has(p)) return true;
             }
             return false;

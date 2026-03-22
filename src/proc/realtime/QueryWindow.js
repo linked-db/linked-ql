@@ -1,7 +1,7 @@
 import { SimpleEmitter } from '../../clients/abstracts/SimpleEmitter.js';
 import { matchExpr } from '../../clients/abstracts/util.js';
 import { ExprEngine } from '../../flashql/eval/ExprEngine.js';
-import { SyncEngine } from '../sync/SyncEngine.js';
+import { WalEngine } from '../sync/WalEngine.js';
 import { registry } from "../../lang/registry.js";
 import { _eq } from "../../lang/abstracts/util.js";
 
@@ -23,6 +23,15 @@ export class QueryWindow extends SimpleEmitter {
             fromItemsBySchema: {},
             fromItemsByAlias: {},
             isSingleTable: false,
+        };
+
+        const isLocallyResolvedTableRef = (tableRef) => {
+            if (!(tableRef instanceof registry.TableRef1)) return false;
+            const resolution = typeof tableRef.resolution === 'function'
+                ? tableRef.resolution()
+                : undefined;
+            // Newer parser nodes may omit explicit resolution metadata.
+            return resolution === undefined || resolution === 'default';
         };
 
         query.walkTree((n) => {
@@ -63,8 +72,7 @@ export class QueryWindow extends SimpleEmitter {
                     const relationHashes = new Set;
                     grepFromItems(n.expr().expr(), analysis.fromItemsBySchema, relationHashes);
                     analysis.fromItemsByAlias[alias] = relationHashes;
-                } else if (n.expr() instanceof registry.TableRef1
-                    && n.expr().resolution() === 'default') {
+                } else if (isLocallyResolvedTableRef(n.expr())) {
                     const relationHashes = new Set;
                     acquireTableRef(n.expr(), analysis.fromItemsBySchema, relationHashes);
                     analysis.fromItemsByAlias[alias] = relationHashes;
@@ -77,8 +85,7 @@ export class QueryWindow extends SimpleEmitter {
         function grepFromItems(query, fromItemsBySchema, relationHashes = null) {
             query.walkTree((n) => {
                 if (n instanceof registry.FromItem
-                    && n.expr() instanceof registry.TableRef1
-                    && n.expr().resolution() === 'default') {
+                    && isLocallyResolvedTableRef(n.expr())) {
                     acquireTableRef(n.expr(), fromItemsBySchema, relationHashes);
                 } else return n;
             }, true);
@@ -234,7 +241,7 @@ export class QueryWindow extends SimpleEmitter {
     #resolvedOrderElements = [];
     #fromJsonOpts;
 
-    #sync;
+    #wal;
 
     get driver() { return this.#driver; }
 
@@ -247,7 +254,7 @@ export class QueryWindow extends SimpleEmitter {
     get parentWindow() { return this.#parentWindow; }
     get inheritanceDepth() { return this.#inheritanceDepth; }
 
-    get sync() { return this.#sync; }
+    get wal() { return this.#wal; }
 
     constructor(driver, query, options = {}) {
         super();
@@ -266,7 +273,7 @@ export class QueryWindow extends SimpleEmitter {
         this.#queryJson = this.#query.jsonfy({ resultSchemas: false, originSchemas: false });
         this.#options = options; // { noOffsetRevalidate, forceDiffing }
 
-        this.#sync = new SyncEngine({ drainMode: 'drain' });
+        this.#wal = new WalEngine({ drainMode: 'drain' });
 
         this.#fromJsonOpts = { dialect: this.#driver.dialect, assert: true };;
 
@@ -426,7 +433,7 @@ export class QueryWindow extends SimpleEmitter {
         await this.#abortLine?.();
         this.#abortLine = null;
         this.#status = 0;
-        await this.#sync.close({ destroy: true });
+        await this.#wal.close({ destroy: true });
     }
 
     // -------------
@@ -558,7 +565,7 @@ export class QueryWindow extends SimpleEmitter {
 
         // Connect to WAL events or equivalent
         // Drivers must implement the interface
-        this.#abortLine = await this.#driver.sync.subscribe(analysis.fromItemsBySchema, (commit) => {
+        this.#abortLine = await this.#driver.wal.subscribe(analysis.fromItemsBySchema, (commit) => {
             this.#handleCommit(commit).catch((e) => {
                 this.emit('error', e);
             });
@@ -699,7 +706,7 @@ export class QueryWindow extends SimpleEmitter {
             resultEntries.push([logicalHash, logicalRecord]);
         }
 
-        return resultEntries;
+        return new Map(resultEntries);
     }
 
     // -------------
@@ -1264,15 +1271,15 @@ export class QueryWindow extends SimpleEmitter {
         }
 
         if (outputEvents.size) {
-            // Sync event
-            const syncEvent = { ...commitMeta, type: 'diff', entries: [...outputEvents.values()] };
-            this.#sync.dispatch(syncEvent);
+            // WAL event
+            const walEvent = { ...commitMeta, type: 'diff', entries: [...outputEvents.values()] };
+            this.#wal.dispatch(walEvent);
         }
 
         if (swaps.length) {
-            // Sync event
-            const syncEvent = { ...commitMeta, type: 'swap', entries: swaps };
-            this.#sync.dispatch(syncEvent);
+            // WAL event
+            const walEvent = { ...commitMeta, type: 'swap', entries: swaps };
+            this.#wal.dispatch(walEvent);
         }
 
         return true;
@@ -1288,9 +1295,9 @@ export class QueryWindow extends SimpleEmitter {
             const rawresultEvent = { ...commitMeta, type: 'rawresult', entries: [...this.#localRecords] };
             this.emit('rawresult', rawresultEvent);
 
-            // Sync event
-            const syncEvent = { ...commitMeta, type: 'result', ...await this.currentRendering() };
-            this.#sync.dispatch(syncEvent);
+            // WAL event
+            const walEvent = { ...commitMeta, type: 'result', ...await this.currentRendering() };
+            this.#wal.dispatch(walEvent);
         }
     }
 
