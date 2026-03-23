@@ -1,6 +1,19 @@
 # DeepRefs
 
-_Follow relationships using simple arrow notation: `a ~> b`. Insert or update nested structures using same notation_
+_Follow relationships using simple arrow notation: `a ~> b`. The same path language also powers relationship-aware writes._
+
+DeepRefs are one of LinkedQL's central language features.
+
+Use them when you want to:
+
+- traverse relationships directly in query syntax
+- shape related data without hand-writing every join
+- carry the same path language into DML through structured writes
+
+If you are here specifically for write syntax, also read:
+
+- [Structured Writes](/capabilities/structured-writes)
+- [FlashQL Language Reference](/flashql/lang)
 
 SQL schemas already describe relationships —
 `FOREIGN KEY (author) REFERENCES users (id)`
@@ -11,8 +24,18 @@ DeepRefs let you **traverse those foreign-key declarations directly**, inline, w
 SELECT author ~> name FROM posts
 ```
 
-If you’ve declared any relationship, you can traverse them directly.
-LinkedQL automatically handles the mechanics and resolves them all from the schema catalog.
+If you’ve declared any relationship, you can traverse it directly.
+LinkedQL resolves the path from the schema catalog.
+
+## How to read this page
+
+This page covers three related ideas:
+
+- forward traversal with `~>`
+- backward traversal with `<~`
+- how those path expressions behave in projections, expressions, and writes
+
+The important mental model is that DeepRefs are schema-aware SQL syntax, not a separate ORM layer.
 
 ## General Syntax
 
@@ -71,12 +94,14 @@ They behave like columns — and work anywhere a column reference works.
 * `SELECT/UPDATE/DELETE ... WHERE fk ~> col = 1` (filtering)
 * `SELECT ... ORDER BY fk ~> col` (ordering)
 * `UPDATE ... SET fk ~> col = 2` (writes)
-* `INSERT INTO ... (fk ~> col) VALUES (...)` (writes) <!-- * `INSERT/UPDATE/DELETE ... RETURNING fk ~> col` (outputs) -->
+* `INSERT INTO ... (fk ~> col) VALUES (...)` (writes)
 * `INSERT INTO ... ON CONFLICT ... DO UPDATE SET fk ~> col = 2` (conditional writes)
 * `SELECT v.fk ~> col FROM (SELECT fk) AS v` (derived queries)
 * `FROM t1 LEFT JOIN LATERAL (SELECT t1.fk ~> col)` (lateral joins)
 
-Essentially, wherever SQL expects a column, you can just as well drop a *ref* — a *DeepRef*.
+Essentially, wherever SQL expects a column-shaped value, you can often use a DeepRef expression instead.
+
+For the dedicated write-oriented walkthrough, see [Structured Writes](/capabilities/structured-writes).
 
 ### BackRef Binding
 
@@ -183,7 +208,7 @@ LEFT JOIN (SELECT author, title FROM posts) AS p
 GROUP BY u.id;
 ```
 
-Alternatively, you can use the [declarative aggregation syntax](json-literals#aggregation-syntax): `AS col[]`.<br>
+Alternatively, you can use the [declarative aggregation syntax](/capabilities/json-literals#aggregation-syntax): `AS col[]`.<br>
 This performs aggregation **within** the BackRef’s inner scope rather than the outer query, isolating the grouping semantics to that subrelation.
 
 ```sql
@@ -770,3 +795,9 @@ CREATE TABLE comments (
   post INTEGER REFERENCES posts (id)
 );
 ```
+
+## See also
+
+- [Structured Writes](/capabilities/structured-writes)
+- [JSON Literals](/capabilities/json-literals)
+- [FlashQL Language Reference](/flashql/lang)

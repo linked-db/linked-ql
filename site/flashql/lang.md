@@ -1,97 +1,454 @@
-# Language Reference
+# FlashQL Language Reference
 
-This is FlashQL's SQL implemenation reference.
+This page documents FlashQL's current SQL surface as it exists in the codebase today.
 
-::: warning TODO
-This reference is pending restructure and update.
-:::
+It is intentionally written as a usage reference, not as a speculative wishlist. Where support is partial or runtime-specific, that is stated plainly.
 
-### 1. Statements
+Two framing points matter before anything else:
 
-| Clause / Construct                  |   Dialect  | Support | Notes                                  |
-| :---------------------------------- | :--------: | :-----: | :------------------------------------- |
-| `SELECT`                            | PG / MySQL |    ✅    | Full projection, aliasing, expressions |
-| `INSERT`                            | PG / MySQL |    ✅    | Multi-row, `RETURNING` supported       |
-| `UPDATE`                            | PG / MySQL |    ✅    | `SET` with expressions                 |
-| `DELETE`                            | PG / MySQL |    ✅    | Conditional deletes                    |
-| `UPSERT` (`INSERT ... ON CONFLICT`) |     PG     |    ✅    | Native unified syntax                  |
-| `MERGE`                             |    ANSI    |    ⛔    | Not planned                            |
-| `WITH` (CTE)                        |     PG     |    ✅    | Recursive unsupported                  |
-| `UNION` / `INTERSECT` / `EXCEPT`    |    ANSI    |    ✅    | Standard behavior                      |
-| `CREATE TABLE`                      |    ANSI    |    ✅    | Basic schema only                      |
-| `ALTER TABLE`                       |    ANSI    |    ✅    | Add/drop columns                       |
-| `DROP TABLE`                        |    ANSI    |    ✅    | Cascade optional                       |
-| `CREATE INDEX`                      |     PG     |    ⛔    | Internally optimized only              |
-| `CREATE VIEW`                       |    ANSI    |    ⛔    | Planned                                |
-| `TRUNCATE`                          | PG / MySQL |    ⛔    | Not needed for in-memory engine        |
-| `BEGIN` / `COMMIT` / `ROLLBACK`     |    ANSI    |    ⛔    | Transaction semantics implicit         |
-| `SHOW` / `DESCRIBE`                 |    MySQL   |    🔶   | Parsed as metadata query only          |
+- FlashQL speaks real SQL in PostgreSQL and MySQL flavors
+- FlashQL also adds LinkedQL-specific syntax such as DeepRefs and version binding
 
----
+Just as important is what this page is *not* saying:
 
-### 2. Expressions
+- it does not claim full PostgreSQL or full MySQL compatibility
+- it does not treat every parsed construct as fully supported at runtime
+- it does not treat storage-transaction APIs as identical to SQL DDL support
 
-| Construct                           |  Dialect | Support | Notes                            |
-| :---------------------------------- | :------: | :-----: | :------------------------------- |
-| Column references                   |   ANSI   |    ✅    | Standard, dotted paths supported |
-| Literals (numeric, string, boolean) |   ANSI   |    ✅    | –                                |
-| `NULL`, `IS NULL`, `IS NOT NULL`    |   ANSI   |    ✅    | –                                |
-| Subqueries (scalar, row, table)     |   ANSI   |    ✅    | Nested query support             |
-| `CASE`, `COALESCE`, `NULLIF`        |   ANSI   |    ✅    | Conditional expressions          |
-| `EXISTS`, `IN`, `ANY`, `ALL`        |   ANSI   |    ✅    | Standard semantics               |
-| JSON literals `{}`, `[]`            |  FlashQL |    ✅    | Native JSON support              |
-| DeepRefs `~>`, `<~`                 | LinkedQL |    ✅    | Referential traversal            |
-| Time/version tags `@`               |  FlashQL |    ✅    | Temporal version addressing      |
-| Window functions                    |    PG    |    ⛔    | Planned                          |
-| User-defined expressions            |  FlashQL |    ⛔    | Future extension                 |
+## Reading this page
 
----
+Use this page in three ways:
 
-### 3. Operators
+- as a map of what statement families are already strong
+- as a guide to FlashQL-specific language additions
+- as a companion to the deeper capability docs
 
-| Operator                              |  Dialect  |       Support      | Notes                       |   |                      |
-| :------------------------------------ | :-------: | :----------------: | :-------------------------- | - | -------------------- |
-| `+`, `-`, `*`, `/`, `%`               |    ANSI   |          ✅         | Arithmetic                  |   |                      |
-| `=`, `<>`, `!=`, `<`, `>`, `<=`, `>=` |    ANSI   |          ✅         | Comparisons                 |   |                      |
-| `AND`, `OR`, `NOT`                    |    ANSI   |          ✅         | Logical                     |   |                      |
-| `                                     |           |     `, `CONCAT`    | PG / MySQL                  | ✅ | String concatenation |
-| `LIKE`, `ILIKE`                       | ANSI / PG |          ✅         | Pattern matching            |   |                      |
-| `IN`, `NOT IN`                        |    ANSI   |          ✅         | Set membership              |   |                      |
-| `BETWEEN`, `NOT BETWEEN`              |    ANSI   |          ✅         | Range                       |   |                      |
-| `~>`, `<~`                            |  LinkedQL |          ✅         | Deep reference traversal    |   |                      |
-| `@>` / `<@`                           |  PG JSON  |         🔶         | Partial JSON containment    |   |                      |
-| `->`, `->>`                           |  PG JSON  |         🔶         | Alias of native JSON access |   |                      |
-| `#>`                                  |  PG JSON  |          ⛔         | Not yet implemented         |   |                      |
-| `IS DISTINCT FROM`                    |     PG    |          ⛔         | Planned                     |   |                      |
-| `                                     |           | ` (logical concat) | MySQL                       | ⛔ | Not applicable       |
+For more focused guides, also see:
 
----
+- [DeepRefs](/capabilities/deeprefs)
+- [JSON Literals](/capabilities/json-literals)
+- [UPSERT](/capabilities/upsert)
+- [Version Binding](/capabilities/version-binding)
 
-### 4. Functions
+## 1. Query language at a glance
 
-| Function                                    |   Dialect  | Support | Notes                    |
-| :------------------------------------------ | :--------: | :-----: | :----------------------- |
-| `COUNT`, `SUM`, `AVG`, `MIN`, `MAX`         |    ANSI    |    ✅    | Aggregates               |
-| `LOWER`, `UPPER`, `LENGTH`, `TRIM`          |    ANSI    |    ✅    | String functions         |
-| `SUBSTRING`, `CONCAT`, `REPLACE`            |    ANSI    |    ✅    | –                        |
-| `ABS`, `ROUND`, `CEIL`, `FLOOR`             |    ANSI    |    ✅    | Numeric                  |
-| `NOW`, `CURRENT_DATE`, `INTERVAL`           |  ANSI / PG |    ✅    | Date/time                |
-| `COALESCE`, `NULLIF`, `CASE`                |    ANSI    |    ✅    | Conditional              |
-| `JSON_EXTRACT`, `JSON_OBJECT`, `JSON_ARRAY` |   FlashQL  |    ✅    | JSON built-ins           |
-| `ARRAY_AGG`, `STRING_AGG`                   |     PG     |    ✅    | Aggregates               |
-| `GREATEST`, `LEAST`                         | PG / MySQL |    ✅    | –                        |
-| `RANDOM`, `UUID`                            |     PG     |    ✅    | Random utilities         |
-| `ROW_NUMBER`, `RANK`, `DENSE_RANK`          |     PG     |    ⛔    | Window functions planned |
-| Custom functions                            |   FlashQL  |    ⛔    | Future extension API     |
+FlashQL is strongest today in the application-facing query layer:
 
----
+- `SELECT`
+- `INSERT`
+- `UPDATE`
+- `DELETE`
+- `RETURNING`
+- `WITH` / CTEs
+- joins, including `LATERAL`
+- `VALUES`
+- set-returning functions and `ROWS FROM`
+- set operations such as `UNION`, `INTERSECT`, and `EXCEPT`
+- window-function expressions used in tested execution paths
 
-### 5. Dialect Compatibility
+These are not just parser-level claims. They are exercised across the parser, desugaring layer, and engine tests.
 
-| Dialect        | Grammar | Runtime | Notes                                            |
-| :------------- | :-----: | :-----: | :----------------------------------------------- |
-| PostgreSQL     |    ✅    |    ✅    | Canonical dialect                                |
-| MySQL          |    ✅    |    🔶   | Normalized differences (e.g., `LIMIT` vs. `TOP`) |
-| MariaDB        |    ✅    |    🔶   | Same as MySQL                                    |
-| SQLite         |    🔶   |    ✅    | Parsed via FlashQL runtime grammar               |
-| FlashQL Native |    ✅    |    ✅    | Adds JSON literals, DeepRefs, and temporal tags  |
+## 2. DQL: querying data
+
+### Basic `SELECT`
+
+```js
+const result = await db.query(`
+  SELECT id, name
+  FROM public.users
+  WHERE active = true
+  ORDER BY id
+`);
+```
+
+Supported common building blocks include:
+
+- projection and aliases
+- `WHERE`
+- `ORDER BY`
+- `LIMIT` / `OFFSET`
+- grouping and aggregates
+- subqueries
+
+### Joins
+
+FlashQL supports the mainstream join family:
+
+- `INNER JOIN`
+- `LEFT JOIN`
+- `RIGHT JOIN`
+- `CROSS JOIN`
+
+And it also supports `LATERAL` joins in tested paths.
+
+```js
+const result = await db.query(`
+  SELECT t.id, s.val
+  FROM public.t_nums t
+  CROSS JOIN LATERAL generate_series(1, t.n) AS s(val)
+  ORDER BY t.id, s.val
+`);
+```
+
+```js
+const result = await db.query(`
+  SELECT t.id, s.val
+  FROM public.t_nums t
+  LEFT JOIN LATERAL generate_series(1, t.n) AS s(val) ON true
+  ORDER BY t.id, s.val
+`);
+```
+
+### `VALUES` and derived row sets
+
+```js
+const result = await db.query(`
+  SELECT *
+  FROM (VALUES (1, 'Ada'), (2, 'Linus')) AS v(id, name)
+  ORDER BY id
+`);
+```
+
+This is useful when:
+
+- you need a tiny inline dataset
+- you want to join query data against app-supplied rows
+- you are composing more advanced CTE pipelines
+
+### Set-returning functions and `ROWS FROM`
+
+FlashQL parses and executes tested forms such as:
+
+```js
+const result = await db.query(`
+  SELECT *
+  FROM ROWS FROM (
+    generate_series(1, 2),
+    unnest(ARRAY['a','b'])
+  ) AS t(c1, c2)
+`);
+```
+
+This matters because FlashQL is not restricted to base tables. It can treat function output as relational input.
+
+### Set operations
+
+Supported and tested:
+
+- `UNION`
+- `UNION ALL`
+- `INTERSECT`
+- `EXCEPT`
+
+```js
+const result = await db.query(`
+  SELECT id FROM public.a
+  UNION ALL
+  SELECT id FROM public.b
+`);
+```
+
+### CTEs
+
+Common table expressions are an important part of FlashQL's usable language surface.
+
+```js
+const result = await db.query(`
+  WITH active_users AS (
+    SELECT id, name
+    FROM public.users
+    WHERE active = true
+  )
+  SELECT *
+  FROM active_users
+  ORDER BY id
+`);
+```
+
+Writable CTE pipelines are also part of the tested surface when combined with `RETURNING`.
+
+## 3. DML: writing data
+
+### `INSERT`
+
+```js
+await db.query(`
+  INSERT INTO public.users (id, name)
+  VALUES (1, 'Ada'), (2, 'Linus')
+`);
+```
+
+Common tested forms include:
+
+- single-row insert
+- multi-row insert
+- `DEFAULT VALUES`
+- `INSERT ... RETURNING`
+
+### `UPDATE`
+
+```js
+await db.query(`
+  UPDATE public.users
+  SET name = 'Ada Lovelace'
+  WHERE id = 1
+`);
+```
+
+Tested forms include:
+
+- regular `SET` expressions
+- `UPDATE ... FROM`
+- `UPDATE ... RETURNING`
+
+### `DELETE`
+
+```js
+await db.query(`
+  DELETE FROM public.users
+  WHERE id = 1
+  RETURNING *
+`);
+```
+
+Tested forms include:
+
+- regular conditional deletes
+- `DELETE ... USING`
+- `DELETE ... RETURNING`
+
+### `RETURNING`
+
+`RETURNING` is a major part of the FlashQL ergonomics story.
+
+It supports:
+
+- `RETURNING *`
+- named columns
+- aliases
+- expressions
+- function calls
+- subqueries
+
+```js
+const result = await db.query(`
+  INSERT INTO public.returning_demo (id, val)
+  VALUES (1, 'x')
+  RETURNING id * 10 AS id_times_10, upper(val) AS upper_val
+`);
+```
+
+### UPSERT
+
+FlashQL supports PostgreSQL-style `INSERT ... ON CONFLICT`.
+
+```js
+const result = await db.query(`
+  INSERT INTO public.users (id, name, age)
+  VALUES (30, 'SamX', 41)
+  ON CONFLICT (id) DO UPDATE
+  SET name = EXCLUDED.name, age = EXCLUDED.age
+  RETURNING *
+`);
+```
+
+See also: [UPSERT](/capabilities/upsert)
+
+## 4. Window functions
+
+Window functions are part of the parser surface and are exercised in engine tests for tested shapes such as:
+
+- `ROW_NUMBER() OVER (...)`
+- `SUM(amount) OVER ()`
+- `RANK() OVER (...)`
+
+```js
+const result = await db.query(`
+  WITH changed AS (
+    UPDATE public.returning_demo
+    SET val = 'y'
+    WHERE id = 1
+    RETURNING id, val
+  )
+  SELECT
+    id,
+    val,
+    ROW_NUMBER() OVER (ORDER BY id) AS rn
+  FROM changed
+`);
+```
+
+This is one of the areas where the older docs were badly behind the code. Window-function support is not merely "planned."
+
+## 5. DDL and schema operations
+
+FlashQL supports meaningful parts of DDL, but this is also where its surface is less complete than its DQL/DML surface.
+
+### Supported today
+
+At the SQL-facing level, tested and used support includes:
+
+- `CREATE TABLE`
+- `DROP TABLE`
+
+At the storage-transaction level, support exists for:
+
+- `createTable()`
+- `alterTable()`
+- `dropTable()`
+- `createView()`
+- `alterView()`
+- `dropView()`
+- `createNamespace()`
+
+### Important nuance about views
+
+FlashQL has a strong *view model*, but it is currently centered on the storage transaction API rather than on a full SQL `CREATE VIEW` surface.
+
+In other words:
+
+- view behavior is very real
+- sync-enabled views are very real
+- but you should not read that as "full SQL `CREATE VIEW` parity is finished"
+
+### Important nuance about `ALTER`
+
+Some schema-evolution paths exist, but broader DDL parity is still catching up. If your application depends heavily on runtime `ALTER TABLE` compatibility with mainstream servers, treat that as an area requiring validation.
+
+## 6. Transactions
+
+FlashQL supports transactions at the client API level:
+
+```js
+await db.transaction(async (tx) => {
+  const users = tx.getTable({ namespace: 'public', name: 'users' });
+  await users.insert({ id: 1, name: 'Ada' });
+});
+```
+
+That is the supported application-facing transaction model today.
+
+This does **not** mean the SQL command family:
+
+- `BEGIN`
+- `COMMIT`
+- `ROLLBACK`
+
+should be read as the primary way to control transactions in FlashQL. The JS transaction API is the intended surface.
+
+## 7. JSON literals and structured data
+
+FlashQL extends SQL with native JSON-style literals.
+
+See:
+
+- [JSON Literals](/capabilities/json-literals)
+- [Structured Writes](/capabilities/structured-writes)
+
+This matters especially when you want application-shaped SQL without constantly escaping back into imperative JavaScript.
+
+## 8. DeepRefs
+
+DeepRefs are a LinkedQL language extension for relational traversal and structured writes.
+
+Operators include:
+
+- `~>` for forward traversal
+- `<~` for reverse traversal
+
+Example:
+
+```sql
+SELECT title, author ~> name
+FROM public.posts
+```
+
+DeepRefs also show up in write syntax and desugaring workflows.
+
+See: [DeepRefs](/capabilities/deeprefs)
+
+## 9. Version binding
+
+FlashQL supports version-qualified relation references such as:
+
+```sql
+SELECT *
+FROM public.users@=3
+```
+
+And in joins:
+
+```sql
+SELECT a.id, b.name
+FROM public.vja@=1 a
+LEFT JOIN public.vjb@=1 b ON a.rel = b.id
+```
+
+What version binding means here:
+
+- the query states the relation version it expects
+- if the stored relation version does not satisfy that expectation, the query fails
+
+What it does **not** mean:
+
+- it is not the same thing as historical row snapshotting
+
+For point-in-time replay, use FlashQL boot options such as `versionStop`.
+
+See: [Version Binding](/capabilities/version-binding)
+
+## 10. Point-in-time replay
+
+Point-in-time replay is not a query operator. It is a FlashQL boot mode.
+
+```js
+const historical = new FlashQL({
+  keyval,
+  versionStop: 'public.snap_tbl@1',
+});
+
+await historical.connect();
+```
+
+This replays persisted history to a chosen relation-version boundary and boots the engine there.
+
+That is separate from version binding inside a query.
+
+## 11. Dialect notes
+
+### PostgreSQL flavor
+
+This is the strongest and most fully exercised dialect path today.
+
+Particularly strong areas include:
+
+- `RETURNING`
+- `ON CONFLICT`
+- `ROWS FROM`
+- `LATERAL`
+- version binding
+- many parser and execution tests
+
+### MySQL flavor
+
+MySQL-flavored parsing is supported, and FlashQL can switch dialect per client or per query. But the broadest execution coverage still centers on PostgreSQL-style usage.
+
+That does not make MySQL support fake. It just means readers should calibrate expectations correctly.
+
+## 12. Practical reading of "support"
+
+When evaluating whether FlashQL supports a given language feature, use this order of confidence:
+
+1. feature is exercised by parser, desugaring, and engine tests
+2. feature is exercised at least by parser and engine tests
+3. feature parses but is not yet documented here as runtime-stable
+
+That is why this page focuses on the features that are clearly alive in the current codebase rather than pretending every parsed form has equal runtime maturity.
+
+## Where to go next
+
+- [Query Interface](/docs/query-api)
+- [DeepRefs](/capabilities/deeprefs)
+- [JSON Literals](/capabilities/json-literals)
+- [Structured Writes](/capabilities/structured-writes)
+- [Version Binding](/capabilities/version-binding)

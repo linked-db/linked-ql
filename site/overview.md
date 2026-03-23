@@ -1,57 +1,118 @@
-# LinkedQL <br>— A Modern Take on SQL and SQL Databases
+# What is LinkedQL
 
-_Simplify and unify your entire database layer in a single interface_. 🛸
+LinkedQL is a modern SQL interface and runtime family for application code.
 
-## What is LinkedQL
+At its simplest, it gives you a stable way to talk to data:
 
-LinkedQL is both:
+- `query()`
+- `stream()`
+- `transaction()`
+- `wal.subscribe()`
 
-+ a query client — `client.query()`
-+ and, more broadly, an idea — **SQL reimagined for modern apps**.
+At its richest, it gives you a much broader system:
 
-The broader idea captures the **intent** behind each tool in the compensatory layers built around SQL — query builders, ORMs, schema mappers, GraphQL servers, and other application-level boilerplates — and enables these natively within the language.
+- SQL language extensions for application-shaped querying and writing
+- live queries as a first-class runtime capability
+- an embeddable local SQL engine in FlashQL
+- edge transport through `EdgeClient` and `EdgeWorker`
+- federation, materialization, realtime mirroring, and sync in FlashQL
+- version binding and point-in-time replay
 
-The result is SQL that finally internalizes the external capabilities built around it — **an upgrade**.
+## The short version
 
-Think of LinkedQL as **SQL, upgraded** — for modern applications.
+If traditional DB clients answer the question:
 
-## Why LinkedQL
+> "How do I send SQL to this database?"
 
-“Modern” SQL shouldn’t require an entire scaffolding layer to fit within modern applications.
+LinkedQL tries to answer the larger application question:
 
-Ideally, there should be a declarative way to express relationships in SQL rather than through an external ORM; a syntax for JSON composition instead of an imperative set of JSON functions; first-class support for application-land fundamentals like reactivity over external subscription servers; native handling of meta-concerns like schema versioning over manual migration tooling.
+> "How do I keep one coherent data interface while my data moves across local runtime, remote database, edge transport, and reactive app state?"
 
-The goal with LinkedQL is to bring these capabilities to the database itself and retire the historic compensation layer around SQL.
+That is the real project.
 
-## Capabilities
+## Why LinkedQL exists
 
-| Capability                    | Description                                                                                                                    |
-| :---------------------------- | :----------------------------------------------------------------------------------------------------------------------------- |
-| ⚡ **Live Queries**            | Turn on reactivity over any SQL query with `{ live: true }`. No extra infrastructure required.                                   |
-| 🔗 **DeepRef Operators**      | Traverse relationships using simple path notation (`~>` / `<~`). Insert or update nested structures using same notation.       |
-| 🧩 **JSON Literals**          | Bring JSON-like clearity to your queries with LinkedQL's first-class support for JSON notation.                                |
-| 🪄 **Upserts**                | Do upserts with a literal UPSERT statement.                                                                                    |
-| 🧠 **Schema Versioning**      | (Coming soon) Get automatic schema versioning on your database: automatic snapshots and historical introspection.              |
-| 💾 **Edge & Offline Runtime** | (FlashQL) Run or embed SQL locally — in browsers, workers, or edge devices — for local-first and offline-first applications.   |
-| 🌐 **Federation & Sync**      | (Alpha) Unify remote databases, REST endpoints, and local stores into a single relational graph with seamless synchronization. |
+Modern app stacks often surround SQL with a compensation layer:
 
-## Features
+- ORMs for relationships
+- schema mappers for shape control
+- subscription servers for reactivity
+- extra transport code for edge and worker environments
+- custom local caches and sync layers for offline-first apps
 
-| Feature                                   | Description                                                                                             |
-| :---------------------------------------- | :------------------------------------------------------------------------------------------------------ |
-| 💻 **Classic `client.query()` Interface** | Same classic client interface; advanced capabalities for modern applications. |
-| 🔗 **Multi-Dialect Support**              | A universal parser that understands PostgreSQL, MySQL, MariaDB, and FlashQL — one client, many dialects.           |
-| 💡 **Lightweight Footprint**              | A full reactive data layer in one compact library — under 80 KiB (min/zip). |
-| 🎯 **Automatic Schema Inference**         | No upfront schema work. LinkedQL auto-discovers your schema and stays schema-driven across complex tasks.      | 
-| 🪄 **Diff-Based Migrations**              | (Coming soon) Evolve schemas declaratively through change detection instead of hand-written migration scripts.        |
+LinkedQL's direction is to pull more of that work back into a coherent SQL-facing model.
 
-## Next Steps
+Not by pretending every concern is "just SQL," but by extending the query/runtime layer where that actually improves the developer experience.
 
-Choose where to start:
+## The three big areas
 
-| Path | Focus |
-|:--|:--|
-| [Getting Started](/docs) | Get started with LinkedQL in under three minutes. No database required |
-| [Explore Capabilities](/capabilities) | Jump to the Capabilities section. |
-| [Meet FlashQL](/flashql) | Meet FlashQL — LinkedQL's embeddable SQL engine. |
-| [Engineering Deep Dive](/engineering/realtime-engine) | Dig into LinkedQL's engineering in the engineering section. |
+### 1. Common client contract
+
+Across runtimes, LinkedQL tries to keep the core application contract stable:
+
+- query buffered results with `query()`
+- lazily consume rows with `stream()`
+- do explicit transactional work with `transaction()`
+- subscribe to table-level commits with `wal.subscribe()`
+
+See: [Query Interface](/docs/query-api)
+
+### 2. Language capabilities
+
+LinkedQL extends SQL with application-oriented language features such as:
+
+- [DeepRefs](/capabilities/deeprefs)
+- [Structured Writes](/capabilities/structured-writes)
+- [JSON Literals](/capabilities/json-literals)
+- [Version Binding](/capabilities/version-binding)
+
+These are about expressing richer intent in the query itself instead of pushing that intent into external glue code.
+
+### 3. Runtime capabilities
+
+LinkedQL also extends the runtime side of the database contract:
+
+- [Live Queries](/capabilities/live-queries)
+- [Streaming](/capabilities/streaming)
+- [Changefeeds](/capabilities/changefeeds)
+- [FlashQL](/flashql)
+
+This is where the project becomes especially interesting for modern application architecture.
+
+## FlashQL's role
+
+FlashQL is the most ambitious runtime in the project.
+
+It gives you:
+
+- a local SQL engine
+- persistence through pluggable key-value backends
+- foreign-client federation
+- explicit local copies of remote data through `origin`, `materialized`, and `realtime` views
+- sync orchestration through `db.sync`
+- point-in-time boot through `versionStop`
+
+See:
+
+- [FlashQL](/flashql)
+- [Federation, Materialization, and Realtime Views](/flashql/foreign-io)
+- [FlashQL Sync](/flashql/sync)
+
+## What LinkedQL is not claiming
+
+It is just as important to be explicit about scope.
+
+LinkedQL is not claiming:
+
+- full byte-for-byte compatibility with every mainstream database feature surface
+- complete parity across every driver and dialect path
+- that every parsed construct is equally mature at runtime
+
+The strong parts of the project today are real. They are also specific.
+
+## Where to start
+
+- If you want the quickest entry, go to [Getting Started](/docs)
+- If you want the universal method contract, go to [Query Interface](/docs/query-api)
+- If you want the language extensions, go to [Capabilities Overview](/capabilities)
+- If you want the local runtime story, go to [FlashQL](/flashql)

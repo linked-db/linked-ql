@@ -9,11 +9,42 @@
 
 The Realtime Engine is the core of LinkedQL’s [live queries](/capabilities/live-queries). It is **an *in-memory* compute + cache layer** that sits between storage and application code, responsible for converting storage-level mutations — WAL, binlog, or in-memory emitters — into logical change streams that materialize as live result sets.
 
+## Reader's Note
+
+This page is an engineering paper, not the shortest path into the feature.
+
+Read it when you want to understand:
+
+- why live queries are tractable over mainstream databases at all
+- how LinkedQL thinks about query inheritance and window reuse
+- why query-level reactivity is different from table-level subscriptions
+
+If you want the application-facing surface first, start here:
+
+- [Live Queries](/capabilities/live-queries)
+- [Changefeeds (WAL)](/capabilities/changefeeds)
+- [Query Interface](/docs/query-api)
+
+If you are already in the paper, read it as:
+
+- architecture and rationale
+- not a promise that every internal detail is the stable public API
+
 Most existing “live query” implementations are either non-SQL in design or too narrow in scope. The live query model enabled by PGLite, for example, requires a local-first database architecture, where a local database replicates a portion of an upstream database and serves as the execution context for live queries. This is a valid and effective strategy, but requiring a special database topology introduces a new architectural limitation. Live queries consequently become a feature of a local database, rather than of SQL databases in general.
 
 LinkedQL’s goal is to make reactivity a universal concept across SQL databases — from mainstream PostgreSQL and MySQL/MariaDB, to local and in-memory databases. This requires a design that operates within the strict replication semantics of mainstream databases, accounts for network latency, and maintains a minimal performance footprint over these systems. This architectural stance is one key differentiator of the LinkedQL realtime engine.
 
 This paper examines the engineering behind this design — from cost-profile analysis and execution strategies, to event-stream processing and the resulting live result sets.
+
+## Public Feature Map
+
+While reading the rest of this page, it helps to keep the feature map straight:
+
+- query-level reactivity: [Live Queries](/capabilities/live-queries)
+- table-level subscriptions: [Changefeeds (WAL)](/capabilities/changefeeds)
+- local-first realtime mirroring in FlashQL: [FlashQL Sync](/flashql/sync)
+
+These are related, but they are not the same abstraction.
 
 ---
 

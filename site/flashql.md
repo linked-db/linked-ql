@@ -1,24 +1,38 @@
 # FlashQL
 
-*A full SQL engine for the local runtime, the edge, and the offline world.*
+FlashQL is LinkedQL's embeddable SQL runtime.
 
-FlashQL is LinkedQL’s embeddable database engine — a complete in-memory SQL runtime that runs anywhere JavaScript does: Node.js, browser, worker, or edge.
+It lets you run a real query engine inside:
 
-FlashQL can replace SQLite or PGLite across a variety of use cases — offering standard SQL semantics combined with LinkedQL’s extended capabilities, and native support for federation and synchronization.
+- the browser
+- Node.js
+- workers
+- edge runtimes
 
-Use FlashQL to:
+And it does more than "local SQL in memory." FlashQL combines:
 
-* Run full SQL queries over arbitrary datasets — even runtime data.
-* Run *Live Queries* for analytics dashboards, collaborative applications, live feeds, etc.
-* Federate across local and remote databases.
-* Materialize datasets for offline access.
-* Synchronize bidirectionally with arbitrary remote sources.
+- a local storage engine
+- SQL parsing and execution
+- live queries
+- WAL/changefeed access
+- foreign-client federation
+- local-first sync orchestration
+- point-in-time boot with version-aware replay
 
-## Overview
+If LinkedQL is the broad cross-runtime data interface, FlashQL is the place where the full local-first story comes together.
 
-Modern applications need database power without a network layer or the overhead of a physical database server. Sometimes, they also need both — a hybrid model that pairs traditional databases with a local engine. FlashQL addresses just that **in less than `80KiB min|zip`**.
+## What FlashQL is good at
 
-Just spin up an instance in-app and run SQL:
+FlashQL is especially strong when you need one or more of these:
+
+- a SQL runtime inside an app, worker, or edge process
+- a local-first data layer with persistent local state
+- the ability to query local and remote relations through one graph
+- live queries over local state
+- explicit control over caching, materialization, and realtime mirroring
+- point-in-time replay and version-bound querying
+
+## A minimal FlashQL instance
 
 ```js
 import { FlashQL } from '@linked-db/linked-ql/flashql';
@@ -27,267 +41,214 @@ const db = new FlashQL();
 await db.connect();
 
 const result = await db.query('SELECT 2::text AS value');
-console.log(result.rows); // [{ value: '2' }]
+console.log(result.rows);
+// [{ value: '2' }]
 
 await db.disconnect();
 ```
 
-From here, you get a robust query engine that can query just as fine from arbtrary data sources as from the local store — a defining feature of **FlashQL**. Meet the FlashQL **Universal I/O** model.
+This is the smallest useful FlashQL shape:
+
+- create the client
+- connect it
+- run SQL
+- disconnect it
+
+## Persistence
+
+FlashQL is ephemeral by default, but it becomes a serious local runtime when you attach a `keyval` backend.
+
+```js
+import { FlashQL } from '@linked-db/linked-ql/flashql';
+import { IndexedDBKV } from '@webqit/keyval/indexeddb';
+
+const db = new FlashQL({
+  keyval: new IndexedDBKV({ path: ['my-app'] }),
+});
+
+await db.connect();
+```
+
+What `keyval` changes:
+
+- schema and data can survive reloads
+- WAL history can be persisted
+- sync state can be persisted
+- FlashQL becomes appropriate for browser PWAs and local-first apps
+
+Typical backends include:
+
+- in-memory KV for tests and ephemeral sessions
+- IndexedDB-backed KV in the browser
+- custom KV adapters for other environments
 
 ## Dialects
 
-FlashQL supports both **PostgreSQL** and **MySQL** dialects.
+FlashQL parses and executes both PostgreSQL-flavored and MySQL-flavored SQL.
 
-Set globally:
+### Set the dialect at client level
 
 ```js
 const db = new FlashQL({ dialect: 'postgres' });
 ```
 
-Optionally specify per query:
+### Override it per query
 
 ```js
 await db.query('SELECT `name` FROM `users`', { dialect: 'mysql' });
 ```
 
-Where not specified at any scope, FlashQL's dialect defaults to `postgres`.
+If you do not specify a dialect, FlashQL defaults to `postgres`.
 
-## Compatibility
+## The core FlashQL surface
 
-FlashQL speaks real SQL — in native dialects, but isn't a full clone of PostgreSQL or MySQL.
-The goal isn’t to reproduce the entire database engine surface, but to cover the full scope of application-level SQL — streamlined to the declarative and structural features actually used in code: queries, mutations, definitions, and expressions.
+FlashQL supports the same top-level application contract as the other LinkedQL clients:
 
-You'd find FlashQL's implementation coverage of SQL in the [Language Reference](/flashql/lang). (Treat as a live reference.)
+- `db.query()`
+- `db.stream()`
+- `db.transaction()`
+- `db.wal.subscribe()`
 
-To give a **general** sense of FlashQL’s SQL feature coverage, here are two advanced example queries using PostgreSQL-specific syntax.
+And then adds local-engine-specific capabilities:
 
----
+- `db.storageEngine`
+- `db.sync`
+- `versionStop`
+- `overwriteForward`
 
-<details><summary>Query 1: (click to show)</summary>
+## Live queries, streams, and WAL
+
+FlashQL is not just a SQL parser over arrays. It is built to support modern app data flows directly.
+
+### Live queries
 
 ```js
-const { rows } = await db.query(
-    `WITH
-
-        -- 1️⃣  Writable CTE: mutate + return
-        updated AS (
-            UPDATE users
-            SET status = 'inactive'
-            WHERE last_login < NOW() - INTERVAL '90 days'
-            RETURNING id, name, department, last_login
-        ),
-
-        -- 2️⃣  Derived metrics using LATERAL subquery
-        metrics AS (
-            SELECT 
-            u.id,
-            u.name,
-            u.department,
-            m.avg_total,
-            m.order_rank
-            FROM updated u
-            LEFT JOIN LATERAL (
-            SELECT 
-                AVG(total) AS avg_total,
-                RANK() OVER (ORDER BY SUM(total) DESC) AS order_rank
-            FROM orders o
-            WHERE o.user_id = u.id
-            GROUP BY o.user_id
-            ) m ON TRUE
-        ),
-
-        -- 3️⃣  Aggregate by department with ROLLUP + CUBE
-        aggregates AS (
-            SELECT 
-            department,
-            COUNT(*) AS user_count,
-            ROUND(AVG(avg_total),2) AS avg_order_total,
-            GROUPING(department) AS dept_grouped
-            FROM metrics
-            GROUP BY CUBE (department)
-        )
-
-    -- 4️⃣  Combine results and compute analytics
-    SELECT 
-    a.department,
-    a.user_count,
-    a.avg_order_total,
-    SUM(a.user_count) OVER () AS total_users,
-    RANK() OVER (ORDER BY a.avg_order_total DESC NULLS LAST) AS perf_rank
-    FROM aggregates a
-    ORDER BY a.department NULLS LAST`
+const result = await db.query(
+  'SELECT id, name FROM public.users ORDER BY id',
+  { live: true }
 );
 
-console.log('Result:', rows);
+console.log(result.rows);
+
+await result.abort();
 ```
 
-</details>
+Use live queries when the UI needs a query-shaped view that updates as local state changes.
 
-Capabilities demonstrated:
+See also: [Live Queries](/capabilities/live-queries)
 
-+ CTEs (`WITH`)
-+ writable CTE (`UPDATE…RETURNING`)
-+ `JOIN LATERAL`
-+ aggregate and window functions (`AVG`, `RANK`, `SUM OVER()`)
-+ analytic grouping (`CUBE`, `GROUPING()`)
-+ expression logic
-
----
-
-<details><summary>Query 2: (click to show)</summary>
+### Streaming
 
 ```js
-const { rows } = await db.query(
-    `WITH
-        --  Inline VALUES table
-        recent_logins AS (
-            SELECT *
-            FROM (VALUES
-            (1, '2025-10-01'::date),
-            (2, '2025-10-15'::date),
-            (3, '2025-10-20'::date)
-            ) AS t(user_id, last_login)
-        ),
+for await (const row of await db.stream('SELECT * FROM public.big_table ORDER BY id')) {
+  console.log(row);
+}
+```
 
-        -- 2️⃣  Combine multiple function outputs with ROWS FROM
-        generated AS (
-            SELECT *
-            FROM ROWS FROM (
-            generate_series(1, 3) AS gen_id,
-            unnest(ARRAY['A', 'B', 'C']) AS label
-            )
-        ),
+Use streams when you want lazy async iteration instead of fully buffered results.
 
-        -- 3️⃣  Join VALUES + ROWS FROM + base table
-        enriched AS (
-            SELECT 
-                u.id,
-                u.name,
-                r.last_login,
-                g.label,
-                COALESCE(o.total, 0) AS total_spent
-            FROM users u
-            JOIN recent_logins r ON r.user_id = u.id
-            JOIN generated g ON g.gen_id = u.id
-            LEFT JOIN (VALUES 
-                (1, 1200), 
-                (2, 500), 
-                (3, 900)
-            ) AS o(user_id, total) ON o.user_id = u.id
-        ),
+See also: [Streaming](/capabilities/streaming)
 
-        -- 4️⃣  Aggregate and group with GROUPING SETS
-        grouped AS (
-            SELECT 
-                label,
-                DATE_TRUNC('month', last_login) AS login_month,
-                COUNT(*) AS active_users,
-                SUM(total_spent) AS revenue
-            FROM enriched
-            GROUP BY GROUPING SETS (
-                (label, login_month),
-                (label),
-                ()
-            )
-        )
+### WAL subscriptions
 
-    -- 5️⃣  Combine with another set using UNION / INTERSECT / EXCEPT
-    SELECT * FROM grouped
-    UNION ALL
-    SELECT 
-        label, 
-        NULL AS login_month, 
-        0 AS active_users, 
-        0 AS revenue
-    FROM generated
-    EXCEPT
-    SELECT 
-        label, 
-        NULL, 
-        0, 
-        0
-    FROM grouped
-    INTERSECT
-    SELECT 
-        label, 
-        NULL, 
-        0, 
-        0
-    FROM grouped
-    ORDER BY label NULLS LAST`
+```js
+const unsubscribe = await db.wal.subscribe(
+  { public: ['users'] },
+  (commit) => console.log(commit)
 );
 
-console.log('Result:', rows);
+await unsubscribe();
 ```
 
-</details>
+Use WAL subscriptions when you care about table-level commits directly.
 
-Capabilities demonstrated:
+See also: [Changefeeds](/capabilities/changefeeds)
 
-* Inline `VALUES` tables
-* `ROWS FROM` with multiple functions
-* Combined `JOIN`s on derived tables
-* `COALESCE` and `DATE_TRUNC` expressions
-* `GROUPING SETS` multi-level aggregation
-* Chained set operations (`UNION ALL … EXCEPT … INTERSECT`)
-* Set Returning Functions (SRF) `UNNEST()`, `GENERATE_SERIES()`
-* Ordering with `NULLS LAST`
+## Transactions and MVCC
 
-## Storage Backends
+FlashQL is transaction-first. It exposes both a SQL-facing query surface and a lower-level storage transaction surface.
 
-FlashQL’s in-memory engine is volatile by default. To persist or share state, plug in an alternate backend.
-
-* **In-Memory (default)** — ephemeral, ultra-fast.
-* **IndexedDB (browser, planned)** — persistent storage for the web.
-* **Redis (planned)** — shared network memory.
-* **Custom (planned)** — plug-in adapter.
+### Query-level transaction
 
 ```js
-const db = new FlashQL({
-  storage: new MyAdapter({
-    onLoad: async () => { /* load from disk */ },
-    onFlush: async (data) => { /* write to disk */ },
-  }),
+await db.transaction(async (tx) => {
+  const table = tx.getTable({ namespace: 'public', name: 'users' });
+  await table.insert({ id: 1, name: 'Ada' });
 });
 ```
 
-## LinkedQL Capabilities
+Internally, FlashQL's storage engine uses MVCC-oriented versioning and WAL replay to support:
 
-FlashQL shares the same core as the rest of LinkedQL, bringing its advanced language and runtime capabilities to the local runtime. This core includes:
+- isolated transactional work
+- live-query invalidation and diffing
+- version-aware replay to earlier points in history
 
-| Language Capabilities                                     | Runtime Capabilities                                     |
-| :-------------------------------------------------------- | :------------------------------------------------------- |
-| **[DeepRefs](/capabilities/deeprefs)**               | **[Live Queries](/capabilities/live-queries)**      |
-| **[JSON Literals](/capabilities/json-literals)**     |                                                          |
-| **[UPSERT](/capabilities/upsert)**                   |                                                          |
+## Foreign data and local-first orchestration
+
+This is where FlashQL goes beyond a plain embedded database.
+
+FlashQL can attach foreign clients, register foreign namespaces, and expose upstream data locally through views that behave in one of three ways:
+
+- `origin`: federated at read time
+- `materialized`: copied locally on sync
+- `realtime`: copied locally and kept hot after sync
+
+That model is documented in detail here:
+
+- [Federation, Materialization, and Realtime Views](/flashql/foreign-io)
+- [FlashQL Sync](/flashql/sync)
+
+## Point-in-time boot
+
+FlashQL can open its local store at an earlier relation version.
+
+### Read-only historical boot
 
 ```js
-const result = await client.query(`
-    SELECT title, author ~> name FROM posts
-`, { live: true }
-);
+const historical = new FlashQL({
+  keyval,
+  versionStop: 'public.snap_tbl@1',
+});
+
+await historical.connect();
 ```
 
-## Universal I/O
+With `versionStop`, FlashQL replays persisted history until the last matching relation version and boots there.
 
-Beyond just a local database, FlashQL is built as a **unified SQL interface** over your entire data universe — wherever that may span. The query engine follows a model that lets you bring **arbitrary data** into a single relational query space — whether from the local runtime, a remote database, a REST API, or any other source. Your application sees a unified abstraction — a query space — while the specific details of these sources remain isolated to the wiring layer.
+By default, that boot is read-only.
 
-FlashQL exposes these capabilities through **Foreign I/O** — a family of interfaces that let you:
+### Overwrite-forward boot
 
-* **Federate** — write queries that span multiple data origins on the fly.
-* **Materialize** — stage remote data locally for edge or offline execution.
-* **Synchronize** — maintain bidirectional sync between local and remote states.
+```js
+const branch = new FlashQL({
+  keyval,
+  versionStop: 'public.snap_tbl@1',
+  overwriteForward: true,
+});
 
-These are covered in the [Foreign I/O](flashql/foreign-io) reference.
+await branch.connect();
+```
 
-## Configuration & Extensibility
+With `overwriteForward: true`, FlashQL keeps the full history until the first mutating commit, then truncates forward history and lets you continue from that historical point.
 
-FlashQL exposes a minimal configuration surface for adapting its behavior.
+This is documented in more detail in:
 
-| Hook                    | Purpose                                   |
-| :---------------------- | :---------------------------------------- |
-| `dialect`               | Specify default dialect                   |
-| `onCreateRemoteClient`  | Define how remote connections are created |
-| `storage` (*planned*)   | Customize persistence layer               |
-| `functions` (*planned*) | Register user-defined SQL functions       |
-| `hooks` (*planned*)     | Integrate orchestration or logging        |
+- [Version Binding](/capabilities/version-binding)
+- [FlashQL Language Reference](/flashql/lang)
+
+## What FlashQL does not try to be
+
+FlashQL is ambitious, but it is still useful to say what it is not trying to do.
+
+- It is not a byte-for-byte clone of PostgreSQL or MySQL.
+- It does not claim universal support for every DDL and operational feature from mainstream servers.
+- Some schema-evolution surfaces are still catching up.
+
+The goal is application-level SQL power, not a full replacement for every server-side database responsibility.
+
+## Where to go next
+
+- [Language Reference](/flashql/lang)
+- [Federation, Materialization, and Realtime Views](/flashql/foreign-io)
+- [FlashQL Sync](/flashql/sync)
+- [Query Interface](/docs/query-api)

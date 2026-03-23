@@ -48,7 +48,7 @@ More broadly, LinkedQL is an idea: **[SQL reimagined for modern apps ↗](https:
 > For the prev 0.3.x versions, see [linked-db/linked-ql@0.3.*](https://github.com/linked-db/linked-ql/tree/0.30.13).
 
 > [!IMPORTANT]
-> LinkedQL is already a substantial system today.<br>
+> While still evolving, LinkedQL is already a solid system today, suitable for real-world use in controlled environments.<br>
 > It is backed by **1,000+ tests and growing**, with strong coverage across **FlashQL, live queries, edge transport, federation, WAL, sync, and parser/engine behavior**.<br>
 > The main areas still being expanded are **broader DDL parity, migrations, and deeper driver hardening across all environments**.
 

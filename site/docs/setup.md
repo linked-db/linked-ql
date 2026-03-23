@@ -1,153 +1,274 @@
 # Dialects & Clients
 
-LinkedQL ships with clients for each SQL dialect supported.
+This page maps LinkedQL's client families to the environments they are meant for.
 
-For **PostgreSQL**, **MySQL**, and **MariaDB**, LinkedQL integrates directly with the corresponding native driver.
+There are three broad buckets:
+
+- direct database clients
+- edge transport clients
+- the local runtime in FlashQL
+
+All of them participate in the common application contract documented in [Query Interface](/docs/query-api), but each family also carries its own runtime assumptions and strengths.
 
 ## PostgreSQL
 
-Use as a drop-in replacement for [`node-postgres`](https://www.npmjs.com/package/pg).
+Use `PGClient` when your application can talk directly to PostgreSQL.
 
 ```js
 import { PGClient } from '@linked-db/linked-ql/postgres';
 
-const client = new PGClient({
+const db = new PGClient({
   host: 'localhost',
   port: 5432,
   user: 'postgres',
   password: 'password',
   database: 'mydb',
-  poolMode: false // defaults to pg.Client
+  poolMode: false,
 });
-await client.connect();
 
-const res = await client.query('SELECT 1::text AS result');
-console.log(res.rows); // [{ result: '1' }]
+await db.connect();
 
-await client.disconnect();
+const result = await db.query('SELECT 1::text AS result');
+console.log(result.rows);
+// [{ result: '1' }]
+
+await db.disconnect();
 ```
 
-### Client Options
+### When to choose it
 
-`PGClient` supports **all options supported by `node-postgres`**, including the following.
+- server-side apps with direct database access
+- jobs and workers that already live near PostgreSQL
+- codebases that want LinkedQL's query/runtime contract without changing the actual database placement
 
-| Option     | Type      | Default | Description                                                  |
-| :--------- | :-------- | :------ | :----------------------------------------------------------- |
-| `poolMode` | `boolean` | `false` | When `true`, uses `pg.Pool`; when `false`, uses `pg.Client`. |
+### Notes
 
-### Realtime Setup
+- `PGClient` is the strongest mainstream-database integration path today
+- PostgreSQL is also the dialect with the broadest tested query coverage across the project
 
-LinkedQL’s realtime behavior can be tuned via:
+### Realtime notes
 
-| Option               | Type                 | Default                          | Description                                                                                                                                                        |
-| :------------------- | :------------------- | :------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `walSlotName`        | `string`             | `'linkedql_default_slot'`        | Logical replication slot name used for change streaming.                                                                                                           |
-| `walSlotPersistence` | `0 \| 1`.            | `0`                              | Slot lifecycle policy:<br>`0` — ephemeral, droped by PostgreSQL at end of session;<br>`1` — persistent, dropped/managed by you.                                    |
-| `pgPublications`     | `string \| string[]` | `'linkedql_default_publication'` | Publication name(s) to subscribe to for changes.                                                                                                                   |
+LinkedQL's live-query story over PostgreSQL depends on WAL/logical replication setup.
 
-::: warning Logical Replication Required
-To enable **Live Queries**, ensure PostgreSQL [logical replication](https://www.postgresql.org/docs/current/view-pg-replication-slots.html) is enabled and, optionally, a publication is configured.
-:::
+Relevant options include:
+
+| Option | Type | Default | Meaning |
+| :-- | :-- | :-- | :-- |
+| `walSlotName` | `string` | `'linkedql_default_slot'` | logical replication slot name |
+| `walSlotPersistence` | `0 \| 1` | `0` | whether the slot should be ephemeral or persistent |
+| `pgPublications` | `string \| string[]` | `'linkedql_default_publication'` | publication(s) used for change streaming |
 
 ## MySQL
 
-Use in place of [`mysql2`](https://www.npmjs.com/package/mysql2).
+Use `MySQLClient` when your application can talk directly to MySQL.
 
 ```js
 import { MySQLClient } from '@linked-db/linked-ql/mysql';
 
-const client = new MySQLClient({
+const db = new MySQLClient({
   host: 'localhost',
   port: 3306,
   user: 'root',
   password: 'password',
   database: 'mydb',
-  poolMode: false // defaults to mysql.createConnection()
+  poolMode: false,
 });
-await client.connect();
 
-const res = await client.query('SELECT 1 AS \`result\``);
-console.log(res.rows); // [{ result: 1 }]
+await db.connect();
 
-await client.disconnect();
+const result = await db.query('SELECT 1 AS `result`');
+console.log(result.rows);
+// [{ result: 1 }]
+
+await db.disconnect();
 ```
 
-### Client Options
+### When to choose it
 
-`MySQLClient` supports **all options supported by `mysql2`**, including the following.
+- you already run on MySQL
+- you want LinkedQL's interface without changing your database choice
 
-| Option     | Type      | Default | Description                                                                            |
-| :--------- | :-------- | :------ | :------------------------------------------------------------------------------------- |
-| `poolMode` | `boolean` | `false` | When `true`, uses `mysql.createPool()`; when `false`, uses `mysql.createConnection()`. |
+### Notes
 
-### Realtime Setup
-
-_Live Queries for MySQL **coming soon**._
+- `MySQLClient` uses the `mysql2` ecosystem
+- dialect normalization exists, but the deepest execution/test emphasis in the project still leans PostgreSQL-first
 
 ## MariaDB
 
-Use in place of [`mariadb`](https://www.npmjs.com/package/mariadb`)/[`mysql2`](https://www.npmjs.com/package/mysql2).
+Use `MariaDBClient` when your application can talk directly to MariaDB.
 
 ```js
 import { MariaDBClient } from '@linked-db/linked-ql/mariadb';
 
-const client = new MariaDBClient({
+const db = new MariaDBClient({
   host: 'localhost',
   port: 3306,
   user: 'root',
   password: 'password',
-  database: 'mydb'
+  database: 'mydb',
 });
-await client.connect();
 
-const res = await client.query('SELECT 1 AS \`result\``);
-console.log(res.rows); // [{ result: 1 }]
+await db.connect();
 
-await client.disconnect();
+const result = await db.query('SELECT 1 AS `result`');
+console.log(result.rows);
+// [{ result: 1 }]
+
+await db.disconnect();
 ```
 
-### Client Options
+### Notes
 
-`MariaDBClient` supports **all options supported by `mariadb`**.
+- `MariaDBClient` always runs on a pool
+- it follows the same common contract as the other clients
 
-::: tip Auto Pooling
-MariaDBClient always runs on a connection pool.
-:::
+## EdgeClient
 
-### Realtime Setup
+Use `EdgeClient` when your app cannot or should not connect directly to the database, but you still want the LinkedQL contract remotely.
 
-_Live Queries for MariaDB **coming soon**._
+`EdgeClient` talks to an `EdgeWorker` over:
+
+- HTTP
+- `Worker` ports
+- `SharedWorker` ports
+
+### HTTP transport example
+
+```js
+import { EdgeClient } from '@linked-db/linked-ql/edge';
+
+const db = new EdgeClient({
+  url: 'https://api.example.com/db',
+  type: 'http',
+  dialect: 'postgres',
+});
+
+const result = await db.query('SELECT id, name FROM public.users ORDER BY id');
+console.log(result.rows);
+```
+
+### Worker transport example
+
+```js
+import { EdgeClient } from '@linked-db/linked-ql/edge';
+
+const db = new EdgeClient({
+  url: '/db.worker.js',
+  type: 'worker',
+  dialect: 'postgres',
+});
+
+const result = await db.query('SELECT id, name FROM public.users ORDER BY id');
+console.log(result.rows);
+```
+
+### Why `EdgeClient` exists
+
+It gives you a clean middle shape between:
+
+- "direct DB client in the app"
+- and "rewrite everything around custom API endpoints"
+
+Your app still speaks the LinkedQL client contract. The actual database client lives behind the transport boundary.
+
+## EdgeWorker
+
+`EdgeWorker` is the server/worker-side runtime that exposes a LinkedQL-capable client over HTTP or worker ports.
+
+It usually wraps one of:
+
+- `PGClient`
+- `FlashQL`
+- another LinkedQL-capable client
+
+### Example: HTTP worker in front of PostgreSQL
+
+```js
+import { PGClient } from '@linked-db/linked-ql/postgres';
+import { EdgeWorker } from '@linked-db/linked-ql/edge-worker';
+
+const pg = new PGClient({
+  host: 'localhost',
+  port: 5432,
+  user: 'postgres',
+  password: 'password',
+  database: 'mydb',
+});
+
+await pg.connect();
+
+const worker = new EdgeWorker({
+  client: pg,
+  type: 'http',
+});
+
+// Then route incoming requests to worker.handle(op, args, port?)
+```
+
+### Example: web worker in front of FlashQL
+
+```js
+import { FlashQL } from '@linked-db/linked-ql/flashql';
+import { EdgeWorker } from '@linked-db/linked-ql/edge-worker';
+
+const local = new FlashQL();
+await local.connect();
+
+EdgeWorker.webWorker({ client: local });
+```
+
+### What EdgeWorker forwards
+
+It can expose:
+
+- queries
+- streams
+- explicit transactions
+- live queries
+- WAL subscriptions
+
+That is why `EdgeClient` can feel surprisingly "local" even when the execution site is remote.
 
 ## FlashQL
 
-Use in place of SQLite, PGLite, and similar. Speaks both MySQL and PostgreSQL.
+Use `FlashQL` when you want the database runtime inside your application process, worker, browser tab, or edge function.
 
 ```js
 import { FlashQL } from '@linked-db/linked-ql/flashql';
 
-const client = new FlashQL();
-await client.connect();
+const db = new FlashQL({ dialect: 'postgres' });
+await db.connect();
 
-// PostgreSQL-style syntax (default)
-const pgRes = await client.query('SELECT 1::text AS result');
-console.log(pgRes.rows); // [{ result: '1' }]
+const pgResult = await db.query('SELECT 1::text AS result');
+console.log(pgResult.rows);
 
-// MySQL-style syntax (explicit dialect)
-const myRes = await client.query('SELECT 1 AS `result`', { dialect: 'mysql' });
-console.log(myRes.rows); // [{ result: 1 }]
+const myResult = await db.query('SELECT 1 AS `result`', { dialect: 'mysql' });
+console.log(myResult.rows);
 
-await client.disconnect();
+await db.disconnect();
 ```
 
-### Client Options
+### Key options
 
-`FlashQL` can be configured via a few options.
+| Option | Type | Default | Meaning |
+| :-- | :-- | :-- | :-- |
+| `dialect` | `'postgres' \| 'mysql'` | `'postgres'` | default parse/execute dialect |
+| `keyval` | key-value backend | `null` | persistence backend for storage/WAL/sync state |
+| `onCreateForeignClient` | `(origin) => client` | `null` | factory for upstream clients used by foreign namespaces |
+| `versionStop` | `string \| object` | `null` | boot the store at a chosen relation-version boundary |
+| `overwriteForward` | `boolean` | `false` | allow writable continuation from a historical boot point |
+| `autoSync` | `boolean` | `true` | automatically run `db.sync.sync()` on connect when persistent storage is present |
 
-| Option    | Type                      | Default        | Description                                                                    |
-| :-------- | :------------------------ | :------------- | :----------------------------------------------------------------------------- |
-| `dialect` | `'postgresql' \| 'mysql'` | `'postgresql'` | Default parsing/execution dialect.                                             |
-| `storage` | `FlashQLStorage`    | `undefined`    | (Coming soon) Storage target or adapter for persistent storage.                         |
+### Why FlashQL is different
 
-### Realtime Setup
+FlashQL is not just another client wrapper. It is:
 
-_Realtime capabilities are **built in**. FlashQL maintains its own change events internally; no external replication setup is required._
+- the local engine
+- the local persistence layer
+- the place where federation, materialization, realtime mirroring, and sync come together
+
+Continue with:
+
+- [FlashQL](/flashql)
+- [Federation, Materialization, and Realtime Views](/flashql/foreign-io)
+- [FlashQL Sync](/flashql/sync)

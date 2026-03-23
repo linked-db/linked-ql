@@ -1,36 +1,143 @@
 # Version Binding
 
-*Bind a query to the relation versions it was written against.*
+Version binding lets a query state the relation versions it expects.
+
+That makes it a schema-contract feature.
+
+It is especially useful when:
+
+- an application was written against a specific table version
+- you want queries to fail fast when storage no longer matches that expectation
+- you want joins to assert that both sides of the query still satisfy the version assumptions they were written against
+
+## Basic form
+
+Version binding is attached directly to relation references:
 
 ```sql
 SELECT *
-FROM public.users@=3;
+FROM public.users@=3
 ```
+
+That query is saying:
+
+> "Run this query only if `public.users` satisfies the version spec `=3`."
+
+## Version spec operators
+
+Common forms include:
+
+```sql
+public.users@=3
+public.users@<3
+public.users@>4
+public.users@<=3
+public.users@>=4
+public.users@=3_4
+```
+
+Those forms are part of the parser surface and are exercised in tests.
+
+## Join example
+
+Version binding becomes especially valuable when multiple relations participate in a query.
 
 ```sql
 SELECT
-  u.id,
-  p.title
-FROM public.users@=3 AS u
-LEFT JOIN public.posts@=5 AS p
-  ON p.author_id = u.id;
+  a.id,
+  b.name
+FROM public.vja@=1 AS a
+LEFT JOIN public.vjb@=1 AS b
+  ON a.rel = b.id
 ```
 
-## Status
+How to read this:
 
-This page is currently a stub.
+- the query expects `public.vja` at relation version `1`
+- the query expects `public.vjb` at relation version `1`
+- if either side no longer satisfies that contract, the query should not silently continue as if nothing changed
 
-It exists so the README and docs can point to a dedicated home for:
+That is why "version binding" is a better phrase here than "version syntax." It is about explicit version control at the query boundary.
 
-* relation version specs such as `@=`, `@<`, `@>`, `@<=`, `@>=`
-* how version binding differs from point-in-time replay
-* join safety and schema contracts
-* FlashQL-specific support details
+## Why version binding exists
 
-## For now
+Most schema drift bugs are painful because they fail too late:
 
-See these pages while this guide is being expanded:
+- a query still parses
+- a deployment still boots
+- but the semantics the application assumed are no longer true
 
-* [FlashQL Overview](/flashql)
-* [Language Reference](/flashql/lang)
+Version binding gives you a way to express:
 
+> "This query is coupled to this relation version. If the storage side has moved, fail visibly."
+
+## What version binding is not
+
+This point is critical.
+
+Version binding is **not** the same thing as historical row snapshotting.
+
+It does **not** mean:
+
+- "show me the rows as they were when version 3 existed"
+
+It means:
+
+- "run this query only if the relation version assumptions are satisfied"
+
+For historical replay, use FlashQL's point-in-time boot support with `versionStop`.
+
+## Version binding vs point-in-time replay
+
+| Feature | What it means |
+| :-- | :-- |
+| version binding in a query | "this query assumes these relation versions" |
+| `versionStop` at boot | "boot the local engine at this historical relation-version boundary" |
+
+These features complement each other, but they are not interchangeable.
+
+## FlashQL-specific support
+
+Version binding is a FlashQL-oriented capability today because it depends on relation-version knowledge inside the local storage/runtime layer.
+
+You will most commonly encounter it in:
+
+- FlashQL queries
+- FlashQL joins
+- FlashQL historical/branching workflows
+
+## Example: bind and then boot historically
+
+```js
+const db = new FlashQL({
+  keyval,
+  versionStop: 'public.snap_tbl@1',
+});
+
+await db.connect();
+
+const result = await db.query(`
+  SELECT id
+  FROM public.snap_tbl@=1
+  ORDER BY id
+`);
+```
+
+In that shape:
+
+- `versionStop` chooses the historical replay boundary
+- `@=1` asserts the query's relation-version expectation
+
+## When to reach for version binding
+
+Use it when:
+
+- you care about schema/version safety more than silent compatibility
+- you are building version-aware local apps on FlashQL
+- you want joins to assert compatibility across multiple versioned relations
+
+## Related docs
+
+- [FlashQL](/flashql)
+- [FlashQL Language Reference](/flashql/lang)
+- [Query Interface](/docs/query-api)

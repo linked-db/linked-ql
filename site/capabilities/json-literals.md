@@ -159,7 +159,7 @@ FROM users;
 
 ### DeepRefs
 
-JSON literals compose with [DeepRefs](deeprefs) to model relationships structurally.
+JSON literals compose with [DeepRefs](/capabilities/deeprefs) to model relationships structurally.
 
 ```sql
 SELECT
@@ -169,3 +169,9 @@ SELECT
   { comments[]: (post <~ comments) ~> { id, text } } AS related
 FROM posts AS p;
 ```
+
+## See also
+
+- [DeepRefs](/capabilities/deeprefs)
+- [Structured Writes](/capabilities/structured-writes)
+- [FlashQL Language Reference](/flashql/lang)
