@@ -49,9 +49,13 @@ export default defineConfig({
                     items: [
                         { text: 'Capabilities Overview', link: '/capabilities' },
                         { text: 'Live Queries', link: '/capabilities/live-queries' },
+                        { text: 'Streaming', link: '/capabilities/streaming' },
+                        { text: 'Changefeeds (WAL)', link: '/capabilities/changefeeds' },
                         { text: 'DeepRefs', link: '/capabilities/deeprefs' },
+                        { text: 'Structured Writes', link: '/capabilities/structured-writes' },
                         { text: 'JSON Literals', link: '/capabilities/json-literals' },
                         { text: 'UPSERT', link: '/capabilities/upsert' },
+                        { text: 'Version Binding', link: '/capabilities/version-binding' },
                     ]
                 },
                 {
@@ -59,6 +63,7 @@ export default defineConfig({
                     items: [
                         { text: 'FlashQL Overview', link: '/flashql' },
                         { text: 'Federation & Sync', link: '/flashql/foreign-io' },
+                        { text: 'Sync', link: '/flashql/sync' },
                         { text: 'Language Reference', link: '/flashql/lang' },
                     ]
                 },

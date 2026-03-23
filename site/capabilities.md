@@ -24,6 +24,7 @@ LinkedQL extends the SQL language to bring in useful syntax shorthands for relat
 | **Feature**       | **Summary**                                                            | **Docs**                                             |
 | :---------------- | :--------------------------------------------------------------------- | :--------------------------------------------------- |
 | **DeepRefs**      | Follow foreign key relationships directly using simple arrow notation. | [DeepRefs](/capabilities/deeprefs)  |
+| **Structured Writes** | Express relationship-aware writes directly in SQL-shaped DML.      | [Structured Writes](/capabilities/structured-writes) |
 | **JSON Literals** | Model JSON objects and arrays using literal JSON syntax.               | [JSON](/capabilities/json-literals) |
 | **UPSERT**        | Perform the classic `INSERT...ON CONFLICT` statement in a single step. | [UPSERT](/capabilities/upsert)      |
 
@@ -87,7 +88,9 @@ LinkedQL extends the query execution layer with reactivity and automatic schema 
 | **Feature**         | **Summary**                                                            | **Docs**                                                   |
 | :------------------ | :--------------------------------------------------------------------- | :--------------------------------------------------------- |
 | **Live Queries**    | Turn on reactivity over any query and get back a live view of your data. | [Live Queries](/capabilities/live-queries) |
-| **Timeline Engine** | Anchor a query to a fixed schema version for stable results over time. | *(Coming soon)*                                            |
+| **Streaming**       | Lazily iterate large result sets instead of materializing them all at once. | [Streaming](/capabilities/streaming) |
+| **Changefeeds (WAL)** | Subscribe to structured table-level commits and row mutations.       | [Changefeeds](/capabilities/changefeeds) |
+| **Version Binding** | Anchor a query to explicit relation versions for stable schema contracts. | [Version Binding](/capabilities/version-binding) |
 
 ### Examples
 
@@ -145,8 +148,8 @@ LinkedQL bundles an embeddable SQL engine, **FlashQL**, that brings its full cap
 | **Capability**     | **Summary**                                                   | **Docs**                             |
 | :----------------- | :------------------------------------------------------------ | :----------------------------------- |
 | **Local Database** | Run a full SQL engine in memory — same semantics, zero setup. | [FlashQL](/flashql) |
-| **Federation**     | Query local and remote data together in a single SQL surface. | [FlashQL](/flashql) |
-| **Sync**           | Keep local and remote tables automatically synchronized.      | [FlashQL](/flashql) |
+| **Federation**     | Query local and remote data together in a single SQL surface. | [Federation & Sync](/flashql/foreign-io) |
+| **Sync**           | Keep local and remote tables automatically synchronized.      | [FlashQL Sync](/flashql/sync) |
 
 ### Examples
 
@@ -196,4 +199,3 @@ client.on('sync:change', e => console.log('Δ', e.table, e.type));
 ```
 
 :::
-
