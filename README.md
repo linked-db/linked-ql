@@ -23,7 +23,7 @@ _A modern take on SQL and SQL databases_
 
 _Simplify and unify your entire database layer in a single interface_ 🛸<br>
 LinkedQL is a database client (`client.query()`) for PostgreSQL and MySQL/MariaDB, but more broadly, an idea: **[SQL reimagined for modern apps ↗](https://linked-ql.netlify.app/overview)**.
-LinkedQL solves **live querying and realtime apps, local-first and offline-first data architectures with federation and syncing, relationship traversal, schema versioning, version control, and point-in-time local replay** – all in under `80 KiB min | zip`.
+LinkedQL solves **live querying for realtime apps, local-first and offline-first data architectures with federation and syncing, relationship traversal, schema versioning and version control system, point-in-time traversal, and more** – all in under `80 KiB min | zip`.
 
 </div>
 
@@ -70,14 +70,13 @@ The package provides clients for all supported SQL dialects — including **Flas
 
 ## Why LinkedQL
 
-Modern applications no longer interact with a single database in the traditional 1:1 model.
+Modern applications no longer interact with a single database in the traditional 1:1 `client.query()` model.
 
 They span:
 
-* direct database connections (the traditional direct `client.query()` model),
 * HTTP boundaries (client / server runtimes that need to operate over same data),
 * client-side storage (requiring a local relational engine),
-* offline-first requirements (requiring local replicas and syncing),
+* offline-first architectures (requiring local replicas backed by a sync engine),
 * realtime updates (requiring live queries and realtime subscriptions),
 * and evolving schemas over time (often creating breaking changes for the application as schema drifts).
 
@@ -99,19 +98,15 @@ Each layer:
 * introduces its own caching or consistency rules
 * and breaks composability across runtime boundaries
 
-**LinkedQL replaces this fragmented model with a single execution contract that holds across all environments**.
+**LinkedQL replaces this fragmented model with a single execution contract that holds across all environments**,
 
-At its core, LinkedQL provides:
+and extends that with built-in support for:
 
-* a **unified SQL interface** (`db.query(...)`)
-* across **multiple runtimes** and **database models**
-* with built-in support for:
-
-  * local execution,
-  * remote execution,
-  * federation,
-  * sync,
-  * and reactivity
+* local execution,
+* remote execution,
+* federation,
+* sync,
+* and reactivity
 
 ---
 
@@ -156,14 +151,12 @@ await db.disconnect();
 
 However, this is not just a wrapper over `node-postgres`.
 
-The significance of this interface is that:
+The same `db.query()` call will later support
 
-* the same `db.query()` call will later support
-
-  * realtime queries
-  * cross-runtime execution
-  * local-first sync
-  * and version-aware querying
+* realtime queries
+* cross-runtime execution
+* local-first sync
+* and version-aware querying
 
 **Without changing how you write queries.**
 
@@ -331,16 +324,14 @@ export async function POST(request) {
 
 #### Important
 
-This is not limited to browser → server.
+This is not limited to browser → server models.
 
-It applies to:
+`EdgeClient` can be used anywhere a transport boundary exists:
 
-* server → server communication
-* edge → origin communication
-* worker → worker communication
+* server → server
+* edge → origin
+* worker → worker
 * browser → worker (as seen in Scenario 4 below)
-
-> **Anywhere a transport boundary exists, EdgeClient can bridge it.**
 
 ---
 
@@ -348,10 +339,10 @@ It applies to:
 
 The same protocol used over HTTP can also run over **message channels**.
 
-This is useful when:
+A typical use case is:
 
-* your architecture already uses workers
-* or you want to avoid HTTP overhead
+* An app runs on the browser main thread
+* A LinkedQL instance (backed by IndexedDB) runs in a web worker
 
 ---
 
@@ -399,25 +390,9 @@ EdgeWorker.webWorker({
 
 ---
 
-#### Why this matters
-
-This completes the idea:
-
-> **EdgeClient is a transport-agnostic execution bridge**
-
-The same query can execute:
-
-* locally
-* over HTTP
-* over message channels
-
-without changing application code
-
----
-
 #### The Edge Protocol does the heavy lifting
 
-As against just sending raw SQL over HTTP, the client (`EdgeClient`) sends structured operations that map directly to the LinkedQL client interface (e.g. `query`, `stream`, `subscribe`, etc.).
+As against just sending raw SQL over HTTP, the client (`EdgeClient`) sends structured operations that map directly to the LinkedQL client interface (e.g. `query()`, `stream()`, `subscribe()`, etc.).
 
 This preserves:
 
@@ -429,7 +404,7 @@ This preserves:
 
 ### Scenario 5: Local-First and Offline-First Architectures
 
-In this scenario, a hybrid data architecture where the goal is to:
+In this scenario, we demonstrate a hybrid data architecture where the goal is to:
 
 > Query remote data **as if it were local**, while controlling
 > what stays remote, what gets cached locally, and what stays in sync.
@@ -476,14 +451,14 @@ await db.connect();
 ##### Decoding the above
 
 * FlashQL is your **local relational engine**
-* `"primary"` is simply the name we want to give to a **remote database**. (FlashQL lets the origin spec be application-defined. It can be a bare identifier as used here, or an URL, or something else.)
+* `"primary"` is simply the name we want to give to a **remote database**. (FlashQL lets the origin details be application-defined. It can be a bare identifier as used here, or an URL, or something else.)
 * `EdgeClient` is how FlashQL will talk to that remote system
 
 At this point:
 
 * nothing is mirrored yet
 * no data is local
-* we’ve only defined **how to reach the remote**
+* we’ve only defined **how to reach the remote** from the local
 
 But the local database by itself is ready for use as before:
 
@@ -530,7 +505,7 @@ await db.storageEngine.transaction(async (tx) => {
 
 ##### Decoding the above
 
-* The programmatic `tx.createNamespace()` call above is equivalent to `db.query('CREATE SCHEMA remote')`, but lets us add the concept of **foreign origin**
+* The programmatic `tx.createNamespace()` call above is equivalent to `db.query('CREATE SCHEMA remote')`, but it lets us add the concept of **foreign origin**
 * `remote` is a **real local namespace (schema)** that can have tables and views (`VIEWS`) just like a regular namespace
 * The difference is what happens when you create a view: **they will mirror tables in the remote database instead of mirror tables in the local database**
 
