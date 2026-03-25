@@ -52,7 +52,6 @@ export default defineConfig({
                         { text: 'Streaming', link: '/capabilities/streaming' },
                         { text: 'Changefeeds (WAL)', link: '/capabilities/changefeeds' },
                         { text: 'DeepRefs', link: '/capabilities/deeprefs' },
-                        { text: 'Structured Writes', link: '/capabilities/structured-writes' },
                         { text: 'JSON Literals', link: '/capabilities/json-literals' },
                         { text: 'UPSERT', link: '/capabilities/upsert' },
                         { text: 'Version Binding', link: '/capabilities/version-binding' },

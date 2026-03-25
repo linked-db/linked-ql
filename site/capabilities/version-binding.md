@@ -1,5 +1,7 @@
 # Version Binding
 
+> Only available currently in FlashQL. Comming soon to PostgreSQL, and MySQL/MariaDB
+
 Version binding lets a query state the relation versions it expects.
 
 That makes it a schema-contract feature.
@@ -36,8 +38,6 @@ public.users@>=4
 public.users@=3_4
 ```
 
-Those forms are part of the parser surface and are exercised in tests.
-
 ## Join example
 
 Version binding becomes especially valuable when multiple relations participate in a query.
@@ -56,8 +56,6 @@ How to read this:
 - the query expects `public.vja` at relation version `1`
 - the query expects `public.vjb` at relation version `1`
 - if either side no longer satisfies that contract, the query should not silently continue as if nothing changed
-
-That is why "version binding" is a better phrase here than "version syntax." It is about explicit version control at the query boundary.
 
 ## Why version binding exists
 
@@ -87,20 +85,11 @@ It means:
 
 For historical replay, use FlashQL's point-in-time boot support with `versionStop`.
 
-## Version binding vs point-in-time replay
-
-| Feature | What it means |
-| :-- | :-- |
-| version binding in a query | "this query assumes these relation versions" |
-| `versionStop` at boot | "boot the local engine at this historical relation-version boundary" |
-
-These features complement each other, but they are not interchangeable.
-
 ## FlashQL-specific support
 
 Version binding is a FlashQL-oriented capability today because it depends on relation-version knowledge inside the local storage/runtime layer.
 
-You will most commonly encounter it in:
+You will most commonly use it in:
 
 - FlashQL queries
 - FlashQL joins
@@ -135,9 +124,3 @@ Use it when:
 - you care about schema/version safety more than silent compatibility
 - you are building version-aware local apps on FlashQL
 - you want joins to assert compatibility across multiple versioned relations
-
-## Related docs
-
-- [FlashQL](/flashql)
-- [FlashQL Language Reference](/flashql/lang)
-- [Query Interface](/docs/query-api)

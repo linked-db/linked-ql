@@ -10,12 +10,11 @@ Use them when you want to:
 - shape related data without hand-writing every join
 - carry the same path language into DML through structured writes
 
-If you are here specifically for write syntax, also read:
+---
 
-- [Structured Writes](/capabilities/structured-writes)
-- [FlashQL Language Reference](/flashql/lang)
+## The Idea
 
-SQL schemas already describe relationships —
+SQL schemas already describe relationships — 
 `FOREIGN KEY (author) REFERENCES users (id)`
 
 DeepRefs let you **traverse those foreign-key declarations directly**, inline, without writing a join.
@@ -27,6 +26,8 @@ SELECT author ~> name FROM posts
 If you’ve declared any relationship, you can traverse it directly.
 LinkedQL resolves the path from the schema catalog.
 
+---
+
 ## How to read this page
 
 This page covers three related ideas:
@@ -36,6 +37,8 @@ This page covers three related ideas:
 - how those path expressions behave in projections, expressions, and writes
 
 The important mental model is that DeepRefs are schema-aware SQL syntax, not a separate ORM layer.
+
+---
 
 ## General Syntax
 
@@ -84,7 +87,9 @@ For BackRefs, a dot (`.`) may be used on the first outer hop:
 | `(author <~ posts) ~> title`            | `(author <~ posts).title`            |
 | `(author <~ comments) ~> post ~> title` | `(author <~ comments).post ~> title` |
 
-## DeepRefs in Context
+---
+
+## DeepRefs as "Singular" Column References
 
 DeepRefs expose foreign-key relationships as **first-class** column references inside SQL.<br>
 They behave like columns — and work anywhere a column reference works.
@@ -119,6 +124,8 @@ FROM users AS u1 LEFT JOIN users AS u2 ON u1.id = u2.id
 Here, `((u1) author <~ posts)` makes it clear that the BackRef binding to `u1` on the left-side for the foreign key traversal.
 
 This explicit aliasing ensures that DeepRefs and BackRefs resolve correctly in complex queries with multiple table instances.
+
+---
 
 ## Projections
 
@@ -326,6 +333,8 @@ Also, each follows the same join semantics:
 + **DeepRefs (`~>`)** yield one related record (and nullable)
 + **BackRefs (`<~`)** yield zero or more (and nullable, optionally aggregated)
 
+---
+
 ## Expressions
 
 Because DeepRefs are **first-class column references**, they can participate in any expression exactly as ordinary columns do:
@@ -388,6 +397,8 @@ DeepRefs behave as atomic references in expressions:
 * **Binding:** `~>` and `<~` bind tighter than all other operators; no special parentheses required.
 * **Composability:** usable in any expression or clause where a column works.
 * **Structural forms:** may terminate as tuples in contexts expecting tuples.
+
+---
 
 ## Mutations
 
@@ -701,10 +712,63 @@ DELETE user (remove rows matching this relationship)
 
 ### Mutation Summary
 
+Structured writes are one of LinkedQL's most application-oriented language features.
+
+They let you express relationship-aware writes directly in SQL-shaped DML instead of splitting the operation across:
+
+- multiple imperative inserts
+- foreign-key bookkeeping
+- extra query-roundtrips just to wire ids together
+
+The key idea is that DeepRef syntax is not just for reading. It can also appear in write targets.
+
+#### The core idea
+
+A regular insert target looks like this:
+
+```sql
+INSERT INTO public.users (id, email)
+VALUES (1, 'ada@example.com')
+```
+
+A structured write target can include relational paths:
+
+```sql
+INSERT INTO public.users
+  (email, parent_user1 ~> (id, email))
+VALUES
+  ('ada@example.com', ROW (50, 'parent@example.com'))
+```
+
+That tells LinkedQL:
+
+- insert a row into `public.users`
+- also ensure the related `parent_user1` payload is written
+- wire the relationship through the appropriate key path
+
+The rough rule is:
+
+- DeepRefs in `SELECT` help you traverse and shape reads
+- DeepRefs in DML targets help you traverse and shape writes
+
+#### Why this exists
+
+Without structured writes, relationship-aware writes usually move into application code:
+
+1. insert one row
+2. collect its id
+3. insert another row
+4. collect another id
+5. update the linking row
+
+Structured writes let the query itself describe that intent.
+
 * **Resolution (`~>`, `<~`)** — dependencies resolve first, with primary keys binding up the structure.
 * **Atomicity** — every structural mutation, regardless of complexity, compiles into **one SQL statement**.
 * **Consistency** — referential integrity is always schema-driven.
 * **Determinism** — the same mutation yields the same dependency plan.
+
+---
 
 ## Foreign Key Scopes
 
@@ -763,6 +827,8 @@ The LATERAL clause inherits `p` row by row, and traversal works naturally as bef
 
 Essentially, any foreign key in scope — whether inherited or projected — retains its relational meaning and can be traversed as a DeepRef.
 
+---
+
 ## Appendix A — Implied Schema and Dialect
 
 The examples in this document assume a simple illustrative schema and a specific SQL dialect.
@@ -795,9 +861,3 @@ CREATE TABLE comments (
   post INTEGER REFERENCES posts (id)
 );
 ```
-
-## See also
-
-- [Structured Writes](/capabilities/structured-writes)
-- [JSON Literals](/capabilities/json-literals)
-- [FlashQL Language Reference](/flashql/lang)

@@ -48,7 +48,7 @@ console.log(result.rows.length);
 
 But buffering every row before your code can start consuming them is not always what you want.
 
-Streaming gives you a different trade:
+Streaming gives you the right trade there:
 
 - less up-front materialization
 - earlier consumption
@@ -145,30 +145,6 @@ That makes it useful for:
 - local analytical scans
 - browser/worker exports
 - large local result sets where full buffering is unnecessary
-
-## Choosing between `query()` and `stream()`
-
-Use `query()` when:
-
-- you want the whole result set in memory
-- the result is modest in size
-- convenience matters more than incremental consumption
-
-Use `stream()` when:
-
-- the result could be large
-- you want async iteration
-- you want to process rows as they are requested rather than materializing them all
-
-## Streaming vs live queries
-
-This distinction deserves an explicit comparison because developers often conflate the two.
-
-| Capability | Question it answers |
-| :-- | :-- |
-| `stream()` | "How do I consume one query lazily?" |
-| live query | "How do I keep a query result updated over time?" |
-| `wal.subscribe()` | "How do I watch table commits directly?" |
 
 ## Related docs
 

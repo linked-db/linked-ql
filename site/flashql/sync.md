@@ -36,19 +36,18 @@ And get the correct reconciliation behavior without having to memorize a dozen s
 
 ## What `sync.sync()` actually does
 
-For selected sync-enabled views, `sync.sync()` may:
+For selected sync-enabled views, `sync.sync()` will:
 
 - discover candidate views
-- ensure sync job rows exist
-- materialize local copies when needed
-- start realtime jobs
-- resume sync work after reconnect
+- materialize local copies for "materialized" views, if not already materialized
+- start realtime jobs for "realtime" views, if not already started
+- resume any pending sync work after reconnect
 
 It also coalesces overlapping runs internally, so reconnect storms do not multiply the full sync pass unnecessarily.
 
 ## Selector support
 
-Like other LinkedQL selector-based APIs, sync operations accept:
+Like other LinkedQL selector-based APIs, sync operations accept selectors like:
 
 ```js
 '*'
@@ -72,7 +71,7 @@ const status = await db.sync.status({ public: ['users_cache', 'posts_live'] });
 console.log(status);
 ```
 
-Status records can include fields such as:
+Status records includes fields such as:
 
 - `relation_id`
 - `namespace`
@@ -120,7 +119,7 @@ This is the core pattern most local-first apps want:
 
 ```js
 await db.connect();
-await db.sync.sync();
+await db.sync.sync(); // But this is optional as FlashQL already calls this from within db.connect();
 
 window.addEventListener('online', async () => {
   await db.sync.sync();
@@ -177,16 +176,10 @@ console.log(resumed[0].state);
 
 ## What sync is and is not
 
-This page describes the current sync layer accurately if you read it this way:
-
 - sync manages local materialization and realtime mirroring of upstream relations
 - sync works through explicit view definitions and job state
 - sync is not a vague "magical eventual consistency" promise
 
-That narrower, concrete framing is deliberate. It matches the code and the tests today.
-
 ## Related docs
 
 - [Federation, Materialization, and Realtime Views](/flashql/foreign-io)
-- [FlashQL](/flashql)
-- [Changefeeds](/capabilities/changefeeds)

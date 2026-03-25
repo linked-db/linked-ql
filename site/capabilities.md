@@ -1,231 +1,199 @@
 # Capabilities Overview
 
-This section is where LinkedQL stops looking like "just another SQL client" and starts showing its actual shape.
+The capability side of LinkedQL is where its identity shifts from a classic query client to **SQL for modern applications**.
 
-The capabilities fall into three broad groups:
 
-- language capabilities that change how you write queries
-- runtime capabilities that change how query results behave
-- FlashQL capabilities that change where your database logic can live
 
-## How to read this section
+<!--
+LinkedQL introduces useful additions to SQL and the database itself that directly suport how modern applications are built — removing scaffolding layers between code and data.
 
-If you are new here:
+The result is: ... -> as first-class language primitives.
+LinkedQL takes the same syntax, relational model, and execution model
+as SQL and adapts it to modern application paradigms, letting you build these applications
+without scaffolding between code and data..
 
-- start with the summary tables
-- open the examples that match the problem you are trying to solve
-- then follow the focused pages for the exact syntax and behavior
+An application-ready SQL makes it possible to **move from the tooling layer to the language, and from code to query.**
+**application-ready** form of SQL
+You get SQL that’s expressive, optimized for readability, and aligned with how data actually relates and moves.
+-->
 
-The overview is here to orient you. The inner capability pages are where the exhaustive details live.
+## Language Capabilities
 
-## Language capabilities
+LinkedQL extends the SQL language to bring in useful syntax shorthands for relationships, JSON, and other SQL constructs.
 
-These features extend what SQL can *say*.
+| **Feature**       | **Summary**                                                            | **Docs**                                             |
+| :---------------- | :--------------------------------------------------------------------- | :--------------------------------------------------- |
+| **DeepRefs**      | Follow foreign key relationships directly using simple arrow notation. | [DeepRefs](/capabilities/deeprefs)  |
+| **JSON Literals** | Model JSON objects and arrays using literal JSON syntax.               | [JSON](/capabilities/json-literals) |
+| **UPSERT**        | Perform the classic `INSERT...ON CONFLICT` statement in a single step. | [UPSERT](/capabilities/upsert)      |
 
-| Capability | What it gives you | Docs |
-| :-- | :-- | :-- |
-| DeepRefs | Relationship traversal and relationship-aware shaping in query syntax | [DeepRefs](/capabilities/deeprefs) |
-| Structured Writes | Relationship-aware inserts and updates in SQL-shaped DML | [Structured Writes](/capabilities/structured-writes) |
-| JSON Literals | Native object and array shaping in query output | [JSON Literals](/capabilities/json-literals) |
-| UPSERT | PostgreSQL-style `INSERT ... ON CONFLICT` workflows | [UPSERT](/capabilities/upsert) |
-| Version Binding | Query-time relation version contracts | [Version Binding](/capabilities/version-binding) |
+### Examples
 
-### Example: JSON shaping directly in SQL
+::: details **(a)** JSON Literals — Structured Projection {open name="lang-capab"}
+
+> Model JSON objects and arrays using literal JSON syntax.
 
 ```js
-const result = await db.query(`
+const result = await client.query(`
   SELECT
-    id,
-    { first: first_name, last: last_name } AS name,
-    { email, phone: phone_number } AS contact
-  FROM public.users
-  ORDER BY id
+  id,
+  { first: first_name, last: last_name } AS name,
+  { email, phone: phone_number } AS contact
+  FROM users
 `);
+
+console.log(result.rows[0]);
+// { id: 1, name: { first: 'Jane', last: 'Dark' }, contact: { email: 'jane@example.com', phone: null } }
 ```
 
-What this shows:
+:::
 
-- the query itself shapes the object graph
-- the application does not need a second transformation pass just to assemble a pleasant payload
+::: details **(b)** DeepRefs — Relationship Traversal {name="lang-capab"}
 
-### Example: relationship traversal with DeepRefs
+> Follow foreign key relationships directly using simple arrow notation.
 
 ```js
-const posts = await db.query(`
-  SELECT
-    title,
-    author ~> { name, email }
-  FROM public.posts
-  WHERE published = true
+const posts = await client.query(`
+  SELECT title, author ~> { name, email }
+  FROM posts
+  WHERE published = true;
 `);
+
+console.log(posts.rows[0]);
+// { title: 'Syntax Shorthands', author: { name: 'John', email: 'john@example.com' } }
 ```
 
-What this shows:
+:::
 
-- `author ~> ...` traverses a relationship directly in query syntax
-- you stay inside SQL instead of bouncing to ORM relation loaders
+::: details **(c)** UPSERT — Insert or Update {name="lang-capab"}
 
-### Example: relationship-aware writes
+> Perform the classic `INSERT...ON CONFLICT` statement in a single step.
 
 ```js
-await db.query(`
-  INSERT INTO public.posts
-    (title, author ~> (id, name))
+await client.query(`
+  UPSERT INTO users (id, name, email)
   VALUES
-    ('LinkedQL', ROW(1, 'Ada'))
+    (1, 'Jane', 'jane@example.com'),
+    (2, 'James', 'j2@example.com');
 `);
 ```
 
-This is one of the areas where the dedicated page matters most:
+:::
 
-- [Structured Writes](/capabilities/structured-writes)
+## Runtime Capabilities
 
-## Runtime capabilities
+LinkedQL extends the query execution layer with reactivity and automatic schema versioning as first-class database features.
 
-These features extend how query results and database changes behave at runtime.
+| **Feature**         | **Summary**                                                            | **Docs**                                                   |
+| :------------------ | :--------------------------------------------------------------------- | :--------------------------------------------------------- |
+| **Live Queries**    | Turn on reactivity over any query and get back a live view of your data. | [Live Queries](/capabilities/live-queries) |
+| **Timeline Engine** | Anchor a query to a fixed schema version for stable results over time. | *(Coming soon)*                                            |
 
-| Capability | What it gives you | Docs |
-| :-- | :-- | :-- |
-| Live Queries | A query result that keeps tracking the underlying data | [Live Queries](/capabilities/live-queries) |
-| Streaming | Lazy, on-demand async iteration over large results | [Streaming](/capabilities/streaming) |
-| Changefeeds (WAL) | Table-level subscriptions to structured commits | [Changefeeds](/capabilities/changefeeds) |
-| Version Binding | A way to fail fast when the relation version assumed by the query is not what storage exposes | [Version Binding](/capabilities/version-binding) |
+### Examples
 
-### Example: live query
+::: details **(a)** Live Queries and Live Views {open name="runtime-capab"}
+
+> Turn on reactivity over any query and get back a live view of your data.
 
 ```js
-const result = await db.query(`
+const result = await client.query(`
   SELECT p.title, u.name
-  FROM public.posts p
-  LEFT JOIN public.users u ON p.author = u.id
+  FROM posts AS p LEFT JOIN users AS u ON p.author = u.id
   WHERE p.published = true
   ORDER BY p.created_at DESC
 `, { live: true });
 
+setInterval(() => console.log(result.rows), 1000);
+// Updates automatically as post or author data changes
+```
+
+:::
+
+::: details **(b)** Live Queries + DeepRefs {name="runtime-capab"}
+
+> Combine live results with relational traversal and JSON shaping.
+
+```js
+const result = await client.query(`
+  SELECT
+    { title, category } AS post,
+    author ~> { name, email } AS author
+  FROM posts WHERE published = true
+`, { live: true });
+```
+
+:::
+
+::: details **(c)** Version Binding — Point-in-Time Queries {name="runtime-capab"}
+
+> Anchor a query to a fixed schema version for stable results over time.
+
+```js
+const result = await client.query(`
+  SELECT name, email
+  FROM users@2_3
+  WHERE active = true;
+`);
+```
+
+:::
+
+## Embedding & Integration Capabilities
+
+LinkedQL bundles an embeddable SQL engine, **FlashQL**, that brings its full capabilities to the local runtime, the edge, and offline world.
+
+| **Capability**     | **Summary**                                                   | **Docs**                             |
+| :----------------- | :------------------------------------------------------------ | :----------------------------------- |
+| **Local Database** | Run a full SQL engine in memory — same semantics, zero setup. | [FlashQL](/flashql) |
+| **Federation**     | Query local and remote data together in a single SQL surface. | [FlashQL](/flashql) |
+| **Sync**           | Keep local and remote tables automatically synchronized.      | [FlashQL](/flashql) |
+
+### Examples
+
+::: details **(a)** Local Database — Runs Anywhere {open name="embed-capab"}
+
+> Run a full SQL engine in memory — same semantics, zero setup.
+
+```js
+import { FlashQL } from '@linked-db/linked-ql/flashql';
+const client = new FlashQL();
+
+await client.query(`CREATE TABLE users (id SERIAL, name TEXT)`);
+await client.query(`INSERT INTO users (name) VALUES ('Alice'), ('Bob')`);
+
+const result = await client.query(`SELECT JSON_AGG(name) AS users FROM users`);
 console.log(result.rows);
-
-await result.abort();
+// [{ users: ['Alice', 'Bob'] }]
 ```
 
-What this shows:
+:::
 
-- the result is query-shaped, not table-shaped
-- you ask for a query once and keep reading its current rows
+::: details **(b)** Federation — Local + Remote {name="embed-capab"}
 
-### Example: table-level changefeed
+> Query local and remote data together in a single SQL surface.
 
 ```js
-const unsubscribe = await db.wal.subscribe(
-  { public: ['posts'] },
-  (commit) => {
-    console.log(commit.entries);
-  }
-);
+await client.federate({ store: ['orders'] }, remoteConfig);
 
-await unsubscribe();
+const result = await client.query(`
+  SELECT u.name, COUNT(o.id) AS total_orders
+  FROM users AS u LEFT JOIN store.orders AS o ON o.user_id = u.id
+  GROUP BY u.id ORDER BY total_orders DESC;
+`);
 ```
 
-What this shows:
+:::
 
-- live queries answer "what does this query look like now?"
-- WAL subscriptions answer "what table changes just happened?"
+::: details **(c)** Sync — Continuous Alignment {name="embed-capab"}
 
-### Example: streaming
+> Keep local and remote tables automatically synchronized.
 
 ```js
-for await (const row of await db.stream(`
-  SELECT id, email
-  FROM public.big_table
-  ORDER BY id
-`)) {
-  console.log(row);
-}
+await client.sync({ store: ['orders'] }, remoteConfig);
+
+client.on('sync:status', s => console.log('Sync status:', s.state));
+client.on('sync:change', e => console.log('Δ', e.table, e.type));
 ```
 
-What this shows:
+:::
 
-- rows are consumed lazily
-- you do not have to materialize the full result in memory up front
-
-## FlashQL capabilities
-
-FlashQL is where LinkedQL's local-runtime and orchestration story becomes concrete.
-
-| Capability | What it gives you | Docs |
-| :-- | :-- | :-- |
-| Local runtime | A SQL engine inside the app, worker, or edge runtime | [FlashQL](/flashql) |
-| Federation | Query local and remote relations through one graph | [Federation, Materialization, and Realtime Views](/flashql/foreign-io) |
-| Materialization | Pull remote data into a local copy on sync | [Federation, Materialization, and Realtime Views](/flashql/foreign-io) |
-| Realtime mirroring | Keep a local copy hot after sync | [Federation, Materialization, and Realtime Views](/flashql/foreign-io) |
-| Sync orchestration | Idempotent startup/reconnect reconciliation for sync-enabled views | [FlashQL Sync](/flashql/sync) |
-| Point-in-time boot | Boot a local store at a chosen historical relation version | [FlashQL](/flashql) |
-
-### Example: federated + local-first FlashQL shape
-
-```js
-await db.storageEngine.transaction(async (tx) => {
-  await tx.createNamespace({
-    name: 'remote',
-    replication_origin: 'primary',
-    replication_origin_type: 'edge',
-  });
-
-  await tx.createView({
-    namespace: 'remote',
-    name: 'users',
-    persistence: 'origin',
-    view_spec: { namespace: 'public', name: 'users' },
-  });
-
-  await tx.createView({
-    namespace: 'public',
-    name: 'users_cache',
-    persistence: 'materialized',
-    view_spec: { namespace: 'remote', name: 'users' },
-  });
-
-  await tx.createView({
-    namespace: 'public',
-    name: 'posts_live',
-    persistence: 'realtime',
-    view_spec: { namespace: 'remote', name: 'posts' },
-  });
-});
-
-await db.sync.sync();
-```
-
-What this shows:
-
-- `origin` gives you federation
-- `materialized` gives you a local cache
-- `realtime` gives you a local mirror that stays fresh after sync
-
-This model is central enough that it has its own full page:
-
-- [Federation, Materialization, and Realtime Views](/flashql/foreign-io)
-
-## Suggested reading paths
-
-Choose a path based on the kind of problem you are solving:
-
-### "I need reactive app data"
-
-- [Query Interface](/docs/query-api)
-- [Live Queries](/capabilities/live-queries)
-- [Changefeeds](/capabilities/changefeeds)
-- [Streaming](/capabilities/streaming)
-
-### "I need richer SQL syntax"
-
-- [FlashQL Language Reference](/flashql/lang)
-- [DeepRefs](/capabilities/deeprefs)
-- [Structured Writes](/capabilities/structured-writes)
-- [JSON Literals](/capabilities/json-literals)
-
-### "I need local-first architecture"
-
-- [FlashQL](/flashql)
-- [Federation, Materialization, and Realtime Views](/flashql/foreign-io)
-- [FlashQL Sync](/flashql/sync)
-- [Version Binding](/capabilities/version-binding)

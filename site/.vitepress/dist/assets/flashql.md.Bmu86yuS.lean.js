@@ -1,1 +1,0 @@
-import{_ as a,c as l,o as n,ag as e}from"./chunks/framework.B-XtCDNB.js";const D=JSON.parse('{"title":"FlashQL","description":"","frontmatter":{},"headers":[],"relativePath":"flashql.md","filePath":"flashql.md"}'),o={name:"flashql.md"};function t(p,s,r,i,c,F){return n(),l("div",null,[...s[0]||(s[0]=[e("",76)])])}const d=a(o,[["render",t]]);export{D as __pageData,d as default};

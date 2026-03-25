@@ -1,26 +1,89 @@
 # Federation, Materialization, and Realtime Views
 
-This page documents the current FlashQL model for working with remote data.
+FlashQL lets you treat local and remote data as one database — while controlling:
 
-The old mental model was "foreign I/O" with separate `federate()` and `sync()` calls. That is no longer the right API surface.
+- what stays remote
+- what is cached locally
+- and what stays continuously in sync
 
-Today, FlashQL models remote data through:
+This is powered by namespaces, views, and the `db.sync` API.
 
-- foreign namespaces
-- views whose `persistence` is `origin`, `materialized`, or `realtime`
-- the FlashQL sync manager at `db.sync`
+## The core model
 
-This model is more explicit and easier to reason about:
+Three things work together to form the foreign I/O system:
 
-- namespaces describe *where a relation comes from*
-- views describe *how that relation should behave locally*
-- sync decides *which local copies should be reconciled or resumed*
+1. A namespace (more commonly called a schema). This serves as a logical container for tables and views
+2. A view or collection of views scoped to that namespace. The views are the containers for data from the foreign origin
+3. the `db.sync.sync()` API. This executes the definitions — materializing data and starting sync where required
 
-## The moving parts
+At a high level, the system works like this:
 
-### 1. A foreign client factory
+1. A namespace defines where data comes from (local vs foreign origin)
+2. Views define how that data is exposed locally
+3. `db.sync.sync()` turns those definitions into actual data + subscriptions
 
-FlashQL needs a way to create upstream clients when a namespace points to a foreign origin.
+## The namespaces
+
+In FlashQL, a namespace is the schema-level container for relations and other schema objects.
+
+```js
+await db.storageEngine.transaction(async (tx) => {
+  await tx.createNamespace({
+    name: 'crm',
+  });
+});
+```
+
+That gives you a normal schema for database objects like tables and views:
+
+- `crm.users`
+- `crm.orders`
+- `crm.audit_log`
+
+### Attaching a `replication_origin`
+
+A namespace may optionally define `replication_origin`.
+
+```js
+await db.storageEngine.transaction(async (tx) => {
+  await tx.createNamespace({
+    name: 'remote',
+    replication_origin: 'primary',
+  });
+});
+```
+
+This means exactly one thing:
+
+- all views in that namespace should be resolved from the foreign origin instead of the local database
+
+The namespace is still just a schema that can contain normal tables and other objects.
+
+### Defining `replication_origin`
+
+`replication_origin` is an application-defined identifier or spec.
+
+FlashQL does not interpret it — it simply passes it to your
+`onCreateForeignClient()` hook, where you return the appropriate client.
+
+`replication_origin` may, therefore, be:
+
+- a bare identifier such as `'primary'`
+- a database connection string
+- an database connection object
+- any other value your application wants to interpret at `onCreateForeignClient()`
+
+Examples:
+
+```js
+replication_origin: 'primary'
+replication_origin: 'postgres://user:pass@host/db'
+replication_origin: { kind: 'edge', url: 'https://api.example.com/db' }
+```
+
+### Resolving `replication_origin` from foreign client factory
+
+`onCreateForeignClient()` is where your application interprets `replication_origin`.
 
 ```js
 import { FlashQL } from '@linked-db/linked-ql/flashql';
@@ -41,47 +104,15 @@ const db = new FlashQL({
 await db.connect();
 ```
 
-What this does:
+The callback receives exactly the `replication_origin` value you stored.
 
-- FlashQL stores the factory on its `StorageEngine`
-- when a foreign namespace needs an upstream client, FlashQL asks for it by `origin`
-- the same origin string can be reused by multiple views
+It is expected to use the value of this property to create the appropriate foreign client instance that FlashQL sees.
 
-### 2. A foreign namespace
+## The views
 
-The namespace records that some relations are backed by another origin.
+Once a namespace has `replication_origin`, views in that namespace are resolved from that origin instead of from the local database itself.
 
-```js
-await db.storageEngine.transaction(async (tx) => {
-  await tx.createNamespace({
-    name: 'remote',
-    replication_origin: 'primary',
-    replication_origin_type: 'edge',
-  });
-});
-```
-
-What this does:
-
-- `remote` becomes the namespace used in your local catalog
-- `replication_origin: 'primary'` tells FlashQL which foreign client to ask for
-- the `replication_origin_type` is descriptive metadata you can keep consistent with your architecture
-
-### 3. Views that decide local behavior
-
-Views define what kind of local presence a foreign relation should have.
-
-FlashQL currently uses three important persistence modes:
-
-- `origin`
-- `materialized`
-- `realtime`
-
-## `origin` views
-
-An `origin` view means: "this relation lives remotely; read it through FlashQL's query engine as part of the local graph."
-
-### Example
+On defining views in a `replication_origin`-enabled namespace, you have data federation already automatically set up.
 
 ```js
 await db.storageEngine.transaction(async (tx) => {
@@ -94,79 +125,113 @@ await db.storageEngine.transaction(async (tx) => {
 });
 ```
 
-What this means:
+Here:
 
-- `remote.users` is now part of your local relational graph
-- the underlying data still lives upstream
-- queries against that view are federated at read time
+- `remote.users` is a view that resolves from a foreign origin
+- `persistence: 'origin'` is one of three persistence modes as described below
+- `view_spec: { namespace: 'public', name: 'users' }` specifies the source table in origin database: `public.users`
 
-Use `origin` views when:
+In summary, views are the abstraction boundary between local and remote data.
+They define both where data comes from and how it behaves locally.
 
-- you want unified SQL across local and remote relations
-- you do not need an offline copy
-- you prefer fresh reads from the source
+### The three persistence modes
 
-## `materialized` views
+A view's persistence mode is what decides how origin data should behave locally.
 
-A `materialized` view means: "keep a local table-shaped copy and refresh it when sync runs."
+Values can be:
 
-### Example
+- `origin`
+- `materialized`
+- `realtime`
+
+#### `origin` views
+
+An `origin` view means:
+
+> resolve the source relation through the foreign client at read time
 
 ```js
 await db.storageEngine.transaction(async (tx) => {
   await tx.createView({
-    namespace: 'public',
-    name: 'users_cache',
-    persistence: 'materialized',
-    view_spec: { namespace: 'remote', name: 'users' },
+    namespace: 'remote',
+    name: 'users',
+    persistence: 'origin',
+    view_spec: { namespace: 'public', name: 'users' },
   });
 });
 ```
 
-What this means:
+Behavior:
 
-- `public.users_cache` is stored locally
-- FlashQL pulls rows from `remote.users` during `db.sync.sync()`
-- after materialization, your app can query the local copy without talking to the network
+- the view is queryable locally as `remote.users`
+- the rows themselves are not copied into local table storage
+- each read resolves through the upstream client
 
-Use `materialized` views when:
+Use this when:
 
-- you want offline reads
+- you want unified SQL across local and remote relations
+- you want fresh reads from the source
+- you do not need an offline copy
+
+#### `materialized` views
+
+A `materialized` view means:
+
+> pull rows from the source relation into local storage during sync
+
+```js
+await db.storageEngine.transaction(async (tx) => {
+  await tx.createView({
+    namespace: 'remote',
+    name: 'users',
+    persistence: 'materialized',
+    view_spec: { namespace: 'public', name: 'users' },
+  });
+});
+```
+
+Behavior:
+
+- the source relation is still defined by `view_spec`
+- on calling `db.sync.sync()`, rows are copied into the local view
+- subsequent reads can be satisfied locally
+
+Use this when:
+
+- you need offline reads
 - you want predictable local read latency
 - periodic reconciliation is enough
 
-## `realtime` views
+#### `realtime` views
 
-A `realtime` view means: "materialize locally, then keep the local copy hot by subscribing upstream."
+A `realtime` view means:
 
-### Example
+> materialize locally, then keep the local copy hot after sync
 
 ```js
 await db.storageEngine.transaction(async (tx) => {
   await tx.createView({
-    namespace: 'public',
-    name: 'posts_live',
+    namespace: 'remote',
+    name: 'posts',
     persistence: 'realtime',
-    view_spec: { namespace: 'remote', name: 'posts' },
+    view_spec: { namespace: 'public', name: 'posts' },
   });
 });
 ```
 
-What this means:
+Behavior:
 
-- FlashQL keeps a local mirror of the upstream relation
-- `db.sync.sync()` bootstraps the local state and starts the realtime job
-- later upstream commits flow into the local table through WAL/changefeed subscription
+- on calling `db.sync.sync()`, rows are copied into the local view
+- the view stays subscribed to origin table
+- upstream commits automatically apply to the local view
 
-Use `realtime` views when:
+Use this when:
 
 - you want local querying
-- you also want the local copy to stay warm after boot
-- you are building local-first feeds, inboxes, dashboards, or collaborative surfaces
+- you also want the local copy to stay fresh
+- you are building local-first feeds, dashboards, or collaborative surfaces
 
-## One complete local-first setup
-
-This is the pattern most readers are actually looking for: a local runtime that can query remote data directly, cache some of it, and keep some of it hot.
+## One complete setup
 
 ```js
 import { FlashQL } from '@linked-db/linked-ql/flashql';
@@ -174,7 +239,9 @@ import { EdgeClient } from '@linked-db/linked-ql/edge';
 import { IndexedDBKV } from '@webqit/keyval/indexeddb';
 
 const db = new FlashQL({
+  // Persistence storage
   keyval: new IndexedDBKV({ path: ['my-app'] }),
+  // onCreateForeignClient() hook
   async onCreateForeignClient(origin) {
     if (origin === 'primary') {
       return new EdgeClient({
@@ -183,19 +250,30 @@ const db = new FlashQL({
       });
     }
   },
+
 });
 
 await db.connect();
 
 await db.storageEngine.transaction(async (tx) => {
-  // Foreign namespace backed by the "primary" origin
+
+  // A namesapce with replication_origin
   await tx.createNamespace({
     name: 'remote',
     replication_origin: 'primary',
-    replication_origin_type: 'edge',
   });
 
-  // 1. Origin view: federated at read time
+  // A normal local table
+  await tx.createTable({
+    namespace: 'remote',
+    name: 'notes',
+    columns: [
+      { name: 'id', type: 'INT', primaryKey: true },
+      { name: 'body', type: 'TEXT' },
+    ],
+  });
+
+  // An "origin" view
   await tx.createView({
     namespace: 'remote',
     name: 'users',
@@ -203,142 +281,247 @@ await db.storageEngine.transaction(async (tx) => {
     view_spec: { namespace: 'public', name: 'users' },
   });
 
-  // 2. Materialized view: local cache populated on sync
+  // A "materialized" view
   await tx.createView({
-    namespace: 'public',
-    name: 'users_cache',
+    namespace: 'remote',
+    name: 'profiles',
     persistence: 'materialized',
-    view_spec: { namespace: 'remote', name: 'users' },
+    view_spec: { namespace: 'public', name: 'profiles' },
   });
 
-  // 3. Realtime view: local mirror kept hot after sync
+  // A "realtime" view
   await tx.createView({
-    namespace: 'public',
-    name: 'posts_live',
+    namespace: 'remote',
+    name: 'posts',
     persistence: 'realtime',
-    view_spec: { namespace: 'remote', name: 'posts' },
+    view_spec: { namespace: 'public', name: 'posts' },
   });
 });
 
-// Run once at startup, then again on reconnect.
 await db.sync.sync();
-
-const result = await db.query(`
-  SELECT
-    u.id,
-    u.name,
-    p.title
-  FROM public.users_cache u
-  LEFT JOIN public.posts_live p ON p.author_id = u.id
-  ORDER BY u.id
-`);
 ```
 
-How to read this example:
+This setup shows all three layers at once:
 
-- `remote.users` is a federated view of the upstream `public.users` relation
-- `public.users_cache` is a local cache populated during sync
-- `public.posts_live` is a local mirror that keeps receiving upstream changes after sync
-- the final query is ordinary local SQL from your application's point of view
+- `remote` is a normal namespace with `replication_origin`
+- `remote.notes` is an ordinary local table in that same namespace
+- `remote.users` is an "origin" view, resolved on-the-fly
+- `public.profiles` is a "materialized" view, resolved just once
+- `public.posts` is a "realtime" view, kept in sync with origin table
 
-This is the core FlashQL value proposition:
+## `db.sync.sync()`
 
-- local query ergonomics
-- explicit placement of data
-- selective federation and selective local copying
-
-## `db.sync`
-
-`db.sync` is FlashQL's orchestration layer for sync-enabled views.
-
-It is designed as a single idempotent entry point:
-
-- call it on startup
-- call it on reconnect
-- call it again if you are unsure whether sync jobs are already running
-
-### `await db.sync.sync(selector?)`
-
-Bootstraps or resumes the selected sync-enabled views.
+`db.sync.sync()` is the orchestration API for views.
 
 ```js
 await db.sync.sync();
-await db.sync.sync({ public: ['users_cache', 'posts_live'] });
+await db.sync.sync({ public: ['users_cache', 'posts'] });
 ```
 
-What it does:
+### What it does
 
-- discovers matching sync-enabled views
-- ensures sync jobs exist
-- materializes missing or stale materialized views
-- starts realtime jobs that should be running
-- coalesces overlapping calls so reconnect storms do not multiply the work
+This:
 
-### `await db.sync.status(selector?)`
+- discovers declared views–matching the specified selector, if provided
+- materializes views that are defined as "materialized" views, if not already materialed
+- starts or resumes realtime sync jobs for "realtime" views, if not already started
 
-Reports the current state of sync-managed views.
+
+The sync API is covered in detail in [Sync](/flashql/sync)
+
+### The `view_spec`
+
+`view_spec` is the definition of the source relation behind a view.
+
+`view_spec` is required for every view and must be an object.
+
+FlashQL accepts exactly two shapes:
+
+1. a reference-type spec
+2. a query-type spec
+
+#### Reference-type `view_spec`
+
+This is the table-or-view reference form:
 
 ```js
-const status = await db.sync.status({ public: ['posts_live'] });
-console.log(status);
+view_spec: {
+  namespace: 'public',
+  name: 'users',
+}
 ```
 
-Typical fields include:
+Accepted keys are:
 
-- the view name
-- its mode, such as `materialized` or `realtime`
-- whether it is enabled
-- whether it is `idle`, `synced`, or `running`
+- `namespace`
+- `name`
+- `filters`
+- `joinStrategy`
 
-### `await db.sync.stop(selector?)`
+Rules are:
 
-Stops selected realtime jobs and disables them.
+- `name` is required
+- `namespace` is optional
+- if `namespace` is omitted, FlashQL defaults it to the view's own namespace
+- `filters`, when present, must be an object
+- any key outside the list above is rejected
+
+Example:
 
 ```js
-await db.sync.stop({ public: ['posts_live'] });
+await tx.createView({
+  namespace: 'remote',
+  name: 'users',
+  persistence: 'origin',
+  view_spec: {
+    namespace: 'public',
+    name: 'users',
+  },
+});
 ```
 
-### `await db.sync.resume(selector?)`
-
-Re-enables selected stopped realtime jobs.
+If you omit `namespace`:
 
 ```js
-await db.sync.resume({ public: ['posts_live'] });
+view_spec: {
+  name: 'users',
+}
 ```
 
-### When to call `sync.sync()`
+then FlashQL resolves that as if it were:
 
-The practical rule is:
+```js
+view_spec: {
+  namespace: 'remote',
+  name: 'users',
+}
+```
 
-- call it after app startup
-- call it again when network connectivity comes back
+the owning view namespace is used as the default.
 
-Because the entry point is idempotent and overlapping runs are coalesced, you do not need a fragile "did I already start sync?" layer in the app just to be safe.
+##### `filters`
 
-See also: [FlashQL Sync](/flashql/sync)
+Reference-type specs may also include `filters`:
 
-## Federation vs materialization vs realtime
+```js
+view_spec: {
+  namespace: 'public',
+  name: 'users',
+  filters: {
+    active: true,
+  },
+}
+```
 
-This distinction is worth stating plainly because it is the heart of the model.
+At sync/runtime level:
 
-| Mode | Where rows live | When network is used | Best for |
-| :-- | :-- | :-- | :-- |
-| `origin` | upstream | on query execution | direct federation |
-| `materialized` | local copy | on sync | offline reads and caches |
-| `realtime` | local copy | on sync and upstream subscription | local-first live data |
+- `filters` makes the view behave as a query-based source rather than a plain whole-table source
+- that affects how sync treats commits and refresh behavior
 
-If you are unsure which to pick:
+In other words, once `filters` is present, the view is still reference-shaped, but operationally it behaves more like a derived query than a direct table mirror.
 
-- start with `origin` if you only need unified reads
-- move to `materialized` when you need an offline or fast local copy
-- move to `realtime` when that local copy must stay fresh without waiting for another manual sync
+#### Query-type `view_spec`
 
-## What this page does not claim
+This is the query-defined source form:
 
-To avoid teaching outdated ideas, a few explicit non-claims are important:
+```js
+view_spec: {
+  query: `
+    SELECT *
+    FROM public.posts
+    WHERE post_type = 'NEWS'
+  `,
+}
+```
 
-- FlashQL does **not** currently expose the old `federate()` and `materialize()` methods documented in earlier drafts
-- FlashQL does **not** currently document a universal bidirectional conflict-resolution sync layer here
-- the current sync story is about local materialization and realtime mirroring of upstream sources
+Accepted keys are:
 
-That narrower statement is deliberate. It matches the code and the tests today.
+- `query`
+- `joinStrategy`
+
+Rules enforced by the code:
+
+- `query` must be present
+- `columns` must not be supplied alongside a query-type view
+- `constraints` must not be supplied alongside a query-type view
+- any key outside the list above is rejected
+
+FlashQL parses the query, resolves it through the source resolver, and infers the result schema from the query itself.
+
+That means the query result columns become the view's local columns.
+
+For `realtime` query-type views, FlashQL also prepends a system `__id` column and a primary key so the local mirror can track row identity across incremental commits.
+
+#### Schema inference
+
+If you do not provide explicit columns when creating the view, FlashQL infers them from the source.
+
+For reference-type specs:
+
+- FlashQL resolves the source relation from `namespace` + `name`
+- it copies the source columns and constraints into the view definition
+
+For query-type specs:
+
+- FlashQL parses and resolves the query
+- it derives the result schema from the query output
+
+This is why most view definitions can stay short:
+
+```js
+await tx.createView({
+  namespace: 'remote',
+  name: 'users',
+  persistence: 'origin',
+  view_spec: { namespace: 'public', name: 'users' },
+});
+```
+
+without requiring you to restate the full column list.
+
+#### `joinStrategy`
+
+Both reference-type and query-type specs may include `joinStrategy`.
+
+```js
+view_spec: {
+  namespace: 'public',
+  name: 'users',
+  joinStrategy: {
+    memoization: true,
+    pushdownSize: 100,
+  },
+}
+```
+
+This is used by FlashQL's foreign-query execution path when a foreign view participates in joins.
+
+The current code recognizes:
+
+- `memoization`
+- `pushdownSize`
+
+##### `memoization`
+
+When `memoization` is truthy, FlashQL memoizes the foreign stream so it can be reused instead of reopening the foreign source repeatedly in the same execution path.
+
+##### `pushdownSize`
+
+When `pushdownSize` is set and the join condition can be pushed down, FlashQL batches left-side join logic into foreign-side filtering queries.
+
+That means:
+
+- FlashQL evaluates a chunk of left-side join predicates
+- rewrites them into foreign-side WHERE logic
+- streams matching foreign rows in chunks
+
+This is an execution optimization, not a change to the logical meaning of the view.
+
+#### Practical reading
+
+So in practice:
+
+- use `{ namespace, name }` when the view maps directly to one upstream relation
+- add `filters` when you want a filtered subset of that relation
+- use `{ query }` when the source is a real SQL query rather than a single relation
+- add `joinStrategy` either way when you need to tune foreign join execution

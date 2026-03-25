@@ -1,17 +1,10 @@
 # Changefeeds (WAL)
 
-LinkedQL exposes table-level changefeeds through:
+_Subscribe directly to table-level changefeeds_.
 
 ```js
 await db.wal.subscribe(...)
 ```
-
-This API lets you observe structured commits instead of observing a query result.
-
-That distinction matters:
-
-- live queries answer "what does this query look like now?"
-- changefeeds answer "what table mutations just happened?"
 
 ## The minimal form
 
@@ -21,11 +14,11 @@ const unsubscribe = await db.wal.subscribe((commit) => {
 });
 ```
 
-This subscribes to all matching commits the runtime can produce.
+This subscribes to all matching commits the database produces.
 
 ## Filtering by selector
 
-Most real use cases want to narrow the scope.
+Most real use cases want to narrow the scope to specific table names.
 
 ```js
 const unsubscribe = await db.wal.subscribe(
@@ -123,29 +116,21 @@ const unsubscribe = await db.wal.subscribe(
 );
 ```
 
-This matters for runtimes that persist subscription slots and catch-up state.
+The id gives the subscription a stable slot identity.
 
-When you want to remove that persisted slot state too:
+When the subscription is re-issued with the same id, LinkedQL binds it to that same slot and:
+
+- looks up the last commit successfuly consumed by the subscriber
+- catches the subscriber up on missed-but-cached commits
+- continue emitting to the subscriber from there
+
+With stable slot IDs, a subscription stops being a disposable one-off subscription and becomes a resumable data channel with continuity across disconnects.
+
+When you want to remove that persisted slot state, pass `{ forget: true }` to the `unsubscribe()` call:
 
 ```js
 await unsubscribe({ forget: true });
 ```
-
-## WAL subscriptions vs live queries
-
-These two capabilities often appear together, but they serve different jobs.
-
-### Use a live query when
-
-- your application wants the *current result* of a query
-- you want LinkedQL to maintain that result for you
-- the UI is driven by a query-shaped view
-
-### Use `wal.subscribe()` when
-
-- you care about table-level events
-- you want to build your own projection or side effects
-- you want direct visibility into inserts, updates, and deletes
 
 ## Runtime notes
 
@@ -170,19 +155,6 @@ With `PGClient`, WAL-backed capabilities rely on PostgreSQL logical replication 
 - `PGClient` behind an `EdgeWorker`
 - `FlashQL` behind an `EdgeWorker`
 
-## Changefeeds and sync
-
-FlashQL's realtime sync views are built on the same general changefeed idea.
-
-That is worth understanding because it connects two seemingly separate features:
-
-- a table-level subscription is useful directly to applications
-- that same mechanism also powers local realtime mirroring in FlashQL sync workflows
-
-See: [FlashQL Sync](/flashql/sync)
-
 ## Related docs
 
-- [Query Interface](/docs/query-api)
 - [Live Queries](/capabilities/live-queries)
-- [The Realtime Engine](/engineering/realtime-engine)

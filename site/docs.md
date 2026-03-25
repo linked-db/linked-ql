@@ -1,26 +1,25 @@
 # Getting Started with LinkedQL
 
-This guide is the shortest path into the project.
+This guide takes you from installation to your first query with LinkedQL.
 
-By the end of it, you should understand three things:
+If you are totally new here, you may want to begin with [What is LinkedQL](/overview). If you already know you want the embeddable local runtime, jump to [FlashQL](/flashql).
 
-- what you install
-- which client shape fits your runtime
-- what the common query interface looks like
+## The idea in one minute
 
-If you want the broader philosophy first, start with [What is LinkedQL](/overview). If you want the full local runtime story, jump to [FlashQL](/flashql).
+LinkedQL keeps one application-facing shape across very different runtimes:
 
-## Project shape
+- `db.query()` for regular SQL execution and live queries
+- `db.stream()` for lazy row-by-row reads
+- `db.transaction()` for explicit transactions
+- `db.wal.subscribe()` for table-level changefeeds
 
-LinkedQL has two layers that are worth separating mentally:
+one consistent API surface, whether `db` is:
 
-- the **common client contract**: `query()`, `stream()`, `transaction()`, `wal.subscribe()`
-- the **richer runtime layers** built on top of that contract, especially FlashQL
-
-That distinction matters because it keeps the docs honest:
-
-- every client does not do everything
-- but the way you talk to data stays intentionally similar across runtimes
+- PostgreSQL
+- MySQL
+- MariaDB
+- an edge client
+- FlashQL, the local embeddable engine
 
 ## Installation
 
@@ -39,39 +38,9 @@ The package exports client entry points such as:
 - `@linked-db/linked-ql/edge-worker`
 - `@linked-db/linked-ql/flashql`
 
-## Current shape
+## Your first query: direct database client
 
-LinkedQL is no longer just a sketch of an idea. It is already a substantial, tested system with a large and growing test base across parsing, desugaring, execution, realtime behavior, sync behavior, edge transport, and storage behavior.
-
-The practical way to read its maturity today is:
-
-- strong already in the core client contract
-- strong already in FlashQL, live queries, local-first orchestration, and version-aware querying
-- still catching up in some broader DDL and migration-oriented surfaces
-
-That is a more useful framing than either "fully done" or "just alpha."
-
-## Dialects, clients, and runtimes
-
-LinkedQL gives you several entry points depending on where the query should run.
-
-| Client | Use it when | Docs |
-| :-- | :-- | :-- |
-| `PGClient` | your app talks directly to PostgreSQL | [Dialects & Clients](/docs/setup#postgresql) |
-| `MySQLClient` | your app talks directly to MySQL | [Dialects & Clients](/docs/setup#mysql) |
-| `MariaDBClient` | your app talks directly to MariaDB | [Dialects & Clients](/docs/setup#mariadb) |
-| `EdgeClient` | your app talks to a remote worker/server that exposes LinkedQL over HTTP or worker ports | [Dialects & Clients](/docs/setup#edgeclient) |
-| `FlashQL` | you want an embeddable local SQL runtime | [Dialects & Clients](/docs/setup#flashql) |
-
-The important thing is not just the list. It is the architectural freedom this gives you:
-
-- direct server DB access
-- edge transport to a remote database runtime
-- a full local runtime in-browser, in-worker, or in-process
-
-## First example: direct database client
-
-Here is the most familiar starting point: PostgreSQL.
+A good first look is with a regular database client.
 
 ```js
 import { PGClient } from '@linked-db/linked-ql/postgres';
@@ -93,14 +62,9 @@ console.log(result.rows);
 await db.disconnect();
 ```
 
-Why this is a good starting point:
+## Your first query: local runtime with FlashQL
 
-- it looks like the mainstream DB client flow developers already know
-- it lets you learn the LinkedQL query contract without learning FlashQL first
-
-## Second example: local runtime with FlashQL
-
-Here is the smallest useful FlashQL setup.
+LinkedQL ships with FlashQL, an embeddable SQL runtime that runs in-process.
 
 ```js
 import { FlashQL } from '@linked-db/linked-ql/flashql';
@@ -132,32 +96,35 @@ console.log(result.rows);
 await db.disconnect();
 ```
 
-Why this example matters:
+LinkedQL is a real local runtime with the same top-level query surface as the mainstream clients.
 
-- it shows that FlashQL is not "mock SQL"; it is a real local SQL runtime
-- it uses the same `query()` shape as the mainstream clients
-- it is the shortest path into local-first patterns later
+## Which client should you start with?
 
-## What comes after these first examples
+Use the client that matches where the query should run:
 
-The two examples above deliberately stay simple. But the same API family quickly expands into richer ground:
+| Client | Use it when | Guide |
+| :-- | :-- | :-- |
+| `PGClient` | your app talks directly to PostgreSQL | [Dialects & Clients](/docs/setup#postgresql) |
+| `MySQLClient` | your app talks directly to MySQL | [Dialects & Clients](/docs/setup#mysql) |
+| `MariaDBClient` | your app talks directly to MariaDB | [Dialects & Clients](/docs/setup#mariadb) |
+| `EdgeClient` | your app lives in the browser or on the edge and needs to talk to the database in a remote worker or server | [Dialects & Clients](/docs/setup#edgeclient) |
+| `FlashQL` | you want an embeddable local SQL runtime | [Dialects & Clients](/docs/setup#flashql) |
+
+LinkedQL is designed for these architectural options.
+
+## What comes next
+
+While deliberately simple, the same interface above quickly opens into deeper grounds:
 
 - live queries with `{ live: true }`
 - lazy result streaming with `db.stream()`
 - table-level changefeeds with `db.wal.subscribe()`
-- syntax extensions such as DeepRefs and structured writes
-- FlashQL orchestration with foreign namespaces, `origin`/`materialized`/`realtime` views, and `db.sync.sync()`
-
-That is the general picture to keep in mind as you move deeper into the docs:
-
-- Section 1 of the README introduces the common interface
-- Section 2 introduces the language model
-- Section 3 introduces orchestration and architecture
-- the docs site is where those topics are expanded in full
+- language extensions such as DeepRefs and JSON literals
+- FlashQL orchestration with foreign namespaces, `origin` views, `materialized` views, `realtime` views, and `db.sync.sync()`
 
 ## Where to go next
 
 - [Dialects & Clients](/docs/setup) for setup by runtime
 - [Query Interface](/docs/query-api) for the common method contract
-- [Capabilities Overview](/capabilities) for the language and runtime extensions
+- [Capabilities Overview](/capabilities) for language and runtime extensions
 - [FlashQL](/flashql) for the local runtime and sync model

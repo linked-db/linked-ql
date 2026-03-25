@@ -1,18 +1,26 @@
 # Dialects & Clients
 
-This page maps LinkedQL's client families to the environments they are meant for.
-
-There are three broad buckets:
+LinkedQL ships with three client families:
 
 - direct database clients
 - edge transport clients
 - the local runtime in FlashQL
 
-All of them participate in the common application contract documented in [Query Interface](/docs/query-api), but each family also carries its own runtime assumptions and strengths.
+All of them participate in the common application contract documented in [Query Interface](/docs/query-api).
+
+## At a glance
+
+| Family | Use it when | Main entries |
+| :-- | :-- | :-- |
+| Direct database clients | your application talks directly to the database | `PGClient`, `MySQLClient`, `MariaDBClient` |
+| Edge transport clients | the client cannot connect to the database directly | `EdgeClient`, `EdgeWorker` |
+| Local runtime | the database should run inside the app, worker, or edge process | `FlashQL` |
+
+The sections below walk through each family in that order.
 
 ## PostgreSQL
 
-Use `PGClient` when your application can talk directly to PostgreSQL.
+Use `PGClient` when your application talks directly to PostgreSQL.
 
 ```js
 import { PGClient } from '@linked-db/linked-ql/postgres';
@@ -35,12 +43,6 @@ console.log(result.rows);
 await db.disconnect();
 ```
 
-### When to choose it
-
-- server-side apps with direct database access
-- jobs and workers that already live near PostgreSQL
-- codebases that want LinkedQL's query/runtime contract without changing the actual database placement
-
 ### Notes
 
 - `PGClient` is the strongest mainstream-database integration path today
@@ -50,7 +52,7 @@ await db.disconnect();
 
 LinkedQL's live-query story over PostgreSQL depends on WAL/logical replication setup.
 
-Relevant options include:
+Relevant constructor options for `PGClient` include:
 
 | Option | Type | Default | Meaning |
 | :-- | :-- | :-- | :-- |
@@ -60,7 +62,7 @@ Relevant options include:
 
 ## MySQL
 
-Use `MySQLClient` when your application can talk directly to MySQL.
+Use `MySQLClient` when your application talks directly to MySQL.
 
 ```js
 import { MySQLClient } from '@linked-db/linked-ql/mysql';
@@ -83,19 +85,14 @@ console.log(result.rows);
 await db.disconnect();
 ```
 
-### When to choose it
-
-- you already run on MySQL
-- you want LinkedQL's interface without changing your database choice
-
 ### Notes
 
-- `MySQLClient` uses the `mysql2` ecosystem
+- `MySQLClient` uses the `mysql2` connector under the hood
 - dialect normalization exists, but the deepest execution/test emphasis in the project still leans PostgreSQL-first
 
 ## MariaDB
 
-Use `MariaDBClient` when your application can talk directly to MariaDB.
+Use `MariaDBClient` when your application talks directly to MariaDB.
 
 ```js
 import { MariaDBClient } from '@linked-db/linked-ql/mariadb';
@@ -219,7 +216,7 @@ EdgeWorker.webWorker({ client: local });
 
 ### What EdgeWorker forwards
 
-It can expose:
+It routes and resolves:
 
 - queries
 - streams
@@ -266,9 +263,3 @@ FlashQL is not just another client wrapper. It is:
 - the local engine
 - the local persistence layer
 - the place where federation, materialization, realtime mirroring, and sync come together
-
-Continue with:
-
-- [FlashQL](/flashql)
-- [Federation, Materialization, and Realtime Views](/flashql/foreign-io)
-- [FlashQL Sync](/flashql/sync)

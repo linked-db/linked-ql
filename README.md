@@ -2,7 +2,7 @@
 
 # LinkedQL  
 
-_A modern take on SQL and SQL databases_
+One SQL interface for local, remote, and live data
 
 [![npm version][npm-version-src]][npm-version-href]<!-- [![npm downloads][npm-downloads-src]][npm-downloads-href] -->
 [![coverage][coverage-src]][coverage-href]
@@ -17,40 +17,73 @@ _A modern take on SQL and SQL databases_
   <img src="https://github.com/linked-db/linked-ql/blob/master/resources/linked-ql-main2.png?raw=true" alt="LinkedQL Banner" width="100%">
 </picture>
 
-<div align="center">
+<br>
+
+> ```js
+> const db = new PGClient(); // or: MySQLClient | FlashQL | EdgeClient | etc
+> 
+> const result = await db.query(
+>   `SELECT {
+>     id,
+>     profile: { name, email },
+>     parent: parent_user ~> { name, email }
+>   } FROM users;`,
+> 
+>   // live mode
+>   { live: true }
+> );
+> ```
+
+> <details>
+> <summary>Show result: output shape + live behaviour</summary>
+> 
+> ```js
+> // Structured output (via "{ ... }"):
+> result.rows[0].profile.name;
+> 
+> // Foreign key traversal (via "~>"):
+> result.rows[0].parent.name;
+> 
+> // Live queries (via { live: true }):
+> // result.rows updates automatically as underlying data changes
+> 
+> // (any reactive system can observe these updates)
+> Observer.observe(result.rows[0].parent, 'email', (c) => {
+>   console.log(c.value, c.oldValue);
+> });
+> ```
+> </details>
 
 <br>
 
-_Write SQL. Run it anywhere – locally, remotely, on the edge. Go offline. Turn on live mode 🛸_<br>
-LinkedQL is a database client (`client.query()`) for PostgreSQL and MySQL/MariaDB, and a unified execution model for SQL across:
-
-server | browser | edge | local storage
-
-Same query. Same semantics. Everywhere.
+<div align="left">
 
 LinkedQL brings:
 
-live queries, sync, and streams |
-a modern SQL surface for relationships and JSON |
-built-in schema versioning and version control system |
-data federation, replication, and cross-runtime orchestration
++ live queries, streaming, subscriptions, and sync  
++ expressive shorthands for relationships and JSON  
++ automatic schema versioning and query-time version safety  
 
-All in under `80 KiB min | zip`.
+Runs across:
 
-More broadly, LinkedQL is an idea: **[SQL reimagined for modern apps ↗](https://linked-ql.netlify.app/overview)**.
++ PostgreSQL, MySQL/MariaDB, local and in-memory storage  
++ server, browser, edge, and worker runtimes  
++ local and remote data as one relational graph  
+
+→ one application-level interface in all  
+→ under `80 KiB` (min+zip) in all
+
+> One SQL interface for local, remote, and live data
+
+The big picture? **[SQL, reimagined for modern apps ↗](https://linked-ql.netlify.app/overview)**.
 
 </div>
 
 ---
 
-> [!NOTE]
-> You’re viewing **@linked-db/linked-ql@latest** — the newest iteration.  
-> For the prev 0.3.x versions, see [linked-db/linked-ql@0.3.*](https://github.com/linked-db/linked-ql/tree/0.30.13).
-
 > [!IMPORTANT]
-> While still evolving, LinkedQL is already a solid system today, suitable for real-world use in controlled environments.<br>
-> It is backed by **1,000+ tests and growing**, with strong coverage across **FlashQL, live queries, edge transport, federation, WAL, sync, and parser/engine behavior**.<br>
-> The main areas still being expanded are **broader DDL parity, migrations, and deeper driver hardening across all environments**.
+> LinkedQL is backed by **1,000+ tests and growing**, with strong coverage across **FlashQL, live queries, edge transport, federation, WAL, sync, and parser/engine behavior**.<br>
+> The main areas still being expanded are **broader DDL parity, migrations, and deeper driver hardening across environments**.
 
 ---
 
@@ -94,114 +127,114 @@ Import and use the Client for your database. LinkedQL works the same across all 
 | EdgeClient          | `@linked-db/linked-ql/edge`    | [Edge / Browser ↗](https://linked-ql.netlify.app/docs/setup#edge)   |
 | EdgeWorker          | `@linked-db/linked-ql/edge-worker` | [Edge Worker ↗](https://linked-ql.netlify.app/docs/setup#edge) |
 
-### Design Consistency Across Clients
+See also:
 
-Whatever the client you use or the storage backend, LinkedQL is the same everywhere. The following contracts, for example, hold across all database models that LinkedQL supports:
-
-```js
-// Standard SQL query
-const result = await db.query('SELECT * FROM users');
-console.log(result.rows); // Array of rows
-```
-
-```js
-// Live queries
-const liveResult = await db.query(`SELECT * FROM users`, { live: true });
-console.log(liveResult.rows); // Auto-updating result rows
-```
-
-```js
-// Per-table changefeeds
-await db.wal.subscribe({ public: ['users'] }, (commit) => {
-  console.log(commit.entries); // INSERTS/UPDATES/DELETEs
-});
-```
-
-```js
-// Cursor-based streaming over millions of rows
-const asyncIterable = await db.stream(`SELECT * FROM users`);
-for await (const row of asyncIterable) console.log(row);
-```
-
-```js
-// Transactions
-const result = await db.transaction(async (tx) => {
-  await db.query(`CREATE TABLE users ...`, { tx });
-  return await db.query(`SELECT * FROM users`, { tx });
-});
-```
-
-whether `db` is:
-- a PostgreSQL connection
-- a local FlashQL instance
-- or a remote EdgeClient
-
-This is the LinkedQL contract:<br>
-same interface, same semantics, across all environments.
-
-But that is only the first layer of the picture.
-
-### The Full Picture
-
-Further down this README:
-
-* [Section 1](#section-1-core-interface) explains the execution contract in more detail
-* [Section 2](#section-2-language--query-model) shows the SQL shorthand and language extensions
-* [Section 3](#section-3-architecture--orchestration) shows how local runtimes, remote runtimes, sync, and federation compose into one system
-
-So the general shape is:
-
-* one client interface
-* one SQL mental model
-* richer language affordances when you want them
-* richer orchestration when the app needs local-first, edge, federation, or sync
-
-That last orchestration layer is where FlashQL-specific capabilities such as `db.sync.sync()` come in.
+* [Setup Guides ↗](https://linked-ql.netlify.app/docs/setup)
 
 ---
 
-## Why LinkedQL
+### Example 1: Using LinkedQL with PostgreSQL/MySQL/MariaDB
 
-Modern applications no longer interact with the database in the traditional model.
+LinkedQL is designed to be used as a **drop-in replacement** for a traditional database client. That basically looks like this:
 
-* **Frontend** needs to own data (requiring a local relational engine)
-* Edge runtimes need to access the remote database
-* Realtime is no longer optional
-* Offline is expected
+```js
+import { PGClient } from '@linked-db/linked-ql/postgres';
 
-In most stacks, these concerns are handled by **dedicated tools across layers**:
+const db = new PGClient({
+  host: 'localhost',
+  user: 'postgres',
+  password: 'password',
+  database: 'myapp',
+});
 
-* a database client,
-* an API layer,
-* a caching strategy,
-* a dedicated sync engine,
-* and a reactive layer.
+await db.connect();
 
-Each layer introduces its own abstractions, inconsistencies, and failure modes.
+// Standard SQL query — no new syntax required
+const result = await db.query(`
+  SELECT id, name
+  FROM public.users
+  ORDER BY id
+`);
 
-The biggest problem is probably not just the tooling and layering overhead — **it's that there isn't a single execution model**.
+console.log(result.rows);
 
-Each layer:
+await db.disconnect();
+```
 
-* reinterprets queries differently
-* introduces its own caching or consistency rules
-* and breaks composability across runtime boundaries
+#### Decoding the above
 
-**LinkedQL replaces this fragmented model with a single execution contract that holds across all environments**,
+* `PGClient` implements the LinkedQL query interface over a native PostgreSQL connection
+* The API is intentionally **familiar and minimal**
 
-and extends that with built-in support for:
-
-* local execution,
-* remote execution,
-* federation,
-* sync,
-* and reactivity
+But, this is also not just a wrapper over `node-postgres`. It's the full LinkedQL contract with just a PostgreSQL backend.
 
 ---
 
-## Examples Tour
+### Example 2: Using LinkedQL in Client-Side or Edge Runtimes (Introducing FlashQL)
 
-The following scenarios introduce the core concepts and capabilities of LinkedQL.
+In many environments (browser, edge, tests), a direct database connection is not available.
+
+LinkedQL gives you **FlashQL** for this. FlashQL is the **embeddable runtime of LinkedQL** — a full SQL engine that runs inside your application.
+See [FlashQL Overview ↗](https://linked-ql.netlify.app/flashql).
+
+```js
+import { FlashQL } from '@linked-db/linked-ql/flashql';
+
+const db = new FlashQL();
+await db.connect();
+
+// FlashQL accepts multiple statements in a single call
+await db.query(`
+  -- Define schema locally
+  CREATE TABLE public.users (
+    id INT PRIMARY KEY,
+    name TEXT
+  );
+
+  -- Seed local data
+  INSERT INTO public.users (id, name)
+  VALUES (1, 'Ada'), (2, 'Linus');
+`);
+
+// Query behaves exactly like a remote database
+const result = await db.query(`
+  SELECT *
+  FROM public.users
+  ORDER BY id
+`);
+
+console.log(result.rows);
+
+await db.disconnect();
+```
+
+#### Decoding the above
+
+* `FlashQL` is not a mock store. It's a **full relational engine**, and the same LinkedQL contract
+* Execution is entirely **local** – with a configurable backend
+
+FlashQL brings:
+
+* a transaction-first, MVCC architecture (similar to PostgreSQL's MVCC architecture)
+* WAL-backed change tracking (similar to PostgreSQL's Write-Ahead Log (WAL))
+* support for views, CTEs, joins, relational queries, and more
+
+---
+
+#### Relationship to LinkedQL
+
+FlashQL is best understood as:
+
+> **LinkedQL, embedded.**
+
+It enables:
+
+* local-first architectures
+* offline execution
+* edge-native data processing
+* deterministic replay and sync
+
+without introducing a second query language or API.
 
 ---
 
@@ -218,64 +251,15 @@ await db.wal.subscribe(selector, handler);
 await db.sync.sync(); // (FlashQL)
 ```
 
-The above answers:
+The same surface applies whether `db` is a direct PostgreSQL client, a local FlashQL engine, or an `EdgeClient`.
 
-> "What can I always expect a LinkedQL client to do, regardless of where it runs?"
-
-Whether `db` is a direct PostgreSQL client, a local FlashQL engine, or an `EdgeClient` crossing a runtime boundary, these operations keep the same shape and the same intent.
-
----
-
-### Result Model
-
-All query executions return a consistent result object:
-
-```js
-const result = await db.query(`SELECT * FROM users`);
-
-result.rows;     // Array of rows
-```
-
-```js
-const result = await db.query(`INSERT INTO users (id) VALUES (21)`);
-
-result.rowCount;     // Number of rows the operation spanned
-```
-
-* `rows` is always an array of plain objects
-* `rowCount` (or `affectedRows`) describes the number of rows a DML operation spanned
-* result shapes remain stable across execution modes
-
----
-
-### Execution Options
-
-The interface stays small on purpose.
-Most capabilities are enabled by options rather than by inventing a completely different API family for each runtime or feature.
-
-Most operations accept an optional `options` object:
-
-```js
-await db.query(sql, { live: true });
-```
-
-```js
-await db.query(sql, { tx });
-```
-
-Common options:
-
-| Option | Meaning                          |
-| ------ | -------------------------------- |
-| `live` | Enables reactive query results   |
-| `tx`   | Binds the query to a transaction |
+For result shapes, options, and API detail, see the [Query API docs ↗](https://linked-ql.netlify.app/docs/query-api).
 
 ---
 
 ### 1. Queries
 
-Plain `query()` is still the center of gravity.
-Everything else in LinkedQL is designed to extend this familiar path rather than replace it.
+`db.query()` is the base operation.
 
 ```js
 const result = await db.query(`
@@ -285,43 +269,45 @@ const result = await db.query(`
 `);
 ```
 
-#### What this does
+#### Behavior
 
-* Executes a SQL query and returns a materialized result
+* Executes a SQL query and returns a materialized result set
 * Supports multi-statement execution
 
 ---
 
 ### 2. Live Queries
 
-Live queries keep a query result current over time.
-You still write SQL, but the result is no longer just a one-time snapshot.
+> Currently available in FlashQL, PostgreSQL, Edge clients. Coming soon to MySQL/MariaDB
+
+Live queries are queries with real-time results. They execute once, but stay in sync with the database over time.
+
+You turn on live mode with `{ live: true }`. You get back a live, self-updating result set.
 
 ```js
-const result = await db.query(`
-  SELECT *
+const liveResult = await db.query(
+  `SELECT *
   FROM users
-  ORDER BY id
-`, { live: true });
+  ORDER BY id`,
+  { live: true }
+);
 ```
 
-#### What this does
+#### Behavior
 
-* Returns a result whose `rows` are **kept up-to-date**
-* The result object is stable; its contents evolve over time
-* Works with joins, filters, aggregates, ordering, and other normal query structure
+* Returns a self-updating result set (`result.rows`) that will grow, shrink, and mutate in-place to reflect the latest truth of the query as changes happen to the underlying tables
+* Not limited by query complexity – whether it's joins, filters, aggregates, ordering, or other constructs
+* Fully supprted across:
+  * dialects: PostgreSQL, FlashQL, etc. (MySQL/MariaDB support coming soon)
+  * runtimes and deployment models: client / server / worker / edge
 
-#### Why it matters
-
-If the application thinks in terms of "this result should stay fresh", this is the direct primitive for that.
-For the deeper model, see [Live Queries ↗](https://linked-ql.netlify.app/capabilities/live-queries) and the [Realtime Engine deep dive ↗](https://linked-ql.netlify.app/engineering/realtime-engine).
+This is fully covered in [Live Queries ↗](https://linked-ql.netlify.app/capabilities/live-queries) and the [Realtime Engine deep dive ↗](https://linked-ql.netlify.app/engineering/realtime-engine).
 
 ---
 
 ### 3. Streaming
 
-Sometimes the right result is not "materialize the whole result now".
-That is what `stream()` is for.
+`db.stream()` returns rows lazily instead of materializing the full result up front.
 
 ```js
 const asyncIterable = await db.stream(`SELECT * FROM users`);
@@ -331,36 +317,30 @@ for await (const row of asyncIterable) {
 }
 ```
 
-#### What this does
+#### Behavior
 
 * Returns an async iterable
 * Lazily fetches rows on demand as you iterate
-* Avoids materializing very large result sets in memory all at once
+* The best way to avoids materializing very large result sets in memory all at once
 
-#### Why it matters
-
-This is the right mode for exports, long scans, ETL-style work, or any query where "iterate progressively" is better than "load everything first".
-See [Streaming ↗](https://linked-ql.netlify.app/capabilities/streaming).
+This is covered in [Streaming ↗](https://linked-ql.netlify.app/capabilities/streaming).
 
 ---
 
 ### 4. Transactions
 
-Transactions are intentionally ordinary in LinkedQL.
-The point is not to invent a new transaction model; it is to preserve atomic execution across the same interface, whether the client is local, remote, or bridged across transport.
+`db.transaction()` provides an atomic execution boundary for one or more operations.
 
 ```js
 await db.transaction(async (tx) => {
 
-  await db.query(
-    `INSERT INTO users (name) VALUES ('Ada')`,
-    { tx }
-  );
+  await db.query(`INSERT INTO users (name) VALUES ('Ada')`, { tx });
+  // optional additional statements
 
 });
 ```
 
-#### What this does
+#### Behavior
 
 * Provides an atomic execution boundary
 * All operations succeed or fail together
@@ -370,8 +350,9 @@ await db.transaction(async (tx) => {
 
 ### 5. Changefeeds (WAL)
 
-The WAL API is the lower-level reactive primitive.
-Use it when you care about table-level mutations themselves, not just the final query result.
+Named after PostgreSQL's Write Ahead Log (WAL), 
+
+`db.wal.subscribe()` lets you subscribe to structured table-level changefeeds.
 
 ```js
 await db.wal.subscribe({ public: ['users'] }, (commit) => {
@@ -379,84 +360,52 @@ await db.wal.subscribe({ public: ['users'] }, (commit) => {
 });
 ```
 
-#### What this does
+#### Behavior
 
 * Subscribes to structured table-level change events
 * Each `commit` contains row-level mutations
 * Enables reactive and event-driven workflows
 
-#### Why it matters
-
-This is the right primitive when you are building infrastructure, audit flows, sync adapters, or custom reactive behavior on top of raw table mutations.
 See [Changefeeds (WAL) ↗](https://linked-ql.netlify.app/capabilities/changefeeds).
 
 ---
 
-### 6. Sync
+### 6. Sync (FlashQL)
 
-`sync()` is where LinkedQL starts moving from "client API" into "data orchestration".
-It is the coordination point for materialized and realtime state, especially in FlashQL-based local-first setups.
-Section 3 expands this in detail. See also [Meet FlashQL ↗](https://linked-ql.netlify.app/flashql) and [FlashQL Sync ↗](https://linked-ql.netlify.app/flashql/sync).
+`db.sync.sync()` is the API for sync and materialized views in FlashQL.
+
+You begin by creating views and pointing them to local or remote tables. You call `sync()` to execute the contract.
 
 ```js
 await db.sync.sync();
 ```
 
-#### What this does
+#### Behavior
 
-* Triggers synchronization of database state
+* Triggers the synchronization of declared views with origin tables
 * Coordinates background data movement and consistency
-* Safe to call multiple times
+* Designed for resilience and network instabilities
+
+This is covered in [FlashQL Sync ↗](https://linked-ql.netlify.app/flashql/sync).
 
 ---
 
 ### Execution Modes Summary
 
-The table below is the shortest way to see the contract at a glance:
-
-| Operation               | Behavior              |
-| ----------------------- | --------------------- |
-| `query()`               | Materialized result   |
-| `query({ live: true })` | Live result           |
-| `stream()`              | Lazy-loading result   |
-| `transaction()`         | Atomic execution      |
-| `wal.subscribe()`       | Changefeed stream     |
-| `sync.sync()` (FlashQL) | State synchronization |
+| Operation                  | Behavior                   |
+| -------------------------- | -------------------------- |
+| `db.query()`               | Materialized result        |
+| `db.query(live: true)`     | Live, self-updating result |
+| `db.stream()`              | Lazy-loading result        |
+| `db.transaction()`         | Atomic execution           |
+| `db.wal.subscribe()`       | Changefeed stream          |
+| `db.sync.sync()` (FlashQL) | State synchronization      |
 
 ---
 
 ## Section 2: Language & Query Model
 
 LinkedQL builds on standard SQL while extending it with constructs that better express modern application data patterns, relationships, and user intent.
-
-Traditional SQL is excellent at describing **sets of rows**.
-Applications, however, operate on **structured objects, nested relationships, and evolving schemas**.
-
-LinkedQL bridges that gap — without abandoning SQL.
-
-All extensions are designed to **compose with existing SQL semantics**, rather than replace them.
-
-The goal is to let SQL naturally express:
-
-* structured data (objects, not just rows)
-* relational graphs (not just joins)
-* multi-entity writes (not just flat mutations)
-* cross-dialect consistency
-* and explicit schema assumptions
-
----
-
-### Mental Model Shift
-
-| Traditional SQL thinks in… | LinkedQL also embraces…   |
-| -------------------------- | ------------------------- |
-| Tables                     | Object shapes             |
-| Rows                       | Structured documents      |
-| Joins                      | Graph traversal           |
-| Flat writes                | Relationship-aware writes |
-| Implicit schema coupling   | Explicit version binding  |
-
-You are still writing SQL — but with the ability to express **application-shaped data directly**.
 
 ---
 
@@ -471,12 +420,6 @@ SELECT {
 } AS user
 FROM users u;
 ```
-
-#### What this changes
-
-Instead of returning flat rows and reshaping them in application code, the query itself defines the output.
-
-> The query produces the final application-ready structure — letting you **define the final shape at query time**.
 
 ---
 
@@ -494,21 +437,16 @@ SELECT {
 FROM users u;
 ```
 
-#### Why this matters
 
-Traditional SQL:
-
-* fetch → transform → reshape
-
-LinkedQL:
-
-* **query → done**
+#### What this changes
 
 This removes:
 
-* manual mapping logic
+* manual application-level mapping logic
 * repetitive transformation layers
 * mismatch between backend and frontend data shapes
+
+> The query itself defines the output
 
 ---
 
@@ -563,11 +501,22 @@ FROM users;
 ```sql
 SELECT
   id,
+  { name, email } as profile,
   parent_user ~> { id, name, email } AS parent
 FROM users;
 ```
 
-#### Why this matters
+or:
+
+```sql
+SELECT {
+  id,
+  profile: { name, email },
+  parent: parent_user ~> { id, name, email }
+} FROM users;
+```
+
+#### What this changes
 
 DeepRefs let you express queries in terms of:
 
@@ -618,7 +567,7 @@ WHERE id = 1;
 
 ---
 
-#### Why this matters
+#### What this changes
 
 Traditional SQL requires:
 
@@ -635,8 +584,8 @@ See [Structured Writes ↗](https://linked-ql.netlify.app/capabilities/structure
 
 Upsert syntax varies across databases:
 
-* PostgreSQL → `ON CONFLICT`
-* MySQL → `ON DUPLICATE KEY`
+* PostgreSQL → `INSERT + ON CONFLICT`
+* MySQL → `INSERT + ON DUPLICATE KEY`
 * MariaDB → similar but not identical
 
 LinkedQL provides a **single, predictable form across dialects**:
@@ -660,6 +609,8 @@ See [UPSERT ↗](https://linked-ql.netlify.app/capabilities/upsert).
 ---
 
 ### 5. Version Binding (Schema Contracts)
+
+> Available only in FlashQL. Coming soon to PostgreSQL, MySQL/MariaDB
 
 Queries can explicitly declare the schema versions they depend on.
 
@@ -686,34 +637,24 @@ LEFT JOIN public.posts@=5 p
 
 #### What this does
 
-* Binds relations to expected schema versions
+* Binds queries to expected schema versions
 * Fails early if schema has evolved beyond expectations
 * Makes schema assumptions **visible, reviewable, and enforceable** in the query itself
 
 ---
 
-#### Why this matters
+#### What this changes
 
-Most systems rely on implicit schema assumptions that fail at runtime.
+Queries are implicitly written against specific schema shapes. Those assumptions fail at runtime when those schemas evolve.
 
 LinkedQL turns those assumptions into **explicit, enforceable contracts**.
 See [Version Binding ↗](https://linked-ql.netlify.app/capabilities/version-binding).
 
 ---
 
-### Putting It All Together
+### Composability
 
-These features are designed to work together.
-
-You can:
-
-* traverse relationships (`~>`)
-* shape structured output (`{ ... }`)
-* perform nested writes
-* rely on consistent upserts
-* and bind to schema versions
-
-—all within a single SQL statement.
+These features are designed to be composable.
 
 ---
 
@@ -723,37 +664,20 @@ You can:
 SELECT {
   id: u.id,
   name: u.name,
-  parent: u.parent_user ~> {
-    id,
-    email
-  }
+  parent: u.parent_user ~> { id, email }
 }
 FROM public.users@=3 u;
 ```
 
 ---
 
-### Summary
-
-LinkedQL extends SQL in a few key ways:
-
-| Capability           | Feature           |
-| -------------------- | ----------------- |
-| Structured data      | JSON literals     |
-| Graph queries        | DeepRef operators |
-| Graph mutations      | Structured writes |
-| Cross-dialect safety | Upserts           |
-| Schema guarantees    | Version binding   |
-
----
-
-### The Big Picture
+### The Big Picture: Better Mental Models
 
 Traditional SQL answers:
 
 > “What rows do I want?”
 
-LinkedQL additionally answers:
+LinkedQL **additionally** answers:
 
 > “What shape do I want?”
 > “How are entities connected?”
@@ -770,9 +694,9 @@ This allows SQL to operate directly on **application-shaped data**, not just tab
 This section is about deploying LinkedQL as a system, not just calling it as an API.
 
 Modern apps rarely have a single execution site or a single storage location.
-Some queries run against PostgreSQL or MySQL on the server. Some data needs to live inside the app. Some flows need edge transport. Some views should stay remote, some should be cached locally, and some should stay continuously synced.
+Some queries run against PostgreSQL or MySQL on the server. Some data needs to live inside the app–the model supported by FlashQL. Some flows need edge transport. Some views should stay remote, some should be cached locally, and some should stay continuously synced.
 
-LinkedQL is designed to let those choices vary without forcing the application into separate query models.
+LinkedQL is designed for these patterns.
 
 This is where the architecture story comes in:
 
@@ -783,122 +707,7 @@ This is where the architecture story comes in:
 
 The scenarios below are intentionally generous. They are not just showing that something is possible; they are showing the shape of the architecture, why it is shaped that way, and what role each component plays.
 
-### Scenario 1: Using LinkedQL with PostgreSQL/MySQL/MariaDB
-
-By design, LinkedQL can be used as a **drop-in replacement** for a traditional database client. Import the appropriate client for your database and use it as you normally would.
-
-```js
-import { PGClient } from '@linked-db/linked-ql/postgres';
-
-const db = new PGClient({
-  host: 'localhost',
-  user: 'postgres',
-  password: 'password',
-  database: 'myapp',
-});
-
-await db.connect();
-
-// Standard SQL query — no new syntax required
-const result = await db.query(`
-  SELECT id, name
-  FROM public.users
-  ORDER BY id
-`);
-
-console.log(result.rows);
-
-await db.disconnect();
-```
-
-#### Decoding the above
-
-* `PGClient` implements the LinkedQL query interface over a native PostgreSQL connection
-* The API is intentionally **familiar and minimal**
-
-However, this is not just a wrapper over `node-postgres`.
-
-The same `db.query()` call will later support
-
-* realtime queries
-* cross-runtime execution
-* local-first sync
-* and version-aware querying
-
-**Without changing how you write queries.**
-
----
-
-### Scenario 2: Using LinkedQL in Client-Side or Edge Runtimes (Introducing FlashQL)
-
-In many environments (browser, edge, tests), a direct database connection is not available.
-
-LinkedQL gives you **FlashQL** for this. FlashQL is the **embeddable runtime of LinkedQL** — a full SQL engine that runs inside your application while preserving the same interface.
-See [FlashQL Overview ↗](https://linked-ql.netlify.app/flashql).
-
-```js
-import { FlashQL } from '@linked-db/linked-ql/flashql';
-
-const db = new FlashQL();
-await db.connect();
-
-// FlashQL accepts multiple statements in a single call
-await db.query(`
-  -- Define schema locally
-  CREATE TABLE public.users (
-    id INT PRIMARY KEY,
-    name TEXT
-  );
-
-  -- Seed local data
-  INSERT INTO public.users (id, name)
-  VALUES (1, 'Ada'), (2, 'Linus');
-`);
-
-// Query behaves exactly like a remote database
-const result = await db.query(`
-  SELECT *
-  FROM public.users
-  ORDER BY id
-`);
-
-console.log(result.rows);
-
-await db.disconnect();
-```
-
-#### Decoding the above
-
-* `FlashQL` is not a mock store — it is a **full relational engine**
-* It implements the same query contract as `PGClient`
-* Execution is entirely **local**
-
-FlashQL brings:
-
-* MVCC-based transactions (similar to PostgreSQL's MVCC architecture)
-* WAL-backed change tracking (similar to PostgreSQL's Write-Ahead Log (WAL))
-* support for views, joins, relational queries, and more
-
----
-
-#### Relationship to LinkedQL
-
-FlashQL is best understood as:
-
-> **LinkedQL, embedded.**
-
-It enables:
-
-* local-first architectures
-* offline execution
-* edge-native data processing
-* deterministic replay and sync
-
-without introducing a second query language or API.
-
----
-
-### Scenario 3: Cross-Runtime Querying over HTTP
+### Scenario 1: Cross-Runtime Querying over HTTP
 
 In many applications, the environment issuing queries cannot directly connect to the database.
 
@@ -907,7 +716,7 @@ For example, a database running on the server is often inaccessible to:
 * client-side applications (running in the browser)
 * applications running on the edge (on edge functions)
 
-LinkedQL introduces a **transport protocol** that allows `db.query()` to work across these boundaries: the **Edge Protocol**, delivered via an `EdgeClient` / `EdgeWorker` pair.
+LinkedQL introduces a **transport protocol** that allows `db.query()` and the rest of the API surface to work across these boundaries: the **Edge Protocol**, delivered via an `EdgeClient` / `EdgeWorker` pair.
 
 ---
 
@@ -1026,7 +835,7 @@ This is not just a browser → server abstraction.
 
 ---
 
-### Scenario 4: Cross-Runtime Querying over Message Ports
+### Scenario 2: Cross-Runtime Querying over Message Ports
 
 The same protocol used over HTTP can also run over **message channels**.
 
@@ -1093,7 +902,7 @@ This preserves:
 
 ---
 
-### Scenario 5: Local-First and Offline-First Architectures
+### Scenario 3: Local-First and Offline-First Architectures
 
 In this scenario, we demonstrate a hybrid data architecture where the goal is to:
 
@@ -1543,23 +1352,6 @@ Visit the [LinkedQL documentation site ↗](https://linked-ql.netlify.app)
 | [Engineering Deep Dive ↗](https://linked-ql.netlify.app/engineering/realtime-engine) | Dig into LinkedQL's engineering in the engineering section. |
 
 ---
-
-## ⏳ Current Shape
-
-### Strong Today
-
-* **Parser and query surface** across PostgreSQL, MySQL, MariaDB, and FlashQL
-* **FlashQL as an embeddable local engine** with persistence, replay, version binding, and sync metadata
-* **Live queries and app-centric WAL consumption**
-* **Federation and sync flows** built around `origin`, `materialized`, and `realtime` views
-* **A growing verification story** with more than `1,000` tests across parser, engine, realtime, edge, and sync flows
-
-### Still Evolving
-
-* **Broader DDL parity**, especially around more complete alter/migration flows
-* **Mainstream driver parity and hardening** across all environments
-* **Docs and production guidance** for larger deployments
-* **Migration tooling and richer timeline workflows**
 
 ## 🤝 Contributing
 
