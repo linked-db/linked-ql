@@ -32,7 +32,6 @@ export class FlashQL extends LinkedQLClient {
     #queryEngine;
     #versionStop;
     #overwriteForward;
-    #autoSync;
 
     get keyval() { return this.#keyval; }
     get storageEngine() { return this.#storageEngine; }
@@ -51,7 +50,6 @@ export class FlashQL extends LinkedQLClient {
         queryEngine = null,
         versionStop = null,
         overwriteForward = false,
-        autoSync = true,
         ...options
     } = {}) {
         super({ dialect, ...options });
@@ -65,7 +63,6 @@ export class FlashQL extends LinkedQLClient {
         this.#keyval = keyval;
         this.#versionStop = versionStop;
         this.#overwriteForward = overwriteForward;
-        this.#autoSync = !!autoSync;
         this.#storageEngine = storageEngine || new StorageEngine({ client: this, dialect: this.dialect, keyval, ...options });
         this.#queryEngine = queryEngine || new QueryEngine(this.#storageEngine, { dialect: this.dialect, ...options });
 
@@ -78,9 +75,6 @@ export class FlashQL extends LinkedQLClient {
     async connect() {
         await super.connect();
         await this.#storageEngine.open({ versionStop: this.#versionStop, overwriteForward: this.#overwriteForward });
-        if (this.#autoSync && this.#keyval) {
-            await this.#storageEngine.sync.sync();
-        }
     }
 
     async disconnect() {

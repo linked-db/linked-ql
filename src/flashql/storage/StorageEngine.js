@@ -16,6 +16,7 @@ export class StorageEngine extends MVCCEngine {
     #wal;
     #sync;
 
+    #autoSync;
     #forcedReadOnly;
     #readOnly;
     #overwriteForward;
@@ -42,7 +43,7 @@ export class StorageEngine extends MVCCEngine {
 
     get _catalog() { return this.#catalog; }
 
-    constructor({ client = null, dialect = 'postgres', keyval = null, onCreateForeignClient = null, readOnly = false, ...options } = {}) {
+    constructor({ client = null, dialect = 'postgres', keyval = null, autoSync = true, onCreateForeignClient = null, readOnly = false, ...options } = {}) {
         super();
 
         this.#client = client;
@@ -50,6 +51,7 @@ export class StorageEngine extends MVCCEngine {
         this.#keyval = keyval;
         this.#options = options;
 
+        this.#autoSync = !!autoSync;
         this.#forcedReadOnly = !!readOnly;
         this.#readOnly = this.#forcedReadOnly;
         this.#overwriteForward = false;
@@ -128,6 +130,10 @@ export class StorageEngine extends MVCCEngine {
                 if (!hasMatch) throwNoMatch();
             }
             this.#openedCommitTime = await this.#wal.latestCommit();
+        }
+
+        if (this.#autoSync && this.#keyval) {
+            await this.#sync.sync();
         }
     }
 

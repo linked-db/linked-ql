@@ -30,7 +30,7 @@ For more focused guides, also see:
 - [UPSERT](/capabilities/upsert)
 - [Version Binding](/capabilities/version-binding)
 
-## 1. Query language at a glance
+## Query language at a glance
 
 FlashQL is strongest today in the application-facing query layer:
 
@@ -48,7 +48,7 @@ FlashQL is strongest today in the application-facing query layer:
 
 These are not just parser-level claims. They are exercised across the parser, desugaring layer, and engine tests.
 
-## 2. DQL: querying data
+## DQL: querying data
 
 ### Basic `SELECT`
 
@@ -167,7 +167,7 @@ const result = await db.query(`
 
 Writable CTE pipelines are also part of the tested surface when combined with `RETURNING`.
 
-## 3. DML: writing data
+## DML: writing data
 
 ### `INSERT`
 
@@ -254,7 +254,7 @@ const result = await db.query(`
 
 See also: [UPSERT](/capabilities/upsert)
 
-## 4. Window functions
+## Window functions
 
 Window functions are part of the parser surface and are exercised in engine tests for tested shapes such as:
 
@@ -280,7 +280,7 @@ const result = await db.query(`
 
 This is one of the areas where the older docs were badly behind the code. Window-function support is not merely "planned."
 
-## 5. DDL and schema operations
+## DDL and schema operations
 
 FlashQL supports meaningful parts of DDL, but this is also where its surface is less complete than its DQL/DML surface.
 
@@ -315,7 +315,7 @@ In other words:
 
 Some schema-evolution paths exist, but broader DDL parity is still catching up. If your application depends heavily on runtime `ALTER TABLE` compatibility with mainstream servers, treat that as an area requiring validation.
 
-## 6. Transactions
+## Transactions
 
 FlashQL supports transactions at the client API level:
 
@@ -336,18 +336,17 @@ This does **not** mean the SQL command family:
 
 should be read as the primary way to control transactions in FlashQL. The JS transaction API is the intended surface.
 
-## 7. JSON literals and structured data
+## JSON literals and structured data
 
 FlashQL extends SQL with native JSON-style literals.
 
 See:
 
 - [JSON Literals](/capabilities/json-literals)
-- [Structured Writes](/capabilities/structured-writes)
 
 This matters especially when you want application-shaped SQL without constantly escaping back into imperative JavaScript.
 
-## 8. DeepRefs
+## DeepRefs
 
 DeepRefs are a LinkedQL language extension for relational traversal and structured writes.
 
@@ -367,7 +366,7 @@ DeepRefs also show up in write syntax and desugaring workflows.
 
 See: [DeepRefs](/capabilities/deeprefs)
 
-## 9. Version binding
+## Version binding
 
 FlashQL supports version-qualified relation references such as:
 
@@ -397,7 +396,7 @@ For point-in-time replay, use FlashQL boot options such as `versionStop`.
 
 See: [Version Binding](/capabilities/version-binding)
 
-## 10. Point-in-time replay
+## Point-in-time replay
 
 Point-in-time replay is not a query operator. It is a FlashQL boot mode.
 
@@ -414,7 +413,7 @@ This replays persisted history to a chosen relation-version boundary and boots t
 
 That is separate from version binding inside a query.
 
-## 11. Dialect notes
+## Dialect notes
 
 ### PostgreSQL flavor
 
@@ -435,7 +434,7 @@ MySQL-flavored parsing is supported, and FlashQL can switch dialect per client o
 
 That does not make MySQL support fake. It just means readers should calibrate expectations correctly.
 
-## 12. Practical reading of "support"
+## Practical reading of "support"
 
 When evaluating whether FlashQL supports a given language feature, use this order of confidence:
 
@@ -450,5 +449,4 @@ That is why this page focuses on the features that are clearly alive in the curr
 - [Query Interface](/docs/query-api)
 - [DeepRefs](/capabilities/deeprefs)
 - [JSON Literals](/capabilities/json-literals)
-- [Structured Writes](/capabilities/structured-writes)
 - [Version Binding](/capabilities/version-binding)

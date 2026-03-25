@@ -119,7 +119,7 @@ This is the core pattern most local-first apps want:
 
 ```js
 await db.connect();
-await db.sync.sync(); // But this is optional as FlashQL already calls this from within db.connect();
+await db.sync.sync(); // But this is optional if options.autoSync is true, as FlashQL already calls this from within db.connect();
 
 window.addEventListener('online', async () => {
   await db.sync.sync();

@@ -106,8 +106,6 @@ They behave like columns — and work anywhere a column reference works.
 
 Essentially, wherever SQL expects a column-shaped value, you can often use a DeepRef expression instead.
 
-For the dedicated write-oriented walkthrough, see [Structured Writes](/capabilities/structured-writes).
-
 ### BackRef Binding
 
 When using BackRefs in queries involving multiple instances of the same table (such as self-joins), its left-hand binding may be ambiguous.

@@ -173,5 +173,4 @@ FROM posts AS p;
 ## See also
 
 - [DeepRefs](/capabilities/deeprefs)
-- [Structured Writes](/capabilities/structured-writes)
 - [FlashQL Language Reference](/flashql/lang)

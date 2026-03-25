@@ -46,7 +46,7 @@ Not by pretending every concern is "just SQL," but by extending the query/runtim
 
 ## The three big areas
 
-### 1. Common client contract
+### Common client contract
 
 Across runtimes, LinkedQL tries to keep the core application contract stable:
 
@@ -57,18 +57,17 @@ Across runtimes, LinkedQL tries to keep the core application contract stable:
 
 See: [Query Interface](/docs/query-api)
 
-### 2. Language capabilities
+### Language capabilities
 
 LinkedQL extends SQL with application-oriented language features such as:
 
 - [DeepRefs](/capabilities/deeprefs)
-- [Structured Writes](/capabilities/structured-writes)
 - [JSON Literals](/capabilities/json-literals)
 - [Version Binding](/capabilities/version-binding)
 
 These are about expressing richer intent in the query itself instead of pushing that intent into external glue code.
 
-### 3. Runtime capabilities
+### Runtime capabilities
 
 LinkedQL also extends the runtime side of the database contract:
 

@@ -110,6 +110,5 @@ This ensures deterministic, schema-aware conflict resolution for PostgreSQL.
 
 ## See also
 
-- [Structured Writes](/capabilities/structured-writes)
 - [FlashQL Language Reference](/flashql/lang)
 - [Query Interface](/docs/query-api)
