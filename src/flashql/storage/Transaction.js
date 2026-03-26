@@ -567,7 +567,7 @@ export class Transaction {
 
                 if (columns.length)
                     throw new Error(`Unexpected column list for query-type view`);
-                
+
                 if (constraints.length)
                     throw new Error(`Unexpected constraints list for query-type view`);
 
@@ -605,7 +605,7 @@ export class Transaction {
                         throw new ReferenceError(`Origin relation ${JSON.stringify(originNs)}.${JSON.stringify(view_spec.name)} could not be resolved`);
                     }
 
-                    ({ columns, constraints } = this.#parser.tableAST_to_tableDef(tblSchema, originNs));
+                    ({ columns, constraints } = this.#parser.tableAST_to_tableDef(tblSchema, { namespace: originNs }));
                 }
             }
         }

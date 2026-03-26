@@ -814,7 +814,7 @@ export class SQLParser {
 
     // AST-to-DEF
 
-    tableAST_to_tableDef(tableSchema, defaultNsName = null) {
+    tableAST_to_tableDef(tableSchema, { namespace: defaultNsName = null, persistence = 'permanent' } = {}) {
         const tableName = tableSchema.name().value();
         const nsName = tableSchema.name().qualifier()?.value() || defaultNsName;
 
@@ -887,6 +887,7 @@ export class SQLParser {
         return Object.freeze({
             namespace: nsName,
             name: tableName,
+            persistence,
             columns,
             constraints,
         });

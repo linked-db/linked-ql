@@ -331,9 +331,9 @@ The sync API is covered in detail in [Sync](/flashql/sync)
 
 ### The `view_spec`
 
-`view_spec` is the definition of the source relation behind a view.
+`view_spec` defines the upstream source behind a view.
 
-`view_spec` is required for every view and must be an object.
+Every view must have a `view_spec`, and that value must be an object.
 
 FlashQL accepts exactly two shapes:
 

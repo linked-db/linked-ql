@@ -226,6 +226,7 @@ export class QueryEngine {
             throw new Error('TEMPORARY tables are not supported yet in the in-memory StorageEngine');
         }
 
+        const temporaryKw = stmtNode.temporaryKW();
         const argument = stmtNode.argument();
         const nsName = argument.name().qualifier()?.value() || queryCtx.nsName || this.#defaultNamespace(queryCtx);
         if (queryCtx.nsName && nsName !== queryCtx.nsName) {
@@ -233,7 +234,7 @@ export class QueryEngine {
         }
 
         const createOpts = { ifNotExists: !!stmtNode.ifNotExists() };
-        const tableDef = this.#parser.tableAST_to_tableDef(argument, nsName);
+        const tableDef = this.#parser.tableAST_to_tableDef(argument, { namespace: nsName, persistence: temporaryKw ? 'temporary' : 'permanent' });
         const tableCreateResult = await queryCtx.tx.createTable(tableDef, createOpts);
         return !!tableCreateResult;
     }
