@@ -96,7 +96,7 @@ console.log(result.rows);
 await db.disconnect();
 ```
 
-LinkedQL is a real local runtime with the same top-level query surface as the mainstream clients.
+FlashQL is a real local runtime with the same top-level query surface as the mainstream clients.
 
 ## Which client should you start with?
 

@@ -5,7 +5,25 @@ export class DDLStmt extends AbstractStmt {
 
     /* SYNTAX RULES */
 
-    static get syntaxRules() { return { type: ['CreateSchemaStmt', 'DropSchemaStmt', 'CreateTableStmt', 'DropTableStmt'] }; }
+    static get syntaxRules() {
+        return {
+            type: [
+                'CreateSchemaStmt',
+                'DropSchemaStmt',
+                'AlterSchemaStmt',
+                'CreateTableStmt',
+                'AlterTableStmt',
+                'DropTableStmt',
+                'CreateIndexStmt',
+                'AlterIndexStmt',
+                'DropIndexStmt',
+                'CreateViewStmt',
+                'AlterViewStmt',
+                'DropViewStmt',
+                'RefreshViewStmt',
+            ]
+        };
+    }
 
     /** API */
     

@@ -445,6 +445,24 @@ export class TableStorage {
         }
     }
 
+    async #runCKChecks(input) {
+        for (const { name: conName, ck_expression_ast: exprAst } of this.#schema.constraints?.get('CHECK') || []) {
+            if (!exprAst) continue;
+
+            const cacheKey = `ck:${conName}`;
+            let exprNode = this.#exprCache.get(cacheKey);
+            if (!exprNode) {
+                exprNode = registry.Expr.fromJSON(exprAst, { dialect: this.#dialect, assert: true });
+                this.#exprCache.set(cacheKey, exprNode);
+            }
+
+            const result = await this.#exprEngine.evaluateToScalar(exprNode, { [this.#name]: input });
+            if (result === false) {
+                throw new Error(`[${this.#name}] Check constraint violation: "${conName}"`);
+            }
+        }
+    }
+
     #runReverseFKRoutines(op, version, isCommitTime = true, newRow = null) {
         const sysConstraints = this.#tx.getTable({ namespace: 'sys', name: 'sys_constraints' });
         const incomingRefDefs = sysConstraints.get({ fk_target_relation_id: this.#schema.id }, { using: 'sys_constraints__fk_target_relation_id_idx', multiple: true });
@@ -773,6 +791,7 @@ export class TableStorage {
         this.#runTypeChecks(newRow);
         await this.#runUKChecks(newRow);
         this.#runFKChecks(newRow);
+        await this.#runCKChecks(newRow);
 
         // --- Track
         this.#tx.trackInsertWrite(newRow, newPk);
@@ -825,6 +844,7 @@ export class TableStorage {
         this.#runTypeChecks(newRow);
         await this.#runUKChecks(newRow, { skip: oldRow });
         this.#runFKChecks(newRow);
+        await this.#runCKChecks(newRow);
 
         const newPk = this.#deriveKey(this.#schema.keyColumns, newRow);
 

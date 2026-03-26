@@ -127,6 +127,33 @@ export class QueryEngine {
                     returnValue = await this.#evaluateDROP_TABLE_STMT(stmtNode, queryCtx);
                     queryCtx.schemaInference = null;
                     break;
+                case 'CREATE_VIEW_STMT':
+                    returnValue = await this.#evaluateCREATE_VIEW_STMT(stmtNode, queryCtx);
+                    queryCtx.schemaInference = null;
+                    break;
+                case 'ALTER_VIEW_STMT':
+                    returnValue = await this.#evaluateALTER_VIEW_STMT(stmtNode, queryCtx);
+                    queryCtx.schemaInference = null;
+                    break;
+                case 'DROP_VIEW_STMT':
+                    returnValue = await this.#evaluateDROP_VIEW_STMT(stmtNode, queryCtx);
+                    queryCtx.schemaInference = null;
+                    break;
+                case 'REFRESH_VIEW_STMT':
+                    returnValue = await this.#evaluateREFRESH_VIEW_STMT(stmtNode, queryCtx);
+                    break;
+                case 'CREATE_INDEX_STMT':
+                    returnValue = await this.#evaluateCREATE_INDEX_STMT(stmtNode, queryCtx);
+                    queryCtx.schemaInference = null;
+                    break;
+                case 'ALTER_INDEX_STMT':
+                    returnValue = await this.#evaluateALTER_INDEX_STMT(stmtNode, queryCtx);
+                    queryCtx.schemaInference = null;
+                    break;
+                case 'DROP_INDEX_STMT':
+                    returnValue = await this.#evaluateDROP_INDEX_STMT(stmtNode, queryCtx);
+                    queryCtx.schemaInference = null;
+                    break;
                 
                 // CTE
                 case 'CTE': returnValue = await this.#evaluateCTE(stmtNode, queryCtx); break;
@@ -160,6 +187,17 @@ export class QueryEngine {
         return queryCtx.tx.getTable({ namespace: nsName, name: tblName, versionSpec });
     }
 
+    #namespaceFromIdent(ident, queryCtx) {
+        return ident?.qualifier?.()?.value?.() || queryCtx.nsName || this.#defaultNamespace(queryCtx);
+    }
+
+    #tableRefFromIdent(ident, queryCtx) {
+        return {
+            namespace: this.#namespaceFromIdent(ident, queryCtx),
+            name: ident.value(),
+        };
+    }
+
     // -------- CONFIG
 
     async #evaluatePG_SET_STMT(stmtNode, queryCtx) {
@@ -188,7 +226,12 @@ export class QueryEngine {
             throw new Error('CREATE SCHEMA ... IF NOT EXISTS ... with entries is not supported');
         }
 
-        const namespaceDef = await queryCtx.tx.createNamespace({ name: nsName }, createOpts);
+        const namespacePatch = {
+            name: nsName,
+            ...(stmtNode.pgAuthorization()?.value?.() ? { owner: stmtNode.pgAuthorization().value() } : {}),
+            ...this.#parser.configEntriesAST_to_patch(stmtNode.optionsClause?.()?.entries?.() || []),
+        };
+        const namespaceDef = await queryCtx.tx.createNamespace(namespacePatch, createOpts);
 
         if (namespaceDef && hasEntries) {
             const __queryCtx = { ...queryCtx, nsName };
@@ -201,8 +244,20 @@ export class QueryEngine {
     }
 
     async #evaluateALTER_SCHEMA_STMT(stmtNode, queryCtx) {
-        // TODO notice
-        throw new Error('ALTER SCHEMA is not supported yet in the in-memory StorageEngine');
+        const nsName = stmtNode.subject().value();
+        let returnValue = false;
+        for (const action of stmtNode.actions()) {
+            if (action instanceof registry.RenameSchemaAction) {
+                returnValue ||= !!(await queryCtx.tx.alterNamespace({ name: nsName }, { name: action.name().value() }));
+            } else if (action instanceof registry.SetSchemaOptionsAction) {
+                returnValue ||= !!(await queryCtx.tx.alterNamespace({ name: nsName }, this.#parser.configEntriesAST_to_patch(action.entries())));
+            } else if (action instanceof registry.ResetSchemaOptionsAction) {
+                returnValue ||= !!(await queryCtx.tx.alterNamespace({ name: nsName }, this.#parser.configEntriesAST_to_patch(action.entries(), { reset: true })));
+            } else {
+                throw new Error(`Unsupported ALTER SCHEMA action ${action.NODE_NAME}`);
+            }
+        }
+        return returnValue;
     }
 
     async #evaluateDROP_SCHEMA_STMT(stmtNode, queryCtx) {
@@ -240,8 +295,15 @@ export class QueryEngine {
     }
 
     async #evaluateALTER_TABLE_STMT(stmtNode, queryCtx) {
-        // TODO notice
-        throw new Error('ALTER TABLE is not supported yet in the in-memory StorageEngine');
+        const tableRef = this.#tableRefFromIdent(stmtNode.subject(), queryCtx);
+        const alterSpec = { actions: [] };
+        for (const action of stmtNode.actions()) {
+            if (action instanceof registry.RenameTableAction) alterSpec.name = action.name().value();
+            else if (action instanceof registry.SetTableSchemaAction) alterSpec.namespace = action.schema().value();
+            else alterSpec.actions.push(...this.#parser.tableAlterActionAST_to_defs(action, { tableRef }));
+        }
+        const result = await queryCtx.tx.alterTable(tableRef, alterSpec);
+        return result !== null;
     }
 
     async #evaluateDROP_TABLE_STMT(stmtNode, queryCtx) {
@@ -261,6 +323,112 @@ export class QueryEngine {
             returnValue ||= dropped !== null;
         }
 
+        return returnValue;
+    }
+
+    async #evaluateCREATE_VIEW_STMT(stmtNode, queryCtx) {
+        const createOpts = { ifNotExists: false };
+        const viewDef = this.#parser.viewAST_to_viewDef(stmtNode.argument(), {
+            namespace: this.#namespaceFromIdent(stmtNode.argument().name(), queryCtx),
+            persistence: stmtNode.persistence()?.toLowerCase?.() || 'origin'
+        });
+
+        if (stmtNode.orReplace()) {
+            const existing = queryCtx.tx.showView(viewDef, { ifExists: true });
+            if (existing) {
+                return !!(await queryCtx.tx.alterView(
+                    { namespace: existing.namespace_id.name, name: existing.name },
+                    { view_spec: viewDef.view_spec, view_columns: viewDef.columns, persistence: viewDef.persistence }
+                ));
+            }
+        }
+
+        const created = await queryCtx.tx.createView(viewDef, createOpts);
+        return created !== null;
+    }
+
+    async #evaluateALTER_VIEW_STMT(stmtNode, queryCtx) {
+        const viewRef = this.#tableRefFromIdent(stmtNode.subject(), queryCtx);
+        let returnValue = false;
+
+        for (const action of stmtNode.actions()) {
+            if (action instanceof registry.RenameViewAction) {
+                returnValue ||= !!(await queryCtx.tx.alterView(viewRef, { name: action.name().value() }));
+                viewRef.name = action.name().value();
+            } else if (action instanceof registry.SetViewSchemaAction) {
+                returnValue ||= !!(await queryCtx.tx.alterView(viewRef, { namespace: action.schema().value() }));
+                viewRef.namespace = action.schema().value();
+            } else if (action instanceof registry.ReplaceViewQueryAction) {
+                returnValue ||= !!(await queryCtx.tx.alterView(viewRef, {
+                    view_spec: { query: action.query().jsonfy() },
+                    view_columns: action.columns().map((c) => ({ name: c.value() })),
+                }));
+            } else {
+                throw new Error(`Unsupported ALTER VIEW action ${action.NODE_NAME}`);
+            }
+        }
+        return returnValue;
+    }
+
+    async #evaluateDROP_VIEW_STMT(stmtNode, queryCtx) {
+        const dropOpts = { ifExists: !!stmtNode.ifExists(), cascade: stmtNode.cascadeRule() === 'CASCADE' };
+        let returnValue = false;
+        for (const ident of stmtNode.names()) {
+            const viewRef = this.#tableRefFromIdent(ident, queryCtx);
+            const dropped = await queryCtx.tx.dropView(viewRef, dropOpts);
+            returnValue ||= dropped !== null;
+        }
+        return returnValue;
+    }
+
+    async #evaluateREFRESH_VIEW_STMT(stmtNode, queryCtx) {
+        await queryCtx.tx.refreshView(this.#tableRefFromIdent(stmtNode.name(), queryCtx));
+        return true;
+    }
+
+    async #evaluateCREATE_INDEX_STMT(stmtNode, queryCtx) {
+        const indexDef = this.#parser.indexAST_to_indexDef(stmtNode.argument(), {
+            tableRef: this.#tableRefFromIdent(stmtNode.argument().table(), queryCtx),
+            forceUnique: !!stmtNode.uniqueKW()
+        });
+        const created = await queryCtx.tx.createIndex(indexDef);
+        return created !== null;
+    }
+
+    async #evaluateALTER_INDEX_STMT(stmtNode, queryCtx) {
+        const subject = stmtNode.subject();
+        const indexRef = { namespace: this.#namespaceFromIdent(subject, queryCtx), name: subject.value() };
+        let returnValue = false;
+        for (const action of stmtNode.actions()) {
+            if (action instanceof registry.RenameIndexAction) {
+                returnValue ||= !!(await queryCtx.tx.alterIndex(indexRef, { name: action.name().value() }));
+                indexRef.name = action.name().value();
+            } else if (action instanceof registry.SetIndexSchemaAction) {
+                returnValue ||= !!(await queryCtx.tx.alterIndex(indexRef, { namespace: action.schema().value() }));
+                indexRef.namespace = action.schema().value();
+            } else {
+                throw new Error(`Unsupported ALTER INDEX action ${action.NODE_NAME}`);
+            }
+        }
+        return returnValue;
+    }
+
+    async #evaluateDROP_INDEX_STMT(stmtNode, queryCtx) {
+        let returnValue = false;
+        if (stmtNode.myName()) {
+            const tableRef = this.#tableRefFromIdent(stmtNode.myTable(), queryCtx);
+            await queryCtx.tx.dropIndex({ ...tableRef, name: stmtNode.myName().value() });
+            return true;
+        }
+
+        for (const ident of stmtNode.pgNames()) {
+            const dropped = await queryCtx.tx.dropIndex({
+                namespace: this.#namespaceFromIdent(ident, queryCtx),
+                name: ident.value(),
+                cascade: stmtNode.pgCascadeRule() === 'CASCADE',
+            });
+            returnValue ||= dropped !== null;
+        }
         return returnValue;
     }
 

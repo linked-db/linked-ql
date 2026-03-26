@@ -145,8 +145,8 @@ LinkedQL bundles an embeddable SQL engine, **FlashQL**, that brings its full cap
 | **Capability**     | **Summary**                                                   | **Docs**                             |
 | :----------------- | :------------------------------------------------------------ | :----------------------------------- |
 | **Local Database** | Run a full SQL engine in memory — same semantics, zero setup. | [FlashQL](/flashql) |
-| **Federation**     | Query local and remote data together in a single SQL surface. | [FlashQL](/flashql) |
-| **Sync**           | Keep local and remote tables automatically synchronized.      | [FlashQL](/flashql) |
+| **Federation**     | Declare foreign namespaces and origin views directly in SQL. | [FlashQL](/flashql) |
+| **Sync**           | Materialize and keep remote-backed views aligned with `db.sync`. | [FlashQL](/flashql) |
 
 ### Examples
 
@@ -173,12 +173,22 @@ console.log(result.rows);
 > Query local and remote data together in a single SQL surface.
 
 ```js
-await client.federate({ store: ['orders'] }, remoteConfig);
+await db.query(`
+  CREATE SCHEMA store
+  WITH (replication_origin = 'primary')
+`);
 
-const result = await client.query(`
+await db.query(`
+  CREATE ORIGIN VIEW store.orders AS
+  SELECT * FROM public.orders
+`);
+
+const result = await db.query(`
   SELECT u.name, COUNT(o.id) AS total_orders
-  FROM users AS u LEFT JOIN store.orders AS o ON o.user_id = u.id
-  GROUP BY u.id ORDER BY total_orders DESC;
+  FROM users AS u
+  LEFT JOIN store.orders AS o ON o.user_id = u.id
+  GROUP BY u.id
+  ORDER BY total_orders DESC
 `);
 ```
 
@@ -189,11 +199,17 @@ const result = await client.query(`
 > Keep local and remote tables automatically synchronized.
 
 ```js
-await client.sync({ store: ['orders'] }, remoteConfig);
+await db.query(`
+  CREATE SCHEMA store
+  WITH (replication_origin = 'primary')
+`);
 
-client.on('sync:status', s => console.log('Sync status:', s.state));
-client.on('sync:change', e => console.log('Δ', e.table, e.type));
+await db.query(`
+  CREATE REALTIME VIEW store.orders AS
+  SELECT * FROM public.orders
+`);
+
+await db.sync.sync({ store: ['orders'] });
 ```
 
 :::
-

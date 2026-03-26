@@ -4,6 +4,8 @@ import { bootstrapCatalog } from './bootstrap/catalog.bootstrap.js';
 import { TableStorage } from './TableStorage.js';
 import { SYSTEM_TAG } from './TableStorage.js';
 import { satisfiesVersionSpec, formatVersion } from './versionSpec.js';
+import { ExprEngine } from '../eval/ExprEngine.js';
+import { registry } from '../../lang/registry.js';
 
 export class Transaction {
 
@@ -16,6 +18,7 @@ export class Transaction {
     #meta;
 
     #sysCatalog;
+    #exprEngine;
 
     #affectedSequences = new Set;
     #undoLog = [];
@@ -27,6 +30,7 @@ export class Transaction {
     #readKeys = new Set;
     #writeKeys = new Set;
     #predicateReads = [];
+    #relationVersionBumps = new Map;
 
     get engine() { return this.#engine; }
     get id() { return this.#id; }
@@ -46,6 +50,7 @@ export class Transaction {
     get _readKeys() { return this.#readKeys; }
     get _writeKeys() { return this.#writeKeys; }
     get _predicateReads() { return this.#predicateReads; }
+    get _relationVersionBumps() { return this.#relationVersionBumps; }
 
     constructor({ engine, id, snapshot, strategy, meta = null }) {
         this.#engine = engine;
@@ -59,6 +64,7 @@ export class Transaction {
         }));
 
         this.#parser = new SQLParser({ dialect: this.#engine.dialect });
+        this.#exprEngine = new ExprEngine(null, { dialect: this.#engine.dialect });
     }
 
     // -------
@@ -215,9 +221,9 @@ export class Transaction {
             .map((con) => {
                 const relation_id = schemaGraph;
 
-                const column_ids = con.column_ids.map((id) => {
+                const column_ids = (con.column_ids || []).map((id) => {
                     const col = columns.find((c) => c.id === id);
-                    if (!col) throw new ReferenceError(`The column_id reference (${id}) could not be resolved at relation ${tblDef.name}, column ${col.name}`);
+                    if (!col) throw new ReferenceError(`The column_id reference (${id}) could not be resolved at relation ${tblDef.name}, constraint ${con.name}`);
                     return col;
                 });
 
@@ -349,7 +355,7 @@ export class Transaction {
         if (!['schema'].includes(kind))
             throw new Error(`Invalid namespace kind ${kind}`);
 
-        if (!/^[a-zA-Z_]/.test(owner))
+        if (![undefined, null].includes(owner) && !/^[a-zA-Z_]/.test(owner))
             throw new Error(`Namespace owner name must start with a letter or underscore`);
 
         if (replication_origin_type && !replication_origin)
@@ -376,36 +382,35 @@ export class Transaction {
     async alterNamespace({
         name
     }, {
-        name: newName = null,
-        owner: newOwner = null,
-        replication_origin: newReplicationOrigin = null,
-        replication_origin_type: newReplicationOriginType = null,
-        engine_attrs: newEngineAttrs = null
+        name: newName = undefined,
+        owner: newOwner = undefined,
+        replication_origin: newReplicationOrigin = undefined,
+        replication_origin_type: newReplicationOriginType = undefined,
+        engine_attrs: newEngineAttrs = undefined
     }) {
         const nsDef = this.showNamespace({ name });
         const newDef = {};
 
-        if (newName) {
+        if (newName !== undefined) {
+            if (newName === null) throw new Error(`[NAMESPACE] Namespace name cannot be null`);
             if (!/^[a-zA-Z_]/.test(newName))
                 throw new Error(`[NAMESPACE] Namespace name must start with a letter or underscore`);
             newDef.name = newName;
         }
 
-        if (newOwner) {
-            if (!/^[a-zA-Z_]/.test(newOwner))
+        if (newOwner !== undefined) {
+            if (newOwner !== null && !/^[a-zA-Z_]/.test(newOwner))
                 throw new Error(`[NAMESPACE] Owner name must start with a letter or underscore`);
             newDef.owner = newOwner;
         }
 
-        if (newReplicationOriginType) newDef.replication_origin_type = newReplicationOriginType;
+        if (newReplicationOriginType !== undefined) newDef.replication_origin_type = newReplicationOriginType;
 
-        if (newReplicationOrigin) {
-            if (!nsDef.replication_origin)
-                throw new Error(`Cannot alter a previously null replication_origin`);
+        if (newReplicationOrigin !== undefined) {
             newDef.replication_origin = newReplicationOrigin;
         }
 
-        if (newEngineAttrs) newDef.engine_attrs = newEngineAttrs;
+        if (newEngineAttrs !== undefined) newDef.engine_attrs = newEngineAttrs;
 
         const sysNs = this.getTable({ namespace: 'sys', name: 'sys_namespaces' });
         return await sysNs.update(nsDef, newDef);
@@ -558,6 +563,7 @@ export class Transaction {
             if (typeof view_spec !== 'object')
                 throw new Error(`The "view_spec" property must be an object`);
 
+            let derivedColumns;
             if (view_spec.query) {
                 const validQueryKeys = ['query', 'joinStrategy'];
                 for (const key in view_spec) {
@@ -565,22 +571,12 @@ export class Transaction {
                         throw new SyntaxError(`Unexpected property "${key}" in query-type view spec`);
                 }
 
-                if (columns.length)
-                    throw new Error(`Unexpected column list for query-type view`);
-
-                if (constraints.length)
-                    throw new Error(`Unexpected constraints list for query-type view`);
-
                 const schemaInference = await this.#engine.getSourceResolver(nsDef);
-                const query = await this.#parser.parse(view_spec);
+                const query = await this.#parser.parse(view_spec.query);
                 const resolvedQuery = await schemaInference.resolveQuery(query, { tx: this });
+                view_spec.query = resolvedQuery.jsonfy();
 
-                columns = resolvedQuery.resultSchema().entries().map((col) => this.#parser.columnAST_to_columnDef(col));
-
-                if (persistence === 'realtime') {
-                    columns = [{ name: '__id', type: 'TEXT', not_null: true, engine_attrs: { is_system_column: true } }].concat(columns);
-                    constraints = [{ kind: 'PRIMARY KEY', columns: ['__id'] }].concat(constraints);
-                }
+                derivedColumns = resolvedQuery.resultSchema().entries().map((col) => this.#parser.columnAST_to_columnDef(col));
             } else {
                 // Validation for Reference-defined source
                 const validRefKeys = ['namespace', 'name', 'filters', 'joinStrategy'];
@@ -597,22 +593,37 @@ export class Transaction {
                         throw new TypeError(`Property "filters" in view spec must be an object`);
                 }
 
-                if (!columns.length) {
-                    const schemaInference = await this.#engine.getSourceResolver(nsDef);
-                    const originNs = view_spec.namespace || namespace;
-                    const [tblSchema] = await schemaInference.showCreate({ [originNs]: view_spec.name }, { tx: this });
-                    if (!tblSchema) {
-                        throw new ReferenceError(`Origin relation ${JSON.stringify(originNs)}.${JSON.stringify(view_spec.name)} could not be resolved`);
-                    }
-
-                    ({ columns, constraints } = this.#parser.tableAST_to_tableDef(tblSchema, { namespace: originNs }));
+                const schemaInference = await this.#engine.getSourceResolver(nsDef);
+                const originNs = view_spec.namespace || namespace;
+                const [tblSchema] = await schemaInference.showCreate({ [originNs]: view_spec.name }, { tx: this });
+                if (!tblSchema) {
+                    throw new ReferenceError(`Origin relation ${JSON.stringify(originNs)}.${JSON.stringify(view_spec.name)} could not be resolved`);
                 }
+
+                ({ columns: derivedColumns, constraints } = this.#parser.tableAST_to_tableDef(tblSchema, { namespace: originNs }));
+            }
+
+            if (columns.length) {
+                if (columns.length !== derivedColumns.length) {
+                    throw new Error(`View column list has ${columns.length} column(s), but query returns ${derivedColumns.length}`);
+                }
+                columns = derivedColumns.map((col, i) => {
+                    if (!columns[i].name) throw new TypeError(`Input column #${i} is missing a name property.`)
+                    return { ...col, name: columns[i].name || col.name };
+                });
+            } else {
+                columns = derivedColumns;
             }
         }
 
         if (!constraints.find((con) => con.kind === 'PRIMARY KEY')) {
-            columns = [{ name: '__id', type: 'INT', is_generated: true, generation_rule: 'by_default', engine_attrs: { is_system_column: true } }].concat(columns);
-            constraints = [{ kind: 'PRIMARY KEY', columns: ['__id'] }].concat(constraints);
+            if (kind === 'view' && view_spec.query && persistence === 'realtime') {
+                columns = [{ name: '__id', type: 'TEXT', not_null: true, engine_attrs: { is_system_column: true } }].concat(columns);
+                constraints = [{ kind: 'PRIMARY KEY', columns: ['__id'] }].concat(constraints);
+            } else {
+                columns = [{ name: '__id', type: 'INT', is_generated: true, generation_rule: 'by_default', engine_attrs: { is_system_column: true } }].concat(columns);
+                constraints = [{ kind: 'PRIMARY KEY', columns: ['__id'] }].concat(constraints);
+            }
         }
 
         const resultTbl = await sysTables.insert({
@@ -642,8 +653,10 @@ export class Transaction {
         namespace: newNamespace = null,
         name: newName = null,
         view_spec: newViewSpec = null,
+        view_columns: newViewColumns = null,
+        persistence: newPersistence = null,
         engine_attrs: newEngineAttrs = null,
-        changes = [],
+        actions = [],
         assertIsView = false,
     }) {
         const tblDef = this.showTable({ namespace, name }, { assertIsView });
@@ -655,6 +668,7 @@ export class Transaction {
 
         const newDef = {};
         let returnValue;
+        let versionBump = 0;
 
         if (newNamespace) {
             const sysNs = this.getTable({ namespace: 'sys', name: 'sys_namespaces' });
@@ -663,21 +677,91 @@ export class Transaction {
             if (!newNs) throw new Error(`Target namespace ${JSON.stringify(newNamespace)} does not exist`);
 
             newDef.namespace_id = newNs.id;
-            newDef.version_major = tblDef.version_major + 1;
+            versionBump = Math.max(versionBump, 3);
         }
 
         if (newName) {
             if (!/^[a-zA-Z_]/.test(newName))
                 throw new Error(`Relation name must start with a letter or underscore`);
             newDef.name = newName;
-            newDef.version_major = tblDef.version_major + 1;
+            versionBump = Math.max(versionBump, 3);
         }
 
-        if (newViewSpec) newDef.view_spec = newViewSpec;
-        if (newEngineAttrs) newDef.engine_attrs = newEngineAttrs;
+        if (newPersistence) {
+            if (tblDef.kind !== 'view') {
+                throw new Error(`Unexpected "persistence" attribute for a non-view relation`);
+            }
+            newDef.persistence = newPersistence;
+            versionBump = Math.max(versionBump, 3);
+        }
 
-        if (changes?.length) {
-            // TODO
+        if (newViewSpec) {
+            if (tblDef.kind !== 'view') {
+                throw new Error(`Unexpected "view_spec" attribute for a non-view relation`);
+            }
+            const nsDef = this.showNamespace({ id: tblDef.namespace_id.id });
+            if (newViewSpec.query) {
+                const query = await this.#parser.parse(newViewSpec.query);
+                const schemaInference = await this.#engine.getSourceResolver(nsDef);
+                const resolvedQuery = await schemaInference.resolveQuery(query, { tx: this });
+                newViewSpec = { ...newViewSpec, query: resolvedQuery.jsonfy() };
+
+                const derivedColumns = resolvedQuery.resultSchema().entries().map((col) => this.#parser.columnAST_to_columnDef(col));
+                if (newViewColumns?.length) {
+                    if (newViewColumns.length !== derivedColumns.length) {
+                        throw new Error(`View column list has ${newViewColumns.length} column(s), but query returns ${derivedColumns.length}`);
+                    }
+                    newViewColumns = derivedColumns.map((col, i) => ({ ...col, name: newViewColumns[i].name || col.name }));
+                } else {
+                    newViewColumns = derivedColumns;
+                }
+            }
+
+            newDef.view_spec = newViewSpec;
+            if (newViewColumns?.length) await this.#replaceViewColumns(tblDef, newViewColumns);
+            versionBump = Math.max(versionBump, 3);
+        }
+        if (newEngineAttrs) {
+            newDef.engine_attrs = newEngineAttrs;
+            versionBump = Math.max(versionBump, 1);
+        }
+
+        if (actions?.length) {
+            for (const action of actions) {
+                if (action.type === 'add_column') {
+                    await this.#addColumnsToRelation(tblDef, [action.column]);
+                    versionBump = Math.max(versionBump, 2);
+                } else if (action.type === 'add_constraint') {
+                    await this.#addConstraintsToRelation(tblDef, [action.constraint]);
+                    versionBump = Math.max(versionBump, 2);
+                } else if (action.type === 'add_index') {
+                    await this.#addIndexesToRelation(tblDef, [action.index]);
+                } else if (action.type === 'alter_column') {
+                    await this.#alterColumnInRelation(tblDef, action.name, action);
+                    versionBump = Math.max(versionBump, 1);
+                } else if (action.type === 'rename_column') {
+                    await this.#renameColumnInRelation(tblDef, action.oldName, action.name);
+                    versionBump = Math.max(versionBump, 2);
+                } else if (action.type === 'rename_index') {
+                    await this.#renameIndexInRelation(tblDef, action.oldName, action.name);
+                    versionBump = Math.max(versionBump, 2);
+                } else if (action.type === 'drop_column') {
+                    await this.#dropColumnsFromRelation(tblDef, [action.name], { cascade: action.cascade === true });
+                    versionBump = Math.max(versionBump, 2);
+                } else if (action.type === 'drop_constraint') {
+                    await this.#dropConstraintsFromRelation(tblDef, [action.name], { cascade: action.cascade === true });
+                    versionBump = Math.max(versionBump, 2);
+                } else if (action.type === 'drop_index') {
+                    await this.#dropIndexesFromRelation(tblDef, [action.name], { cascade: action.cascade === true });
+                    versionBump = Math.max(versionBump, 2);
+                } else {
+                    throw new Error(`Unsupported ALTER TABLE action ${JSON.stringify(action.type)}`);
+                }
+            }
+        }
+
+        if (versionBump) {
+            Object.assign(newDef, this.#nextVersion(tblDef, versionBump));
         }
 
         if (Object.keys(newDef).length) {
@@ -724,7 +808,7 @@ export class Transaction {
     }
 
     async alterView(alterTableSpec, alterTableOpts) {
-        return await this.createTable(alterTableSpec, { ...alterTableOpts, assertIsView: true });
+        return await this.alterTable(alterTableSpec, { ...alterTableOpts, assertIsView: true });
     }
 
     async dropView(dropTableSpec, dropTableOpts) {
@@ -736,9 +820,55 @@ export class Transaction {
         await tableStorage.truncate();
     }
 
+    async refreshView(tableRef) {
+        const viewDef = this.showView(tableRef, { schema: true });
+        const querySpec = { ...(viewDef.view_spec || {}) };
+
+        if (!querySpec.name && !querySpec.query) {
+            throw new Error(`View ${JSON.stringify(viewDef.name)} has invalid view_spec`);
+        }
+        if (!querySpec.query) {
+            querySpec.namespace = querySpec.namespace || viewDef.namespace_id.name;
+        }
+
+        const sourceClient = await this.#engine.getSourceClient(viewDef.namespace_id);
+        const result = await sourceClient.query(querySpec);
+        const rows = result?.rows || [];
+        const preparedRows = rows.map((row) => this.#prepareViewRowForStorage(viewDef, row));
+
+        await this.resetView(tableRef);
+        const tableStorage = this.getTable(tableRef, { assertIsView: true });
+        for (const row of preparedRows) {
+            await tableStorage.insert(row, { systemTag: SYSTEM_TAG });
+        }
+
+        return preparedRows.length;
+    }
+
     // ----------
     // Index
     // ----------
+
+    showIndex({ namespace, table = null, name }) {
+        const sysIndexes = this.getTable({ namespace: 'sys', name: 'sys_indexes' });
+        if (table) {
+            const tblDef = this.showTable({ namespace, name: table });
+            const idx = sysIndexes.get({ relation_id: tblDef.id, name }, { using: 'sys_indexes__relation_id_name_idx' });
+            if (!idx) throw new Error(`Index ${JSON.stringify(name)} does not exist`);
+            return { idx, tblDef };
+        }
+
+        const tblDefs = this.listTables({ namespace }, { details: true });
+        const matches = [];
+        for (const tblDef of tblDefs) {
+            const idx = sysIndexes.get({ relation_id: tblDef.id, name }, { using: 'sys_indexes__relation_id_name_idx' });
+            if (idx) matches.push({ idx, tblDef });
+        }
+
+        if (!matches.length) throw new Error(`Index ${JSON.stringify(name)} does not exist`);
+        if (matches.length > 1) throw new Error(`Index name ${JSON.stringify(name)} is ambiguous within namespace ${JSON.stringify(namespace)}`);
+        return matches[0];
+    }
 
     async createIndex({ namespace, table, ...idx }) {
         const tblDef = this.showTable({ namespace, name: table });
@@ -746,24 +876,125 @@ export class Transaction {
         return resultIdx;
     }
 
-    async alterIndex({ namespace, table, name }, { name: newName }) {
-        const tblDef = this.showTable({ namespace, name: table });
-
+    async alterIndex({ namespace, table = null, name }, { name: newName, namespace: newNamespace = null }) {
+        const { idx, tblDef } = this.showIndex({ namespace, table, name });
         const sysIndexes = this.getTable({ namespace: 'sys', name: 'sys_indexes' });
-        const idx = sysIndexes.get({ relation_id: tblDef.id, name }, { using: 'sys_indexes__relation_id_name_idx' });
-        if (!idx) throw new Error(`Index ${JSON.stringify(name)} does not exist`);
-
-        return await sysIndexes.update(idx, { name: newName });
+        if (newNamespace && newNamespace !== tblDef.namespace_id.name) {
+            await this.alterTable(
+                { namespace: tblDef.namespace_id.name, name: tblDef.name },
+                { namespace: newNamespace }
+            );
+        }
+        return newName ? await sysIndexes.update(idx, { name: newName }) : idx;
     }
 
-    async dropIndex({ namespace, table, name, cascade = false }) {
-        const tblDef = this.showTable({ namespace, name: table });
-
-        const sysIndexes = this.getTable({ namespace: 'sys', name: 'sys_indexes' });
-        const idx = sysIndexes.get({ relation_id: tblDef.id, name }, { using: 'sys_indexes__relation_id_name_idx' });
-        if (!idx) throw new Error(`Index ${JSON.stringify(name)} does not exist`);
-
+    async dropIndex({ namespace, table = null, name, cascade = false }) {
+        const { idx } = this.showIndex({ namespace, table, name });
         await this.#dropIndexes([idx], cascade);
+    }
+
+    // ---------------
+
+    async #addColumnsToRelation(tblDef, columns) {
+        await this.#insertColumns(tblDef, columns);
+        await this.#rewriteRelationRows(tblDef, (row) => ({ ...row }));
+    }
+
+    async #addConstraintsToRelation(tblDef, constraints) {
+        await this.#validateConstraintsOnExistingRows(tblDef, constraints);
+        await this.#insertConstraints(tblDef, constraints);
+    }
+
+    async #addIndexesToRelation(tblDef, indexes) {
+        await this.#validateIndexesOnExistingRows(tblDef, indexes);
+        await this.#insertIndexes(tblDef, indexes);
+    }
+
+    async #alterColumnInRelation(tblDef, columnName, { operation, expr }) {
+        const sysColumns = this.getTable({ namespace: 'sys', name: 'sys_columns' });
+        const col = sysColumns.get({ relation_id: tblDef.id, name: columnName }, { using: 'sys_columns__relation_id_name_idx' });
+        if (!col) throw new Error(`Column ${JSON.stringify(columnName)} does not exist`);
+        if (operation === 'SET DEFAULT') {
+            await sysColumns.update(col, { default_expr_ast: expr });
+        } else if (operation === 'DROP DEFAULT') {
+            await sysColumns.update(col, { default_expr_ast: null });
+        } else if (operation === 'SET NOT NULL') {
+            await this.#assertNoNulls(tblDef, columnName);
+            await sysColumns.update(col, { not_null: true });
+        } else if (operation === 'DROP NOT NULL') {
+            await sysColumns.update(col, { not_null: false });
+        } else {
+            throw new Error(`Unsupported ALTER COLUMN operation ${JSON.stringify(operation)}`);
+        }
+    }
+
+    async #renameColumnInRelation(tblDef, oldName, newName) {
+        const sysColumns = this.getTable({ namespace: 'sys', name: 'sys_columns' });
+        const col = sysColumns.get({ relation_id: tblDef.id, name: oldName }, { using: 'sys_columns__relation_id_name_idx' });
+        if (!col) throw new Error(`Column ${JSON.stringify(oldName)} does not exist`);
+        await sysColumns.update(col, { name: newName });
+        await this.#rewriteRelationRows(tblDef, (row) => {
+            const nextRow = { ...row, [newName]: row[oldName] };
+            delete nextRow[oldName];
+            return nextRow;
+        });
+    }
+
+    async #renameIndexInRelation(tblDef, oldName, newName) {
+        const sysIndexes = this.getTable({ namespace: 'sys', name: 'sys_indexes' });
+        const idx = sysIndexes.get({ relation_id: tblDef.id, name: oldName }, { using: 'sys_indexes__relation_id_name_idx' });
+        if (!idx) throw new Error(`Index ${JSON.stringify(oldName)} does not exist`);
+        await sysIndexes.update(idx, { name: newName });
+    }
+
+    async #dropColumnsFromRelation(tblDef, columnNames, { cascade = false } = {}) {
+        const sysColumns = this.getTable({ namespace: 'sys', name: 'sys_columns' });
+        const cols = columnNames.map((columnName) => {
+            const col = sysColumns.get({ relation_id: tblDef.id, name: columnName }, { using: 'sys_columns__relation_id_name_idx' });
+            if (!col) throw new Error(`Column ${JSON.stringify(columnName)} does not exist`);
+            return col;
+        });
+        await this.#dropColumns(cols, cascade);
+        await this.#rewriteRelationRows(tblDef, (row) => {
+            const nextRow = { ...row };
+            for (const columnName of columnNames) delete nextRow[columnName];
+            return nextRow;
+        });
+    }
+
+    async #dropConstraintsFromRelation(tblDef, constraintNames, { cascade = false } = {}) {
+        const sysConstraints = this.getTable({ namespace: 'sys', name: 'sys_constraints' });
+        const constraints = constraintNames.map((constraintName) => {
+            const con = sysConstraints.get({ relation_id: tblDef.id, name: constraintName }, { using: 'sys_constraints__relation_id_name_idx' });
+            if (!con) throw new Error(`Constraint ${JSON.stringify(constraintName)} does not exist`);
+            return con;
+        });
+        await this.#dropConstraints(constraints, cascade);
+    }
+
+    async #dropIndexesFromRelation(tblDef, indexNames, { cascade = false } = {}) {
+        const sysIndexes = this.getTable({ namespace: 'sys', name: 'sys_indexes' });
+        const indexes = indexNames.map((indexName) => {
+            const idx = sysIndexes.get({ relation_id: tblDef.id, name: indexName }, { using: 'sys_indexes__relation_id_name_idx' });
+            if (!idx) throw new Error(`Index ${JSON.stringify(indexName)} does not exist`);
+            return idx;
+        });
+        await this.#dropIndexes(indexes, cascade);
+    }
+
+    async #replaceViewColumns(tblDef, columns) {
+        const sysColumns = this.getTable({ namespace: 'sys', name: 'sys_columns' });
+        const currentCols = sysColumns.get({ relation_id: tblDef.id }, { using: 'sys_columns__relation_id_idx', multiple: true });
+        const userColumns = currentCols.filter((col) => !col.engine_attrs?.is_system_column);
+        if (userColumns.length) await this.#dropColumns(userColumns, true);
+        await this.#insertColumns(tblDef, columns);
+        await this.#rewriteRelationRows(tblDef, (row) => {
+            const nextRow = {};
+            for (const [key, value] of Object.entries(row)) {
+                if (key.startsWith('__')) nextRow[key] = value;
+            }
+            return nextRow;
+        });
     }
 
     // ----------
@@ -776,7 +1007,8 @@ export class Transaction {
         const altSysTypes = bootstrapCatalog.get('sys_types');
 
         const resultCols = [];
-        let position = 1;
+        const existingCols = sysColumns.get({ relation_id: tblDef.id }, { using: 'sys_columns__relation_id_idx', multiple: true });
+        let position = existingCols.reduce((max, col) => Math.max(max, col.position), 0) + 1;
 
         for (const _col of columns) {
             const col = await this.#parser.resolve_columnDef(_col, (col, prop) => {
@@ -1021,6 +1253,7 @@ export class Transaction {
             await this.#dropRelations(tables, cascade);
 
             await sysNs.delete(nsDef);
+            await this.#clearDependencies('namespace', nsDef.id);
         }
     }
 
@@ -1059,6 +1292,7 @@ export class Transaction {
             if (tblCols.length) await this.#dropColumns(tblCols, cascade);
 
             await sysTables.delete(tblDef);
+            await this.#clearDependencies('relation', tblDef.id);
         }
     }
 
@@ -1103,6 +1337,7 @@ export class Transaction {
 
             // Drop
             await sysColumns.delete(col);
+            await this.#clearDependencies('column', col.id);
         }
     }
 
@@ -1118,12 +1353,14 @@ export class Transaction {
             });
 
             if (dependentObjs.length) {
-                if (!cascade) throw new Error(`Constraint has dependent objects`);
+                const implicitDependents = dependentObjs.every((dep) => dep.dependency_tag === 'constraint_backing_index');
+                if (!cascade && !implicitDependents) throw new Error(`Constraint has dependent objects`);
                 await this.#dropDependents(dependentObjs, cascade);
             }
 
             // Drop
             await sysConstraints.delete(con);
+            await this.#clearDependencies('constraint', con.id);
         }
     }
 
@@ -1145,6 +1382,7 @@ export class Transaction {
 
             // Drop
             await sysIndexes.delete(idx);
+            await this.#clearDependencies('index', idx.id);
         }
     }
 
@@ -1162,5 +1400,128 @@ export class Transaction {
                 await this.#dropIndexes([{ id: dep.dependent_object_id }], cascade);
             }
         }
+    }
+
+    async #clearDependencies(objectKind, objectId) {
+        const sysDependencies = this.getTable({ namespace: 'sys', name: 'sys_dependencies' });
+        const matching = sysDependencies.getAll().filter((dep) => (
+            dep.dependent_object_kind === objectKind && dep.dependent_object_id === objectId
+        ) || (
+                dep.referenced_object_kind === objectKind && dep.referenced_object_id === objectId
+            ));
+        for (const dep of matching) {
+            if (sysDependencies.exists(dep)) await sysDependencies.delete(dep);
+        }
+    }
+
+    async #validateConstraintsOnExistingRows(tblDef, constraints) {
+        const tableStorage = this.getTable(tblDef);
+        const rows = tableStorage.getAll();
+        for (const constraint of constraints) {
+            if (constraint.kind === 'PRIMARY KEY' || constraint.kind === 'UNIQUE') {
+                const seen = new Set;
+                for (const row of rows) {
+                    const key = JSON.stringify(constraint.columns.map((col) => row[col] ?? ''));
+                    if (constraint.kind === 'PRIMARY KEY' && constraint.columns.some((col) => row[col] === null || row[col] === undefined)) {
+                        throw new Error(`[${constraint.name || constraint.kind}] Existing rows violate PRIMARY KEY nullability`);
+                    }
+                    if (seen.has(key)) throw new Error(`[${constraint.name || constraint.kind}] Existing rows violate uniqueness`);
+                    seen.add(key);
+                }
+            } else if (constraint.kind === 'FOREIGN KEY') {
+                const target = this.getTable({ namespace: constraint.target_namespace || tblDef.namespace_id.name, name: constraint.target_relation });
+                for (const row of rows) {
+                    const where = {};
+                    const sourceColumns = constraint.columns || [];
+                    const targetColumns = constraint.target_columns || [];
+                    if (sourceColumns.every((col) => row[col] === null || row[col] === undefined)) continue;
+                    targetColumns.forEach((col, i) => { where[col] = row[sourceColumns[i]]; });
+                    if (!target.get(where)) throw new Error(`[${constraint.name || constraint.kind}] Existing rows violate foreign key`);
+                }
+            } else if (constraint.kind === 'CHECK' && constraint.ck_expression_ast) {
+                const exprNode = registry.Expr.fromJSON(constraint.ck_expression_ast, { dialect: this.#engine.dialect, assert: true });
+                for (const row of rows) {
+                    const result = await this.#exprEngine.evaluateToScalar(exprNode, { [tblDef.name]: row });
+                    if (result === false) {
+                        throw new Error(`[${constraint.name || constraint.kind}] Existing rows violate check constraint`);
+                    }
+                }
+            }
+        }
+    }
+
+    async #validateIndexesOnExistingRows(tblDef, indexes) {
+        const tableStorage = this.getTable(tblDef);
+        const rows = tableStorage.getAll();
+        for (const index of indexes) {
+            if (!index.is_unique || index.kind !== 'column') continue;
+            const seen = new Set;
+            for (const row of rows) {
+                const key = JSON.stringify(index.columns.map((col) => row[col] ?? ''));
+                if (seen.has(key)) throw new Error(`[${index.name || 'INDEX'}] Existing rows violate uniqueness`);
+                seen.add(key);
+            }
+        }
+    }
+
+    #nextVersion(tblDef, bumpLevel) {
+        const record = this.#relationVersionBumps.get(tblDef.id) || {
+            base: {
+                version_major: tblDef.version_major,
+                version_minor: tblDef.version_minor,
+                version_patch: tblDef.version_patch,
+            },
+            level: 0,
+        };
+        record.level = Math.max(record.level, bumpLevel);
+        this.#relationVersionBumps.set(tblDef.id, record);
+
+        if (record.level >= 3) {
+            return {
+                version_major: record.base.version_major + 1,
+                version_minor: 0,
+                version_patch: 0,
+            };
+        }
+        if (record.level === 2) {
+            return {
+                version_major: record.base.version_major,
+                version_minor: record.base.version_minor + 1,
+                version_patch: 0,
+            };
+        }
+        return {
+            version_major: record.base.version_major,
+            version_minor: record.base.version_minor,
+            version_patch: record.base.version_patch + 1,
+        };
+    }
+
+    async #rewriteRelationRows(tblDef, transformRow) {
+        const tableStorage = this.getTable(tblDef);
+        const rows = tableStorage.getAll();
+        for (const row of rows) {
+            const nextRow = transformRow({ ...row });
+            await tableStorage.update(row, nextRow, { systemTag: SYSTEM_TAG });
+        }
+    }
+
+    async #assertNoNulls(tblDef, columnName) {
+        const tableStorage = this.getTable(tblDef);
+        const rows = tableStorage.getAll();
+        const hasNulls = rows.some((row) => row[columnName] === null || row[columnName] === undefined);
+        if (hasNulls) {
+            throw new Error(`Column ${JSON.stringify(columnName)} contains nulls and cannot be set NOT NULL`);
+        }
+    }
+
+    #prepareViewRowForStorage(viewDef, row) {
+        if (viewDef.persistence !== 'realtime') return { ...row };
+        if ('__id' in row) return { ...row };
+
+        const stableKey = JSON.stringify(
+            Object.keys(row).sort().map((key) => [key, row[key]])
+        );
+        return { __id: stableKey, ...row };
     }
 }

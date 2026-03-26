@@ -1,5 +1,6 @@
 import { matchRelationSelector, normalizeRelationSelectorArg } from '../clients/abstracts/util.js';
 import { ConflictError } from './ConflictError.js';
+import { SYSTEM_TAG } from './storage/TableStorage.js';
 
 export class SyncManager {
 
@@ -415,7 +416,7 @@ export class SyncManager {
             await tx.resetView({ namespace: view.namespace, name: view.name });
             const tableStorage = tx.getTable({ namespace: view.namespace, name: view.name }, { assertIsView: true });
             for (const row of rows) {
-                await tableStorage.insert(row);
+                await tableStorage.insert(row, { systemTag: SYSTEM_TAG });
             }
         }, { meta: { source: 'sync' } });
     }
@@ -438,18 +439,18 @@ export class SyncManager {
                 if (event.op === 'insert' && event.new) {
                     const row = { __id: event.newHash, ...event.new };
                     try {
-                        await tableStorage.insert(row);
+                        await tableStorage.insert(row, { systemTag: SYSTEM_TAG });
                     } catch (e) {
                         if (!(e instanceof ConflictError)) throw e;
-                        await tableStorage.update({ __id: event.newHash }, row);
+                        await tableStorage.update({ __id: event.newHash }, row, { systemTag: SYSTEM_TAG });
                     }
                 } else if (event.op === 'update' && event.new) {
                     const oldKey = { __id: event.oldHash };
                     const newRow = { __id: event.newHash, ...event.new };
                     try {
-                        await tableStorage.update(oldKey, newRow);
+                        await tableStorage.update(oldKey, newRow, { systemTag: SYSTEM_TAG });
                     } catch {
-                        await tableStorage.insert(newRow);
+                        await tableStorage.insert(newRow, { systemTag: SYSTEM_TAG });
                     }
                 } else if (event.op === 'delete' && event.oldHash) {
                     try {

@@ -15,6 +15,12 @@ export class SQLParser {
     async parse(querySpec, { alias = null, ...options } = {}) {
         if (!querySpec) return;
         if (querySpec instanceof AbstractNode) return querySpec;
+        if (typeof querySpec === 'object' && typeof querySpec.nodeName === 'string') {
+            return registry.SQLScript.fromJSON(
+                { entries: [querySpec] },
+                { assert: true, dialect: options.dialect || this.#dialect, supportStdStmt: true }
+            ).entries()[0];
+        }
 
         // 1. --- SQL script
         if (typeof querySpec === 'string' || typeof querySpec === 'object' && querySpec.query) {
@@ -57,7 +63,12 @@ export class SQLParser {
         } else if (querySpec.query) {
             if (typeof querySpec.query.nodeName !== 'string')
                 throw new SyntaxError(`querySpec.query must be either a string or a valid AST object`);
-            query = registry.SQLScript.fromJSON(querySpec.query, { dialect: options.dialect || this.#dialect, supportStdStmt: true });
+            query = registry.SQLScript.fromJSON(
+                querySpec.query.nodeName === registry.SQLScript.NODE_NAME
+                    ? querySpec.query
+                    : { nodeName: registry.SQLScript.NODE_NAME, entries: [querySpec.query] },
+                { dialect: options.dialect || this.#dialect, supportStdStmt: true }
+            );
         } else throw new SyntaxError(`Invalid query input format`);
 
         if (query.length === 1) query = query.entries()[0];
@@ -601,7 +612,7 @@ export class SQLParser {
             throw new Error(`[${conDisplayName}] Unknown constraint kind: ${con.kind}`);
 
         // --- Columns
-        if (con.columns) {
+        if (con.columns?.length) {
             if (con.kind === 'CHECK')
                 throw new Error(`[${conDisplayName}] Cannot specify "columns" on a check constraint`);
             if (!Array.isArray(con.columns) || !con.columns.length)
@@ -610,7 +621,7 @@ export class SQLParser {
                 throw new Error(`[${conDisplayName}] Only one of "columns" or "column_ids" may be specified for a constraint`);
 
             await resolve(con, 'columns');
-        } else if (con.column_ids) {
+        } else if (con.column_ids?.length) {
             if (con.kind === 'CHECK')
                 throw new Error(`[${conDisplayName}] Cannot specify "column_ids" on a check constraint`);
             if (!Array.isArray(con.column_ids) || !con.column_ids.length)
@@ -814,6 +825,120 @@ export class SQLParser {
 
     // AST-to-DEF
 
+    literalAST_to_value(node) {
+        if (node === null || node === undefined) return node;
+        if (typeof node === 'string' || typeof node === 'number' || typeof node === 'boolean') return node;
+        if (typeof node.value === 'function') return node.value();
+        return node.stringify ? node.stringify() : node;
+    }
+
+    configEntriesAST_to_patch(entries, { reset = false } = {}) {
+        const patch = {};
+        for (const entry of entries || []) {
+            const left = entry.left?.();
+            const entryValue = typeof entry?.value === 'function' ? entry.value() : entry?.value;
+            const key = ((typeof left === 'string' ? left : left?.value?.()) || entryValue || '').toLowerCase();
+            if (!key) continue;
+            patch[key] = reset ? null : this.literalAST_to_value(entry.right?.() || entry);
+        }
+        return patch;
+    }
+
+    viewAST_to_viewDef(viewSchema, { namespace: defaultNsName = null, persistence = 'origin' } = {}) {
+        const tableName = viewSchema.name().value();
+        const nsName = viewSchema.name().qualifier()?.value() || defaultNsName;
+        return {
+            namespace: nsName,
+            name: tableName,
+            kind: 'view',
+            persistence,
+            columns: viewSchema.columns().map((col) => ({ name: col.value() })),
+            view_spec: { query: viewSchema.query().jsonfy() },
+        };
+    }
+
+    constraintAST_to_constraintDef(con, defaultNsName = null) {
+        const maybeName = con?.name?.()?.value?.();
+        if (con instanceof registry.TablePKConstraint) {
+            return { kind: 'PRIMARY KEY', ...(maybeName ? { name: maybeName } : {}), columns: con.columns().map((c) => c.value()) };
+        }
+        if (con instanceof registry.TableUKConstraint) {
+            return { kind: 'UNIQUE', ...(maybeName ? { name: maybeName } : {}), columns: con.columns().map((c) => c.value()) };
+        }
+        if (con instanceof registry.CheckConstraint) {
+            return { kind: 'CHECK', ...(maybeName ? { name: maybeName } : {}), ck_expression_ast: con.expr().jsonfy() };
+        }
+        if (con instanceof registry.TableFKConstraint) {
+            const targetTable = con.targetTable();
+            const item = {
+                kind: 'FOREIGN KEY',
+                ...(maybeName ? { name: maybeName } : {}),
+                columns: con.columns().map((c) => c.value()),
+                target_namespace: targetTable.qualifier()?.value() || defaultNsName,
+                target_relation: targetTable.value(),
+            };
+            const targetColumns = con.targetColumns()?.map((c) => c.value()) || [];
+            if (targetColumns.length) item.target_columns = targetColumns;
+            for (const rule of con.referentialRules?.() || []) {
+                if (rule instanceof registry.FKMatchRule) item.match_rule = rule.value() === 'SIMPLE' ? 'NONE' : rule.value();
+                else if (rule instanceof registry.FKUpdateRule) item.update_rule = rule.action().value();
+                else if (rule instanceof registry.FKDeleteRule) item.delete_rule = rule.action().value();
+            }
+            return item;
+        }
+        throw new Error(`Unsupported constraint AST ${con?.NODE_NAME}`);
+    }
+
+    indexAST_to_indexDef(indexSchema, { tableRef = null, forceUnique = false } = {}) {
+        const entries = indexSchema.entries();
+        const isExpression = entries.some((entry) => !(entry instanceof registry.ColumnRef1 || entry instanceof registry.ColumnRef2));
+        return {
+            ...(tableRef ? { namespace: tableRef.namespace, table: tableRef.name } : {}),
+            ...(indexSchema.name()?.value?.() ? { name: indexSchema.name().value() } : {}),
+            kind: isExpression ? 'expression' : 'column',
+            method: indexSchema.usingClause()?.method()?.value?.() || 'hash',
+            is_unique: forceUnique || !!indexSchema.uniqueKW(),
+            ...(isExpression
+                ? { expression_ast: entries[0].jsonfy() }
+                : { columns: entries.map((entry) => entry.value()) }),
+        };
+    }
+
+    tableAlterActionAST_to_defs(action, { tableRef }) {
+        if (action instanceof registry.AddTableAction) {
+            const argument = action.argument();
+            if (argument instanceof registry.ColumnSchema) {
+                return [{ type: 'add_column', column: this.columnAST_to_columnDef(argument) }];
+            }
+            if (argument instanceof registry.IndexSchema) {
+                return [{ type: 'add_index', index: this.indexAST_to_indexDef(argument, { tableRef }) }];
+            }
+            const constraint = this.constraintAST_to_constraintDef(argument, tableRef.namespace);
+            if (action.name()?.value()) constraint.name = action.name().value();
+            return [{ type: 'add_constraint', constraint }];
+        }
+        if (action instanceof registry.DropTableAction) {
+            const type = action.columnKW() ? 'drop_column' : action.constraintKW() ? 'drop_constraint' : 'drop_index';
+            return [{ type, name: action.name().value(), cascade: action.cascadeRule?.() === 'CASCADE' }];
+        }
+        if (action instanceof registry.RenameTableItemAction) {
+            return [{
+                type: action.columnKW() ? 'rename_column' : 'rename_index',
+                oldName: action.oldName().value(),
+                name: action.name().value(),
+            }];
+        }
+        if (action instanceof registry.AlterColumnAction) {
+            return [{
+                type: 'alter_column',
+                name: action.name().value(),
+                operation: action.operationKind(),
+                expr: action.expr()?.jsonfy?.() || null,
+            }];
+        }
+        throw new Error(`Unsupported ALTER TABLE action ${action.NODE_NAME}`);
+    }
+
     tableAST_to_tableDef(tableSchema, { namespace: defaultNsName = null, persistence = 'permanent' } = {}) {
         const tableName = tableSchema.name().value();
         const nsName = tableSchema.name().qualifier()?.value() || defaultNsName;
@@ -841,7 +966,7 @@ export class SQLParser {
         }
 
         for (const ck of tableSchema.ckConstraints(true)) {
-            const item = { kind: 'CHECK', expression_ast: ck.expr().jsonfy() };
+            const item = { kind: 'CHECK', ck_expression_ast: ck.expr().jsonfy() };
             const name = maybeName(ck);
             if (name) item.name = name;
             constraints.push(item);

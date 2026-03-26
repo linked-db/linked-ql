@@ -18,8 +18,17 @@ export class SQLScript extends AbstractNodeList {
             'CTE',
             'CreateSchemaStmt',
             'DropSchemaStmt',
+            'AlterSchemaStmt',
             'CreateTableStmt',
+            'AlterTableStmt',
             'DropTableStmt',
+            'CreateIndexStmt',
+            'AlterIndexStmt',
+            'DropIndexStmt',
+            'CreateViewStmt',
+            'AlterViewStmt',
+            'DropViewStmt',
+            'RefreshViewStmt',
             'StdStmt',
         ];
     }

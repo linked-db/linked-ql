@@ -4,8 +4,18 @@ export * from './ident/index.js';
 export * from './index/index.js';
 export * from './namespace/index.js';
 export * from './table/index.js';
+export * from './view/index.js';
 export { CreateSchemaStmt } from './CreateSchemaStmt.js';
 export { DropSchemaStmt } from './DropSchemaStmt.js';
+export { AlterSchemaStmt } from './AlterSchemaStmt.js';
 export { CreateTableStmt } from './CreateTableStmt.js';
+export { AlterTableStmt } from './AlterTableStmt.js';
 export { DropTableStmt } from './DropTableStmt.js';
+export { CreateIndexStmt } from './CreateIndexStmt.js';
+export { AlterIndexStmt } from './AlterIndexStmt.js';
+export { DropIndexStmt } from './DropIndexStmt.js';
+export { CreateViewStmt } from './CreateViewStmt.js';
+export { AlterViewStmt } from './AlterViewStmt.js';
+export { DropViewStmt } from './DropViewStmt.js';
+export { RefreshViewStmt } from './RefreshViewStmt.js';
 export { DDLStmt } from './DDLStmt.js'

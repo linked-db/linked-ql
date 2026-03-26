@@ -83,7 +83,7 @@ The big picture? **[SQL, reimagined for modern apps ↗](https://linked-ql.netli
 
 > [!IMPORTANT]
 > LinkedQL is backed by **1,000+ tests and growing**, with strong coverage across **FlashQL, live queries, edge transport, federation, WAL, sync, and parser/engine behavior**.<br>
-> The main areas still being expanded are **broader DDL parity, migrations, and deeper driver hardening across environments**.
+> The main areas still being expanded are **broader dialect parity, migrations, and deeper driver hardening across environments**.
 
 ---
 
@@ -1019,26 +1019,19 @@ Moving on to the goal of not just a local database but one that can mirror remot
 First, we create a local "namespace" – more traditionally called a "schema" – that contains the tables we'll use to mirror remote tables.
 
 ```js
-await db.storageEngine.transaction(async (tx) => {
-
-  await tx.createNamespace({
-    name: 'remote',
-
-    // Logical name of the remote system
-    replication_origin: 'primary', // The value passed to onCreateForeignClient()
-
-    // Indicates how to reach it (via EdgeClient)
-    replication_origin_type: 'edge',
-  });
-
-});
+await db.query(`
+  CREATE SCHEMA remote
+  WITH (
+    replication_origin = 'primary',
+    replication_origin_type = 'edge'
+  )
+`);
 ```
 
 ---
 
 ##### Decoding the above
 
-* The programmatic `tx.createNamespace()` call above is equivalent to `db.query('CREATE SCHEMA remote')`, but it lets us add the concept of **foreign origin**
 * `remote` is a **real local namespace (schema)** that can have tables and views (`VIEWS`) just like a regular namespace
 * The difference is what happens when you create a view inside it: those views will automatically resolve from the remote origin instead of the local database
 
@@ -1079,20 +1072,10 @@ We demonstrate each mode below.
 ##### Mode 1: Origin Views (Pure Federation)
 
 ```js
-await db.storageEngine.transaction(async (tx) => {
-
-  await tx.createView({
-    // Define under the local namespace called "remote"
-    namespace: 'remote',
-    name: 'users',
-
-    persistence: 'origin',
-
-    // Refers to public.users in the remote DB
-    view_spec: { namespace: 'public', name: 'users' },
-  });
-
-});
+await db.query(`
+  CREATE ORIGIN VIEW remote.users AS
+  SELECT * FROM public.users
+`);
 ```
 
 ---
@@ -1114,20 +1097,10 @@ This is the lightest-weight mode. It gives you unification without local storage
 ##### Mode 2: Materialized Views (Local Cache)
 
 ```js
-await db.storageEngine.transaction(async (tx) => {
-
-  await tx.createView({
-    // Define under the local namespace called "remote"
-    namespace: 'remote',
-    name: 'orders',
-
-    persistence: 'materialized',
-
-    // Refers to public.orders in the remote DB
-    view_spec: { namespace: 'public', name: 'orders' },
-  });
-
-});
+await db.query(`
+  CREATE MATERIALIZED VIEW remote.orders AS
+  SELECT * FROM public.orders
+`);
 ```
 
 ---
@@ -1153,20 +1126,12 @@ This is the mode to reach for when:
 ##### Mode 3: Realtime Views (Live Mirror)
 
 ```js
-await db.storageEngine.transaction(async (tx) => {
-
-  await tx.createView({
-    // Define under the local namespace called "remote"
-    namespace: 'remote',
-    name: 'posts',
-
-    persistence: 'realtime',
-
-    // Refers to public.posts in the remote DB
-    view_spec: { query: `SELECT * FROM public.posts WHERE post_type = 'NEWS'` },
-  });
-
-});
+await db.query(`
+  CREATE REALTIME VIEW remote.posts AS
+  SELECT *
+  FROM public.posts
+  WHERE post_type = 'NEWS'
+`);
 ```
 
 ---
@@ -1180,8 +1145,6 @@ await db.storageEngine.transaction(async (tx) => {
 This is **realtime mirroring**:
 
 > A local table that tracks and syncs with the remote table over time
-
-Notice from the above that `view_spec` for any of the modes can be any SQL query, as against just a `namespace → name` declaration.
 
 This is the richest mode:
 
@@ -1239,6 +1202,8 @@ window.addEventListener('online', () => {
 
 At that point, your local database is no longer just "configured".
 It is now hydrated, subscribed where necessary, and ready to behave like a unified relational graph.
+
+> Note that the initial `db.sync.sync()` can be automatically-handled by FlashQL. Simply pass `autoSync: true` in constructor parameters.
 
 ---
 

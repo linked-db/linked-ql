@@ -27,11 +27,9 @@ At a high level, the system works like this:
 In FlashQL, a namespace is the schema-level container for relations and other schema objects.
 
 ```js
-await db.storageEngine.transaction(async (tx) => {
-  await tx.createNamespace({
-    name: 'crm',
-  });
-});
+await db.query(`
+  CREATE SCHEMA crm
+`);
 ```
 
 That gives you a normal schema for database objects like tables and views:
@@ -45,7 +43,17 @@ That gives you a normal schema for database objects like tables and views:
 A namespace may optionally define `replication_origin`.
 
 ```js
-await db.storageEngine.transaction(async (tx) => {
+await db.query(`
+  CREATE SCHEMA remote
+  WITH (replication_origin = 'primary')
+`);
+```
+
+<details>
+<summary>The equivalent lower level API would be (click to show)</summary>
+
+```js
+await db.transaction(async (tx) => {
   await tx.createNamespace({
     name: 'remote',
     replication_origin: 'primary',
@@ -53,13 +61,15 @@ await db.storageEngine.transaction(async (tx) => {
 });
 ```
 
+</details>
+
+
 This means exactly one thing:
 
 - all views in that namespace should be resolved from the foreign origin instead of the local database
 
 The namespace is still just a schema that can contain normal tables and other objects.
-
-### Defining `replication_origin`
+### Interpreting `replication_origin`
 
 `replication_origin` is an application-defined identifier or spec.
 
@@ -115,21 +125,34 @@ Once a namespace has `replication_origin`, views in that namespace are resolved 
 On defining views in a `replication_origin`-enabled namespace, you have data federation already automatically set up.
 
 ```js
-await db.storageEngine.transaction(async (tx) => {
+await db.query(`
+  CREATE ORIGIN VIEW remote.users AS
+  SELECT * FROM public.users
+`);
+```
+
+<details>
+<summary>The equivalent lower level API would be (click to show)</summary>
+
+```js
+await db.transaction(async (tx) => {
   await tx.createView({
     namespace: 'remote',
     name: 'users',
     persistence: 'origin',
     view_spec: { namespace: 'public', name: 'users' },
+    // Or, view_spec: { query: 'SELECT * FROM public.users' }
   });
 });
 ```
 
+</details>
+
 Here:
 
 - `remote.users` is a view that resolves from a foreign origin
-- `persistence: 'origin'` is one of three persistence modes as described below
-- `view_spec: { namespace: 'public', name: 'users' }` specifies the source table in origin database: `public.users`
+- `ORIGIN` is one of three persistence modes as described below
+- the `AS SELECT * FROM public.users` query specifies the source relation in the origin database
 
 In summary, views are the abstraction boundary between local and remote data.
 They define both where data comes from and how it behaves locally.
@@ -151,15 +174,28 @@ An `origin` view means:
 > resolve the source relation through the foreign client at read time
 
 ```js
-await db.storageEngine.transaction(async (tx) => {
+await db.query(`
+  CREATE ORIGIN VIEW remote.users AS
+  SELECT * FROM public.users
+`);
+```
+
+<details>
+<summary>The equivalent lower level API would be (click to show)</summary>
+
+```js
+await db.transaction(async (tx) => {
   await tx.createView({
     namespace: 'remote',
     name: 'users',
     persistence: 'origin',
     view_spec: { namespace: 'public', name: 'users' },
+    // Or, view_spec: { query: 'SELECT * FROM public.users' }
   });
 });
 ```
+
+</details>
 
 Behavior:
 
@@ -180,15 +216,28 @@ A `materialized` view means:
 > pull rows from the source relation into local storage during sync
 
 ```js
-await db.storageEngine.transaction(async (tx) => {
+await db.query(`
+  CREATE MATERIALIZED VIEW remote.users AS
+  SELECT * FROM public.users
+`);
+```
+
+<details>
+<summary>The equivalent lower level API would be (click to show)</summary>
+
+```js
+await db.transaction(async (tx) => {
   await tx.createView({
     namespace: 'remote',
     name: 'users',
     persistence: 'materialized',
     view_spec: { namespace: 'public', name: 'users' },
+    // Or, view_spec: { query: 'SELECT * FROM public.users' }
   });
 });
 ```
+
+</details>
 
 Behavior:
 
@@ -209,15 +258,28 @@ A `realtime` view means:
 > materialize locally, then keep the local copy hot after sync
 
 ```js
-await db.storageEngine.transaction(async (tx) => {
+await db.query(`
+  CREATE REALTIME VIEW remote.posts AS
+  SELECT * FROM public.posts
+`);
+```
+
+<details>
+<summary>The equivalent lower level API would be (click to show)</summary>
+
+```js
+await db.transaction(async (tx) => {
   await tx.createView({
     namespace: 'remote',
     name: 'posts',
     persistence: 'realtime',
     view_spec: { namespace: 'public', name: 'posts' },
+    // Or, view_spec: { query: 'SELECT * FROM public.users' }
   });
 });
 ```
+
+</details>
 
 Behavior:
 
@@ -239,9 +301,7 @@ import { EdgeClient } from '@linked-db/linked-ql/edge';
 import { IndexedDBKV } from '@webqit/keyval/indexeddb';
 
 const db = new FlashQL({
-  // Persistence storage
   keyval: new IndexedDBKV({ path: ['my-app'] }),
-  // onCreateForeignClient() hook
   async onCreateForeignClient(origin) {
     if (origin === 'primary') {
       return new EdgeClient({
@@ -250,20 +310,50 @@ const db = new FlashQL({
       });
     }
   },
-
 });
 
 await db.connect();
 
-await db.storageEngine.transaction(async (tx) => {
+await db.query(`
+  CREATE SCHEMA remote
+  WITH (replication_origin = 'primary')
+`);
 
-  // A namesapce with replication_origin
+await db.query(`
+  CREATE TABLE remote.notes (
+    id INT PRIMARY KEY,
+    body TEXT
+  )
+`);
+
+await db.query(`
+  CREATE ORIGIN VIEW remote.users AS
+  SELECT * FROM public.users
+`);
+
+await db.query(`
+  CREATE MATERIALIZED VIEW remote.profiles AS
+  SELECT * FROM public.profiles
+`);
+
+await db.query(`
+  CREATE REALTIME VIEW remote.posts AS
+  SELECT * FROM public.posts
+`);
+
+await db.sync.sync();
+```
+
+<details>
+<summary>The equivalent lower level API would be (click to show)</summary>
+
+```js
+await db.storageEngine.transaction(async (tx) => {
   await tx.createNamespace({
     name: 'remote',
     replication_origin: 'primary',
   });
 
-  // A normal local table
   await tx.createTable({
     namespace: 'remote',
     name: 'notes',
@@ -273,7 +363,6 @@ await db.storageEngine.transaction(async (tx) => {
     ],
   });
 
-  // An "origin" view
   await tx.createView({
     namespace: 'remote',
     name: 'users',
@@ -281,7 +370,6 @@ await db.storageEngine.transaction(async (tx) => {
     view_spec: { namespace: 'public', name: 'users' },
   });
 
-  // A "materialized" view
   await tx.createView({
     namespace: 'remote',
     name: 'profiles',
@@ -289,7 +377,6 @@ await db.storageEngine.transaction(async (tx) => {
     view_spec: { namespace: 'public', name: 'profiles' },
   });
 
-  // A "realtime" view
   await tx.createView({
     namespace: 'remote',
     name: 'posts',
@@ -297,15 +384,15 @@ await db.storageEngine.transaction(async (tx) => {
     view_spec: { namespace: 'public', name: 'posts' },
   });
 });
-
-await db.sync.sync();
 ```
+
+</details>
 
 This setup shows all three layers at once:
 
 - `remote` is a normal namespace with `replication_origin`
 - `remote.notes` is an ordinary local table in that same namespace
-- `remote.users` is an "origin" view, resolved on-the-fly
+- `remote.users` is an "origin" view, resolved only at query time
 - `public.profiles` is a "materialized" view, resolved just once
 - `public.posts` is a "realtime" view, kept in sync with origin table
 
@@ -331,7 +418,7 @@ The sync API is covered in detail in [Sync](/flashql/sync)
 
 ### The `view_spec`
 
-`view_spec` defines the upstream source behind a view.
+In the `tx.createView()` API, `view_spec` defines the upstream source behind a view.
 
 Every view must have a `view_spec`, and that value must be an object.
 
@@ -439,7 +526,7 @@ Accepted keys are:
 - `query`
 - `joinStrategy`
 
-Rules enforced by the code:
+Rules are:
 
 - `query` must be present
 - `columns` must not be supplied alongside a query-type view
@@ -465,19 +552,6 @@ For query-type specs:
 
 - FlashQL parses and resolves the query
 - it derives the result schema from the query output
-
-This is why most view definitions can stay short:
-
-```js
-await tx.createView({
-  namespace: 'remote',
-  name: 'users',
-  persistence: 'origin',
-  view_spec: { namespace: 'public', name: 'users' },
-});
-```
-
-without requiring you to restate the full column list.
 
 #### `joinStrategy`
 

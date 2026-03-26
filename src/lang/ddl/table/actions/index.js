@@ -1,0 +1,11 @@
+export { AddTableAction } from './AddTableAction.js';
+export { AlterColumnAction } from './AlterColumnAction.js';
+export { ColumnAlterOperation } from './ColumnAlterOperation.js';
+export { DropColumnDefaultAction } from './DropColumnDefaultAction.js';
+export { DropColumnNotNullAction } from './DropColumnNotNullAction.js';
+export { DropTableAction } from './DropTableAction.js';
+export { RenameTableItemAction } from './RenameTableItemAction.js';
+export { RenameTableAction } from './RenameTableAction.js';
+export { SetColumnDefaultAction } from './SetColumnDefaultAction.js';
+export { SetColumnNotNullAction } from './SetColumnNotNullAction.js';
+export { SetTableSchemaAction } from './SetTableSchemaAction.js';

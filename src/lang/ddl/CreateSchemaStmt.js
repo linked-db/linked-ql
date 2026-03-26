@@ -21,7 +21,13 @@ export class CreateSchemaStmt extends DDLStmt {
         return [
             { type: 'keyword', value: 'CREATE' },
             { type: 'keyword', value: 'SCHEMA', dialect: 'postgres' },
-            { type: 'keyword', value: ['SCHEMA', 'DATABASE'], dialect: 'mysql' },
+            {
+                dialect: 'mysql',
+                syntaxes: [
+                    { type: 'keyword', as: 'my_keyword', value: 'SCHEMA' },
+                    { type: 'keyword', as: 'my_keyword', value: 'DATABASE' },
+                ],
+            },
             {
                 dialect: 'postgres',
                 syntaxes: [
@@ -65,6 +71,7 @@ export class CreateSchemaStmt extends DDLStmt {
                     // TODO: mysql create options (like DEFAULT CHARACTER SET utf8)
                 ]
             },
+            { type: 'NamespaceOptionsClause', as: 'options_clause', optional: true },
         ];
     }
 
@@ -77,4 +84,8 @@ export class CreateSchemaStmt extends DDLStmt {
     pgAuthorization() { return this._get('pg_authorization'); }
 
     pgEntries() { return this._get('pg_entries'); }
+
+    optionsClause() { return this._get('options_clause'); }
+
+    myKeyword() { return this._get('my_keyword'); }
 }

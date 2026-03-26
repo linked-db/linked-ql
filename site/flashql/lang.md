@@ -282,14 +282,24 @@ This is one of the areas where the older docs were badly behind the code. Window
 
 ## DDL and schema operations
 
-FlashQL supports meaningful parts of DDL, but this is also where its surface is less complete than its DQL/DML surface.
+FlashQL now exposes a meaningful SQL DDL surface alongside the lower-level storage transaction APIs.
 
 ### Supported today
 
 At the SQL-facing level, tested and used support includes:
 
+- `CREATE SCHEMA ... WITH (...)`
+- `ALTER SCHEMA`
 - `CREATE TABLE`
+- `ALTER TABLE`
 - `DROP TABLE`
+- `CREATE [ORIGIN|MATERIALIZED|REALTIME] VIEW`
+- `ALTER VIEW`
+- `DROP VIEW`
+- `REFRESH VIEW`
+- `CREATE INDEX`
+- `ALTER INDEX`
+- `DROP INDEX`
 
 At the storage-transaction level, support exists for:
 
@@ -300,20 +310,19 @@ At the storage-transaction level, support exists for:
 - `alterView()`
 - `dropView()`
 - `createNamespace()`
+- `alterNamespace()`
+- `createIndex()`
+- `alterIndex()`
+- `dropIndex()`
 
-### Important nuance about views
+### Important nuance about dialects
 
-FlashQL has a strong *view model*, but it is currently centered on the storage transaction API rather than on a full SQL `CREATE VIEW` surface.
+The SQL surface is intentionally selective rather than claiming full PostgreSQL or MySQL DDL parity. The parser is dialect-aware and covers the supported overlap plus FlashQL-specific extensions such as:
 
-In other words:
+- schema options like `replication_origin`
+- persistence-qualified views such as `CREATE MATERIALIZED VIEW` and `CREATE REALTIME VIEW`
 
-- view behavior is very real
-- sync-enabled views are very real
-- but you should not read that as "full SQL `CREATE VIEW` parity is finished"
-
-### Important nuance about `ALTER`
-
-Some schema-evolution paths exist, but broader DDL parity is still catching up. If your application depends heavily on runtime `ALTER TABLE` compatibility with mainstream servers, treat that as an area requiring validation.
+If your application depends on rarely used server-specific DDL clauses, validate those paths explicitly.
 
 ## Transactions
 

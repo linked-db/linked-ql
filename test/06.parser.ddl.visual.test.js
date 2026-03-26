@@ -382,4 +382,164 @@ $describe('Parser - DDL Constraints', () => {
     });
   });
 
+  // ---------------------
+  // VIEW / INDEX / ALTER DDL
+  // ---------------------
+
+  const createViewCases = [
+    ['CREATE VIEW v_users AS SELECT id FROM users'],
+    ['CREATE VIEW public.v_users AS SELECT id, name FROM users'],
+    ['CREATE VIEW v_users (id) AS SELECT id FROM users'],
+    ['CREATE VIEW v_users (id, name) AS SELECT id, name FROM users'],
+    ['CREATE OR REPLACE VIEW v_users AS SELECT id FROM users'],
+    ['CREATE ORIGIN VIEW v_users AS SELECT id FROM users'],
+    ['CREATE MATERIALIZED VIEW v_users AS SELECT id FROM users'],
+    ['CREATE REALTIME VIEW v_users AS SELECT id FROM users'],
+    ['CREATE OR REPLACE REALTIME VIEW v_users AS SELECT id FROM users'],
+    ['CREATE VIEW analytics.v_users AS SELECT id FROM public.users'],
+    ['CREATE VIEW v_users AS SELECT id FROM users WHERE id > 10'],
+    ['CREATE VIEW v_users AS SELECT id FROM users ORDER BY id'],
+    ['CREATE VIEW v_users AS SELECT id FROM users LIMIT 5'],
+    ['CREATE VIEW v_users AS SELECT id FROM users OFFSET 2'],
+    ['CREATE VIEW v_users AS SELECT DISTINCT id FROM users'],
+    ['CREATE VIEW v_users AS SELECT id AS user_id FROM users'],
+    ['CREATE VIEW v_users AS SELECT id FROM public.users ORDER BY id LIMIT 10'],
+  ];
+
+  $describe('CREATE VIEW Statements', () => {
+    createViewCases.forEach(([sql], i) => $it(`should round-trip CREATE VIEW case #${i + 1}`, async () => {
+      await testParseAndStringify('CreateViewStmt', sql);
+    }));
+  });
+
+  const alterViewCases = [
+    ['ALTER VIEW v_users SET SCHEMA analytics'],
+    ['ALTER VIEW public.v_users SET SCHEMA analytics'],
+    ['ALTER VIEW v_users AS SELECT id FROM users'],
+    ['ALTER VIEW v_users AS SELECT id, name FROM users'],
+    ['ALTER VIEW v_users (id) AS SELECT id FROM users'],
+    ['ALTER VIEW v_users (id, name) AS SELECT id, name FROM users'],
+    ['ALTER VIEW public.v_users AS SELECT id FROM public.users'],
+    ['ALTER VIEW analytics.v_users AS SELECT id FROM public.users'],
+    ['ALTER VIEW v_users AS SELECT id FROM users WHERE id > 1'],
+    ['ALTER VIEW v_users AS SELECT id FROM users ORDER BY id'],
+  ];
+
+  $describe('ALTER VIEW Statements', () => {
+    alterViewCases.forEach(([sql], i) => $it(`should round-trip ALTER VIEW case #${i + 1}`, async () => {
+      await testParseAndStringify('AlterViewStmt', sql);
+    }));
+  });
+
+  const dropRefreshViewCases = [
+    ['DropViewStmt', 'DROP VIEW v_users'],
+    ['DropViewStmt', 'DROP VIEW IF EXISTS v_users'],
+    ['DropViewStmt', 'DROP VIEW v1, v2', { dialect: 'postgres' }],
+    ['DropViewStmt', 'DROP VIEW IF EXISTS public.v_users CASCADE', { dialect: 'postgres' }],
+    ['RefreshViewStmt', 'REFRESH VIEW v_users'],
+    ['RefreshViewStmt', 'REFRESH MATERIALIZED VIEW v_users'],
+    ['RefreshViewStmt', 'REFRESH REALTIME VIEW v_users'],
+    ['RefreshViewStmt', 'REFRESH ORIGIN VIEW analytics.v_users'],
+  ];
+
+  $describe('DROP and REFRESH VIEW Statements', () => {
+    dropRefreshViewCases.forEach(([entryPoint, sql, options = {}], i) => $it(`should round-trip VIEW utility case #${i + 1}`, async () => {
+      await testParseAndStringify(entryPoint, sql, options);
+    }));
+  });
+
+  const createIndexCases = [
+    ['CREATE INDEX idx_users_name ON users (name)'],
+    ['CREATE INDEX public.idx_users_name ON public.users (name)'],
+    ['CREATE UNIQUE INDEX idx_users_name ON users (name)'],
+    ['CREATE UNIQUE INDEX IF NOT EXISTS idx_users_name ON users (name)'],
+    ['CREATE INDEX idx_users_name ON users USING hash (name)'],
+    ['CREATE INDEX idx_users_expr ON users ((lower(name)))'],
+    ['CREATE INDEX idx_users_name ON public.users (name, id)'],
+    ['CREATE INDEX idx_users_name ON users (name) INCLUDE (id)', { dialect: 'postgres' }],
+    ['CREATE INDEX idx_users_name ON users (name) WITH (fillfactor = 80)', { dialect: 'postgres' }],
+    ['CREATE INDEX idx_users_name ON users USING hash (name) INCLUDE (id) WITH (fillfactor = 80)', { dialect: 'postgres' }],
+  ];
+
+  $describe('CREATE INDEX Statements', () => {
+    createIndexCases.forEach(([sql, options = {}], i) => $it(`should round-trip CREATE INDEX case #${i + 1}`, async () => {
+      await testParseAndStringify('CreateIndexStmt', sql, options);
+    }));
+  });
+
+  const alterDropIndexCases = [
+    ['AlterIndexStmt', 'ALTER INDEX idx_users_name RENAME TO idx_users_full_name', { dialect: 'postgres' }],
+    ['AlterIndexStmt', 'ALTER INDEX public.idx_users_name RENAME TO idx_users_full_name', { dialect: 'postgres' }],
+    ['AlterIndexStmt', 'ALTER INDEX idx_users_name SET SCHEMA analytics', { dialect: 'postgres' }],
+    ['AlterIndexStmt', 'ALTER INDEX public.idx_users_name SET SCHEMA analytics', { dialect: 'postgres' }],
+    ['DropIndexStmt', 'DROP INDEX idx_users_name', { dialect: 'postgres' }],
+    ['DropIndexStmt', 'DROP INDEX IF EXISTS idx_users_name', { dialect: 'postgres' }],
+    ['DropIndexStmt', 'DROP INDEX IF EXISTS public.idx_users_name CASCADE', { dialect: 'postgres' }],
+    ['DropIndexStmt', 'DROP INDEX idx_users_name, idx_users_email', { dialect: 'postgres' }],
+    ['DropIndexStmt', 'DROP INDEX idx_users_name ON users', { dialect: 'mysql' }],
+    ['DropIndexStmt', 'DROP INDEX idx_users_name ON public.users', { dialect: 'mysql' }],
+  ];
+
+  $describe('ALTER and DROP INDEX Statements', () => {
+    alterDropIndexCases.forEach(([entryPoint, sql, options = {}], i) => $it(`should round-trip INDEX utility case #${i + 1}`, async () => {
+      await testParseAndStringify(entryPoint, sql, options);
+    }));
+  });
+
+  const createAlterSchemaCases = [
+    ['CreateSchemaStmt', 'CREATE SCHEMA crm'],
+    ['CreateSchemaStmt', 'CREATE SCHEMA IF NOT EXISTS crm'],
+    ['CreateSchemaStmt', 'CREATE SCHEMA crm AUTHORIZATION CURRENT_USER', { dialect: 'postgres' }],
+    ['CreateSchemaStmt', ['CREATE SCHEMA crm WITH (replication_origin = primary)', 'CREATE SCHEMA crm WITH (replication_origin = PRIMARY)']],
+    ['CreateSchemaStmt', 'CREATE DATABASE crm', { dialect: 'mysql' }],
+    ['CreateSchemaStmt', ['CREATE DATABASE IF NOT EXISTS crm WITH (replication_origin = primary)', 'CREATE DATABASE IF NOT EXISTS crm WITH (replication_origin = PRIMARY)'], { dialect: 'mysql' }],
+    ['AlterSchemaStmt', 'ALTER SCHEMA crm RENAME TO analytics', { dialect: 'postgres' }],
+    ['AlterSchemaStmt', ['ALTER SCHEMA crm SET (replication_origin = primary)', 'ALTER SCHEMA crm SET (replication_origin = PRIMARY)'], { dialect: 'postgres' }],
+    ['AlterSchemaStmt', 'ALTER SCHEMA crm RESET (replication_origin)', { dialect: 'postgres' }],
+    ['AlterSchemaStmt', 'ALTER DATABASE crm RENAME TO analytics', { dialect: 'mysql' }],
+    ['AlterSchemaStmt', ['ALTER DATABASE crm SET (replication_origin = primary)', 'ALTER DATABASE crm SET (replication_origin = PRIMARY)'], { dialect: 'mysql' }],
+    ['AlterSchemaStmt', 'ALTER DATABASE crm RESET (replication_origin)', { dialect: 'mysql' }],
+  ];
+
+  $describe('CREATE and ALTER SCHEMA Statements', () => {
+    createAlterSchemaCases.forEach(([entryPoint, sql, options = {}], i) => $it(`should round-trip SCHEMA utility case #${i + 1}`, async () => {
+      await testParseAndStringify(entryPoint, sql, options);
+    }));
+  });
+
+  const alterTableCases = [
+    ['ALTER TABLE users RENAME TO app_users'],
+    ['ALTER TABLE public.users RENAME TO app_users'],
+    ['ALTER TABLE users SET SCHEMA analytics'],
+    ['ALTER TABLE public.users SET SCHEMA analytics'],
+    ['ALTER TABLE users ADD COLUMN email TEXT'],
+    ['ALTER TABLE users ADD email TEXT'],
+    ['ALTER TABLE users ADD CONSTRAINT users_pk PRIMARY KEY (id)'],
+    ['ALTER TABLE users ADD PRIMARY KEY (id)'],
+    ['ALTER TABLE users ADD UNIQUE (email)'],
+    ['ALTER TABLE users ADD CHECK (age > 0)'],
+    ['ALTER TABLE users DROP COLUMN email'],
+    ['ALTER TABLE users DROP COLUMN email CASCADE', { dialect: 'postgres' }],
+    ['ALTER TABLE users RENAME COLUMN email TO contact_email'],
+    ['ALTER TABLE users ALTER COLUMN email SET DEFAULT \'unknown\''],
+    ['ALTER TABLE users ALTER COLUMN email DROP DEFAULT'],
+    ['ALTER TABLE users ALTER COLUMN email SET NOT NULL'],
+    ['ALTER TABLE users ALTER COLUMN email DROP NOT NULL'],
+    ['ALTER TABLE users DROP CONSTRAINT users_pk'],
+    ['ALTER TABLE users DROP CONSTRAINT users_pk CASCADE', { dialect: 'postgres' }],
+    ['ALTER TABLE users ADD INDEX idx_email (email)', { dialect: 'mysql' }],
+    ['ALTER TABLE users ADD KEY idx_email (email)', { dialect: 'mysql' }],
+    ['ALTER TABLE users ADD UNIQUE KEY idx_email (email)', { dialect: 'mysql' }],
+    ['ALTER TABLE users ADD UNIQUE (email)', { dialect: 'mysql' }],
+    ['ALTER TABLE users DROP INDEX idx_email', { dialect: 'mysql' }],
+    ['ALTER TABLE users DROP KEY idx_email', { dialect: 'mysql' }],
+    ['ALTER TABLE users RENAME INDEX idx_email TO idx_users_email', { dialect: 'mysql' }],
+  ];
+
+  $describe('ALTER TABLE Statements', () => {
+    alterTableCases.forEach(([sql, options = {}], i) => $it(`should round-trip ALTER TABLE case #${i + 1}`, async () => {
+      await testParseAndStringify('AlterTableStmt', sql, options);
+    }));
+  });
+
 });

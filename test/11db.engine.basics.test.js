@@ -74,6 +74,27 @@ const listTables = async (client, namespace) => {
     return await client.storageEngine.transaction(async (tx) => tx.listTables({ namespace }));
 };
 
+const showNamespace = async (client, name) => {
+    return await client.storageEngine.transaction(async (tx) => tx.showNamespace({ name }));
+};
+
+const showTable = async (client, namespace, name) => {
+    return await client.storageEngine.transaction(async (tx) => tx.showTable({ namespace, name }));
+};
+
+const showView = async (client, namespace, name) => {
+    return await client.storageEngine.transaction(async (tx) => tx.showView({ namespace, name }));
+};
+
+const listIndexes = async (client, namespace, table) => {
+    return await client.storageEngine.transaction(async (tx) => {
+        const tbl = tx.showTable({ namespace, name: table });
+        return tx.getTable({ namespace: 'sys', name: 'sys_indexes' })
+            .get({ relation_id: tbl.id }, { using: 'sys_indexes__relation_id_idx', multiple: true })
+            .map((idx) => idx.name);
+    });
+};
+
 describe('FlashQL - Basic DDL', () => {
     let client;
 
@@ -222,7 +243,222 @@ describe('FlashQL - Basic DDL', () => {
         await client.query('DROP SCHEMA lq_test_table CASCADE');
     });
 
-    // ---------- ALTER (TODO)
+    // ---------- ALTER
+
+    describe('ALTER SCHEMA', () => {
+        it('should rename a schema', async () => {
+            await client.query('CREATE SCHEMA IF NOT EXISTS lq_alter_schema');
+            await client.query('ALTER SCHEMA lq_alter_schema RENAME TO lq_alter_schema_renamed');
+            const namespaces = await listNamespaces(client);
+            expect(namespaces).to.include('lq_alter_schema_renamed');
+            expect(namespaces).to.not.include('lq_alter_schema');
+        });
+
+        it('should set and reset schema options', async () => {
+            await client.query(`CREATE SCHEMA IF NOT EXISTS lq_schema_opts WITH (replication_origin = 'origin_a', replication_origin_type = 'postgres')`);
+            await client.query(`ALTER SCHEMA lq_schema_opts SET (replication_origin = 'origin_b')`);
+            let ns = await showNamespace(client, 'lq_schema_opts');
+            expect(ns.replication_origin).to.eq('origin_b');
+            await client.query(`ALTER SCHEMA lq_schema_opts RESET (replication_origin, replication_origin_type)`);
+            ns = await showNamespace(client, 'lq_schema_opts');
+            expect(ns.replication_origin).to.eq(null);
+            expect(ns.replication_origin_type).to.eq(null);
+        });
+    });
+
+    describe('VIEW DDL', () => {
+        before(async () => {
+            await client.query('CREATE SCHEMA IF NOT EXISTS lq_test_view');
+            await client.query('CREATE TABLE IF NOT EXISTS lq_test_view.src (id INT PRIMARY KEY, name TEXT)');
+        });
+
+        after(async () => {
+            await client.query('DROP SCHEMA IF EXISTS lq_test_view CASCADE');
+        });
+
+        it('should create a materialized view', async () => {
+            await client.query('CREATE MATERIALIZED VIEW lq_test_view.v1 AS SELECT id, name FROM lq_test_view.src');
+            const view = await showView(client, 'lq_test_view', 'v1');
+            expect(view.persistence).to.eq('materialized');
+            expect(view.view_spec.query).to.be.an('object');
+            expect(view.view_spec.query.nodeName).to.match(/SELECT_STMT$/);
+        });
+
+        it('should support CREATE OR REPLACE VIEW', async () => {
+            const before = await showView(client, 'lq_test_view', 'v1');
+            await client.query('CREATE OR REPLACE VIEW lq_test_view.v1 AS SELECT id FROM lq_test_view.src');
+            const view = await showView(client, 'lq_test_view', 'v1');
+            expect(view.view_spec.query).to.be.an('object');
+            expect(view.view_spec.query.nodeName).to.match(/SELECT_STMT$/);
+            expect(view.id).to.eq(before.id);
+            expect(view.version_major).to.eq(before.version_major + 1);
+        });
+
+        it('should rename and move a view', async () => {
+            await client.query('CREATE SCHEMA IF NOT EXISTS lq_test_view_archive');
+            await client.query('ALTER VIEW lq_test_view.v1 RENAME TO v2');
+            await client.query('ALTER VIEW lq_test_view.v2 SET SCHEMA lq_test_view_archive');
+            const tables = await listTables(client, 'lq_test_view_archive');
+            expect(tables).to.include('v2');
+        });
+
+        it('should replace a view query', async () => {
+            await client.query('ALTER VIEW lq_test_view_archive.v2 AS SELECT id, name FROM lq_test_view.src');
+            const view = await showView(client, 'lq_test_view_archive', 'v2');
+            expect(view.view_spec.query).to.be.an('object');
+            expect(view.view_spec.query.nodeName).to.match(/SELECT_STMT$/);
+        });
+
+        it('should refresh a view by repopulating stored rows from its query', async () => {
+            await client.query(`INSERT INTO lq_test_view.src (id, name) VALUES (1, 'A')`);
+            await client.query(`INSERT INTO lq_test_view.src (id, name) VALUES (2, 'B')`);
+            await client.query('REFRESH VIEW lq_test_view_archive.v2');
+            await client.storageEngine.transaction(async (tx) => {
+                const storage = tx.getTable({ namespace: 'lq_test_view_archive', name: 'v2' }, { assertIsView: true });
+                expect(storage.getAll().map((row) => ({ id: row.id, name: row.name }))).to.deep.eq([
+                    { id: 1, name: 'A' },
+                    { id: 2, name: 'B' },
+                ]);
+            });
+        });
+
+        it('should drop a view', async () => {
+            await client.query('DROP VIEW IF EXISTS lq_test_view_archive.v2');
+            const tables = await listTables(client, 'lq_test_view_archive');
+            expect(tables).to.not.include('v2');
+            await client.query('DROP SCHEMA IF EXISTS lq_test_view_archive CASCADE');
+        });
+    });
+
+    describe('INDEX DDL', () => {
+        before(async () => {
+            await client.query('CREATE TABLE IF NOT EXISTS lq_test_table.idx_tbl (id INT PRIMARY KEY, name TEXT)');
+        });
+
+        it('should create an index', async () => {
+            await client.query('CREATE INDEX idx_tbl_name_idx ON lq_test_table.idx_tbl USING hash (name)');
+            const indexes = await listIndexes(client, 'lq_test_table', 'idx_tbl');
+            expect(indexes).to.include('idx_tbl_name_idx');
+        });
+
+        it('should rename an index', async () => {
+            await client.query('ALTER INDEX lq_test_table.idx_tbl_name_idx RENAME TO idx_tbl_name_idx2');
+            const indexes = await listIndexes(client, 'lq_test_table', 'idx_tbl');
+            expect(indexes).to.include('idx_tbl_name_idx2');
+            expect(indexes).to.not.include('idx_tbl_name_idx');
+        });
+
+        it('should move an index by moving its owning table to the target schema', async () => {
+            await client.query('CREATE SCHEMA IF NOT EXISTS lq_test_table_idx_archive');
+            await client.query('ALTER INDEX lq_test_table.idx_tbl_name_idx2 SET SCHEMA lq_test_table_idx_archive');
+            const archivedTables = await listTables(client, 'lq_test_table_idx_archive');
+            expect(archivedTables).to.include('idx_tbl');
+            const indexes = await listIndexes(client, 'lq_test_table_idx_archive', 'idx_tbl');
+            expect(indexes).to.include('idx_tbl_name_idx2');
+            await client.query('ALTER TABLE lq_test_table_idx_archive.idx_tbl SET SCHEMA lq_test_table');
+            await client.query('DROP SCHEMA IF EXISTS lq_test_table_idx_archive CASCADE');
+        });
+
+        it('should drop an index with postgres syntax', async () => {
+            await client.query('DROP INDEX lq_test_table.idx_tbl_name_idx2');
+            const indexes = await listIndexes(client, 'lq_test_table', 'idx_tbl');
+            expect(indexes).to.not.include('idx_tbl_name_idx2');
+        });
+    });
+
+    describe('ALTER TABLE', () => {
+        before(async () => {
+            await client.query('CREATE TABLE IF NOT EXISTS lq_test_table.alt_tbl (id INT PRIMARY KEY, name TEXT)');
+        });
+
+        it('should add a column', async () => {
+            const before = await showTable(client, 'lq_test_table', 'alt_tbl');
+            await client.query('ALTER TABLE lq_test_table.alt_tbl ADD COLUMN age INT');
+            const tbl = await showTable(client, 'lq_test_table', 'alt_tbl');
+            expect(tbl).to.exist;
+            expect([tbl.version_major, tbl.version_minor, tbl.version_patch]).to.deep.eq([before.version_major, before.version_minor + 1, 0]);
+        });
+
+        it('should rename a column', async () => {
+            await client.query('ALTER TABLE lq_test_table.alt_tbl RENAME COLUMN age TO years');
+            await client.storageEngine.transaction(async (tx) => {
+                const schema = tx.showTable({ namespace: 'lq_test_table', name: 'alt_tbl' }, { schema: true });
+                expect([...schema.columns.keys()]).to.include('years');
+            });
+        });
+
+        it('should alter column default and nullability', async () => {
+            const before = await showTable(client, 'lq_test_table', 'alt_tbl');
+            await client.query('ALTER TABLE lq_test_table.alt_tbl ALTER COLUMN years SET DEFAULT 18');
+            await client.query('ALTER TABLE lq_test_table.alt_tbl ALTER COLUMN years SET NOT NULL');
+            let schema = await client.storageEngine.transaction(async (tx) => tx.showTable({ namespace: 'lq_test_table', name: 'alt_tbl' }, { schema: true }));
+            let years = schema.columns.get('years');
+            expect(years.default_expr_ast.value).to.eq('18');
+            expect(years.not_null).to.eq(true);
+
+            await client.query('ALTER TABLE lq_test_table.alt_tbl ALTER COLUMN years DROP DEFAULT');
+            await client.query('ALTER TABLE lq_test_table.alt_tbl ALTER COLUMN years DROP NOT NULL');
+            schema = await client.storageEngine.transaction(async (tx) => tx.showTable({ namespace: 'lq_test_table', name: 'alt_tbl' }, { schema: true }));
+            years = schema.columns.get('years');
+            expect(years.default_expr_ast).to.eq(null);
+            expect(years.not_null).to.eq(false);
+            const after = await showTable(client, 'lq_test_table', 'alt_tbl');
+            expect(after.version_major).to.eq(before.version_major);
+            expect(after.version_minor).to.eq(before.version_minor);
+            expect(after.version_patch).to.be.greaterThan(before.version_patch);
+        });
+
+        it('should add and drop a unique constraint', async () => {
+            await client.query('ALTER TABLE lq_test_table.alt_tbl ADD CONSTRAINT alt_tbl_name_uk UNIQUE (name)');
+            let schema = await client.storageEngine.transaction(async (tx) => tx.showTable({ namespace: 'lq_test_table', name: 'alt_tbl' }, { schema: true }));
+            expect((schema.constraints.get('UNIQUE') || []).some((con) => con.name === 'alt_tbl_name_uk')).to.be.true;
+            await client.query('ALTER TABLE lq_test_table.alt_tbl DROP CONSTRAINT alt_tbl_name_uk');
+            schema = await client.storageEngine.transaction(async (tx) => tx.showTable({ namespace: 'lq_test_table', name: 'alt_tbl' }, { schema: true }));
+            expect((schema.constraints.get('UNIQUE') || []).some((con) => con.name === 'alt_tbl_name_uk')).to.be.false;
+        });
+
+        it('should reject adding a CHECK constraint that existing rows violate and enforce it on future writes', async () => {
+            await client.query(`INSERT INTO lq_test_table.alt_tbl (id, name, years) VALUES (2, 'bad', -1)`);
+            await expect(client.query('ALTER TABLE lq_test_table.alt_tbl ADD CONSTRAINT alt_tbl_years_ck CHECK (years >= 0)')).to.be.rejectedWith(/Existing rows violate check constraint/);
+            await client.query('DELETE FROM lq_test_table.alt_tbl WHERE id = 2');
+            await client.query('ALTER TABLE lq_test_table.alt_tbl ADD CONSTRAINT alt_tbl_years_ck CHECK (years >= 0)');
+            await expect(client.query(`INSERT INTO lq_test_table.alt_tbl (id, name, years) VALUES (3, 'bad2', -5)`)).to.be.rejectedWith(/Check constraint violation/);
+            await client.query('ALTER TABLE lq_test_table.alt_tbl DROP CONSTRAINT alt_tbl_years_ck');
+        });
+
+        it('should add, rename, and drop an index via ALTER TABLE', async () => {
+            await client.query('ALTER TABLE lq_test_table.alt_tbl ADD INDEX alt_tbl_name_idx3 (name)', { dialect: 'mysql' });
+            await client.query('ALTER TABLE lq_test_table.alt_tbl RENAME INDEX alt_tbl_name_idx3 TO alt_tbl_name_idx4', { dialect: 'mysql' });
+            let indexes = await listIndexes(client, 'lq_test_table', 'alt_tbl');
+            expect(indexes).to.include('alt_tbl_name_idx4');
+            await client.query('ALTER TABLE lq_test_table.alt_tbl DROP INDEX alt_tbl_name_idx4', { dialect: 'mysql' });
+            indexes = await listIndexes(client, 'lq_test_table', 'alt_tbl');
+            expect(indexes).to.not.include('alt_tbl_name_idx4');
+        });
+
+        it('should rename and move a table', async () => {
+            await client.query('CREATE SCHEMA IF NOT EXISTS lq_test_table_archive');
+            const before = await showTable(client, 'lq_test_table', 'alt_tbl');
+            await client.query('ALTER TABLE lq_test_table.alt_tbl RENAME TO alt_tbl_2');
+            await client.query('ALTER TABLE lq_test_table.alt_tbl_2 SET SCHEMA lq_test_table_archive');
+            const tables = await listTables(client, 'lq_test_table_archive');
+            expect(tables).to.include('alt_tbl_2');
+            const after = await showTable(client, 'lq_test_table_archive', 'alt_tbl_2');
+            expect([after.version_major, after.version_minor, after.version_patch]).to.deep.eq([before.version_major + 2, 0, 0]);
+            await client.query('DROP SCHEMA IF EXISTS lq_test_table_archive CASCADE');
+        });
+
+        it('should cap version bump severity per relation within one transaction', async () => {
+            await client.query('CREATE TABLE IF NOT EXISTS lq_test_table.bump_tbl (id INT PRIMARY KEY, name TEXT)');
+            const before = await showTable(client, 'lq_test_table', 'bump_tbl');
+            await client.storageEngine.transaction(async (tx) => {
+                await client.query('ALTER TABLE lq_test_table.bump_tbl RENAME TO bump_tbl2', { tx });
+                await client.query('ALTER TABLE lq_test_table.bump_tbl2 SET SCHEMA lq_test_table', { tx });
+            });
+            const after = await showTable(client, 'lq_test_table', 'bump_tbl2');
+            expect([after.version_major, after.version_minor, after.version_patch]).to.deep.eq([before.version_major + 1, 0, 0]);
+        });
+    });
 });
 
 describe('FlashQL - DDL Inference', () => {
