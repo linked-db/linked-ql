@@ -936,162 +936,88 @@ In this scenario, we demonstrate a hybrid data architecture where the goal is to
 > Query remote data **as if it were local**, while controlling
 > what stays remote, what gets cached locally, and what stays in sync.
 
-This is where LinkedQL moves beyond “client” and becomes a **data architecture layer**.
-
-At a high level, this system works like this:
-
-- You define **where data comes from** (local vs remote)
-- You define **how it is stored** (none, cached, or synced)
-- LinkedQL ensures everything behaves like a single database
-
-The idea starts with the local database – this time, instantiated with a hook to the remote database.
+The idea is straight-forward in FlashQL: you simply create a view (a database view) in your local database that mirrors the remote database.
 
 ```js
-const db = new FlashQL({
-  // The hook to remote
-  async onCreateForeignClient() {
-    return new EdgeClient({ url: '/api/db', type: 'http' });
-  }
-});
-
-await db.connect();
-
-// The queries
-// which can span local and remote tables
 await db.query(`
-  SELECT * FROM remote.users
+  CREATE VIEW public.users AS
+  SELECT * FROM public.users
+  WITH (replication_origin = '/api/db')
 `);
 ```
 
-This query may:
+Notice the `WITH (replication_origin = ...)` specifier. That's the magic.
 
-- hit a remote database,
-- use a local replica,
-- or combine both
+Rows in this view (`public.users`) will mirror `public.users` in the upstream database.
 
-But it always behaves like a single SQL query.
+But just one more thing is required for this to work:
 
-The system is introduced step by step below. Much of that is mere configuration.
+> a way to connect the local FlashQL instance to the upstream database.
 
----
-
-#### Step 1: Connect a Local Engine to a Remote Origin
-
-We start with FlashQL as our local database.
-
-Then we teach it how to reach a remote database when needed.
+For this, the `EdgeClient` interface introduced above comes to play:
 
 ```js
 import { FlashQL } from '@linked-db/linked-ql/flashql';
 import { EdgeClient } from '@linked-db/linked-ql/edge';
 
-// The local database
 const db = new FlashQL({
-
-  // Called whenever a query references a foreign origin and needs a client
-  async onCreateForeignClient(origin) {
-
-    if (origin === 'primary') {
-      // This client will be used to reach the remote database we've designated as 'primary'
-      return new EdgeClient({
-        url: '/api/db',
-        type: 'http',
-      });
-    }
-
-    throw new Error(`Unknown origin: ${origin}`);
+  // The hook to remote
+  async onCreateForeignClient(originUrl) {
+    return new EdgeClient({ url: originUrl, type: 'http' });
   }
 });
 
 await db.connect();
 ```
 
-Next, we create a schema – more specifically called a "namespace" in FlashQL – with the foreign origin behaviour.
+This is now a local FlashQL instance that can talk to an upstream database ondemand.
+
+Above, the `onCreateForeignClient()` hook will recieve `'/api/db'` – the value of the `replication_origin` config.
+
+Now, querying `public.users` on the local database will query `public.users` on the upstream database:
 
 ```js
 await db.query(`
-  CREATE SCHEMA remote
-  WITH (replication_origin = 'primary')
+  SELECT * FROM public.users;
 `);
 ```
 
-This namespace will be able to incorporate data from a foreign origin tagged here as "primary". The result of `onCreateForeignClient()`
-will be the foreign client interface.
-
----
-
-##### Decoding the above
-
-* FlashQL is your **local database**
-* `remote` schema is a **regular schema (namespace)** that can have tables and views (`VIEWS`)
-* `replication_origin` is a setting that extends the behaviour of the namespace to include objects from a foreign origin
-* the value: `"primary"` is a custom identifier for this **remote database**. (FlashQL lets the origin details be anything: an identifier, a URL, a database connection string, etc.)
-* `EdgeClient` – the result of `onCreateForeignClient()` – is how FlashQL will talk to that remote system
-
-At this point:
-
-* nothing is mirrored yet
-* no data is fetched
-* we’ve only defined **how to reach the remote** from the local
-
-But the local namespace by itself is ready for use as normal. You can create tables as necessary:
-
-```js
-// FlashQL accepts multiple statements in a single call
-await db.query(`
-  -- Define tables explicitly
-  CREATE TABLE remote.users (
-    id INT PRIMARY KEY,
-    name TEXT
-  );
-
-  -- Seed local data
-  INSERT INTO remote.users (id, name)
-  VALUES (1, 'Ada'), (2, 'Linus');
-`);
-```
-
-But the containers of foreign data will not be tables. They will be views (VIEWS).
-
-Think of views as table-like objects whose contents come from other tables – whether local tables or remote tables.
-
----
-
-#### Step 2: Let’s Mirror Foreign Tables Locally
-
-A view created inside a namespace with `replication_origin`, like the above, automatically resolves its data from the foreign origin.
+Being a regular table, it can be used just like one – e.g. in joins:
 
 ```js
 await db.query(`
-  CREATE VIEW remote.users AS
-  SELECT * FROM public.users
+  SELECT * FROM public.posts
+  LEFT JOIN public.users ON posts.user_id = users.id;
 `);
 ```
 
-Rows in this view (`remote.users`) will mirror `public.users` in foreign origin. The persistence of this data is configurable.
+The query executes as one relational graph – but composed of both local and remote data.
 
-FlashQL supports **three persistence modes**. These modes determine how mirroring works; i.e. whether data stays remote, or is cached locally, or stays in sync.
+Given this as the base, FlashQL further lets you create other types of views with different replication modes. 
+
+These modes determine how mirroring works; i.e. whether data stays remote, or is cached locally, or stays in sync.
 
 | Mode                                             | Behavior                               |
 | :------------------------------------------------ | :-------------------------------------- |
-| `persistence="none"`(the default) | Views set to this mode don't copy the remote data locally; they simply act as local references to remote data. These are called "non-persistent views" |
-| `persistence="materialized"` | Views set to this mode copy the origin data locally and behave as local tables from that moment on; cached data is refreshed manually. These are called "materialized views" |
-| `persistence="realtime"`     | Views set to this mode copy the remote data locally and behave as local tables from that moment on; **but most notably, local data is kept in sync with origin data**. These are called "realtime views" |
+| Basic views (the default) | This is the default idea of a view: a table that has no actual rows but just a query that executes at query-time. |
+| Materialized views | These views go ahead to copy the origin data for local use and behave as local tables from that moment on. |
+| Realtime views     | These views are materialized views that not just copy origin data, but also stay in sync with origin data. |
 
-* use `none` when freshness matters more than offline access
-* use `materialized` when you want a local cache you can refresh deliberately
-* use `realtime` when the local copy should stay warm automatically after initial sync
+* use basic views when you just want to federate remote data and don't need offline access
+* use `materialized` views when you want a local copy for offline access
+* use `realtime` views when the local copy should stay in sync origin data
 
 Each mode is demonstrated below.
 
 ---
 
-##### Mode 1: Non-Persistent Views (Pure Federation)
+##### Mode 1: Basic Views (Pure Federation)
 
 ```js
 await db.query(`
-  CREATE VIEW remote.users AS
+  CREATE VIEW public.users AS
   SELECT * FROM public.users
+  WITH (replication_origin = '/api/db')
 `);
 ```
 
@@ -1115,8 +1041,9 @@ This is the lightest-weight mode. It gives you unification without local storage
 
 ```js
 await db.query(`
-  CREATE MATERIALIZED VIEW remote.orders AS
+  CREATE MATERIALIZED VIEW public.orders AS
   SELECT * FROM public.orders
+  WITH (replication_origin = '/api/db')
 `);
 ```
 
@@ -1130,13 +1057,15 @@ await db.query(`
 
 This is **materialization**:
 
-> Keeping a local snapshot of remote data for performance or offline use
+This is the mode to reach for when the data should remain queryable while offline.
 
-This is the mode to reach for when:
+These views can be refreshed explicitly:
 
-* the dataset is expensive to fetch repeatedly
-* it should remain queryable while offline
-* and "fresh on demand" is good enough
+```js
+await db.query(`
+  REFRESH MATERIALIZED VIEW public.orders
+`);
+```
 
 ---
 
@@ -1145,9 +1074,8 @@ This is the mode to reach for when:
 ```js
 await db.query(`
   CREATE REALTIME VIEW remote.posts AS
-  SELECT *
-  FROM public.posts
-  WHERE post_type = 'NEWS'
+  SELECT * FROM public.posts
+  WITH (replication_origin = '/api/db')
 `);
 ```
 
@@ -1161,55 +1089,12 @@ await db.query(`
 
 This is **realtime mirroring**:
 
-> A local table that tracks and syncs with the remote table over time
-
-This is the richest mode:
-
 * it starts with local state
 * keeps that state queryable even when the app is temporarily disconnected
 * and then catches up again when connectivity returns
 
----
-
-#### Step 3: Running Sync
-
-On having defined the views, you activate the synchronization via:
-
-```js
-await db.sync.sync();
-```
-
----
-
-##### What `sync()` does
-
-`sync()` is the coordination engine for "materialized" and "realtime" views.
-It is what turns definitions (VIEWS) into state (local data + subscriptions).
-
-It:
-
-* fetches data for all `materialized` views
-* does the same for `realtime` views and starts syncing right away – with backpressure and replay support:
-  * performs catch-up if the app was offline
-  * ensures local state matches expected remote state
-
----
-
-##### `sync()` is:
-
-* **Idempotent** → safe to call multiple times
-* **Resumable** → knows hot to continue from last known state
-* **Network-aware** → designed for reconnect flows
-
-##### Typical usage:
-
-First: **the initial call after defining views**:
-
-```js
-await db.sync.sync();
-```
-
-Second: **the optional wiring to the app-level network signal:**
+Realtime views are designed to be resilient to network disconnects. All you need to do in
+web app, for example, is call FlashQL's `sync.sync()` API to resume work on network reconnection:
 
 ```js
 window.addEventListener('online', () => {
@@ -1217,12 +1102,7 @@ window.addEventListener('online', () => {
 });
 ```
 
-At that point, your local database is no longer just "configured".
-It is now hydrated, subscribed where necessary, and ready to behave like a unified relational graph.
-
-> Note that the initial `db.sync.sync()` can be automatically-handled by FlashQL. Simply pass `autoSync: true` in constructor parameters:
->
-> `new FlashQL({ autoSync: true });`
+**`sync()`** knows how to continue from last known state.
 
 ---
 
@@ -1230,7 +1110,7 @@ It is now hydrated, subscribed where necessary, and ready to behave like a unifi
 
 At query time, LinkedQL builds a composed execution plan:
 
-* non-persistent views are resolved on demand
+* basic views are resolved on demand
 * `materialized` and `realtime` views are resolved locally
 * results are merged into a single relational execution
 
@@ -1254,19 +1134,7 @@ const result = await db.query(`
 
 ---
 
-#### Resolution summary
-
-* `remote.users` → fetched on demand from the remote DB
-* `remote.orders` → served from the local cache created by materialization
-* `remote.posts` → served locally, then kept hot by realtime sync
-* `public.test` → an ordinary local table with no remote involvement
-* The planner treats all of them as one relational graph even though they come from different storage modes
-
-This is the key architectural promise of LinkedQL:
-
-> You choose data placement and sync policy per relation, but you still query the result as one database.
-
-For the FlashQL side of this model, see [Federation & Sync ↗](https://linked-ql.netlify.app/flashql/foreign-io) and [FlashQL Sync ↗](https://linked-ql.netlify.app/flashql/sync).
+For full details, see [Federation & Sync ↗](https://linked-ql.netlify.app/flashql/foreign-io) and [FlashQL Sync ↗](https://linked-ql.netlify.app/flashql/sync).
 
 ---
 

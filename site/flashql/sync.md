@@ -9,12 +9,12 @@ If you have already read [Federation, Materialization, and Realtime Views](/flas
 
 ## What `db.sync` manages
 
-`db.sync` works over FlashQL views whose persistence is one of:
+`db.sync` works over FlashQL views whose replication mode is one of:
 
 - `materialized`
 - `realtime`
 
-Non-persistent views participate in the wider federated graph, but they are not themselves sync jobs in the same way.
+> Basic views participate in the wider federated graph, but they are not themselves sync jobs in the same way.
 
 ## The main entry point: `sync.sync()`
 
@@ -32,11 +32,11 @@ You should be able to call it:
 - on reconnect
 - when your app is unsure whether sync is already active
 
-And get the correct reconciliation behavior without having to memorize a dozen separate lifecycle APIs.
+and get the correct reconciliation behavior without having to memorize a dozen separate lifecycle APIs.
 
-## What `sync.sync()` actually does
+## What `sync.sync()` does
 
-For selected sync-enabled views, `sync.sync()` will:
+For the given selector, `sync.sync()` will:
 
 - discover candidate views
 - materialize local copies for "materialized" views, if not already materialized
@@ -149,8 +149,6 @@ For a `realtime` view, sync typically:
 - ensures a usable local copy exists
 - starts the upstream subscription
 - updates the local mirror as upstream commits arrive
-
-For reference-based realtime views, the local copy is bootstrapped and then maintained through WAL/changefeed updates.
 
 ## Example: inspect, stop, resume
 
