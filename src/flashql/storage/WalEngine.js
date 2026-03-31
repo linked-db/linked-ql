@@ -1,4 +1,4 @@
-import { WalEngine as BaseWalEngine } from '../../proc/sync/WalEngine.js';
+import { WalEngine as BaseWalEngine } from '../../proc/timeline/WalEngine.js';
 
 export class WalEngine extends BaseWalEngine {
 

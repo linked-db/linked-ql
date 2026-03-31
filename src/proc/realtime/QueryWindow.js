@@ -1,7 +1,7 @@
 import { SimpleEmitter } from '../../clients/abstracts/SimpleEmitter.js';
 import { matchExpr } from '../../clients/abstracts/util.js';
 import { ExprEngine } from '../../flashql/eval/ExprEngine.js';
-import { WalEngine } from '../sync/WalEngine.js';
+import { WalEngine } from '../timeline/WalEngine.js';
 import { registry } from "../../lang/registry.js";
 import { _eq } from "../../lang/abstracts/util.js";
 
