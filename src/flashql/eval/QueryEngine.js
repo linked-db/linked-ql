@@ -57,7 +57,7 @@ export class QueryEngine {
     async query(scriptNode, options = {}) {
         const queryCtx = {
             options: { ...this.#options, ...options },
-            tx: options.tx || this.#storageEngine.begin(),
+            tx: this.#storageEngine.begin({ parentTx: options.tx }),
             lateralCtx: null,
             cteRegistry: new Map,
             depth: 0,
@@ -66,9 +66,9 @@ export class QueryEngine {
         let returnValue;
         try {
             returnValue = await this.#evaluateSTMT(scriptNode, queryCtx, true);
-            if (!options.tx) await queryCtx.tx.commit();
+            await queryCtx.tx.commit();
         } catch (e) {
-            if (!options.tx) await queryCtx.tx.abort();
+            await queryCtx.tx.abort();
             throw e;
         }
 
@@ -90,18 +90,18 @@ export class QueryEngine {
         let returnValue;
 
         for (let stmtNode of (scriptNode instanceof registry.SQLScript && scriptNode || [scriptNode])) {
-            
+
             // Resolve query
             if (isRootQuery) {
                 if (!queryCtx.schemaInference) queryCtx.schemaInference = this.#storageEngine.getResolver();
                 const inferenceOpts = { dialect: queryCtx.options.dialect, tx: queryCtx.tx };
                 stmtNode = await queryCtx.schemaInference.resolveQuery(stmtNode, inferenceOpts);
             }
-            
+
             switch (stmtNode.NODE_NAME) {
                 // CONFIG
                 case 'PG_SET_STMT': returnValue = await this.#evaluatePG_SET_STMT(stmtNode, queryCtx); break;
-                
+
                 // DDL
                 case 'CREATE_SCHEMA_STMT':
                     returnValue = await this.#evaluateCREATE_SCHEMA_STMT(stmtNode, queryCtx);
@@ -154,24 +154,24 @@ export class QueryEngine {
                     returnValue = await this.#evaluateDROP_INDEX_STMT(stmtNode, queryCtx);
                     queryCtx.schemaInference = null;
                     break;
-                
+
                 // CTE
                 case 'CTE': returnValue = await this.#evaluateCTE(stmtNode, queryCtx); break;
-                
+
                 // DML
                 case 'INSERT_STMT': returnValue = await this.#evaluateINSERT_STMT(stmtNode, queryCtx); break;
                 case 'UPDATE_STMT': returnValue = await this.#evaluateUPDATE_STMT(stmtNode, queryCtx); break;
                 case 'DELETE_STMT': returnValue = await this.#evaluateDELETE_STMT(stmtNode, queryCtx); break;
-                
+
                 // DQL
                 case 'TABLE_STMT': returnValue = await this.#evaluateTABLE_STMT(stmtNode, queryCtx); break;
                 case 'BASIC_SELECT_STMT':
                 case 'COMPLETE_SELECT_STMT': returnValue = await this.#evaluateSELECT_STMT(stmtNode, queryCtx); break;
                 case 'COMPOSITE_SELECT_STMT': returnValue = await this.#evaluateCOMPOSITE_SELECT_STMT(stmtNode, queryCtx); break;
-                
+
                 // STD_STMT
                 case 'STD_STMT': console.error(`Not supported yet in the in-memory StorageEngine: ${stmtNode.stringify()}`); break;
-                
+
                 // Throw
                 default: throw new Error(`Unknown statement type: ${stmtNode.NODE_NAME}`);
             }
@@ -229,8 +229,13 @@ export class QueryEngine {
         const namespacePatch = {
             name: nsName,
             ...(stmtNode.pgAuthorization()?.value?.() ? { owner: stmtNode.pgAuthorization().value() } : {}),
-            ...this.#parser.configEntriesAST_to_patch(stmtNode.optionsClause?.()?.entries?.() || []),
+            ...this.#parser.optionsASTS_to_optionsDef(stmtNode.optionsClause?.()?.entries?.() || []),
         };
+        if (namespacePatch.default_replication_origin) {
+            namespacePatch.view_opts_default_replication_origin = namespacePatch.default_replication_origin;
+            delete namespacePatch.default_replication_origin;
+        }
+
         const namespaceDef = await queryCtx.tx.createNamespace(namespacePatch, createOpts);
 
         if (namespaceDef && hasEntries) {
@@ -245,19 +250,22 @@ export class QueryEngine {
 
     async #evaluateALTER_SCHEMA_STMT(stmtNode, queryCtx) {
         const nsName = stmtNode.subject().value();
-        let returnValue = false;
+        const alterOpts = { ifExists: !!stmtNode.ifExists?.() };
+        const alterPayload = { actions: [] };
+
         for (const action of stmtNode.actions()) {
-            if (action instanceof registry.RenameSchemaAction) {
-                returnValue ||= !!(await queryCtx.tx.alterNamespace({ name: nsName }, { name: action.name().value() }));
-            } else if (action instanceof registry.SetSchemaOptionsAction) {
-                returnValue ||= !!(await queryCtx.tx.alterNamespace({ name: nsName }, this.#parser.configEntriesAST_to_patch(action.entries())));
-            } else if (action instanceof registry.ResetSchemaOptionsAction) {
-                returnValue ||= !!(await queryCtx.tx.alterNamespace({ name: nsName }, this.#parser.configEntriesAST_to_patch(action.entries(), { reset: true })));
+            if (action instanceof registry.RenameSchemaAction) alterPayload.name = action.name().value();
+            else if (action instanceof registry.OptionsSetClause) {
+                Object.assign(alterPayload, this.#parser.optionsASTS_to_optionsDef(action.entries(), { prefix: 'view_opts_' }));
+            } else if (action instanceof registry.OptionsResetClause) {
+                Object.assign(alterPayload, this.#parser.optionsASTS_to_optionsDef(action.entries(), { prefix: 'view_opts_', reset: true }));
             } else {
                 throw new Error(`Unsupported ALTER SCHEMA action ${action.NODE_NAME}`);
             }
         }
-        return returnValue;
+
+        const result = await queryCtx.tx.alterNamespace({ name: nsName }, alterPayload, alterOpts);
+        return result !== null;
     }
 
     async #evaluateDROP_SCHEMA_STMT(stmtNode, queryCtx) {
@@ -277,45 +285,43 @@ export class QueryEngine {
     }
 
     async #evaluateCREATE_TABLE_STMT(stmtNode, queryCtx) {
-        if (stmtNode.temporaryKW()) {
-            throw new Error('TEMPORARY tables are not supported yet in the in-memory StorageEngine');
-        }
-
-        const temporaryKw = stmtNode.temporaryKW();
         const argument = stmtNode.argument();
         const nsName = argument.name().qualifier()?.value() || queryCtx.nsName || this.#defaultNamespace(queryCtx);
-        if (queryCtx.nsName && nsName !== queryCtx.nsName) {
+
+        if (queryCtx.nsName && nsName !== queryCtx.nsName)
             throw new Error(`Cannot create table ${argument.name()} in namespace ${queryCtx.nsName} as it is qualified to namespace ${nsName}`);
-        }
 
         const createOpts = { ifNotExists: !!stmtNode.ifNotExists() };
-        const tableDef = this.#parser.tableAST_to_tableDef(argument, { namespace: nsName, persistence: temporaryKw ? 'temporary' : 'permanent' });
+
+        const tableDef = this.#parser.tableAST_to_tableDef(argument, { namespace: nsName });
+        if (stmtNode.temporaryKW()) tableDef.persistence = 'temporary';
+
         const tableCreateResult = await queryCtx.tx.createTable(tableDef, createOpts);
         return !!tableCreateResult;
     }
 
     async #evaluateALTER_TABLE_STMT(stmtNode, queryCtx) {
         const tableRef = this.#tableRefFromIdent(stmtNode.subject(), queryCtx);
-        const alterSpec = { actions: [] };
+        const alterOpts = { ifExists: !!stmtNode.ifExists?.() };
+        const alterPayload = { actions: [] };
+
         for (const action of stmtNode.actions()) {
-            if (action instanceof registry.RenameTableAction) alterSpec.name = action.name().value();
-            else if (action instanceof registry.SetTableSchemaAction) alterSpec.namespace = action.schema().value();
-            else alterSpec.actions.push(...this.#parser.tableAlterActionAST_to_defs(action, { tableRef }));
+            if (action instanceof registry.RenameTableAction) alterPayload.name = action.name().value();
+            else if (action instanceof registry.SetTableSchemaAction) alterPayload.namespace = action.schema().value();
+            else alterPayload.actions.push(this.#parser.tableAltActionAST_to_tableAltActionDef(action, { tableRef }));
         }
-        const result = await queryCtx.tx.alterTable(tableRef, alterSpec);
+
+        const result = await queryCtx.tx.alterTable(tableRef, alterPayload, alterOpts);
         return result !== null;
     }
 
     async #evaluateDROP_TABLE_STMT(stmtNode, queryCtx) {
-        if (stmtNode.myTemporaryKW()) {
-            throw new Error('MySQL TEMPORARY tables are not supported yet in the in-memory StorageEngine');
-        }
-
+        const dropOpts = { ifExists: !!stmtNode.ifExists(), cascade: stmtNode.cascadeRule() === 'CASCADE', assertPersistence: stmtNode.myTemporaryKW() ? 'temporary' : null };
+       
         const tableNames = stmtNode.names().map((n) => {
             const nsName = n.qualifier()?.value() || queryCtx.nsName || this.#defaultNamespace(queryCtx);
             return [n.value(), nsName];
         });
-        const dropOpts = { ifExists: !!stmtNode.ifExists(), cascade: stmtNode.cascadeRule() === 'CASCADE' };
 
         let returnValue = false;
         for (const [tblName, nsName] of tableNames) {
@@ -327,19 +333,29 @@ export class QueryEngine {
     }
 
     async #evaluateCREATE_VIEW_STMT(stmtNode, queryCtx) {
-        const createOpts = { ifNotExists: false };
-        const viewDef = this.#parser.viewAST_to_viewDef(stmtNode.argument(), {
-            namespace: this.#namespaceFromIdent(stmtNode.argument().name(), queryCtx),
-            persistence: stmtNode.persistence()?.toLowerCase?.() || 'origin'
-        });
+        const argument = stmtNode.argument();
+        const nsName = argument.name().qualifier()?.value() || queryCtx.nsName || this.#defaultNamespace(queryCtx);
+
+        if (queryCtx.nsName && nsName !== queryCtx.nsName)
+            throw new Error(`Cannot create view ${argument.name()} in namespace ${queryCtx.nsName} as it is qualified to namespace ${nsName}`);
+
+        const createOpts = { ifNotExists: stmtNode.ifNotExists?.() };
+
+        const viewDef = this.#parser.viewAST_to_viewDef(stmtNode.argument(), { namespace: nsName });
+        if (stmtNode.temporaryKW()) viewDef.persistence = 'temporary';
+        if (stmtNode.replicationMode()) viewDef.view_opts_replication_mode = stmtNode.replicationMode().toLowerCase();
+        if (stmtNode.optionsClause()) {
+            const viewOptions = this.#parser.optionsASTS_to_optionsDef(stmtNode.optionsClause().entries() || [], { prefix: 'view_opts_' });
+            if (viewDef.view_opts_replication_mode && viewOptions.view_opts_replication_mode && viewOptions.view_opts_replication_mode !== viewDef.view_opts_replication_mode)
+                throw new Error(`replication_mode=${viewOptions.view_opts_replication_mode} cannot be used with a ${viewDef.view_opts_replication_mode.toUpperCase()} view`);
+            Object.assign(viewDef, viewOptions);
+        }
 
         if (stmtNode.orReplace()) {
             const existing = queryCtx.tx.showView(viewDef, { ifExists: true });
             if (existing) {
-                return !!(await queryCtx.tx.alterView(
-                    { namespace: existing.namespace_id.name, name: existing.name },
-                    { view_spec: viewDef.view_spec, view_columns: viewDef.columns, persistence: viewDef.persistence }
-                ));
+                // Since source_expr will be present, resetView() will automatically be called
+                return await queryCtx.tx.alterView(viewDef, viewDef, { isReplace: true });
             }
         }
 
@@ -349,40 +365,43 @@ export class QueryEngine {
 
     async #evaluateALTER_VIEW_STMT(stmtNode, queryCtx) {
         const viewRef = this.#tableRefFromIdent(stmtNode.subject(), queryCtx);
-        let returnValue = false;
+        const alterOpts = { ifExists: !!stmtNode.ifExists?.() };
+        const alterPayload = { actions: [] };
 
-        for (const action of stmtNode.actions()) {
-            if (action instanceof registry.RenameViewAction) {
-                returnValue ||= !!(await queryCtx.tx.alterView(viewRef, { name: action.name().value() }));
-                viewRef.name = action.name().value();
-            } else if (action instanceof registry.SetViewSchemaAction) {
-                returnValue ||= !!(await queryCtx.tx.alterView(viewRef, { namespace: action.schema().value() }));
-                viewRef.namespace = action.schema().value();
-            } else if (action instanceof registry.ReplaceViewQueryAction) {
-                returnValue ||= !!(await queryCtx.tx.alterView(viewRef, {
-                    view_spec: { query: action.query().jsonfy() },
-                    view_columns: action.columns().map((c) => ({ name: c.value() })),
-                }));
+        for (const action of stmtNode.actions()) {            
+            if (action instanceof registry.RenameViewAction) alterPayload.name = action.name().value();
+            else if (action instanceof registry.SetViewSchemaAction) alterPayload.namespace = action.schema().value();
+            else if (action instanceof registry.RelationSourceExpr) {
+                Object.assign(alterPayload, this.#parser.relationSourceExpr_to_relationSourceDef(action));
+            } else if (action instanceof registry.OptionsSetClause) {
+                Object.assign(alterPayload, this.#parser.optionsASTS_to_optionsDef(action.entries(), { prefix: 'view_opts_' }));
+            } else if (action instanceof registry.OptionsResetClause) {
+                Object.assign(alterPayload, this.#parser.optionsASTS_to_optionsDef(action.entries(), { prefix: 'view_opts_', reset: true }));
             } else {
                 throw new Error(`Unsupported ALTER VIEW action ${action.NODE_NAME}`);
             }
         }
-        return returnValue;
+
+        const result = await queryCtx.tx.alterView(viewRef, alterPayload, alterOpts);
+        return result !== null;
     }
 
     async #evaluateDROP_VIEW_STMT(stmtNode, queryCtx) {
         const dropOpts = { ifExists: !!stmtNode.ifExists(), cascade: stmtNode.cascadeRule() === 'CASCADE' };
+
         let returnValue = false;
         for (const ident of stmtNode.names()) {
             const viewRef = this.#tableRefFromIdent(ident, queryCtx);
             const dropped = await queryCtx.tx.dropView(viewRef, dropOpts);
             returnValue ||= dropped !== null;
         }
+
         return returnValue;
     }
 
     async #evaluateREFRESH_VIEW_STMT(stmtNode, queryCtx) {
-        await queryCtx.tx.refreshView(this.#tableRefFromIdent(stmtNode.name(), queryCtx));
+        const assertReplicationMode = stmtNode.replicationMode()?.toLowerCase();
+        await queryCtx.tx.refreshView(this.#tableRefFromIdent(stmtNode.name(), queryCtx), { assertReplicationMode });
         return true;
     }
 
@@ -820,12 +839,9 @@ export class QueryEngine {
         const nsName = tableRef.qualifier()?.value() || this.#defaultNamespace(queryCtx);
         const tableStorage = this.#getTable(nsName, tblName, versionSpec, queryCtx);
 
-        // Exedute table scan
-        let allRows = tableStorage.getAll();
-        if (Object.keys(allRows[0] || {}).find((k) => k.startsWith('__'))) {
-
-        }
-        yield* tableStorage.getAll({ hiddenCols: false });
+        // Execute table scan
+        let allRows = tableStorage.getAll({ hiddenCols: false });
+        yield* allRows;
     }
 
     async * #evaluateSELECT_STMT(stmtNode, queryCtx) {
@@ -911,7 +927,7 @@ export class QueryEngine {
         const [foreignClient, tblDef] = await this.#isForeignRef(firstItem.expr?.(), queryCtx.options, queryCtx);
         let foreignStream;
         if (foreignClient) {
-            foreignStream = await foreignClient.stream(tblDef.view_spec);
+            foreignStream = await foreignClient.stream(tblDef.source_expr_ast);
         }
 
         let leftStream = this.evaluateFromItem(firstItem, _originSchema(firstItemAlias), { ...queryCtx, foreignStream });
@@ -988,9 +1004,10 @@ export class QueryEngine {
     async #deriveCreateForeignStream(leftStream, foreignClient, tblDef, joinCondition, leftAlias, rightAlias, queryCtx) {
         let createForeignStream;
 
-        const joinStrategy = tblDef.view_spec.joinStrategy || { memoization: false, pushdownSize: 0 };
+        const joinMemoization = !!tblDef.view_opts_replication_attrs?.join_memoization;
+        const joinPushdownSize = Number(tblDef.view_opts_replication_attrs?.join_pushdown_size) || 0;
 
-        if (joinCondition && joinStrategy.pushdownSize) {
+        if (joinCondition && joinPushdownSize) {
             // Normalize to Expr
             let conditionExpr;
             if (joinCondition instanceof registry.UsingClause) {
@@ -1001,13 +1018,13 @@ export class QueryEngine {
             }
 
             // Compile
-            const foreignQuery_Where = await foreignClient.parser.parse(tblDef.view_spec, {
+            const foreignQuery_Where = await foreignClient.parser.parse(tblDef.source_expr_ast, {
                 alias: rightAlias,
                 dynamicWhereMode: true,
             });
 
-            if (Number(joinStrategy.pushdownSize) > 1) {
-                const pushdownSize = joinStrategy.pushdownSize;
+            if (joinPushdownSize > 1) {
+                const pushdownSize = joinPushdownSize;
 
                 // Tee the stream
                 const memo = this.#memoizeStream(leftStream);;
@@ -1069,11 +1086,11 @@ export class QueryEngine {
             }
         } else {
             // No WHERE at all
-            if (joinStrategy.memoization) {
-                const foreignStream = await foreignClient.stream(tblDef.view_spec);
+            if (joinMemoization) {
+                const foreignStream = await foreignClient.stream(tblDef.source_expr_ast);
                 createForeignStream = this.#memoizeStream(foreignStream);
             } else {
-                createForeignStream = async () => await foreignClient.stream(tblDef.view_spec);
+                createForeignStream = async () => await foreignClient.stream(tblDef.source_expr_ast);
             }
         }
 
@@ -1088,10 +1105,9 @@ export class QueryEngine {
         const tblName = fromItemExpr.value();
 
         const tblDef = queryCtx.tx.showView({ namespace: nsName, name: tblName }, { ifExists: true });
-        if (!tblDef) return [];
+        if (!this.#storageEngine._viewIsPureFederation(tblDef)) return [];
 
-        const nsDef = tblDef.namespace_id;
-        const foreignClient = await this.#storageEngine.getSourceClient(nsDef);
+        const foreignClient = await this.#storageEngine.getSourceClient(tblDef);
 
         return [foreignClient, tblDef];
     }
@@ -1142,7 +1158,7 @@ export class QueryEngine {
             const nsName = tableRef.qualifier()?.value() || this.#defaultNamespace(queryCtx);
             const tableStorage = this.#getTable(nsName, tblName, versionSpec, queryCtx);
 
-            for (let row of tableStorage.getAll()) {
+            for (let row of tableStorage.getAll({ hiddenCols: true })) {
                 yield { [aliasName]: row };
             }
 
@@ -1154,13 +1170,14 @@ export class QueryEngine {
         const fromItemExpr = fromItem.expr();
         const aliasName = fromItem.alias()?.value() || '';
         const expectedColWidth = originSchema.columns().length;
+        const expectedColWidth_noSysID = originSchema.columns().filter((c) => !c.identifiesAs('__id')).length;
 
         // ---------- DerivedQuery?
         if (fromItemExpr instanceof registry.DerivedQuery) {
             for await (const row of await this.#evaluateSTMT(fromItemExpr.expr(), queryCtx)) {
                 const entries = Object.entries(row);
                 const actualColWidth = entries.length;
-                if (actualColWidth !== expectedColWidth) {
+                if (actualColWidth !== expectedColWidth && actualColWidth !== expectedColWidth_noSysID) {
                     throw new Error(`Expected number of columns from DerivedQuery function to be ${expectedColWidth} but got ${actualColWidth}`);
                 }
                 const _row = Object.create(null);
@@ -1176,7 +1193,7 @@ export class QueryEngine {
         if (fromItemExpr instanceof registry.ValuesTableLiteral) {
             for (const rowConstructor of fromItemExpr.entries()) {
                 const actualColWidth = rowConstructor.length;
-                if (actualColWidth !== expectedColWidth) {
+                if (actualColWidth !== expectedColWidth && actualColWidth !== expectedColWidth_noSysID) {
                     throw new Error(`Expected number of columns in ROW_CONSTRUCTOR to be ${expectedColWidth} but got ${actualColWidth}`);
                 }
                 const row = Object.create(null);
@@ -1216,8 +1233,8 @@ export class QueryEngine {
                 }
                 const values = Object.values(row);
                 const actualColWidth = values.length;
-                if (actualColWidth !== expectedColWidth) {
-                    throw new Error(`Expected number of columns from SRF function to be ${expectedColWidth} but got ${actualColWidth}`);
+                if (actualColWidth !== expectedColWidth_noSysID) {
+                    throw new Error(`Expected number of columns from SRF function to be ${expectedColWidth_noSysID} but got ${actualColWidth}`);
                 }
                 const _row = Object.create(null);
                 for (let i = 0; i < actualColWidth; i++) {
@@ -1241,8 +1258,8 @@ export class QueryEngine {
                 const values = Object.values(row);
                 if (withOrdinality) values.push(++rowIdx);
                 const actualColWidth = values.length;
-                if (actualColWidth !== expectedColWidth) {
-                    throw new Error(`Expected number of columns from SRF function to be ${expectedColWidth} but got ${actualColWidth}`);
+                if (actualColWidth !== expectedColWidth_noSysID) {
+                    throw new Error(`Expected number of columns from SRF function to be ${expectedColWidth_noSysID} but got ${actualColWidth}`);
                 }
                 const _row = Object.create(null);
                 for (let i = 0; i < actualColWidth; i++) {
@@ -1287,8 +1304,8 @@ export class QueryEngine {
                         // Determine/validate column width
                         if (!colWidths[i]) {
                             colWidths[i] = values.length;
-                            if (colWidths[i] + colIdx + (withOrdinality ? 1 : 0) > expectedColWidth) {
-                                throw new Error(`Number of columns from SRF function(s) (${colWidths[i] + colIdx + (withOrdinality ? 1 : 0)}) exceeds expected: expected ${expectedColWidth}`);
+                            if (colWidths[i] + colIdx + (withOrdinality ? 1 : 0) > expectedColWidth_noSysID) {
+                                throw new Error(`Number of columns from SRF function(s) (${colWidths[i] + colIdx + (withOrdinality ? 1 : 0)}) exceeds expected: expected ${expectedColWidth_noSysID}`);
                             }
                         } else if (colWidths[i] !== values.length) {
                             throw new Error(`Inconsistent number of columns from SRF function: expected ${colWidths[i]} but got ${values.length}`);
@@ -1335,7 +1352,7 @@ export class QueryEngine {
             const versionSpec = fromItemExpr.versionSpec()?.value();
             const tableStorage = this.#getTable(nsName, tblName, versionSpec, queryCtx);
             // Whole tableStorage is stream
-            stream = (async function* () { yield* tableStorage.getAll(); })();
+            stream = (async function* () { yield* tableStorage.getAll({ hiddenCols: true }); })();
         }
 
         // Consume stream
@@ -1343,7 +1360,7 @@ export class QueryEngine {
             const entries = Object.entries(row);
             const actualColWidth = entries.length;
 
-            if (actualColWidth !== expectedColWidth) {
+            if (actualColWidth !== expectedColWidth && actualColWidth !== expectedColWidth_noSysID) {
                 throw new Error(`Expected number of columns from ${aliasName} to be ${expectedColWidth} but got ${actualColWidth}`);
             }
 

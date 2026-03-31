@@ -103,7 +103,58 @@ export class TableStorage {
     }
 
     #isVisible(version) {
-        if (version.XMIN === this.#tx.id) {
+        // -----------
+        // Check XMAX to know if dropped.
+        // XMAX note: if not 0, v.XMAX CAN BE an array
+        // on transactions with strategy === FirstCommitterWins
+        // -----------
+
+        // Dropped by some other tx in unrelated subtree?
+        for (const xmax of [].concat(version.XMAX)) {
+            if (xmax === 0) continue; // Consider visible
+            const xmaxMeta = this.#tx.engine.txMeta(xmax);
+            // Not found? Aborted? Ignore as not (yet) dropped; thus, visible
+            if (!xmaxMeta || xmaxMeta.state === 'aborted') continue;
+
+            // Still active OR committed? Consider dropped; thus, not visible
+            // (rootTx could be self or ancestor)
+            if (xmaxMeta.tx.rootTx === this.#tx.rootTx) return false;
+
+            // Unrelated tx!
+            // Still active? Consider not yet dropped; thus visible
+            if (xmaxMeta.state !== 'committed') continue;
+
+            // Committed implied. Dropped before I was born? We can't see it
+            if (xmaxMeta.commitTime <= this.#tx.snapshot) return false;
+        }
+
+        // -----------
+        // Check XMIN to know how created.
+        // XMIN note: always a scalar
+        // -----------
+
+        // Created by some other tx in unrelated subtree?
+        const xminMeta = this.#tx.engine.txMeta(version.XMIN);
+        // Not found? Aborted? Ignore as not (yet) dropped; thus, not visible
+        if (!xminMeta || xminMeta.state === 'aborted') return false;
+
+        // Shares same rootTx?
+        // Still active OR committed? Consider created; thus, visible
+        // (rootTx could be self or ancestor)
+        if (xminMeta.tx.rootTx === this.#tx.rootTx) return true;
+
+        // Unrelated tx!
+        // Still active? Consider not yet created; thus not visible
+        if (xminMeta.state !== 'committed') return false;
+        // // Committed implied. Created after I was born? We still can't see it
+        if (xminMeta.commitTime > this.#tx.snapshot) return false;
+        return true;
+    }
+
+    #isVisible_(version) {
+        // Created by this tx or a tx in lineage?
+        if (this.#tx.matchXMIN(version, this.#tx.id)) {
+            // Assert that it hasn't also, at the same time, been dropped in lineage
             return !this.#tx.matchXMAX(version, this.#tx.id);
         }
 
@@ -269,7 +320,7 @@ export class TableStorage {
                 case 'SERIAL':
                 case 'BIGSERIAL':
                     if (!isIntegerNumber(value)) {
-                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected ${col.type_id.name}`);
+                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected ${col.type_id.name} but got ${value}`);
                     }
                     break;
                 case 'NUMERIC':
@@ -475,7 +526,7 @@ export class TableStorage {
             conDef = referencingTable.schema.constraints.get('FOREIGN KEY').find((c) => c.id === conDef.id);
 
             const correlation = (version) => Object.fromEntries(conDef.fk_target_column_ids.map(
-                (c, i) => [conDef.column_ids[i].name, version ? version[c.name] : null]
+                (c, i) => [conDef.column_ids[i].name, version ? version[c.name] : version]
             ));
 
             const fkWhere = correlation(version);
@@ -485,48 +536,36 @@ export class TableStorage {
                 if (!changed) continue;
             }
 
-            const result = referencingTable.get(fkWhere, { using: conDef.name.replace(/_fk$/, '_idx'), multiple: true });
+            const keyName = conDef.name.replace(/_fk$/, '_idx');
+            const rule = conDef[`fk_${op}_rule`];
 
-            if (result.length) {
-                const rule = conDef[`fk_${op}_rule`];
+            if (rule === 'NO ACTION' && !isCommitTime) {
+                hasDeferred = true;
+                continue;
+            }
 
-                if (rule === 'NO ACTION' && !isCommitTime) {
-                    hasDeferred = true;
-                    continue;
-                }
+            if (['NO ACTION', 'RESTRICT'].includes(rule)) {
+                throw new ReferenceError(`[${this.#name}] Foreign key constraint violation: "${conDef.name}" by ${op} operation`);
+            }
 
-                if (['NO ACTION', 'RESTRICT'].includes(rule)) {
-                    throw new ReferenceError(`[${this.#name}] Foreign key constraint violation: "${conDef.name}" by ${op} operation`);
-                }
+            if (rule === 'CASCADE') {
+                handlers.push(async () => {
+                    if (op === 'update') {
+                        await referencingTable.update(fkWhere, correlation(newRow), { using: keyName, multiple: true });
+                    } else await referencingTable.delete(fkWhere, { using: keyName, multiple: true });
+                });
+            }
 
-                if (rule === 'CASCADE') {
-                    for (let v of result) {
-                        handlers.push(async () => {
-                            if (op === 'update') {
-                                await referencingTable.update(v, correlation(newRow));
-                            } else await referencingTable.delete(v);
-                        });
-                    }
-                }
+            if (rule === 'SET NULL') {
+                handlers.push(async () => {
+                    await referencingTable.update(fkWhere, correlation(null), { using: keyName, multiple: true });
+                });
+            }
 
-                if (rule === 'SET NULL') {
-                    for (let v of result) {
-                        handlers.push(async () => {
-                            await referencingTable.update(v, correlation(null));
-                        });
-                    }
-                }
-
-                if (rule === 'SET DEFAULT') {
-                    for (let v of result) {
-                        handlers.push(async () => {
-                            const candidate = { ...v };
-                            await referencingTable.#applyColumnDefaults(candidate, { forColumns: conDef.column_ids.map((c) => c.name) });
-
-                            await referencingTable.update(v, candidate);
-                        });
-                    }
-                }
+            if (rule === 'SET DEFAULT') {
+                handlers.push(async () => {
+                    await referencingTable.update(fkWhere, correlation(undefined), { using: keyName, multiple: true });
+                });
             }
         }
 
@@ -665,15 +704,15 @@ export class TableStorage {
 
     // ------------
 
-    count() {
-        return this.getAll().length;
+    count({ using: keyName = null } = {}) {
+        return this.getAll({ using: keyName, sizeCheck: true }).length;
     }
 
-    exists(key, { using: keyName } = {}) {
+    exists(key, { using: keyName = null } = {}) {
         return !!this.get(key, { using: keyName, existsCheck: true });
     }
 
-    get(key, { using: keyName, multiple = false, hiddenCols = true, existsCheck } = {}) {
+    get(key, { using: keyName = null, multiple = false, hiddenCols = false, existsCheck = false } = {}) {
         key = this.#formatKey(key, keyName);
 
         let keyId;
@@ -705,8 +744,9 @@ export class TableStorage {
         const finailizeColProps = (colProps) => {
             if (!hiddenCols) {
                 for (const k in colProps) {
-                    if (k.startsWith('__'))
-                        delete colProps[k];
+                    if (k.startsWith('__')) {
+                        colProps[k].enumerable = false;
+                    }
                 }
             }
             return colProps;
@@ -723,7 +763,7 @@ export class TableStorage {
         return result && Object.defineProperties({}, finailizeColProps(colProps));
     }
 
-    getAll({ using: keyName, hiddenCols = true } = {}) {
+    getAll({ using: keyName = null, hiddenCols = false, sizeCheck = false } = {}) {
         let keyId;
         let keyColumns;
 
@@ -749,8 +789,9 @@ export class TableStorage {
         const finailizeColProps = (colProps) => {
             if (!hiddenCols) {
                 for (const k in colProps) {
-                    if (k.startsWith('__'))
-                        delete colProps[k];
+                    if (k.startsWith('__')) {
+                        colProps[k].enumerable = false;
+                    }
                 }
             }
             return colProps;
@@ -767,6 +808,8 @@ export class TableStorage {
                 if (v) result.push(v);
             }
         }
+
+        if (sizeCheck) return result;
 
         return result.map((c) => {
             const colProps = Object.getOwnPropertyDescriptors(c);
@@ -828,127 +871,168 @@ export class TableStorage {
         return newRow;
     }
 
-    async update(oldPk, newRow, { systemTag = null } = {}) {
-        oldPk = this.#formatKey(oldPk);
+    async upsert(newRow, { systemTag = null } = {}) {
+        try {
+            return await this.insert(newRow, { systemTag });
+        } catch (e) {
+            if (!(e instanceof ConflictError)) throw e;
+            return this.update(e.existing, newRow, { systemTag });
+        }
+    }
 
-        const oldRow = this.#getVisibleVersion(this.#rows, oldPk);
-        if (!oldRow) {
-            throw new ReferenceError(`[${this.#name}] Record not found for ${oldPk}`);
+    async update(oldPk, payload, { using: keyName = null, multiple = false, systemTag = null } = {}) {
+        oldPk = this.#formatKey(oldPk, keyName);
+
+        let keyId;
+
+        if (keyName) {
+            keyId = this.#schema.indexes.get(keyName)?.id;
+            if (!keyId) throw new ReferenceError(`[${this.#name}] Invalid index name ${keyName}`);
         }
 
-        // --- Build new version and resolve new PK
-        newRow = this.#buildRow(newRow, oldRow, { systemTag });
-        await this.#applyColumnDefaults(newRow);
+        const rows = keyId
+            ? this.#indexes.get(keyId)
+            : this.#rows;
 
-        // --- Assert data consistency
-        this.#runTypeChecks(newRow);
-        await this.#runUKChecks(newRow, { skip: oldRow });
-        this.#runFKChecks(newRow);
-        await this.#runCKChecks(newRow);
+        const oldRows = [].concat(this.#getVisibleVersion(rows, oldPk, !!multiple) || []);
+        if (!oldRows.length) return multiple ? [] : null;
 
-        const newPk = this.#deriveKey(this.#schema.keyColumns, newRow);
+        const newRows = [];
+        for (const oldRow of oldRows) {
+            // --- Build new version and resolve new PK
+            const newRow = this.#buildRow(payload, oldRow, { systemTag });
 
-        if (newPk !== oldPk) {
-            const conflicting = this.#getVisibleVersion(this.#rows, newPk);
-            if (conflicting) {
-                throw new ConflictError(`[${this.#name}] Duplicate entry for primary key ${newPk}`, conflicting);
+            await this.#applyColumnDefaults(newRow);
+
+            // --- Assert data consistency
+            this.#runTypeChecks(newRow);
+            await this.#runUKChecks(newRow, { skip: oldRow });
+            this.#runFKChecks(newRow);
+            await this.#runCKChecks(newRow);
+
+            const newPk = this.#deriveKey(this.#schema.keyColumns, newRow);
+
+            if (newPk !== oldPk) {
+                const conflicting = this.#getVisibleVersion(rows, newPk);
+                if (conflicting) {
+                    throw new ConflictError(`[${this.#name}] Duplicate entry for primary key ${newPk}`, conflicting);
+                }
             }
+            const fKRulesResult = this.#runReverseFKRoutines('update', oldRow, false, newRow);
+
+            // --- Track
+            // --- This must come first before setting XMAX below
+            this.#tx.trackWrite(oldRow, oldPk);
+
+            this.#tx.setXMAX(this.#tx.setXMIN(newRow, this.#tx.id), 0);
+            this.#tx.setXMAX(oldRow, this.#tx.id);
+
+            // --- Add to rows and indexes
+            if (!this.#rows.has(newPk))
+                this.#rows.set(newPk, []);
+            this.#rows.get(newPk).push(newRow);
+
+            await this.addToIndexes(this.#schema.indexes, newRow);
+
+            if (fKRulesResult) {
+                for (const fn of fKRulesResult.handlers) await fn();
+                if (fKRulesResult.hasDeferred) {
+                    this.#tx.addFinallizer(() => {
+                        this.#runReverseFKRoutines('update', oldRow, true, newRow);
+                    });
+                }
+            }
+
+            // --- Add undo logic
+            this.#tx.addUndo(() => {
+                if (this.#tx.matchXMAX(oldRow, this.#tx.id)) {
+                    this.#tx.resetXMAX(oldRow, 0);
+                }
+
+                const rowChain = this.#rows.get(newPk);
+                if (rowChain) {
+                    const idx = rowChain.indexOf(newRow);
+                    if (idx !== -1) rowChain.splice(idx, 1);
+                    if (!rowChain.length) this.#rows.delete(newPk);
+                }
+
+                this.removeFromIndexes(this.#schema.indexes, newRow);
+            });
+
+            // --- Record change
+            this.#tx.recordChange({
+                op: 'update',
+                relation: {
+                    namespace: this.#namespace,
+                    name: this.#name,
+                    keyColumns: [...this.#schema.keyColumns]
+                },
+                old: oldRow,
+                new: newRow
+            });
+
+            newRows.push(newRow);
         }
-        const fKRulesResult = this.#runReverseFKRoutines('update', oldRow, false, newRow);
 
-        // --- Track
-        // --- This must come first before setting XMAX below
-        this.#tx.trackWrite(oldRow, oldPk);
+        return multiple
+            ? newRows
+            : newRows[0];
+    }
 
-        this.#tx.setXMAX(this.#tx.setXMIN(newRow, this.#tx.id), 0);
-        this.#tx.setXMAX(oldRow, this.#tx.id);
+    async delete(oldPk, { using: keyName = null, multiple = false } = {}) {
+        oldPk = this.#formatKey(oldPk, keyName);
 
-        // --- Add to rows and indexes
-        if (!this.#rows.has(newPk))
-            this.#rows.set(newPk, []);
-        this.#rows.get(newPk).push(newRow);
+        let keyId;
 
-        await this.addToIndexes(this.#schema.indexes, newRow);
+        if (keyName) {
+            keyId = this.#schema.indexes.get(keyName)?.id;
+            if (!keyId) throw new ReferenceError(`[${this.#name}] Invalid index name ${keyName}`);
+        }
 
-        if (fKRulesResult) {
+        const rows = keyId
+            ? this.#indexes.get(keyId)
+            : this.#rows;
+
+        const oldRows = [].concat(this.#getVisibleVersion(rows, oldPk, !!multiple) || []);
+        if (!oldRows.length) return multiple ? [] : null;
+
+        for (const oldRow of oldRows) {
+            const fKRulesResult = this.#runReverseFKRoutines('delete', oldRow, false);
             for (const fn of fKRulesResult.handlers) await fn();
             if (fKRulesResult.hasDeferred) {
                 this.#tx.addFinallizer(() => {
-                    this.#runReverseFKRoutines('update', oldRow, true, newRow);
+                    this.#runReverseFKRoutines('delete', oldRow, true);
                 });
             }
-        }
 
-        // --- Add undo logic
-        this.#tx.addUndo(() => {
-            if (this.#tx.matchXMAX(oldRow, this.#tx.id)) {
-                this.#tx.resetXMAX(oldRow, 0);
-            }
+            // --- Track
+            // --- This must come first before setting XMAX below
+            this.#tx.trackWrite(oldRow, oldPk);
 
-            const rowChain = this.#rows.get(newPk);
-            if (rowChain) {
-                const idx = rowChain.indexOf(newRow);
-                if (idx !== -1) rowChain.splice(idx, 1);
-                if (!rowChain.length) this.#rows.delete(newPk);
-            }
+            this.#tx.setXMAX(oldRow, this.#tx.id);
 
-            this.removeFromIndexes(this.#schema.indexes, newRow);
-        });
+            // --- Add undo
+            this.#tx.addUndo(() => {
+                if (this.#tx.matchXMAX(oldRow, this.#tx.id)) {
+                    this.#tx.resetXMAX(oldRow, 0);
+                }
+            });
 
-        // --- Record change
-        this.#tx.recordChange({
-            op: 'update',
-            relation: {
-                namespace: this.#namespace,
-                name: this.#name,
-                keyColumns: [...this.#schema.keyColumns]
-            },
-            old: oldRow,
-            new: newRow
-        });
-
-        return newRow;
-    }
-
-    async delete(oldPk) {
-        oldPk = this.#formatKey(oldPk);
-
-        const oldRow = this.#getVisibleVersion(this.#rows, oldPk);
-        if (!oldRow) throw new ReferenceError(`[${this.#name}] Record not found for ${oldPk}`);
-
-        const fKRulesResult = this.#runReverseFKRoutines('delete', oldRow, false);
-        for (const fn of fKRulesResult.handlers) await fn();
-        if (fKRulesResult.hasDeferred) {
-            this.#tx.addFinallizer(() => {
-                this.#runReverseFKRoutines('delete', oldRow, true);
+            // --- Record change
+            this.#tx.recordChange({
+                op: 'delete',
+                relation: {
+                    namespace: this.#namespace,
+                    name: this.#name,
+                    keyColumns: [...this.#schema.keyColumns]
+                },
+                old: oldRow
             });
         }
 
-        // --- Track
-        // --- This must come first before setting XMAX below
-        this.#tx.trackWrite(oldRow, oldPk);
-
-        this.#tx.setXMAX(oldRow, this.#tx.id);
-
-        // --- Add undo
-        this.#tx.addUndo(() => {
-            if (this.#tx.matchXMAX(oldRow, this.#tx.id)) {
-                this.#tx.resetXMAX(oldRow, 0);
-            }
-        });
-
-        // --- Record change
-        this.#tx.recordChange({
-            op: 'delete',
-            relation: {
-                namespace: this.#namespace,
-                name: this.#name,
-                keyColumns: [...this.#schema.keyColumns]
-            },
-            old: oldRow
-        });
-
-        return oldRow;
+        return multiple
+            ? oldRows
+            : oldRows[0];
     }
 
     async truncate() {

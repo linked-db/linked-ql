@@ -68,7 +68,7 @@ Runs across:
 
 + PostgreSQL, MySQL/MariaDB, local and in-memory storage  
 + server, browser, edge, and worker runtimes  
-+ local and remote data as one relational graph  
++ both local and remote data as one relational graph  
 
 → one application-level interface in all  
 → under `80 KiB` (min+zip) in all
@@ -82,8 +82,9 @@ The big picture? **[SQL, reimagined for modern apps ↗](https://linked-ql.netli
 ---
 
 > [!IMPORTANT]
-> LinkedQL is backed by **1,000+ tests and growing**, with strong coverage across **FlashQL, live queries, edge transport, federation, WAL, sync, and parser/engine behavior**.<br>
-> The main areas still being expanded are **broader dialect parity, migrations, and deeper driver hardening across environments**.
+> LinkedQL is backed by **over 1,000 test cases and growing**.<br>
+> Early usage feedback, issues and PRs help us on our path to the next 1,000 tests.<br>
+> See [Contributing](#-contributing)
 
 ---
 
@@ -185,7 +186,7 @@ await db.connect();
 
 // FlashQL accepts multiple statements in a single call
 await db.query(`
-  -- Define schema locally
+  -- Define tables locally
   CREATE TABLE public.users (
     id INT PRIMARY KEY,
     name TEXT
@@ -298,7 +299,7 @@ const liveResult = await db.query(
 * Returns a self-updating result set (`result.rows`) that will grow, shrink, and mutate in-place to reflect the latest truth of the query as changes happen to the underlying tables
 * Not limited by query complexity – whether it's joins, filters, aggregates, ordering, or other constructs
 * Fully supprted across:
-  * dialects: PostgreSQL, FlashQL, etc. (MySQL/MariaDB support coming soon)
+  * databases: PostgreSQL, FlashQL, etc. (MySQL/MariaDB support coming soon)
   * runtimes and deployment models: client / server / worker / edge
 
 This is fully covered in [Live Queries ↗](https://linked-ql.netlify.app/capabilities/live-queries) and the [Realtime Engine deep dive ↗](https://linked-ql.netlify.app/engineering/realtime-engine).
@@ -372,7 +373,7 @@ See [Changefeeds (WAL) ↗](https://linked-ql.netlify.app/capabilities/changefee
 
 ### 6. Sync (FlashQL)
 
-`db.sync.sync()` is the API for sync and materialized views in FlashQL.
+`db.sync.sync()` is the API for sync in FlashQL.
 
 You begin by creating views and pointing them to local or remote tables. You call `sync()` to execute the contract.
 
@@ -413,7 +414,8 @@ LinkedQL builds on standard SQL while extending it with constructs that better e
 
 LinkedQL allows you to construct structured objects directly in SQL.
 
-```sql
+```js
+const result = await db.query(`
 SELECT {
   id: u.id,
   name: u.name
@@ -425,16 +427,18 @@ FROM users u;
 
 #### Nested Structures
 
-```sql
-SELECT {
-  id: u.id,
-  name: u.name,
-  profile: {
-    email: u.email,
-    age: u.age
-  }
-} AS user
-FROM users u;
+```js
+const result = await db.query(`
+  SELECT {
+    id: u.id,
+    name: u.name,
+    profile: {
+      email: u.email,
+      age: u.age
+    }
+  } AS user
+  FROM users u;
+`);
 ```
 
 
@@ -465,11 +469,13 @@ LinkedQL introduces **DeepRef operators** to express that graph directly:
 
 #### Forward Traversal
 
-```sql
-SELECT
-  id,
-  parent_user ~> email AS parent_email
-FROM users;
+```js
+const result = await db.query(`
+  SELECT
+    id,
+    parent_user ~> email AS parent_email
+  FROM users;
+`);
 ```
 
 #### What this does
@@ -482,11 +488,13 @@ FROM users;
 
 #### Reverse Traversal
 
-```sql
-SELECT
-  id,
-  (parent_user <~ users).email AS child_email
-FROM users;
+```js
+const result = await db.query(`
+  SELECT
+    id,
+    (parent_user <~ users).email AS child_email
+  FROM users;
+`);
 ```
 
 #### What this does
@@ -498,22 +506,26 @@ FROM users;
 
 #### Structured Traversal
 
-```sql
-SELECT
-  id,
-  { name, email } as profile,
-  parent_user ~> { id, name, email } AS parent
-FROM users;
+```js
+const result = await db.query(`
+  SELECT
+    id,
+    { name, email } as profile,
+    parent_user ~> { id, name, email } AS parent
+  FROM users;
+`);
 ```
 
 or:
 
-```sql
-SELECT {
-  id,
-  profile: { name, email },
-  parent: parent_user ~> { id, name, email }
-} FROM users;
+```js
+const result = await db.query(`
+  SELECT {
+    id,
+    profile: { name, email },
+    parent: parent_user ~> { id, name, email }
+  } FROM users;
+`);
 ```
 
 #### What this changes
@@ -540,11 +552,13 @@ The same relationship-aware model applies to writes.
 
 #### Insert with Relationships
 
-```sql
-INSERT INTO users
-  (email, parent_user ~> (id, email))
-VALUES
-  ('ada@example.com', ROW (50, 'parent@example.com'));
+```js
+await db.query(`
+  INSERT INTO users
+    (email, parent_user ~> (id, email))
+  VALUES
+    ('ada@example.com', ROW (50, 'parent@example.com'));
+`);
 ```
 
 #### What this does
@@ -557,12 +571,14 @@ VALUES
 
 #### Update with Traversal
 
-```sql
-UPDATE users
-SET
-  email = 'ada.lovelace@example.com',
-  parent_user ~> email = 'parent+updated@example.com'
-WHERE id = 1;
+```js
+await db.query(`
+  UPDATE users
+  SET
+    email = 'ada.lovelace@example.com',
+    parent_user ~> email = 'parent+updated@example.com'
+  WHERE id = 1;
+`);
 ```
 
 ---
@@ -590,10 +606,12 @@ Upsert syntax varies across databases:
 
 LinkedQL provides a **single, predictable form across dialects**:
 
-```sql
-UPSERT INTO users (id, name)
-VALUES (1, 'Ada')
-RETURNING id, name;
+```js
+await db.query(`
+  UPSERT INTO users (id, name)
+  VALUES (1, 'Ada')
+  RETURNING id, name;
+`);
 ```
 
 ---
@@ -614,23 +632,27 @@ See [UPSERT ↗](https://linked-ql.netlify.app/capabilities/upsert).
 
 Queries can explicitly declare the schema versions they depend on.
 
-```sql
-SELECT *
-FROM public.users@=3;
+```js
+const result = await db.query(`
+  SELECT *
+  FROM public.users@=3;
+`);
 ```
 
 ---
 
 #### With joins
 
-```sql
-SELECT
-  u.id,
-  u.name,
-  p.title
-FROM public.users@=3 u
-LEFT JOIN public.posts@=5 p
-  ON p.author_id = u.id;
+```js
+const result = await db.query(`
+  SELECT
+    u.id,
+    u.name,
+    p.title
+  FROM public.users@=3 u
+  LEFT JOIN public.posts@=5 p
+    ON p.author_id = u.id;
+`);
 ```
 
 ---
@@ -654,19 +676,24 @@ See [Version Binding ↗](https://linked-ql.netlify.app/capabilities/version-bin
 
 ### Composability
 
-These features are designed to be composable.
+These features are designed to be composable. They also deeply integrate with the existing SQL semantics. For example, DeepRefs may be used with JOINS in the same query.
 
 ---
 
 #### Example
 
-```sql
-SELECT {
-  id: u.id,
-  name: u.name,
-  parent: u.parent_user ~> { id, email }
-}
-FROM public.users@=3 u;
+```js
+const result = await db.query(`
+  SELECT {
+    id: u.id,
+    name: u.name,
+    post_title: p.title,
+    parent: u.parent_user ~> { id, email }
+  }
+  FROM public.users@=3 u
+  LEFT JOIN public.posts@=5 p
+    ON p.author_id = u.id;
+`);
 ```
 
 ---
@@ -914,7 +941,7 @@ This is where LinkedQL moves beyond “client” and becomes a **data architectu
 At a high level, this system works like this:
 
 - You define **where data comes from** (local vs remote)
-- You define **how it is stored** (none, cached, or realtime)
+- You define **how it is stored** (none, cached, or synced)
 - LinkedQL ensures everything behaves like a single database
 
 The idea starts with the local database – this time, instantiated with a hook to the remote database.
@@ -944,7 +971,7 @@ This query may:
 
 But it always behaves like a single SQL query.
 
-The system is introduced step by step below. Much of that is mere configurations.
+The system is introduced step by step below. Much of that is mere configuration.
 
 ---
 
@@ -979,13 +1006,27 @@ const db = new FlashQL({
 await db.connect();
 ```
 
+Next, we create a schema – more specifically called a "namespace" in FlashQL – with the foreign origin behaviour.
+
+```js
+await db.query(`
+  CREATE SCHEMA remote
+  WITH (replication_origin = 'primary')
+`);
+```
+
+This namespace will be able to incorporate data from a foreign origin tagged here as "primary". The result of `onCreateForeignClient()`
+will be the foreign client interface.
+
 ---
 
 ##### Decoding the above
 
-* FlashQL is your **local relational engine**
-* `"primary"` is simply the name we want to give to a **remote database**. (FlashQL lets the origin details be application-defined. It can be a bare identifier as used here, or a URL, or something else.)
-* `EdgeClient` is how FlashQL will talk to that remote system
+* FlashQL is your **local database**
+* `remote` schema is a **regular schema (namespace)** that can have tables and views (`VIEWS`)
+* `replication_origin` is a setting that extends the behaviour of the namespace to include objects from a foreign origin
+* the value: `"primary"` is a custom identifier for this **remote database**. (FlashQL lets the origin details be anything: an identifier, a URL, a database connection string, etc.)
+* `EdgeClient` – the result of `onCreateForeignClient()` – is how FlashQL will talk to that remote system
 
 At this point:
 
@@ -993,94 +1034,70 @@ At this point:
 * no data is fetched
 * we’ve only defined **how to reach the remote** from the local
 
-But the local database by itself is ready for use as before:
+But the local namespace by itself is ready for use as normal. You can create tables as necessary:
 
 ```js
 // FlashQL accepts multiple statements in a single call
 await db.query(`
-  -- Define schema locally
-  CREATE TABLE public.users (
+  -- Define tables explicitly
+  CREATE TABLE remote.users (
     id INT PRIMARY KEY,
     name TEXT
   );
 
   -- Seed local data
-  INSERT INTO public.users (id, name)
+  INSERT INTO remote.users (id, name)
   VALUES (1, 'Ada'), (2, 'Linus');
 `);
 ```
 
+But the containers of foreign data will not be tables. They will be views (VIEWS).
+
+Think of views as table-like objects whose contents come from other tables – whether local tables or remote tables.
+
 ---
 
-#### Step 2: Declare a Foreign Namespace
+#### Step 2: Let’s Mirror Foreign Tables Locally
 
-Moving on to the goal of not just a local database but one that can mirror remote data sources, we'll now create the local "containers" for the remote data.
-
-First, we create a local "namespace" – more traditionally called a "schema" – that contains the tables we'll use to mirror remote tables.
+A view created inside a namespace with `replication_origin`, like the above, automatically resolves its data from the foreign origin.
 
 ```js
 await db.query(`
-  CREATE SCHEMA remote
-  WITH (
-    replication_origin = 'primary',
-    replication_origin_type = 'edge'
-  )
+  CREATE VIEW remote.users AS
+  SELECT * FROM public.users
 `);
 ```
 
----
+Rows in this view (`remote.users`) will mirror `public.users` in foreign origin. The persistence of this data is configurable.
 
-##### Decoding the above
-
-* `remote` is a **real local namespace (schema)** that can have tables and views (`VIEWS`) just like a regular namespace
-* The difference is what happens when you create a view inside it: those views will automatically resolve from the remote origin instead of the local database
-
-Think of the **views** + **foreign origin** combination as the way to mirror remote data sources.
-
-We move on to that part now.
-
----
-
-#### Step 3: Let’s Mirror Foreign Tables Locally
-
-Now we create **views** that mirror foreign tables.
-
-LinkedQL provides **three mirroring modes**:
+FlashQL supports **three persistence modes**. These modes determine how mirroring works; i.e. whether data stays remote, or is cached locally, or stays in sync.
 
 | Mode                                             | Behavior                               |
-| ------------------------------------------------ | -------------------------------------- |
-| Views defined as: `persistence="origin"`       | These views don't copy the remote data locally; they simply act as local references to remote data – resolved at query-time. These are called "origin views" |
-| Views defined as: `persistence="materialized"` | These views copy the remote data locally and behave as local tables from that moment on; cached data is refreshed manually. These are called "materialized views" |
-| Views defined as: `persistence="realtime"`     | These views copy the remote data locally and behave as local tables from that moment on; **but most notably, local data is kept in sync with remote data**. These are called "realtime views" |
+| :------------------------------------------------ | :-------------------------------------- |
+| `persistence="none"`(the default) | Views set to this mode don't copy the remote data locally; they simply act as local references to remote data. These are called "non-persistent views" |
+| `persistence="materialized"` | Views set to this mode copy the origin data locally and behave as local tables from that moment on; cached data is refreshed manually. These are called "materialized views" |
+| `persistence="realtime"`     | Views set to this mode copy the remote data locally and behave as local tables from that moment on; **but most notably, local data is kept in sync with origin data**. These are called "realtime views" |
 
-In short:
-
-- `origin`       → data always remote
-- `materialized` → data cached locally (with optional manual refresh)
-- `realtime`     → data cached locally and continuously synced
-
-Those three modes are the heart of the local-first story:
-
-* use `origin` when freshness matters more than offline access
+* use `none` when freshness matters more than offline access
 * use `materialized` when you want a local cache you can refresh deliberately
 * use `realtime` when the local copy should stay warm automatically after initial sync
 
-We demonstrate each mode below.
+Each mode is demonstrated below.
 
 ---
 
-##### Mode 1: Origin Views (Pure Federation)
+##### Mode 1: Non-Persistent Views (Pure Federation)
 
 ```js
 await db.query(`
-  CREATE ORIGIN VIEW remote.users AS
+  CREATE VIEW remote.users AS
   SELECT * FROM public.users
 `);
 ```
 
 ---
 
-###### Decoding this mode
+###### Behaviour
 
 * No data is stored locally
 * Every query hits the remote database
@@ -1105,7 +1122,7 @@ await db.query(`
 
 ---
 
-###### Decoding this mode
+###### Behaviour
 
 * Data is stored locally inside FlashQL
 * It does **not update automatically**
@@ -1136,7 +1153,7 @@ await db.query(`
 
 ---
 
-###### Decoding this mode
+###### Behaviour
 
 * Data is stored locally
 * Changes from the remote database are streamed in
@@ -1154,7 +1171,7 @@ This is the richest mode:
 
 ---
 
-#### Step 4: Running Sync
+#### Step 3: Running Sync
 
 On having defined the views, you activate the synchronization via:
 
@@ -1181,7 +1198,7 @@ It:
 ##### `sync()` is:
 
 * **Idempotent** → safe to call multiple times
-* **Resumable** → continues from last known state
+* **Resumable** → knows hot to continue from last known state
 * **Network-aware** → designed for reconnect flows
 
 ##### Typical usage:
@@ -1192,7 +1209,7 @@ First: **the initial call after defining views**:
 await db.sync.sync();
 ```
 
-Second: **the optional app-level wiring to the network signal switch:**
+Second: **the optional wiring to the app-level network signal:**
 
 ```js
 window.addEventListener('online', () => {
@@ -1203,7 +1220,9 @@ window.addEventListener('online', () => {
 At that point, your local database is no longer just "configured".
 It is now hydrated, subscribed where necessary, and ready to behave like a unified relational graph.
 
-> Note that the initial `db.sync.sync()` can be automatically-handled by FlashQL. Simply pass `autoSync: true` in constructor parameters.
+> Note that the initial `db.sync.sync()` can be automatically-handled by FlashQL. Simply pass `autoSync: true` in constructor parameters:
+>
+> `new FlashQL({ autoSync: true });`
 
 ---
 
@@ -1211,7 +1230,7 @@ It is now hydrated, subscribed where necessary, and ready to behave like a unifi
 
 At query time, LinkedQL builds a composed execution plan:
 
-* `origin` views are resolved remotely
+* non-persistent views are resolved on demand
 * `materialized` and `realtime` views are resolved locally
 * results are merged into a single relational execution
 
@@ -1222,7 +1241,7 @@ const result = await db.query(`
     u.name,
     o.total,
     p.title
-  FROM remote.users u        -- origin VIEW: resolved on demand from remote DB
+  FROM remote.users u        -- non-persistent VIEW: resolved on demand from remote DB
   LEFT JOIN remote.orders o  -- materialized VIEW: served locally
     ON o.customer_id = u.id
   LEFT JOIN remote.posts p   -- realtime VIEW: served locally, kept in sync
@@ -1253,58 +1272,6 @@ For the FlashQL side of this model, see [Federation & Sync ↗](https://linked-q
 
 ## LinkedQL at a Glance
 
-- You always write: `db.query(SQL)`
-- yet `db` can be:
-  - a real database
-  - a local engine
-  - a remote bridge
-  - or a composed graph of both
-- Views define:
-  - where data is resolved (local vs remote)
-  - and how it is kept in sync
-- `sync()` keeps everything consistent
-
----
-
-### Capabilities
-
-| Capability                    | Description                                                                                                                    |
-| :---------------------------- | :----------------------------------------------------------------------------------------------------------------------------- |
-| ⚡ **Live Queries**            | Turn on reactivity over SQL with `{ live: true }`, including joins, aggregates, ordering, and windowed result updates. |
-| 🔗 **DeepRef Operators**      | Traverse relationships using simple path notation (`~>` / `<~`). Insert or update nested structures using the same syntax. |
-| 🧩 **JSON Literals**          | Bring JSON-like clarity to SQL with first-class support for JSON notation and object-shaped payloads. |
-| 🪄 **Upserts**                | Use a literal UPSERT statement and familiar conflict-handling flows across supported runtimes. |
-| 🧠 **Version Binding**        | Bind queries to expected relation versions so an app can fail fast when storage shape no longer matches assumptions. |
-| 💾 **Edge & Offline Runtime** | Run or embed SQL locally in FlashQL — in browsers, workers, or edge devices — with persistence and replay. |
-| 🌐 **Federation & Sync**      | Unify remote databases and local stores into a single relational graph with materialized and realtime synced views. |
-
-### Features
-
-| Feature                                   | Description                                                                                             |
-| :---------------------------------------- | :------------------------------------------------------------------------------------------------------ |
-| 💻 **Classic `client.query()` Interface** | Same classic client interface, with advanced capabilities for modern applications. |
-| 🔗 **Multi-Dialect Support**              | A universal parser that understands PostgreSQL, MySQL, MariaDB, and FlashQL — one client, many dialects.           |
-| 💡 **Lightweight Footprint**              | A full reactive data layer in one compact library — under 80 KiB (min/zip). |
-| 🎯 **Automatic Schema Inference**         | No upfront schema work. LinkedQL auto-discovers your schema and stays schema-driven across complex tasks.      | 
-| 🧱 **Embeddable Storage Engine**          | FlashQL brings MVCC, WAL persistence, selectors, views, sync metadata, and replay into an embeddable engine. |
-| 🛰️ **Realtime + Sync Pipeline**           | Local materialized and realtime views can be refreshed and resumed through a single sync entry point. |
-| 🪄 **Diff-Based Migrations**              | Planned: evolve schemas declaratively through change detection instead of hand-written migration scripts.        |
-
-### Architectural Strengths
-
-| Strength | Description |
-| :-- | :-- |
-| **MVCC Storage Model (FlashQL)** | FlashQL is built around transactional MVCC semantics rather than mutable in-place state. |
-| **Transaction-First API** | Query, stream, live query, edge transport, and explicit transaction flows all align around transactional execution. |
-| **Views As Primitives (FlashQL)** | `origin`, `materialized`, and `realtime` views are first-class building blocks, not bolted-on adapters. |
-| **Modern WAL API** | `client.wal.subscribe(...)` gives app-facing changefeed consumption without forcing raw database replication ergonomics into the UI layer. |
-| **Concurrency & Replay (FlashQL)** | WAL persistence, replay, catch-up, and conflict-aware storage behavior make local-first flows practical instead of purely optimistic. |
-| **Version Binding** | Queries can assert the relation versions they were designed against and fail fast if app assumptions drift from storage. |
-
-## Documentation
-
-Visit the [LinkedQL documentation site ↗](https://linked-ql.netlify.app)
-
 | Jump to |  |
 |:--|:--|
 | [Getting Started ↗](https://linked-ql.netlify.app/docs) | Get started with LinkedQL in under three minutes. No database required |
@@ -1315,6 +1282,8 @@ Visit the [LinkedQL documentation site ↗](https://linked-ql.netlify.app)
 | [Meet FlashQL ↗](https://linked-ql.netlify.app/flashql) | Meet FlashQL — LinkedQL's embeddable SQL engine. |
 | [FlashQL Sync ↗](https://linked-ql.netlify.app/flashql/sync) | Explore the sync API and local-first orchestration path. |
 | [Engineering Deep Dive ↗](https://linked-ql.netlify.app/engineering/realtime-engine) | Dig into LinkedQL's engineering in the engineering section. |
+
+Visit the [LinkedQL documentation site ↗](https://linked-ql.netlify.app)
 
 ---
 

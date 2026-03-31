@@ -145,7 +145,7 @@ LinkedQL bundles an embeddable SQL engine, **FlashQL**, that brings its full cap
 | **Capability**     | **Summary**                                                   | **Docs**                             |
 | :----------------- | :------------------------------------------------------------ | :----------------------------------- |
 | **Local Database** | Run a full SQL engine in memory — same semantics, zero setup. | [FlashQL](/flashql) |
-| **Federation**     | Declare foreign namespaces and origin views directly in SQL. | [FlashQL](/flashql) |
+| **Federation**     | Declare foreign namespaces and non-persistent views directly in SQL. | [FlashQL](/flashql) |
 | **Sync**           | Materialize and keep remote-backed views aligned with `db.sync`. | [FlashQL](/flashql) |
 
 ### Examples
@@ -179,7 +179,7 @@ await db.query(`
 `);
 
 await db.query(`
-  CREATE ORIGIN VIEW store.orders AS
+  CREATE VIEW store.orders AS
   SELECT * FROM public.orders
 `);
 

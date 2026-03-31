@@ -4,9 +4,7 @@ use(chaiAsPromised);
 
 import '../src/lang/index.js';
 import { matchRelationSelector, normalizeRelationSelectorArg } from '../src/clients/abstracts/util.js';
-import { StorageEngine } from '../src/flashql/storage/StorageEngine.js';
 import { FlashQL } from '../src/flashql/FlashQL.js';
-import { TableStorage } from '../src/flashql/storage/TableStorage.js';
 
 describe('Util', () => {
 
@@ -99,7 +97,9 @@ describe('FlashQL - Basic DDL', () => {
     let client;
 
     before(async () => {
-        client = await createClient();
+        client = await createClient(null, { onCreateForeignClient: () => {
+            return client;
+        }});
     });
 
     after(async () => {
@@ -192,8 +192,8 @@ describe('FlashQL - Basic DDL', () => {
         });
 
         // Advanced: TEMPORARY keyword should throw on in-mem engine
-        it('should throw on CREATE TEMPORARY TABLE', async () => {
-            await expect(client.query('CREATE TEMPORARY TABLE lq_test_table.temp_tbl (id INT)')).to.be.rejected;
+        it('should not throw on CREATE TEMPORARY TABLE', async () => {
+            await expect(client.query('CREATE TEMPORARY TABLE lq_test_table.temp_tbl (id INT)')).to.not.be.rejected;
         });
     });
 
@@ -255,14 +255,13 @@ describe('FlashQL - Basic DDL', () => {
         });
 
         it('should set and reset schema options', async () => {
-            await client.query(`CREATE SCHEMA IF NOT EXISTS lq_schema_opts WITH (replication_origin = 'origin_a', replication_origin_type = 'postgres')`);
-            await client.query(`ALTER SCHEMA lq_schema_opts SET (replication_origin = 'origin_b')`);
+            await client.query(`CREATE SCHEMA IF NOT EXISTS lq_schema_opts WITH (default_replication_origin = 'origin_a')`);
+            await client.query(`ALTER SCHEMA lq_schema_opts SET (default_replication_origin = 'origin_b')`);
             let ns = await showNamespace(client, 'lq_schema_opts');
-            expect(ns.replication_origin).to.eq('origin_b');
-            await client.query(`ALTER SCHEMA lq_schema_opts RESET (replication_origin, replication_origin_type)`);
+            expect(ns.view_opts_default_replication_origin).to.eq('origin_b');
+            await client.query(`ALTER SCHEMA lq_schema_opts RESET (default_replication_origin)`);
             ns = await showNamespace(client, 'lq_schema_opts');
-            expect(ns.replication_origin).to.eq(null);
-            expect(ns.replication_origin_type).to.eq(null);
+            expect(ns.view_opts_default_replication_origin).to.eq(null);
         });
     });
 
@@ -279,17 +278,17 @@ describe('FlashQL - Basic DDL', () => {
         it('should create a materialized view', async () => {
             await client.query('CREATE MATERIALIZED VIEW lq_test_view.v1 AS SELECT id, name FROM lq_test_view.src');
             const view = await showView(client, 'lq_test_view', 'v1');
-            expect(view.persistence).to.eq('materialized');
-            expect(view.view_spec.query).to.be.an('object');
-            expect(view.view_spec.query.nodeName).to.match(/SELECT_STMT$/);
+            expect(view.view_opts_replication_mode).to.eq('materialized');
+            expect(view.source_expr_ast).to.be.an('object');
+            expect(view.source_expr_ast.nodeName).to.match(/SELECT_STMT$/);
         });
 
         it('should support CREATE OR REPLACE VIEW', async () => {
             const before = await showView(client, 'lq_test_view', 'v1');
-            await client.query('CREATE OR REPLACE VIEW lq_test_view.v1 AS SELECT id FROM lq_test_view.src');
+            await client.query('CREATE OR REPLACE MATERIALIZED VIEW lq_test_view.v1 AS SELECT id FROM lq_test_view.src');
             const view = await showView(client, 'lq_test_view', 'v1');
-            expect(view.view_spec.query).to.be.an('object');
-            expect(view.view_spec.query.nodeName).to.match(/SELECT_STMT$/);
+            expect(view.source_expr_ast).to.be.an('object');
+            expect(view.source_expr_ast.nodeName).to.match(/SELECT_STMT$/);
             expect(view.id).to.eq(before.id);
             expect(view.version_major).to.eq(before.version_major + 1);
         });
@@ -302,24 +301,45 @@ describe('FlashQL - Basic DDL', () => {
             expect(tables).to.include('v2');
         });
 
-        it('should replace a view query', async () => {
+        it('should replace a view\'s source_expr', async () => {
             await client.query('ALTER VIEW lq_test_view_archive.v2 AS SELECT id, name FROM lq_test_view.src');
             const view = await showView(client, 'lq_test_view_archive', 'v2');
-            expect(view.view_spec.query).to.be.an('object');
-            expect(view.view_spec.query.nodeName).to.match(/SELECT_STMT$/);
+            expect(view.source_expr_ast).to.be.an('object');
+            expect(view.source_expr_ast.nodeName).to.match(/SELECT_STMT$/);
+        });
+
+        it('should replace a view\'s replication_origin', async () => {
+            await client.query('ALTER VIEW lq_test_view_archive.v2 SET (replication_origin = \'primary\')');
+            const view = await showView(client, 'lq_test_view_archive', 'v2');
+            expect(view.view_opts_replication_origin).to.eq('primary');
+            await client.query('ALTER VIEW lq_test_view_archive.v2 RESET (replication_origin)');
+            const view2 = await showView(client, 'lq_test_view_archive', 'v2');
+            expect(view2.view_opts_replication_origin).to.be.null;
+        });
+
+        it('should replace a view\'s replication_mode but reject it\'s reset', async () => {
+            await client.query('ALTER VIEW lq_test_view_archive.v2 SET (replication_mode = \'realtime\')');
+            const view = await showView(client, 'lq_test_view_archive', 'v2');
+            expect(view.view_opts_replication_mode).to.eq('realtime');
+            await client.query('ALTER VIEW lq_test_view_archive.v2 RESET (replication_mode)');
+            const view2 = await showView(client, 'lq_test_view_archive', 'v2');
+            expect(view2.view_opts_replication_mode).to.eq('none');
         });
 
         it('should refresh a view by repopulating stored rows from its query', async () => {
+            await client.query('ALTER VIEW lq_test_view_archive.v2 SET (replication_mode = realtime)');
             await client.query(`INSERT INTO lq_test_view.src (id, name) VALUES (1, 'A')`);
             await client.query(`INSERT INTO lq_test_view.src (id, name) VALUES (2, 'B')`);
-            await client.query('REFRESH VIEW lq_test_view_archive.v2');
-            await client.storageEngine.transaction(async (tx) => {
-                const storage = tx.getTable({ namespace: 'lq_test_view_archive', name: 'v2' }, { assertIsView: true });
-                expect(storage.getAll().map((row) => ({ id: row.id, name: row.name }))).to.deep.eq([
-                    { id: 1, name: 'A' },
-                    { id: 2, name: 'B' },
-                ]);
+
+            //await client.query('REFRESH materialized VIEW lq_test_view_archive.v2');
+            await client.query('REFRESH realtime VIEW lq_test_view_archive.v2');
+            const storage = await client.storageEngine.transaction(async (tx) => {
+                return tx.getTable({ namespace: 'lq_test_view_archive', name: 'v2' }, { assertIsView: true });
             });
+            expect(storage.getAll().map((row) => ({ id: row.id, name: row.name }))).to.deep.eq([
+                { id: 1, name: 'A' },
+                { id: 2, name: 'B' },
+            ]);
         });
 
         it('should drop a view', async () => {
@@ -553,7 +573,7 @@ describe('FlashQL - DDL Inference', () => {
             const c = await client.resolver.showCreate({ ['*']: ['!tbl1'] }, { structured: true });
 
             expect(b).to.have.lengthOf(3);
-            expect(c).to.have.lengthOf(4);
+            expect(c).to.have.lengthOf(3);
 
             expect(b[1].tables()).to.have.lengthOf(1);
             expect(b[1].tables()[0].name().value()).to.eq('tbl1');
@@ -568,7 +588,7 @@ describe('FlashQL - DDL Inference', () => {
             const c = await client.resolver.showCreate({ ['*']: ['*'] });
 
             expect(b.map((t) => t.name().value())).to.deep.eq(['tbl1', 'tbl1', 'tbl1']);
-            expect(c.map((t) => t.name().value())).to.deep.eq(['test'/* default */, 'tbl1', 'tbl2', 'tbl1', 'tbl2', 'tbl1', 'tbl2']);
+            expect(c.map((t) => t.name().value())).to.deep.eq(['tbl1', 'tbl2', 'tbl1', 'tbl2', 'tbl1', 'tbl2']);
         });
     });
 
@@ -1247,13 +1267,11 @@ describe("FlashQL - DQL", () => {
         });
 
         it('LATERAL subquery can reference outer columns', async () => {
-            globalThis.___ = 4;
             const { rows } = await client.query(`
                 SELECT t.id, sub.dbl FROM lateral_nums t
                 JOIN LATERAL (SELECT t.n * 2 AS dbl) sub ON true
                 ORDER BY t.id
             `);
-            globalThis.___ = 0;
             // each outer row should have dbl = n*2
             expect(rows).to.deep.equal([{ id: 1, dbl: 4 }, { id: 2, dbl: 2 }, { id: 3, dbl: 0 }]);
         });

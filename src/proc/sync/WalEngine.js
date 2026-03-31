@@ -168,26 +168,28 @@ export class WalEngine {
             }
         }
 
-        return async ({ forget = false } = {}) => await this.unsubscribe(sub.id, { forget });
+        return async ({ forget = false } = {}) => {
+            let existed = this.#subscribers.has(sub.id);
+            this.#subscribers.delete(sub.id);
+
+            if (forget) existed = await this.forget(sub.id);
+
+            if (!this.#subscribers.size && this.#lifecycleHook) {
+                await this.#lifecycleHook(0);
+            }
+
+            return existed;
+        };
     }
 
-    async unsubscribe(id, { forget = false } = {}) {
-        let existed = this.#subscribers.has(id);
-        if (!existed && !forget) return false;
+    async forget(id) {
+        if (typeof id === 'symbol') return false;
 
-        this.#subscribers.delete(id);
+        const existed = (await this.#slotsKV.delete(id), true);
+        // TODO: KV.delete() does not yet return a bool on delete
 
-        if (typeof id !== 'symbol' && forget) {
-            existed = await this.#slotsKV.has(id);
-            await this.#slotsKV.delete(id);
-        }
-
-        if (this.#drainMode === 'drain') {
+        if (existed && this.#drainMode === 'drain') {
             this.#scheduleDrain();
-        }
-
-        if (!this.#subscribers.size && this.#lifecycleHook) {
-            await this.#lifecycleHook(0);
         }
 
         return existed;

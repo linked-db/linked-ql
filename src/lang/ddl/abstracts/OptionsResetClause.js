@@ -1,9 +1,9 @@
-import { AbstractNodeList } from '../../../abstracts/AbstractNodeList.js';
+import { AbstractNodeList } from '../../abstracts/AbstractNodeList.js';
 
-export class ResetSchemaOptionsAction extends AbstractNodeList {
+export class OptionsResetClause extends AbstractNodeList {
 
     static fromJSON(inputJson, options = {}, callback = null) {
-        if (inputJson instanceof ResetSchemaOptionsAction) return super.fromJSON(inputJson, options, callback);
+        if (inputJson instanceof OptionsResetClause) return super.fromJSON(inputJson, options, callback);
         const { nodeName, entries } = inputJson || {};
         if (nodeName && nodeName !== this.NODE_NAME) return;
         if (!entries) return;

@@ -1,3 +1,4 @@
+export * from './abstracts/index.js';
 export * from './column/index.js';
 export * from './constraint/index.js';
 export * from './ident/index.js';

@@ -5,6 +5,7 @@ import { SchemaInference } from './SchemaInference.js';
 import { WalEngine } from './WalEngine.js';
 import { SQLParser } from './SQLParser.js';
 import { Result } from '../Result.js';
+import { normalizeQueryArgs } from '../abstracts/util.js';
 
 export class BaseEdgeClient extends LinkedQLClient {
 
@@ -12,6 +13,7 @@ export class BaseEdgeClient extends LinkedQLClient {
 
     #parser;
     #wal;
+    #live;
 
     get parser() { return this.#parser; }
     get resolver() {
@@ -19,6 +21,7 @@ export class BaseEdgeClient extends LinkedQLClient {
             new SchemaInference({ client: this }));
     }
     get wal() { return this.#wal; }
+    get live() { return this.#live; }
 
     // Internal
 
@@ -42,6 +45,9 @@ export class BaseEdgeClient extends LinkedQLClient {
                 await this.setCapability({ realtime: !!status });
             }
         });
+        this.#live = {
+            forget: async (id) => await this._exec('live:forget', { id }),
+        };
     }
 
     async disconnect() {
@@ -89,8 +95,10 @@ export class BaseEdgeClient extends LinkedQLClient {
 
     // ------------
 
-    async query(query, { callback, signal, ...options } = {}) {
+    async query(...args) {
+        const [query, { callback, signal, ...options }] = normalizeQueryArgs(...args);
         const tx = options.tx && typeof options.tx === 'object' ? options.tx.id : options.tx;
+
         if (options.live && tx) {
             throw new Error('Live queries are not supported inside explicit transactions');
         }

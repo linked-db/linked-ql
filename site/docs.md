@@ -4,23 +4,6 @@ This guide takes you from installation to your first query with LinkedQL.
 
 If you are totally new here, you may want to begin with [What is LinkedQL](/overview). If you already know you want the embeddable local runtime, jump to [FlashQL](/flashql).
 
-## The idea in one minute
-
-LinkedQL keeps one application-facing shape across very different runtimes:
-
-- `db.query()` for regular SQL execution and live queries
-- `db.stream()` for lazy row-by-row reads
-- `db.transaction()` for explicit transactions
-- `db.wal.subscribe()` for table-level changefeeds
-
-one consistent API surface, whether `db` is:
-
-- PostgreSQL
-- MySQL
-- MariaDB
-- an edge client
-- FlashQL, the local embeddable engine
-
 ## Installation
 
 Install the package from npm:
@@ -29,14 +12,18 @@ Install the package from npm:
 npm install @linked-db/linked-ql
 ```
 
-The package exports client entry points such as:
+The package exports the client entry points.
 
-- `@linked-db/linked-ql/postgres`
-- `@linked-db/linked-ql/mysql`
-- `@linked-db/linked-ql/mariadb`
-- `@linked-db/linked-ql/edge`
-- `@linked-db/linked-ql/edge-worker`
-- `@linked-db/linked-ql/flashql`
+Import and use the Client for your database. LinkedQL works the same across all clients.
+
+| **Dialect**         | **Import Path**                | **Guide**                          |
+| :------------------ | :----------------------------- | :--------------------------------- |
+| PostgreSQL          | `@linked-db/linked-ql/postgres`      | [PostgreSQL ↗](/docs/setup#postgresql) |
+| MySQL               | `@linked-db/linked-ql/mysql`   | [MySQL ↗](/docs/setup#mysql)           |
+| MariaDB             | `@linked-db/linked-ql/mariadb` | [MariaDB ↗](/docs/setup#mariadb)       |
+| FlashQL (In-Memory) | `@linked-db/linked-ql/flashql`   | [FlashQL ↗](/docs/setup#flashql)       |
+| EdgeClient          | `@linked-db/linked-ql/edge`    | [Edge / Browser ↗](/docs/setup#edge)   |
+| EdgeWorker          | `@linked-db/linked-ql/edge-worker` | [Edge Worker ↗](/docs/setup#edge) |
 
 ## Your first query: direct database client
 
@@ -120,7 +107,7 @@ While deliberately simple, the same interface above quickly opens into deeper gr
 - lazy result streaming with `db.stream()`
 - table-level changefeeds with `db.wal.subscribe()`
 - language extensions such as DeepRefs and JSON literals
-- FlashQL orchestration with foreign namespaces, `origin` views, `materialized` views, `realtime` views, and `db.sync.sync()`
+- FlashQL orchestration with foreign namespaces, non-persistent views, `materialized` views, `realtime` views, and `db.sync.sync()`
 
 ## Where to go next
 

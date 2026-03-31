@@ -11,7 +11,7 @@ export class AlterSchemaStmt extends DDLStmt {
         return new this({
             my_keyword,
             subject: registry.NamespaceIdent.fromJSON(subject, options),
-            actions: registry.SchemaDiff.fromJSON(actions, options),
+            actions: registry.NamesapceDiff.fromJSON(actions, options),
         }, options);
     }
 
@@ -26,14 +26,23 @@ export class AlterSchemaStmt extends DDLStmt {
                     { type: 'keyword', as: 'my_keyword', value: 'DATABASE' },
                 ],
             },
-            { type: ['NamespaceIdent', 'Identifier'/* to support mock names */], as: 'subject' },
-            { type: 'SchemaDiff', as: 'actions', assert: true },
+            {
+                optional: true,
+                syntax: [
+                    { type: 'keyword', as: 'if_exists', value: 'IF', booleanfy: true },
+                    { type: 'keyword', value: 'EXISTS' },
+                ],
+            },
+            { type: 'NamespaceIdent', as: 'subject' },
+            { type: 'NamesapceDiff', as: 'actions', assert: true },
         ];
     }
+
+    myKeyword() { return this._get('my_keyword'); }
+
+    ifExists() { return this._get('if_exists'); }
 
     subject() { return this._get('subject'); }
 
     actions() { return this._get('actions'); }
-
-    myKeyword() { return this._get('my_keyword'); }
 }

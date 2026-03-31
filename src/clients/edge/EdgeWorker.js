@@ -1,23 +1,24 @@
 import { MessagePortPlus } from '@webqit/port-plus';
+import { SimpleEmitter } from '../abstracts/SimpleEmitter.js';
 
-export class EdgeWorker {
+export class EdgeWorker extends SimpleEmitter {
 
-    static webWorker(options) {
-        MessagePortPlus.upgradeInPlace(self);
+    static webWorker({ worker = self, ...options }) {
+        MessagePortPlus.upgradeInPlace(worker);
 
-        const worker = new EdgeWorker({ ...options, type: 'worker' });
+        const instance = new EdgeWorker({ ...options, type: 'worker' });
 
-        self.addRequestListener('message', async (e) => {
+        worker.addRequestListener('message', async (e) => {
             const { data: { op, args }, ports: [port] } = e;
 
-            await worker.handle(op, args, port);
+            await instance.handle(op, args, port);
         });
     }
 
     // -------------
 
-    #client;
-    get client() { return this.#client; }
+    #db;
+    get db() { return this.#db; }
 
     #type;
     get type() { return this.#type; }
@@ -25,21 +26,23 @@ export class EdgeWorker {
     #rowsStreaming;
     #workerEventNamespace;
 
-    
+
     #transactions = new Map;
     #transactionCounter = 0;
 
     constructor({
-        client,
+        db,
         type = 'http',
         rowsStreaming = 'port',
         workerEventNamespace = 'lnkd_',
     }) {
-        if (!client) throw new Error('No client specified');
+        super();
+
+        if (!db) throw new Error('No db client specified');
         if (!['http', 'worker', 'shared_worker'].includes(type))
             throw new Error(`Invalid type: ${type}`);
 
-        this.#client = client;
+        this.#db = db;
         this.#type = type;
 
         this.#rowsStreaming = rowsStreaming;
@@ -75,38 +78,38 @@ export class EdgeWorker {
         };
 
         const beginTransaction = async (options = {}) => {
-            const client = this.#client;
-            if (typeof client._beginTransaction !== 'function') {
+            const db = this.#db;
+            if (typeof db._beginTransaction !== 'function') {
                 throw new Error('Client does not support explicit transactions');
             }
 
-            const tx = await client._beginTransaction(options);
-            const id = `tx_${++this.#transactionCounter}`;
+            const tx = await db._beginTransaction(options);
+            const id = tx.id || `tx_${++this.#transactionCounter}`;
             this.#transactions.set(id, tx);
             return { id };
         };
 
         const commitTransaction = async (id) => {
-            const client = this.#client;
+            const db = this.#db;
             const tx = this.#transactions.get(id);
             if (!tx) throw new Error(`Unknown transaction id: ${id}`);
-            if (typeof client._commitTransaction !== 'function') {
+            if (typeof db._commitTransaction !== 'function') {
                 throw new Error('Client does not support explicit transactions');
             }
             this.#transactions.delete(id);
-            await client._commitTransaction(tx);
+            await db._commitTransaction(tx);
             return true;
         };
 
         const rollbackTransaction = async (id) => {
-            const client = this.#client;
+            const db = this.#db;
             const tx = this.#transactions.get(id);
             if (!tx) throw new Error(`Unknown transaction id: ${id}`);
-            if (typeof client._rollbackTransaction !== 'function') {
+            if (typeof db._rollbackTransaction !== 'function') {
                 throw new Error('Client does not support explicit transactions');
             }
             this.#transactions.delete(id);
-            await client._rollbackTransaction(tx);
+            await db._rollbackTransaction(tx);
             return true;
         };
 
@@ -142,12 +145,12 @@ export class EdgeWorker {
                 port.readyStateChange('close').then(gc);
             }
 
-            result = await this.#client.query(args.query, resolveTx(args.options));
+            result = await this.#db.query(args.query, resolveTx(args.options));
             return result;
         }
 
         if (op === 'stream') {
-            const asyncIterable = await this.#client.stream(args.query, resolveTx(args.options));
+            const asyncIterable = await this.#db.stream(args.query, resolveTx(args.options));
 
             if (this.#type === 'http' && this.#rowsStreaming !== 'port') {
                 return asyncIterable;
@@ -162,11 +165,11 @@ export class EdgeWorker {
         // -----------
 
         if (op === 'resolver:show_create') {
-            return await this.#client.resolver.showCreate(args.selector, args.options);
+            return (await this.#db.resolver.showCreate(args.selector, args.options)).map((sch) => sch.jsonfy());
         }
 
         if (op === 'parser:parse') {
-            return await this.#client.parser.parse(args.query, args.options);
+            return (await this.#db.parser.parse(args.query, args.options)).jsonfy();
         }
 
         if (op === 'wal:subscribe') {
@@ -177,14 +180,18 @@ export class EdgeWorker {
                 port.postMessage({ commit }, { type: `${this.#workerEventNamespace}commit` });
 
             const gc = args.selector
-                ? await this.#client.wal.subscribe(args.selector, args.callback, args.options)
-                : await this.#client.wal.subscribe(args.callback, args.options);
+                ? await this.#db.wal.subscribe(args.selector, args.callback, args.options)
+                : await this.#db.wal.subscribe(args.callback, args.options);
             port.readyStateChange('close').then(gc);
             return;
         }
 
         if (op === 'wal:forget') {
-            return await this.#client.wal.unsubscribe(args.id, { forget: true });
+            return await this.#db.wal.forget(args.id);
+        }
+
+        if (op === 'live:forget') {
+            return await this.#db.live.forget(args.id);
         }
     }
 

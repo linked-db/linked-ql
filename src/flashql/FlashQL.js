@@ -13,6 +13,7 @@ export class FlashQL extends LinkedQLClient {
 
     #parser;
     #wal;
+    #live;
 
     get parser() { return this.#parser; }
     get resolver() {
@@ -23,6 +24,7 @@ export class FlashQL extends LinkedQLClient {
             this.#storageEngine.getResolver());
     }
     get wal() { return this.#wal; }
+    get live() { return this.#live; }
     get sync() { return this.#storageEngine.sync; }
 
     // FlashQL-specific
@@ -70,6 +72,9 @@ export class FlashQL extends LinkedQLClient {
         this.#realtimeClient = new RealtimeClient(this);
 
         this.#wal = this.#storageEngine?.wal || null;
+        this.#live = {
+            forget: async (id) => await this.#realtimeClient.forget(id),
+        };
     }
 
     async connect() {
@@ -127,48 +132,48 @@ export class FlashQL extends LinkedQLClient {
             return await this.#realtimeClient.query(resolvedQuery, options);
         }
 
-        const tx = options.tx || this.#storageEngine.begin();
+        const tx = this.#storageEngine.begin({ parentTx: options.tx });
         let canDirectlyForwardTo = null;
 
         try {
-            if (!options.tx) {
-                query.walkTree((v) => {
-                    if (canDirectlyForwardTo === false) return;
-                    let nsName, tblName;
+            query.walkTree((v) => {
+                if (canDirectlyForwardTo === false) return;
+                let nsName, tblName;
 
-                    if (v instanceof registry.TableRef1
-                        && (nsName = v.qualifier()?.value())
-                        && (tblName = v.value())) {
+                if (v instanceof registry.TableRef1
+                    && (nsName = v.qualifier()?.value())
+                    && (tblName = v.value())) {
 
-                        const tblDef = tx.showView({ namespace: nsName, name: tblName }, { ifExists: true });
+                    const tblDef = tx.showView({ namespace: nsName, name: tblName }, { ifExists: true });
+                    const replicationOrigin = this.#storageEngine._viewResolveOrigin(tblDef);
 
-                        if (tblDef?.namespace_id.replication_origin
-                            && tblDef.persistence === 'origin'
-                            && tblDef.view_spec.namespace === nsName
-                            && tblDef.view_spec.name === tblName
-                            && !tblDef.view_spec.filters
-                            && (canDirectlyForwardTo === null || canDirectlyForwardTo.name === nsName)) {
-                            canDirectlyForwardTo = canDirectlyForwardTo || tblDef.namespace_id;
-                        } else {
-                            canDirectlyForwardTo = false;
-                        }
-                    } else return v;
-                }, true);
-            }
+                    if (tblDef
+                        // Is pure federation?
+                        && this.#storageEngine._viewIsPureFederation(tblDef)
+                        // Source expr is pure ref
+                        && !!this.#storageEngine._viewSourceExprIsPureRef(tblDef)
+                        // Is same origin
+                        && (canDirectlyForwardTo === null || canDirectlyForwardTo === replicationOrigin)) {
+                        canDirectlyForwardTo = canDirectlyForwardTo || replicationOrigin;
+                    } else {
+                        canDirectlyForwardTo = false;
+                    }
+                } else return v;
+            }, true);
 
             if (canDirectlyForwardTo) {
                 await tx.abort(); // Abandon tx
-                const client = await this.#storageEngine.getSourceClient(canDirectlyForwardTo);
+                const client = await this.#storageEngine.getForeignClient(canDirectlyForwardTo);
                 return await client.query(query, options);
             }
 
             const result = await this.#queryEngine.query(query, { ...options, tx });
-            if (!options.tx) await tx.commit();
+            await tx.commit();
 
             if (options.bufferResultRows === false) return result;
             return new Result({ rows: result.rows, rowCount: result.rowCount });
         } catch (e) {
-            if (!options.tx) await tx.abort();
+            await tx.abort();
             throw e;
         }
     }

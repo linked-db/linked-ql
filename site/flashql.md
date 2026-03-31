@@ -403,7 +403,7 @@ One of FlashQL's defining ideas is that local and remote data can belong to one 
 
 FlashQL can attach foreign clients, register foreign namespaces, and expose upstream data locally through views that behave in one of three ways:
 
-- `origin`: federated at read time
+- `none`: federated at read time
 - `materialized`: copied locally on sync
 - `realtime`: copied locally and kept hot after sync
 

@@ -37,24 +37,16 @@ describe('SyncManager - FlashQL.sync', () => {
             await tx.createView({
                 namespace: 'public',
                 name: 'mv_users',
-                persistence: 'materialized',
-                view_spec: { namespace: 'public', name: 'src_users' },
-                columns: [
-                    { name: 'id', type: 'INT', not_null: true },
-                    { name: 'name', type: 'TEXT' },
-                ],
-                constraints: [{ kind: 'PRIMARY KEY', columns: ['id'] }],
+                replication_mode: 'materialized',
+                source_expr: { namespace: 'public', name: 'src_users' },
+                columns: [{ name: 'id' }, { name: 'name' }],
             });
             await tx.createView({
                 namespace: 'public',
                 name: 'rt_users',
-                persistence: 'realtime',
-                view_spec: { namespace: 'public', name: 'src_users' },
-                columns: [
-                    { name: 'id', type: 'INT', not_null: true },
-                    { name: 'name', type: 'TEXT' },
-                ],
-                constraints: [{ kind: 'PRIMARY KEY', columns: ['id'] }],
+                replication_mode: 'realtime',
+                source_expr: { namespace: 'public', name: 'src_users' },
+                columns: [{ name: 'id' }, { name: 'name' }],
             });
         });
     });
@@ -64,13 +56,13 @@ describe('SyncManager - FlashQL.sync', () => {
     });
 
     it('sync() materializes selected views and reports synced status', async () => {
-        const summary = await client.sync.sync({ public: ['mv_users'] });
+        const summary = await client.sync.sync({ public: ['mv_users'] }, { forceSync: true });
         expect(summary.materialized.length).to.eq(1);
 
         const rows = await client.storageEngine.transaction(async (tx) => {
             return tx.getTable({ namespace: 'public', name: 'mv_users' }).getAll().sort((a, b) => a.id - b.id);
         });
-        expect(rows).to.deep.eq([{ id: 1, name: 'Ada' }]);
+        expect(rows).to.deep.eq([{ id: 1, id: 1, name: 'Ada' }]);
 
         const status = await client.sync.status({ public: ['mv_users'] });
         expect(status[0].mode).to.eq('materialized');
@@ -78,8 +70,10 @@ describe('SyncManager - FlashQL.sync', () => {
     });
 
     it('sync() starts realtime jobs, stop() disables, and resume() re-enables', async () => {
+        globalThis.__ = 33;
         const started = await client.sync.sync({ public: ['rt_users'] });
         expect(started.realtime.length).to.eq(1);
+        globalThis.__ = 0;
 
         await client.query(`INSERT INTO public.src_users (id, name) VALUES (2, 'Linus')`);
 
@@ -137,22 +131,27 @@ describe('SyncManager - FlashQL.sync', () => {
 
         client.query = async (...args) => {
             const [querySpec] = args;
-            if (querySpec && typeof querySpec === 'object'
-                && querySpec.namespace === 'public'
-                && querySpec.name === 'src_users') {
+            const pureRefDecode = client.storageEngine._viewSourceExprIsPureRef({ source_expr_ast: querySpec });
+
+            if (pureRefDecode
+                && pureRefDecode.namespace === 'public'
+                && pureRefDecode.name === 'src_users') {
                 materializeCalls += 1;
                 await sleep(40);
             }
             return await originalQuery(...args);
         };
-
         try {
             const [summaryA, summaryB] = await Promise.all([
+                // force start even if job status says: synced
+                client.sync.sync({ public: ['mv_users'] }, { forceSync: true }),
+                // While the above is in ongoing, subsequent calls coalesce to one pending call
+                client.sync.sync({ public: ['mv_users'] }),
                 client.sync.sync({ public: ['mv_users'] }),
                 client.sync.sync({ public: ['mv_users'] }),
             ]);
 
-            expect(materializeCalls).to.eq(1);
+            expect(materializeCalls).to.eq(2);
             expect(summaryA.materialized).to.deep.eq(summaryB.materialized);
             expect(summaryA.materialized.length).to.eq(1);
         } finally {
@@ -165,23 +164,25 @@ describe('SyncManager - FlashQL.sync', () => {
             await tx.createView({
                 namespace: 'public',
                 name: 'mv_users_derived',
-                persistence: 'materialized',
-                view_spec: { namespace: 'public', name: 'src_users' },
+                replication_mode: 'materialized',
+                source_expr: { namespace: 'public', name: 'src_users' },
             });
             await tx.createView({
                 namespace: 'public',
                 name: 'rt_users_derived',
-                persistence: 'realtime',
-                view_spec: { namespace: 'public', name: 'src_users' },
+                replication_mode: 'realtime',
+                source_expr: { namespace: 'public', name: 'src_users' },
             });
         });
 
         await client.sync.sync({ public: ['mv_users_derived', 'rt_users_derived'] });
 
-        const schemas = await client.storageEngine.transaction(async (tx) => ([
-            tx.showView({ namespace: 'public', name: 'mv_users_derived' }, { schema: true }),
-            tx.showView({ namespace: 'public', name: 'rt_users_derived' }, { schema: true }),
-        ]));
+        const schemas = await client.storageEngine.transaction(async (tx) => {
+            return [
+                tx.showView({ namespace: 'public', name: 'mv_users_derived' }, { schema: true }),
+                tx.showView({ namespace: 'public', name: 'rt_users_derived' }, { schema: true }),
+            ];
+        });
 
         expect(schemas[0].columns.has('id')).to.eq(true);
         expect(schemas[0].columns.has('name')).to.eq(true);

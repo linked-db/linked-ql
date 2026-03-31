@@ -37,7 +37,7 @@ describe('EdgeWorker integration (Port+ transport)', () => {
             INSERT INTO public.edge_port_users (id, name) VALUES (1, 'Ada'), (2, 'Linus');
         `);
 
-        worker = new EdgeWorker({ client: db, type: 'worker', rowsStreaming: 'port' });
+        worker = new EdgeWorker({ db, type: 'worker', rowsStreaming: 'port' });
     });
 
     afterEach(async () => {

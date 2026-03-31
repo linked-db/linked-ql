@@ -6,6 +6,7 @@ export class SchemaInference extends BaseSchemaInference {
 
     #storageEngine;
     #parser;
+    get storageEngine() { return this.#storageEngine; }
 
     constructor({ storageEngine, ...options }) {
         super(options);

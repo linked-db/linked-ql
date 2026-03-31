@@ -41,6 +41,7 @@ export class StorageEngine extends MVCCEngine {
     get readOnly() { return this.#readOnly; }
     get openedCommitTime() { return this.#openedCommitTime; }
 
+    get _isHydrating() { return this.#isHydrating; }
     get _catalog() { return this.#catalog; }
 
     constructor({ client = null, dialect = 'postgres', keyval = null, autoSync = true, onCreateForeignClient = null, readOnly = false, ...options } = {}) {
@@ -52,6 +53,8 @@ export class StorageEngine extends MVCCEngine {
         this.#options = options;
 
         this.#autoSync = !!autoSync;
+        this.#onCreateForeignClient = onCreateForeignClient;
+
         this.#forcedReadOnly = !!readOnly;
         this.#readOnly = this.#forcedReadOnly;
         this.#overwriteForward = false;
@@ -146,6 +149,54 @@ export class StorageEngine extends MVCCEngine {
         return new SchemaInference({ storageEngine: this });
     }
 
+    // ----------
+
+    _viewIsPureFederation(tblDef) {
+        return tblDef?.view_opts_replication_mode === 'none';
+    }
+
+    _viewSourceExprIsPureRef(tblDef) {
+        const extractFromTableRef = (tblRef) => ({
+            namespace: tblRef.qualifier?.value,
+            name: tblRef.value,
+        });
+
+        if (tblDef.source_expr_ast?.nodeName === registry.TableStmt.NODE_NAME)
+            return extractFromTableRef(tblDef.source_expr_ast.table_ref);
+
+        if (tblDef.source_expr_ast?.nodeName === registry.CompleteSelectStmt.NODE_NAME) {
+            let selectList, fromItems;
+
+            if ((selectList = tblDef.source_expr_ast.select_list.entries).length > 1
+                || selectList[0].expr.nodeName !== registry.ColumnRef0.NODE_NAME)
+                return null;
+
+            if ((fromItems = tblDef.source_expr_ast.from_clause.entries).length > 1
+                || fromItems[0].expr.nodeName !== registry.TableRef1.NODE_NAME)
+                return null;
+
+            if (['order_by_clause', 'offset_clause', 'limit_clause', 'for_clause', 'pg_fetch_clause',
+                'distinct_clause', 'join_clauses', 'where_clause', 'group_by_clause', 'having_clause', 'window_clause', 'my_partition_clause'
+            ].find((k) => [].concat(tblDef.source_expr_ast[k] || []).length)) return null;
+
+            return extractFromTableRef(fromItems[0].expr);
+        }
+
+        return null;
+    }
+
+    _viewResolveOrigin(tblDef) {
+        if (!tblDef?.view_opts_replication_origin) return null;
+        if (tblDef.view_opts_replication_origin === 'inherit') {
+            if ((tblDef.namespace_id && typeof tblDef.namespace_id === 'object'))
+                throw new Error('Table def shape must have namespace def shape');
+            if (!tblDef.namespace_id.view_opts_default_replication_origin)
+                throw new Error('Table def has view_opts_replication_origin === inherit but namespace def has no view_opts_default_replication_origin');
+            return tblDef.namespace_id.view_opts_default_replication_origin;
+        }
+        return tblDef.view_opts_replication_origin;
+    }
+
     async getForeignClient(origin) {
         if (!this.#onCreateForeignClient)
             throw new Error('Cannot process foreign operation; missing options.onCreateForeignClient');
@@ -155,19 +206,17 @@ export class StorageEngine extends MVCCEngine {
         return this.#foreignClients.get(origin);
     }
 
-    async getSourceClient(namespaceDef = null) {
-        if (namespaceDef?.replication_origin) {
-            return await this.getForeignClient(namespaceDef.replication_origin);
-        }
+    async getSourceClient(tblDef, assert = true) {
+        const replicationOrigin = this._viewResolveOrigin(tblDef);
+        if (replicationOrigin)
+            return await this.getForeignClient(replicationOrigin);
         if (this.#client) return this.#client;
-        throw new Error('Operation requires a source client; configure StorageEngine with options.client or namespace replication origins');
+        if (assert) throw new Error('Operation requires a source client; configure StorageEngine with options.client or namespace replication origins');
     }
 
-    async getSourceResolver(namespaceDef = null) {
-        if (namespaceDef?.replication_origin) {
-            return (await this.getSourceClient(namespaceDef)).resolver;
-        }
-        return this.getResolver();
+    async getSourceResolver(tblDef) {
+        const client = await this.getSourceClient(tblDef, false);
+        return client ? client.resolver : this.getResolver();
     }
 
     // ----- bootloader/WAL
@@ -297,7 +346,7 @@ export class StorageEngine extends MVCCEngine {
     // ----- Schemas
 
     async _resolveRelationSelector(selector, handle, { handlerMode = 'sync', tx: inputTx = null } = {}) {
-        const tx = inputTx || this.begin();
+        const tx = this.begin({ parentTx: inputTx });
         const isPattern = (s) => /^%|%$|^!/.test(s);
 
         try {
@@ -329,9 +378,9 @@ export class StorageEngine extends MVCCEngine {
                 }
             }
 
-            if (!inputTx) await tx.commit();
+            await tx.commit();
         } catch (e) {
-            if (!inputTx) await tx.abort();
+            await tx.abort();
             throw e;
         }
     }
@@ -354,9 +403,6 @@ export class StorageEngine extends MVCCEngine {
     }
 
     async commit(tx) {
-        if (this.#readOnly && !this.#isHydrating && tx._changeLog.length) {
-            throw new Error('StorageEngine is read-only');
-        }
         const returnValue = await super.commit(tx);
 
         if (!this.#isHydrating) {

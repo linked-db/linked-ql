@@ -20,12 +20,21 @@ export class AlterViewStmt extends DDLStmt {
         return [
             { type: 'keyword', value: 'ALTER' },
             { type: 'keyword', value: 'VIEW' },
-            { type: ['TableIdent', 'Identifier'/* to support mock names */], as: 'subject' },
+            {
+                optional: true,
+                syntax: [
+                    { type: 'keyword', as: 'if_exists', value: 'IF', booleanfy: true },
+                    { type: 'keyword', value: 'EXISTS' },
+                ],
+            },
+            { type: 'TableIdent', as: 'subject' },
             { type: 'ViewDiff', as: 'actions', assert: true },
         ];
     }
 
     /* AST API */
+
+    ifExists() { return this._get('if_exists'); }
 
     subject() { return this._get('subject'); }
 

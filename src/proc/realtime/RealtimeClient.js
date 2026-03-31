@@ -35,18 +35,18 @@ export class RealtimeClient {
         }
 
         const realtimeResult = new RealtimeResult(resultJson, async ({ forget = false } = {}) => {
-            return await unsubscribeCallback({ forget });
+            return await abortLine({ forget });
         }, signal);
 
         const changeHandler = callback || ((commit) => realtimeResult._apply(commit));
-        const unsubscribeCallback = await queryWindow.wal.subscribe(changeHandler, { id: options.id });
+        const abortLine = await queryWindow.wal.subscribe(changeHandler, { id: options.id });
 
         return realtimeResult;
     }
 
     async forget(id) {
         const queryWindow = await this.findWindow(async (w) => await w.wal.hasSlot(id));
-        return !!queryWindow && await queryWindow.unsubscribe(id, { forget: true });
+        return !!queryWindow && await queryWindow.wal.forget(id);
     }
 
     async findWindow(callback) {

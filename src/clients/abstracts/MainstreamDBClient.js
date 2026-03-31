@@ -13,6 +13,7 @@ export class MainstreamDBClient extends LinkedQLClient {
 
     #parser;
     #wal;
+    #live;
 
     get parser() { return this.#parser; }
     get resolver() {
@@ -20,9 +21,10 @@ export class MainstreamDBClient extends LinkedQLClient {
             new SchemaInference({ client: this }));
     }
     get wal() { return this.#wal; }
+    get live() { return this.#live; }
 
     // Internal
-    
+
     #realtimeClient;
 
     // ------------
@@ -39,6 +41,9 @@ export class MainstreamDBClient extends LinkedQLClient {
         });
 
         this.#realtimeClient = new RealtimeClient(this);
+        this.#live = {
+            forget: async (id) => await this.#realtimeClient.forget(id),
+        };
     }
 
     async disconnect() {

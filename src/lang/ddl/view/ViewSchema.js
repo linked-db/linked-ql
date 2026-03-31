@@ -5,16 +5,9 @@ export class ViewSchema extends AbstractSchema {
     /* SYNTAX RULES */
 
     static get syntaxRules() {
-        const itemSeparator = { type: 'punctuation', value: ',' };
         return [
             { type: ['TableIdent', 'Identifier'/* to support mock names */], as: 'name' },
-            {
-                optional: true,
-                type: 'paren_block',
-                syntax: { type: 'Identifier', as: 'columns', arity: { min: 1 }, itemSeparator, autoIndent: true },
-            },
-            { type: 'keyword', value: 'AS' },
-            { type: 'SelectStmt', as: 'query' },
+            { type: 'RelationSourceExpr', as: 'source_expr' },
         ];
     }
 
@@ -22,5 +15,5 @@ export class ViewSchema extends AbstractSchema {
 
     columns() { return this._get('columns') || []; }
 
-    query() { return this._get('query'); }
+    sourceExpr() { return this._get('source_expr'); }
 }

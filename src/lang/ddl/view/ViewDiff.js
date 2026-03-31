@@ -8,7 +8,7 @@ export class ViewDiff extends AbstractDiff {
         const itemSeparator = { type: 'punctuation', value: ',' };
         return [
             {
-                type: ['RenameViewAction', 'SetViewSchemaAction', 'ReplaceViewQueryAction'],
+                type: ['RenameViewAction', 'SetViewSchemaAction', 'RelationSourceExpr', 'OptionsSetClause', 'OptionsResetClause'],
                 as: 'entries',
                 arity: { min: 1 },
                 itemSeparator,

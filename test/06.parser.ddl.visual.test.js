@@ -392,7 +392,6 @@ $describe('Parser - DDL Constraints', () => {
     ['CREATE VIEW v_users (id) AS SELECT id FROM users'],
     ['CREATE VIEW v_users (id, name) AS SELECT id, name FROM users'],
     ['CREATE OR REPLACE VIEW v_users AS SELECT id FROM users'],
-    ['CREATE ORIGIN VIEW v_users AS SELECT id FROM users'],
     ['CREATE MATERIALIZED VIEW v_users AS SELECT id FROM users'],
     ['CREATE REALTIME VIEW v_users AS SELECT id FROM users'],
     ['CREATE OR REPLACE REALTIME VIEW v_users AS SELECT id FROM users'],
@@ -404,11 +403,12 @@ $describe('Parser - DDL Constraints', () => {
     ['CREATE VIEW v_users AS SELECT DISTINCT id FROM users'],
     ['CREATE VIEW v_users AS SELECT id AS user_id FROM users'],
     ['CREATE VIEW v_users AS SELECT id FROM public.users ORDER BY id LIMIT 10'],
+    ['CREATE VIEW v_users AS SELECT id FROM users WITH (join_memoization = TRUE, join_pushdown_size = 10)', { dialect: 'postgres' }],
   ];
 
   $describe('CREATE VIEW Statements', () => {
-    createViewCases.forEach(([sql], i) => $it(`should round-trip CREATE VIEW case #${i + 1}`, async () => {
-      await testParseAndStringify('CreateViewStmt', sql);
+    createViewCases.forEach(([sql, options = {}], i) => $it(`should round-trip CREATE VIEW case #${i + 1}`, async () => {
+      await testParseAndStringify('CreateViewStmt', sql, options);
     }));
   });
 
@@ -439,7 +439,6 @@ $describe('Parser - DDL Constraints', () => {
     ['RefreshViewStmt', 'REFRESH VIEW v_users'],
     ['RefreshViewStmt', 'REFRESH MATERIALIZED VIEW v_users'],
     ['RefreshViewStmt', 'REFRESH REALTIME VIEW v_users'],
-    ['RefreshViewStmt', 'REFRESH ORIGIN VIEW analytics.v_users'],
   ];
 
   $describe('DROP and REFRESH VIEW Statements', () => {

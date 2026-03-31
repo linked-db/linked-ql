@@ -13,6 +13,8 @@ export class TableDiff extends AbstractDiff {
                     'DropTableAction',
                     'RenameTableItemAction',
                     'AlterColumnAction',
+                    'OptionsSetClause',
+                    'OptionsResetClause'
                 ],
                 as: 'entries',
                 arity: { min: 1 },

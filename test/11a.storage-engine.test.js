@@ -7,9 +7,49 @@ import { StorageEngine } from '../src/flashql/storage/StorageEngine.js';
 import { TableStorage } from '../src/flashql/storage/TableStorage.js';
 import { InMemoryKV } from '@webqit/keyval/inmemory';
 
-const createEngine = async () => {
-    const storageEngine = new StorageEngine();
+const testTableFeeds = [
+    {
+        op: 'insert',
+        relation: { namespace: 'sys', name: 'sys_relations', keyColumns: ['id'] },
+        new: { id: 501, namespace_id: 101, name: 'test', kind: 'table', persistence: 'default', version_major: 1, version_minor: 0, version_patch: 0 }
+    },
+
+    // columns & constraints
+    {
+        op: 'insert',
+        relation: { namespace: 'sys', name: 'sys_columns', keyColumns: ['id'] },
+        new: { id: 5001, relation_id: 501, name: 'id', position: 1, type_id: 10, not_null: true, is_generated: true, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null }
+    },
+    {
+        op: 'insert',
+        relation: { namespace: 'sys', name: 'sys_columns', keyColumns: ['id'] },
+        new: { id: 5002, relation_id: 501, name: 'name', position: 2, type_id: 12, not_null: true, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null }
+    },
+    {
+        op: 'insert',
+        relation: { namespace: 'sys', name: 'sys_constraints', keyColumns: ['id'] },
+        new: { id: 5001, relation_id: 501, name: 'public_test_pk', kind: 'PRIMARY KEY', column_ids: [5001], ck_expression_ast: null, fk_target_relation_id: null, fk_target_column_ids: null, fk_match_rule: null, fk_update_rule: null, fk_delete_rule: null },
+    },
+
+    // data for test
+    {
+        op: 'insert',
+        relation: { namespace: 'public', name: 'test', keyColumns: ['id'] },
+        new: { id: 1, name: 'John Doe' }
+    },
+    {
+        op: 'insert',
+        relation: { namespace: 'public', name: 'test', keyColumns: ['id'] },
+        new: { id: 2, name: 'Jane Doe' }
+    }
+];
+
+const createEngine = async ({ withTestTable = false, ...params } = {}) => {
+    const storageEngine = new StorageEngine(params);
     await storageEngine.open();
+    if (withTestTable) {
+        await storageEngine.transaction(async (tx) => await tx.replay(testTableFeeds));
+    }
     return storageEngine;
 };
 
@@ -43,19 +83,16 @@ const createUsersTable = async (tx, { tableName = 'users' } = {}) => {
 };
 
 describe('StorageEngine - Bootstrapping And Transactions', () => {
-    it('bootstraps userspace catalog and default table', async () => {
+    it('bootstraps userspace catalog: public', async () => {
         const storageEngine = await createEngine();
 
         const tx = storageEngine.begin();
         expect(tx.listNamespaces()).to.include('public');
-        expect(tx.listTables({ namespace: 'public' })).to.include('test');
-
-        const table = tx.getTable({ namespace: 'public', name: 'test' });
-        expect(table).to.be.instanceOf(TableStorage);
+        expect(tx.listTables({ namespace: 'public' })).to.be.empty;
     });
 
     it('commits via transaction() helper', async () => {
-        const storageEngine = await createEngine();
+        const storageEngine = await createEngine({ withTestTable: true });
 
         await storageEngine.transaction(async (tx) => {
             const table = tx.getTable({ namespace: 'public', name: 'test' });
@@ -68,7 +105,7 @@ describe('StorageEngine - Bootstrapping And Transactions', () => {
     });
 
     it('aborts via transaction() helper on throw', async () => {
-        const storageEngine = await createEngine();
+        const storageEngine = await createEngine({ withTestTable: true });
 
         await expect(storageEngine.transaction(async (tx) => {
             const table = tx.getTable({ namespace: 'public', name: 'test' });
@@ -552,7 +589,7 @@ describe('StorageEngine - Replay And Visibility', () => {
     });
 
     it('does not expose uncommitted writes across transactions', async () => {
-        const storageEngine = await createEngine();
+        const storageEngine = await createEngine({ withTestTable: true });
 
         const tx1 = storageEngine.begin();
         const t1 = tx1.getTable({ namespace: 'public', name: 'test' });
@@ -575,8 +612,7 @@ describe('StorageEngine - Persistent WAL Integration', () => {
         const registry = new Map();
         const keyval = new InMemoryKV({ path: ['linkedql-test'], registry });
 
-        const engine1 = new StorageEngine({ keyval });
-        await engine1.open();
+        const engine1 = await createEngine({ keyval });
 
         await engine1.transaction(async (tx) => {
             await tx.createTable({
@@ -598,8 +634,7 @@ describe('StorageEngine - Persistent WAL Integration', () => {
             expect(r2.id).to.eq(2);
         });
 
-        const engine2 = new StorageEngine({ keyval: new InMemoryKV({ path: ['linkedql-test'], registry }) });
-        await engine2.open();
+        const engine2 = await createEngine({ keyval: new InMemoryKV({ path: ['linkedql-test'], registry }) });
 
         const tx2 = engine2.begin();
         const users2 = tx2.getTable({ namespace: 'public', name: 'persist_users' });
@@ -614,8 +649,7 @@ describe('StorageEngine - Persistent WAL Integration', () => {
         const registry = new Map();
         const keyval = new InMemoryKV({ path: ['linkedql-test-version-stop'], registry });
 
-        const engine1 = new StorageEngine({ keyval });
-        await engine1.open();
+        const engine1 = await createEngine({ keyval });
 
         await engine1.transaction(async (tx) => {
             await tx.createTable({
@@ -659,8 +693,7 @@ describe('StorageEngine - Persistent WAL Integration', () => {
         const registry = new Map();
         const keyval = new InMemoryKV({ path: ['linkedql-test-version-stop-no-match'], registry });
 
-        const engine1 = new StorageEngine({ keyval });
-        await engine1.open();
+        const engine1 = await createEngine({ keyval });
 
         await engine1.transaction(async (tx) => {
             await tx.createTable({
@@ -697,8 +730,7 @@ describe('StorageEngine - Persistent WAL Integration', () => {
         const registry = new Map();
         const sourceKeyval = new InMemoryKV({ path: ['linkedql-openat-ro-src'], registry });
 
-        const source = new StorageEngine({ keyval: sourceKeyval });
-        await source.open();
+        const source = await createEngine({ keyval: sourceKeyval });
         await source.transaction(async (tx) => {
             await tx.createTable({
                 namespace: 'public',
@@ -714,8 +746,7 @@ describe('StorageEngine - Persistent WAL Integration', () => {
 
         const tx = snapshot.begin();
         const t = tx.getTable({ namespace: 'public', name: 'openat_ro_tbl' });
-        await t.insert({ id: 1 });
-        await expect(tx.commit()).to.be.rejectedWith('read-only');
+        await expect(t.insert({ id: 1 })).to.be.rejectedWith('read-only');
         await snapshot.close();
     });
 
@@ -724,8 +755,7 @@ describe('StorageEngine - Persistent WAL Integration', () => {
         const sourcePath = ['linkedql-openat-overwrite-src'];
         const sourceKv = new InMemoryKV({ path: sourcePath, registry });
 
-        const source = new StorageEngine({ keyval: sourceKv });
-        await source.open();
+        const source = await createEngine({ keyval: sourceKv });
         await source.transaction(async (tx) => {
             await tx.createTable({
                 namespace: 'public',
@@ -756,8 +786,7 @@ describe('StorageEngine - Persistent WAL Integration', () => {
             overwriteForward: true,
         });
 
-        const beforeMutation = new StorageEngine({ keyval: new InMemoryKV({ path: sourcePath, registry }) });
-        await beforeMutation.open();
+        const beforeMutation = await createEngine({ keyval: new InMemoryKV({ path: sourcePath, registry }) });
         const beforeTx = beforeMutation.begin();
         expect(beforeTx.getTable({ namespace: 'public', name: 'overwrite_tbl' }).getAll().map((r) => r.id)).to.deep.eq([1, 2]);
         await beforeMutation.close({ destroy: false });
@@ -768,8 +797,7 @@ describe('StorageEngine - Persistent WAL Integration', () => {
         });
         await overwritten.close({ destroy: false });
 
-        const verify = new StorageEngine({ keyval: new InMemoryKV({ path: sourcePath, registry }) });
-        await verify.open();
+        const verify = await createEngine({ keyval: new InMemoryKV({ path: sourcePath, registry }) });
         const tx = verify.begin();
         expect(tx.getTable({ namespace: 'public', name: 'overwrite_tbl' }).getAll().map((r) => r.id)).to.deep.eq([1, 3]);
         await verify.close();
@@ -806,7 +834,7 @@ describe('StorageEngine - Session Config', () => {
 
 describe('StorageEngine - Error And Validation Paths', () => {
     it('throws for unknown replay op', async () => {
-        const storageEngine = await createEngine();
+        const storageEngine = await createEngine({ withTestTable: true });
         const tx = storageEngine.begin();
 
         await expect(tx.replay([
@@ -1111,12 +1139,12 @@ describe('StorageEngine - Read Write Nuances', () => {
         expect(() => users.getAll({ using: 'missing_idx' })).to.throw();
     });
 
-    it('update rejects missing row', async () => {
-        await expect(users.update({ id: 404 }, { id: 404, fname: 'X' })).to.be.rejected;
+    it('update returns null for missing row', async () => {
+        await expect(await users.update({ id: 404 }, { id: 404, fname: 'X' })).to.be.null;
     });
 
-    it('delete rejects missing row', async () => {
-        await expect(users.delete({ id: 404 })).to.be.rejected;
+    it('delete returns null for missing row', async () => {
+        await expect(await users.delete({ id: 404 })).to.be.null;
     });
 
     it('truncate on empty table returns 0', async () => {
@@ -1222,10 +1250,10 @@ describe('StorageEngine - MVCC And Transaction Metadata', () => {
         const storageEngine = await createEngine();
         const tx = storageEngine.begin();
         await tx.commit();
-        await expect(tx.commit()).to.be.rejectedWith('Invalid transaction state');
+        await expect(tx.abort()).to.be.rejectedWith(/Invalid transaction state/);
     });
 
-    it('abort is idempotent for already aborted tx', async () => {
+    it('commit/abort are idempotent for already committed/aborted tx', async () => {
         const storageEngine = await createEngine();
         const tx = storageEngine.begin();
         await tx.abort();
@@ -1237,8 +1265,7 @@ describe('StorageEngine - Persistence Metadata Nuances', () => {
     it('creates WAL head after first persisted commit', async () => {
         const registry = new Map();
         const keyval = new InMemoryKV({ path: ['linkedql-meta-1'], registry });
-        const storageEngine = new StorageEngine({ keyval });
-        await storageEngine.open();
+        const storageEngine = await createEngine({ keyval });
 
         const metaKV = keyval.enter(['meta']);
         expect(await metaKV.get('latestCommit')).to.be.a('number');
@@ -1247,8 +1274,7 @@ describe('StorageEngine - Persistence Metadata Nuances', () => {
     it('stores WAL payload with sequenceHeads and changes', async () => {
         const registry = new Map();
         const keyval = new InMemoryKV({ path: ['linkedql-meta-2'], registry });
-        const storageEngine = new StorageEngine({ keyval });
-        await storageEngine.open();
+        const storageEngine = await createEngine({ keyval });
 
         await storageEngine.transaction(async (tx) => {
             await tx.createTable({
@@ -1273,8 +1299,7 @@ describe('StorageEngine - Persistence Metadata Nuances', () => {
     it('bootstraps defaults when keyval exists but has no wal_head', async () => {
         const registry = new Map();
         const keyval = new InMemoryKV({ path: ['linkedql-meta-3'], registry });
-        const storageEngine = new StorageEngine({ keyval });
-        await storageEngine.open();
+        const storageEngine = await createEngine({ keyval, withTestTable: true });
 
         const tx = storageEngine.begin();
         expect(tx.listTables({ namespace: 'public' })).to.include('test');

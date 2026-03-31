@@ -10,9 +10,8 @@ export class RefreshViewStmt extends DDLStmt {
             {
                 optional: true,
                 syntaxes: [
-                    { type: 'keyword', as: 'persistence', value: 'ORIGIN' },
-                    { type: 'keyword', as: 'persistence', value: 'MATERIALIZED' },
-                    { type: 'keyword', as: 'persistence', value: 'REALTIME' },
+                    { type: 'keyword', as: 'replication_mode', value: 'MATERIALIZED' },
+                    { type: 'keyword', as: 'replication_mode', value: 'REALTIME' },
                 ],
             },
             { type: 'keyword', value: 'VIEW' },
@@ -22,7 +21,7 @@ export class RefreshViewStmt extends DDLStmt {
 
     /* AST API */
 
-    persistence() { return this._get('persistence'); }
+    replicationMode() { return this._get('replication_mode'); }
 
     name() { return this._get('name'); }
 }

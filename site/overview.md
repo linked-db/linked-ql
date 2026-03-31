@@ -87,7 +87,7 @@ It gives you:
 - a local SQL engine
 - persistence through pluggable key-value backends
 - foreign-client federation
-- explicit local copies of remote data through `origin`, `materialized`, and `realtime` views
+- explicit local copies of remote data through non-persistent, `materialized`, and `realtime` views
 - sync orchestration through `db.sync`
 - point-in-time boot through `versionStop`
 

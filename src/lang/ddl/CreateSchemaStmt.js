@@ -17,7 +17,7 @@ export class CreateSchemaStmt extends DDLStmt {
                 }
             ]
         };
-        const pgOptionalEntiresRule = { type: ['CreateTableStmt'], as: 'pg_entries', arity: Infinity, optional: true, dialect: 'postgres' };
+        const pgOptionalEntriesRule = { type: ['CreateTableStmt'], as: 'pg_entries', arity: Infinity, optional: true, dialect: 'postgres' };
         return [
             { type: 'keyword', value: 'CREATE' },
             { type: 'keyword', value: 'SCHEMA', dialect: 'postgres' },
@@ -48,11 +48,11 @@ export class CreateSchemaStmt extends DDLStmt {
                     [
                         { ...mameRule },
                         { ...pgAuthorizationRule, optional: true },
-                        { ...pgOptionalEntiresRule }
+                        { ...pgOptionalEntriesRule }
                     ],
                     [
                         { ...pgAuthorizationRule },
-                        { ...pgOptionalEntiresRule }
+                        { ...pgOptionalEntriesRule }
                     ]
                 ]
             },
@@ -71,7 +71,7 @@ export class CreateSchemaStmt extends DDLStmt {
                     // TODO: mysql create options (like DEFAULT CHARACTER SET utf8)
                 ]
             },
-            { type: 'NamespaceOptionsClause', as: 'options_clause', optional: true },
+            { type: 'OptionsWithClause', as: 'options_clause', optional: true },
         ];
     }
 

@@ -40,7 +40,7 @@ describe('EdgeClient <-> EdgeWorker integration (HTTP transport)', () => {
             INSERT INTO public.edge_users (id, name) VALUES (1, 'Ada'), (2, 'Linus');
         `);
 
-        worker = new EdgeWorker({ client: db, type: 'http', rowsStreaming: false });
+        worker = new EdgeWorker({ db, type: 'http', rowsStreaming: false });
         handleCalls = [];
 
         edge = new EdgeClient({

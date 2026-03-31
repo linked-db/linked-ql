@@ -15,13 +15,14 @@ export class EdgeClient extends BaseEdgeClient {
 
     constructor({
         url,
+        worker = null,
         type = 'http',
         rowsStreaming = 'port',
         workerEventNamespace = 'lnkd_',
         fetchApi = null,
         ...options
     }) {
-        if (!url) throw new Error('No url specified');
+        if (!url && !worker) throw new Error('No url or worker specified');
         if (!['http', 'worker', 'shared_worker'].includes(type))
             throw new Error(`Invalid type: ${type}`);
 
@@ -38,9 +39,13 @@ export class EdgeClient extends BaseEdgeClient {
                 return await (fetchApi || fetch)(...args);
             };
         } else {
-            this.#worker = this.#type === 'shared_worker'
-                ? new SharedWorker(url, { type: 'module' })
-                : new Worker(url, { type: 'module' });
+            if (worker) {
+                this.#worker = worker;
+            } else {
+                this.#worker = this.#type === 'shared_worker'
+                    ? new SharedWorker(url, { type: 'module' })
+                    : new Worker(url, { type: 'module' });
+            }
             MessagePortPlus.upgradeInPlace(this.#worker);
         }
     }

@@ -11,7 +11,7 @@ export class MVCCEngine {
 
     get txRegistry() { return this.#txRegistry; }
 
-    begin({ strategySpec = 'first_updater_wins', meta = null } = {}) {
+    begin({ strategySpec = 'first_updater_wins', meta = null, parentTx = null } = {}) {
         const id = this.#txIdCounter++;
         const snapshot = this.#commitCounter;
 
@@ -25,7 +25,7 @@ export class MVCCEngine {
                         : null));
         if (!strategy) throw new Error(`Invalid strategy specifier ${strategySpec}`);
 
-        const tx = new Transaction({ engine: this, id, snapshot, strategy, meta });
+        const tx = new Transaction({ engine: this, id, snapshot, strategy, meta, parentTx });
 
         this.#txRegistry.set(id, {
             strategy: strategySpec,
@@ -61,7 +61,7 @@ export class MVCCEngine {
         meta.state = 'aborted';
 
         for (let i = tx._undoLog.length - 1; i >= 0; i--) {
-            tx._undoLog[i]();
+            await tx._undoLog[i]();
         }
     }
 

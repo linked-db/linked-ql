@@ -1,4 +1,3 @@
 export * from './actions/index.js';
-export { SchemaDiff } from './SchemaDiff.js';
-export { NamespaceOptionsClause } from './NamespaceOptionsClause.js';
+export { NamesapceDiff } from './NamesapceDiff.js';
 export { NamespaceSchema } from './NamespaceSchema.js';

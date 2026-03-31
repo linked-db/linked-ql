@@ -3,6 +3,7 @@ import { SchemaInference as BaseSchemaInference } from '../../lang/SchemaInferen
 export class SchemaInference extends BaseSchemaInference {
 
     #client;
+    get client() { return this.#client; }
 
     constructor({ client, ...options }) {
         super(options);

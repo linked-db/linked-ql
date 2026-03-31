@@ -122,11 +122,11 @@ It is expected to use the value of this property to create the appropriate forei
 
 Once a namespace has `replication_origin`, views in that namespace are resolved from that origin instead of from the local database itself.
 
-On defining views in a `replication_origin`-enabled namespace, you have data federation already automatically set up.
+On defining views in a `replication_origin`-extended namespace, you have data federation already automatically set up.
 
 ```js
 await db.query(`
-  CREATE ORIGIN VIEW remote.users AS
+  CREATE VIEW remote.users AS
   SELECT * FROM public.users
 `);
 ```
@@ -139,7 +139,7 @@ await db.transaction(async (tx) => {
   await tx.createView({
     namespace: 'remote',
     name: 'users',
-    persistence: 'origin',
+    persistence: 'none',
     view_spec: { namespace: 'public', name: 'users' },
     // Or, view_spec: { query: 'SELECT * FROM public.users' }
   });
@@ -151,7 +151,7 @@ await db.transaction(async (tx) => {
 Here:
 
 - `remote.users` is a view that resolves from a foreign origin
-- `ORIGIN` is one of three persistence modes as described below
+- plain `CREATE VIEW` uses the default non-persistent mode
 - the `AS SELECT * FROM public.users` query specifies the source relation in the origin database
 
 In summary, views are the abstraction boundary between local and remote data.
@@ -163,19 +163,19 @@ A view's persistence mode is what decides how origin data should behave locally.
 
 Values can be:
 
-- `origin`
+- `none`
 - `materialized`
 - `realtime`
 
-#### `origin` views
+#### Non-persistent views
 
-An `origin` view means:
+A non-persistent view means:
 
 > resolve the source relation through the foreign client at read time
 
 ```js
 await db.query(`
-  CREATE ORIGIN VIEW remote.users AS
+  CREATE VIEW remote.users AS
   SELECT * FROM public.users
 `);
 ```
@@ -188,7 +188,7 @@ await db.transaction(async (tx) => {
   await tx.createView({
     namespace: 'remote',
     name: 'users',
-    persistence: 'origin',
+    persistence: 'none',
     view_spec: { namespace: 'public', name: 'users' },
     // Or, view_spec: { query: 'SELECT * FROM public.users' }
   });
@@ -327,7 +327,7 @@ await db.query(`
 `);
 
 await db.query(`
-  CREATE ORIGIN VIEW remote.users AS
+  CREATE VIEW remote.users AS
   SELECT * FROM public.users
 `);
 
@@ -366,7 +366,7 @@ await db.storageEngine.transaction(async (tx) => {
   await tx.createView({
     namespace: 'remote',
     name: 'users',
-    persistence: 'origin',
+    persistence: 'none',
     view_spec: { namespace: 'public', name: 'users' },
   });
 
@@ -392,7 +392,7 @@ This setup shows all three layers at once:
 
 - `remote` is a normal namespace with `replication_origin`
 - `remote.notes` is an ordinary local table in that same namespace
-- `remote.users` is an "origin" view, resolved only at query time
+- `remote.users` is a non-persistent view, resolved only at query time
 - `public.profiles` is a "materialized" view, resolved just once
 - `public.posts` is a "realtime" view, kept in sync with origin table
 
@@ -443,7 +443,8 @@ Accepted keys are:
 - `namespace`
 - `name`
 - `filters`
-- `joinStrategy`
+- `join_memoization`
+- `join_pushdown_size`
 
 Rules are:
 
@@ -459,7 +460,7 @@ Example:
 await tx.createView({
   namespace: 'remote',
   name: 'users',
-  persistence: 'origin',
+  persistence: 'none',
   view_spec: {
     namespace: 'public',
     name: 'users',
@@ -524,7 +525,8 @@ view_spec: {
 Accepted keys are:
 
 - `query`
-- `joinStrategy`
+- `join_memoization`
+- `join_pushdown_size`
 
 Rules are:
 
@@ -553,18 +555,16 @@ For query-type specs:
 - FlashQL parses and resolves the query
 - it derives the result schema from the query output
 
-#### `joinStrategy`
+#### Join execution options
 
-Both reference-type and query-type specs may include `joinStrategy`.
+Both reference-type and query-type specs may include join execution options directly on `view_spec`.
 
 ```js
 view_spec: {
   namespace: 'public',
   name: 'users',
-  joinStrategy: {
-    memoization: true,
-    pushdownSize: 100,
-  },
+  join_memoization: true,
+  join_pushdown_size: 100,
 }
 ```
 
@@ -572,16 +572,16 @@ This is used by FlashQL's foreign-query execution path when a foreign view parti
 
 The current code recognizes:
 
-- `memoization`
-- `pushdownSize`
+- `join_memoization`
+- `join_pushdown_size`
 
-##### `memoization`
+##### `join_memoization`
 
-When `memoization` is truthy, FlashQL memoizes the foreign stream so it can be reused instead of reopening the foreign source repeatedly in the same execution path.
+When `join_memoization` is truthy, FlashQL memoizes the foreign stream so it can be reused instead of reopening the foreign source repeatedly in the same execution path.
 
-##### `pushdownSize`
+##### `join_pushdown_size`
 
-When `pushdownSize` is set and the join condition can be pushed down, FlashQL batches left-side join logic into foreign-side filtering queries.
+When `join_pushdown_size` is set and the join condition can be pushed down, FlashQL batches left-side join logic into foreign-side filtering queries.
 
 That means:
 
@@ -598,4 +598,4 @@ So in practice:
 - use `{ namespace, name }` when the view maps directly to one upstream relation
 - add `filters` when you want a filtered subset of that relation
 - use `{ query }` when the source is a real SQL query rather than a single relation
-- add `joinStrategy` either way when you need to tune foreign join execution
+- add `join_memoization` and/or `join_pushdown_size` when you need to tune foreign join execution

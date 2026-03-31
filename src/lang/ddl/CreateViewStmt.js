@@ -17,13 +17,28 @@ export class CreateViewStmt extends DDLStmt {
             {
                 optional: true,
                 syntaxes: [
-                    { type: 'keyword', as: 'persistence', value: 'ORIGIN' },
-                    { type: 'keyword', as: 'persistence', value: 'MATERIALIZED' },
-                    { type: 'keyword', as: 'persistence', value: 'REALTIME' },
+                    { type: 'keyword', as: 'temporary_kw', value: 'TEMPORARY', booleanfy: true },
+                    { type: 'keyword', as: 'temporary_kw', value: 'TEMP', booleanfy: true, dialect: 'postgres' },
+                ],
+            },
+            {
+                optional: true,
+                syntaxes: [
+                    { type: 'keyword', as: 'replication_mode', value: 'MATERIALIZED' },
+                    { type: 'keyword', as: 'replication_mode', value: 'REALTIME' },
                 ],
             },
             { type: 'keyword', value: 'VIEW' },
+            {
+                optional: true,
+                syntax: [
+                    { type: 'keyword', as: 'if_not_exists', value: 'IF', booleanfy: true },
+                    { type: 'operator', value: 'NOT' },
+                    { type: 'keyword', value: 'EXISTS' },
+                ],
+            },
             { type: 'ViewSchema', as: 'argument' },
+            { type: 'OptionsWithClause', as: 'options_clause', optional: true, dialect: 'postgres' },
         ];
     }
 
@@ -31,7 +46,13 @@ export class CreateViewStmt extends DDLStmt {
 
     orReplace() { return this._get('or_replace'); }
 
-    persistence() { return this._get('persistence'); }
+    temporaryKW() { return this._get('temporary_kw'); }
+
+    replicationMode() { return this._get('replication_mode'); }
+
+    ifNotExists() { return this._get('if_not_exists'); }
 
     argument() { return this._get('argument'); }
+
+    optionsClause() { return this._get('options_clause'); }
 }

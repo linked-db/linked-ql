@@ -14,7 +14,7 @@ If you have already read [Federation, Materialization, and Realtime Views](/flas
 - `materialized`
 - `realtime`
 
-`origin` views participate in the wider federated graph, but they are not themselves sync jobs in the same way.
+Non-persistent views participate in the wider federated graph, but they are not themselves sync jobs in the same way.
 
 ## The main entry point: `sync.sync()`
 

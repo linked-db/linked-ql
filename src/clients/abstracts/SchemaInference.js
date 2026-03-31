@@ -5,6 +5,7 @@ import { registry } from '../../lang/registry.js';
 export class SchemaInference extends BaseSchemaInference {
 
     #client;
+    get client() { return this.#client; }
 
     constructor({ client, ...options }) {
         super(options);

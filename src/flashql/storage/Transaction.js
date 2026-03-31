@@ -10,8 +10,11 @@ import { registry } from '../../lang/registry.js';
 export class Transaction {
 
     #engine;
+    #parentTx;
     #id;
-    #snapshot
+    #targetState;
+    #targetStateCaller;
+    #snapshot;
     #strategy;
     #catalog;
     #parser;
@@ -33,11 +36,14 @@ export class Transaction {
     #relationVersionBumps = new Map;
 
     get engine() { return this.#engine; }
+    get parentTx() { return this.#parentTx; }
+    get rootTx() { return this.#parentTx?.rootTx || this; }
     get id() { return this.#id; }
     get snapshot() { return this.#snapshot; }
 
     get _strategy() { return this.#strategy; }
     get _catalog() { return this.#catalog; }
+    get _targetState() { return this.#targetState; }
     get meta() { return this.#meta; }
 
     get _affectedSequences() { return this.#affectedSequences; }
@@ -52,12 +58,28 @@ export class Transaction {
     get _predicateReads() { return this.#predicateReads; }
     get _relationVersionBumps() { return this.#relationVersionBumps; }
 
-    constructor({ engine, id, snapshot, strategy, meta = null }) {
+    constructor({ engine, id, snapshot, strategy, meta = null, parentTx = null }) {
         this.#engine = engine;
         this.#id = id;
+        this.#parentTx = parentTx;
         this.#snapshot = snapshot;
         this.#strategy = strategy;
         this.#meta = meta && typeof meta === 'object' ? { ...meta } : meta;
+
+        if (parentTx) {
+            parentTx.addFinallizer(async () => {
+                // Parent was committed
+                if (this.#targetState === 'abort') return;
+                // Implicitly commit
+                await this.#engine.commit(this);
+            });
+            parentTx.addUndo(async () => {
+                // Parent was aborted
+                if (this.#targetState === 'abort') return;
+                // Implicitly abort
+                await this.#engine.abort(this);
+            });
+        }
 
         this.#catalog = new Map([...this.#engine._catalog].map(([relationId, tblGraphs]) => {
             return [relationId, { ...tblGraphs }]
@@ -128,11 +150,42 @@ export class Transaction {
     }
 
     async commit() {
-        return await this.#engine.commit(this);
+        if (this.#targetState) {
+            if (this.#targetState !== 'commit')
+                throw new Error(`Invalid transaction state; already aborted \n${this.#targetStateCaller}`);
+            return;
+        }
+
+        let parentMeta;
+
+        // Wait for parent if still active
+        if (this.#parentTx && (parentMeta = this.#engine.txMeta(this.#parentTx.id))?.state === 'active') {
+            this.#targetState = 'commit';
+            this.#targetStateCaller = captureStackTrace();
+            return;
+        }
+
+        // Throw on parent haven been aborted
+        if (parentMeta?.state === 'aborted')
+            throw new Error('Cannot commit as parent transaction is aborted');
+
+        await this.#engine.commit(this);
+
+        this.#targetState = 'commit';
+        this.#targetStateCaller = captureStackTrace();
     }
 
     async abort() {
-        return await this.#engine.abort(this);
+        if (this.#targetState) {
+            if (this.#targetState !== 'abort')
+                throw new Error(`Invalid transaction state; already committed \n${this.#targetStateCaller}`);
+            return;
+        }
+
+        await this.#engine.abort(this);
+
+        this.#targetState = 'abort';
+        this.#targetStateCaller = captureStackTrace();
     }
 
     // -------
@@ -143,6 +196,9 @@ export class Transaction {
     }
 
     recordChange(change) {
+        if (this.#engine.readOnly && !this.#engine._isHydrating) {
+            throw new Error('StorageEngine is read-only');
+        }
         this.#changeLog.push(change);
 
         if (change.relation.namespace === 'sys') {
@@ -345,80 +401,111 @@ export class Transaction {
         name,
         kind = 'schema',
         owner = null,
-        replication_origin = null,
-        replication_origin_type = null,
-        engine_attrs = null
+        view_opts_default_replication_origin = null,
+        engine_attrs = null,
+        ...unexpected
     }, { ifNotExists = false } = {}) {
-        if (!/^[a-zA-Z_]/.test(name))
-            throw new Error(`Namespace name must start with a letter or underscore`);
+        if ((unexpected = Object.keys(unexpected)).length)
+            throw new Error(`Unexpected inputs: ${unexpected.join(', ')}`);
 
-        if (!['schema'].includes(kind))
-            throw new Error(`Invalid namespace kind ${kind}`);
-
-        if (![undefined, null].includes(owner) && !/^[a-zA-Z_]/.test(owner))
-            throw new Error(`Namespace owner name must start with a letter or underscore`);
-
-        if (replication_origin_type && !replication_origin)
-            throw new Error(`Unexpected property "replication_origin_type" for unspecified "replication_origin"`);
-
-        const sysNs = this.getTable({ namespace: 'sys', name: 'sys_namespaces' });
-
-        const existing = sysNs.get({ name }, { using: 'sys_namespaces__name_idx' });
-        if (existing) {
-            if (ifNotExists) return null;
-            throw new ConflictError(`Namespace ${JSON.stringify(name)} already exists`, existing);
-        }
-
-        return await sysNs.insert({
+        const resolvedNsDef = await this.#resolve_namespaceDef({}, {
             name,
             kind,
             owner,
-            replication_origin,
-            replication_origin_type,
+            view_opts_default_replication_origin,
             engine_attrs
+        }, {
+            isCreate: true,
+            ifNotExists
         });
-    }
 
-    async alterNamespace({
-        name
-    }, {
-        name: newName = undefined,
-        owner: newOwner = undefined,
-        replication_origin: newReplicationOrigin = undefined,
-        replication_origin_type: newReplicationOriginType = undefined,
-        engine_attrs: newEngineAttrs = undefined
-    }) {
-        const nsDef = this.showNamespace({ name });
-        const newDef = {};
-
-        if (newName !== undefined) {
-            if (newName === null) throw new Error(`[NAMESPACE] Namespace name cannot be null`);
-            if (!/^[a-zA-Z_]/.test(newName))
-                throw new Error(`[NAMESPACE] Namespace name must start with a letter or underscore`);
-            newDef.name = newName;
-        }
-
-        if (newOwner !== undefined) {
-            if (newOwner !== null && !/^[a-zA-Z_]/.test(newOwner))
-                throw new Error(`[NAMESPACE] Owner name must start with a letter or underscore`);
-            newDef.owner = newOwner;
-        }
-
-        if (newReplicationOriginType !== undefined) newDef.replication_origin_type = newReplicationOriginType;
-
-        if (newReplicationOrigin !== undefined) {
-            newDef.replication_origin = newReplicationOrigin;
-        }
-
-        if (newEngineAttrs !== undefined) newDef.engine_attrs = newEngineAttrs;
+        // Already exists but ifNotExists set?
+        if (!Object.keys(resolvedNsDef).length) return null;
 
         const sysNs = this.getTable({ namespace: 'sys', name: 'sys_namespaces' });
-        return await sysNs.update(nsDef, newDef);
+        return await sysNs.insert(resolvedNsDef);
+    }
+
+    async #resolve_namespaceDef(nsDef, input, { isCreate = false, ifNotExists = false } = {}) {
+        if (![undefined, null].includes(input.kind)) {
+            if (!['schema'].includes(input.kind))
+                throw new Error(`Invalid namespace kind setting ${input.kind}`);
+            nsDef.kind = input.kind;
+        } else if (isCreate) nsDef.kind = 'schema';
+
+        if (![undefined, null].includes(input.name) && input.name !== nsDef.name || isCreate) {
+            if (!/^[a-zA-Z_]/.test(input.name))
+                throw new Error(`Namespace name must start with a letter or underscore`);
+            const sysNs = this.getTable({ namespace: 'sys', name: 'sys_namespaces' });
+            const existing = sysNs.get({ name: input.name }, { using: 'sys_namespaces__name_idx' });
+            if (existing) {
+                if (ifNotExists) return {};
+                throw new ConflictError(`Namespace ${JSON.stringify(input.name)} already exists`, existing);
+            }
+            nsDef.name = input.name;
+        }
+
+        if (![undefined, null].includes(input.owner)) {
+            if (!/^[a-zA-Z_]/.test(input.owner))
+                throw new Error(`Namespace owner must start with a letter or underscore`);
+            nsDef.owner = input.owner;
+        } else if (isCreate) nsDef.owner = null;
+
+        if (input.view_opts_default_replication_origin !== undefined) {
+            // Can be reset to null
+            if (input.view_opts_default_replication_origin !== null) {
+                if (typeof input.view_opts_default_replication_origin !== 'string')
+                    throw new SyntaxError(`View default replication origin type must be string`);
+            }
+            nsDef.view_opts_default_replication_origin = input.view_opts_default_replication_origin;
+        } else if (isCreate) nsDef.view_opts_default_replication_origin = null;
+
+        if (input.engine_attrs !== undefined) {
+            // Can be reset to null
+            if (input.engine_attrs !== null) {
+                if (typeof input.engine_attrs !== 'object')
+                    throw new SyntaxError(`engine_attrs must be an object`);
+                const attrKeys = Object.keys(input.engine_attrs);
+                if (attrKeys.length) throw new SyntaxError(`Unexpected attributes: ${attrKeys.map((k) => `engine_attrs.${k}`).join(', ')}`);
+            }
+            nsDef.engine_attrs = input.engine_attrs;
+        } else if (isCreate) nsDef.engine_attrs = null;
+
+        return nsDef;
+    }
+
+    async alterNamespace({ name }, {
+        // Note that all values' default have to be "undefined"
+        name: newName,
+        owner,
+        view_opts_default_replication_origin,
+        // Rest
+        engine_attrs,
+        // actions
+        actions = [],
+        ...unexpected
+    }, { ifExists = false } = {}) {
+        if ((unexpected = Object.keys(unexpected)).length)
+            throw new Error(`Unexpected inputs: ${unexpected.join(', ')}`);
+
+        const nsDef = this.showNamespace({ name }, { ifExists });
+        if (!nsDef) return null;
+
+        const resolvedNsDef = await this.#resolve_namespaceDef({ ...nsDef }, {
+            name: newName,
+            owner,
+            view_opts_default_replication_origin,
+            engine_attrs
+        });
+
+        const sysNs = this.getTable({ namespace: 'sys', name: 'sys_namespaces' });
+        return await sysNs.update(nsDef, resolvedNsDef);
     }
 
     async dropNamespace({ name }, { ifExists = false, cascade = false } = {}) {
         const nsDef = this.showNamespace({ name }, { ifExists });
-        nsDef && await this.#dropNamespaces([nsDef], cascade);
+        if (nsDef) return await this.#dropNamespaces([nsDef], cascade);
+        return null;
     }
 
     // ----------
@@ -431,7 +518,7 @@ export class Transaction {
             filter = null;
         }
         const filterFn = typeof filter === 'function' ? filter : null;
-        const { namespace, kind, persistence } = typeof filter === 'object' && filter ? filter : {};
+        const { namespace, kind, persistence, replication_mode } = typeof filter === 'object' && filter ? filter : {};
 
         const sysTables = this.getTable({ namespace: 'sys', name: 'sys_relations' });
 
@@ -449,7 +536,16 @@ export class Transaction {
         if (filterFn) tblDefs = tblDefs.filter(filterFn);
 
         if (kind) tblDefs = tblDefs.filter((tblDef) => tblDef.kind === kind);
-        if (persistence) tblDefs = tblDefs.filter((tblDef) => tblDef.persistence === persistence);
+
+        if (persistence) {
+            const persistenceList = [].concat(persistence);
+            tblDefs = tblDefs.filter((tblDef) => persistenceList.includes(tblDef.persistence));
+        }
+
+        if (replication_mode) {
+            const replicationModeList = [].concat(replication_mode);
+            tblDefs = tblDefs.filter((tblDef) => replicationModeList.includes(tblDef.view_opts_replication_mode));
+        }
 
         if (!details) return tblDefs.map((tblDef) => tblDef.name);
         return tblDefs.map((tblDef) => Object.freeze({
@@ -522,259 +618,422 @@ export class Transaction {
         namespace,
         name,
         kind = 'table',
-        persistence = 'permanent',
-        view_spec = null,
+        persistence = 'default',
+        source_expr = null,
+        source_expr_ast = null,
+        view_opts_replication_mode = null,
+        view_opts_replication_origin = null,
+        view_opts_replication_attrs = null,
         engine_attrs = null,
         columns = [],
         constraints = [],
         indexes = [],
+        ...unexpected
     }, { ifNotExists = false } = {}) {
-        if (!/^[a-zA-Z_]/.test(name))
-            throw new Error(`Relation name must start with a letter or underscore`);
+        if ((unexpected = Object.keys(unexpected)).length)
+            throw new Error(`Unexpected inputs: ${unexpected.join(', ')}`);
 
-        const nsDef = this.showNamespace({ name: namespace });
-
-        const sysTables = this.getTable({ namespace: 'sys', name: 'sys_relations' });
-
-        const existing = sysTables.get({ namespace_id: nsDef.id, name }, { using: 'sys_relations__namespace_id_name_idx' });
-        if (existing) {
-            if (ifNotExists) return null;
-            throw new ConflictError(`Relation ${JSON.stringify(name)} already exists`, existing);
-        }
-
-        let reservedColumnConflict;
-        if (reservedColumnConflict = columns.find((col) => col.name.startsWith('__'))) {
-            throw new Error(`[${reservedColumnConflict}] Reserved column namespace "__*"`);
-        }
-
-        if (!['table', 'view'].includes(kind))
-            throw new Error(`Invalid relation kind setting ${kind}`);
-
-        if (kind === 'table') {
-            if (!['permanent', 'temporary'].includes(persistence))
-                throw new Error(`Invalid persistence setting ${persistence} for a non-view relation`);
-            if (view_spec)
-                throw new Error(`Unexpected property "view_spec" for a non-view relation`);
-        } else /* view */ {
-            if (!['materialized', 'realtime', 'origin'].includes(persistence))
-                throw new Error(`Invalid persistence setting ${persistence} for a view relation`);
-            if (!view_spec)
-                throw new Error(`Missing required property "view_spec" for a view relation`);
-            if (typeof view_spec !== 'object')
-                throw new Error(`The "view_spec" property must be an object`);
-
-            let derivedColumns;
-            if (view_spec.query) {
-                const validQueryKeys = ['query', 'joinStrategy'];
-                for (const key in view_spec) {
-                    if (!validQueryKeys.includes(key))
-                        throw new SyntaxError(`Unexpected property "${key}" in query-type view spec`);
-                }
-
-                const schemaInference = await this.#engine.getSourceResolver(nsDef);
-                const query = await this.#parser.parse(view_spec.query);
-                const resolvedQuery = await schemaInference.resolveQuery(query, { tx: this });
-                view_spec.query = resolvedQuery.jsonfy();
-
-                derivedColumns = resolvedQuery.resultSchema().entries().map((col) => this.#parser.columnAST_to_columnDef(col));
-            } else {
-                // Validation for Reference-defined source
-                const validRefKeys = ['namespace', 'name', 'filters', 'joinStrategy'];
-                for (const key in view_spec) {
-                    if (!validRefKeys.includes(key))
-                        throw new SyntaxError(`Unexpected property "${key}" in reference-type view spec.`);
-                }
-
-                if (!view_spec.name)
-                    throw new SyntaxError(`Missing required property "name" in reference-type view spec.`);
-
-                if (view_spec.filters) {
-                    if (typeof view_spec.filters !== 'object' || Array.isArray(view_spec.filters))
-                        throw new TypeError(`Property "filters" in view spec must be an object`);
-                }
-
-                const schemaInference = await this.#engine.getSourceResolver(nsDef);
-                const originNs = view_spec.namespace || namespace;
-                const [tblSchema] = await schemaInference.showCreate({ [originNs]: view_spec.name }, { tx: this });
-                if (!tblSchema) {
-                    throw new ReferenceError(`Origin relation ${JSON.stringify(originNs)}.${JSON.stringify(view_spec.name)} could not be resolved`);
-                }
-
-                ({ columns: derivedColumns, constraints } = this.#parser.tableAST_to_tableDef(tblSchema, { namespace: originNs }));
-            }
-
-            if (columns.length) {
-                if (columns.length !== derivedColumns.length) {
-                    throw new Error(`View column list has ${columns.length} column(s), but query returns ${derivedColumns.length}`);
-                }
-                columns = derivedColumns.map((col, i) => {
-                    if (!columns[i].name) throw new TypeError(`Input column #${i} is missing a name property.`)
-                    return { ...col, name: columns[i].name || col.name };
-                });
-            } else {
-                columns = derivedColumns;
-            }
-        }
-
-        if (!constraints.find((con) => con.kind === 'PRIMARY KEY')) {
-            if (kind === 'view' && view_spec.query && persistence === 'realtime') {
-                columns = [{ name: '__id', type: 'TEXT', not_null: true, engine_attrs: { is_system_column: true } }].concat(columns);
-                constraints = [{ kind: 'PRIMARY KEY', columns: ['__id'] }].concat(constraints);
-            } else {
-                columns = [{ name: '__id', type: 'INT', is_generated: true, generation_rule: 'by_default', engine_attrs: { is_system_column: true } }].concat(columns);
-                constraints = [{ kind: 'PRIMARY KEY', columns: ['__id'] }].concat(constraints);
-            }
-        }
-
-        const resultTbl = await sysTables.insert({
-            namespace_id: nsDef.id,
+        const {
+            namespace_id: nsDef,
+            columns: resolveColumns,
+            constraints: resolvedConstraints,
+            indexes: resolvedIndexes,
+            structuralChanges,
+            ...resolvedTblDef
+        } = await this.#resolve_tableDef({}, {
+            namespace,
             name,
             kind,
             persistence,
-            view_spec,
+            source_expr,
+            source_expr_ast,
+            view_opts_replication_mode,
+            view_opts_replication_origin,
+            view_opts_replication_attrs,
+            engine_attrs,
+            columns,
+            constraints,
+            indexes
+        }, {
+            isCreate: true,
+            ifNotExists
+        });
+
+        // Already exists but ifNotExists set?
+        if (!Object.keys(resolvedTblDef).length) return null;
+
+        const sysTables = this.getTable({ namespace: 'sys', name: 'sys_relations' });
+        const resultTbl = await sysTables.insert({
+            namespace_id: nsDef.id,
+            ...resolvedTblDef,
             version_major: 1,
             version_minor: 0,
             version_patch: 0,
-            engine_attrs,
         }, { systemTag: SYSTEM_TAG });
 
         let resultCols = [];
-        if (columns?.length) resultCols = await this.#insertColumns(resultTbl, columns);
-        if (constraints?.length) await this.#insertConstraints(resultTbl, constraints, resultCols);
-        if (indexes?.length) await this.#insertIndexes(resultTbl, indexes, resultCols);
+        if (resolveColumns.length) resultCols = await this.#insertColumns(resultTbl, resolveColumns);
+        if (resolvedConstraints.length) await this.#insertConstraints(resultTbl, resolvedConstraints, resultCols);
+        if (resolvedIndexes?.length) await this.#insertIndexes(resultTbl, resolvedIndexes, resultCols);
 
         return resultTbl;
+    }
+
+    async #resolve_tableDef(tblDef, input, { isCreate = false, ifNotExists = false } = {}) {
+        if (![null, undefined].includes(input.kind)) {
+            if (!['table', 'view'].includes(input.kind))
+                throw new Error(`Invalid relation kind setting ${input.kind}`);
+            tblDef.kind = input.kind;
+        } else if (isCreate) tblDef.kind = 'table';
+
+        if (input.namespace || isCreate) {
+            tblDef.namespace_id = this.showNamespace({ name: input.namespace });
+        }
+
+        if (![null, undefined].includes(input.name) && input.name !== tblDef.name || isCreate) {
+            if (!/^[a-zA-Z_]/.test(input.name))
+                throw new Error(`Relation name must start with a letter or underscore`);
+            const sysTables = this.getTable({ namespace: 'sys', name: 'sys_relations' });
+            const existing = sysTables.get({ namespace_id: tblDef.namespace_id.id, name: input.name }, { using: 'sys_relations__namespace_id_name_idx' });
+            if (existing) {
+                if (ifNotExists) return {};
+                throw new ConflictError(`Relation ${JSON.stringify(nsDef.name)}.${JSON.stringify(input.name)} already exists`, existing);
+            }
+            tblDef.name = input.name;
+        }
+
+        if (![null, undefined].includes(input.persistence)) {
+            if (!['default', 'temporary'].includes(input.persistence))
+                throw new Error(`Invalid persistence setting ${input.persistence}`);
+            tblDef.persistence = input.persistence;
+        } else if (isCreate) tblDef.persistence = 'default';
+
+        if (input.engine_attrs !== undefined) {
+            // Can be reset to null
+            if (input.engine_attrs !== null) {
+                if (typeof input.engine_attrs !== 'object')
+                    throw new SyntaxError(`engine_attrs must be an object`);
+                const attrKeys = Object.keys(input.engine_attrs);
+                if (attrKeys.length) throw new SyntaxError(`Unexpected attributes: ${attrKeys.map((k) => `engine_attrs.${k}`).join(', ')}`);
+            }
+            tblDef.engine_attrs = input.engine_attrs;
+        } else if (isCreate) tblDef.engine_attrs = null;
+
+        const structuralChanges = {};
+
+        if (tblDef.kind === 'table') {
+            if (![null, undefined].includes(input.view_opts_replication_mode))
+                throw new Error(`Unexpected property "view_opts_replication_mode" for a non-view relation`);
+            if (![null, undefined].includes(input.view_opts_replication_origin))
+                throw new Error(`Unexpected property "view_opts_replication_origin" for a non-view relation`);
+            if (![null, undefined].includes(input.view_opts_replication_attrs))
+                throw new Error(`Unexpected property "view_opts_replication_attrs" for a non-view relation`);
+        } else /* view */ {
+            if (input.view_opts_replication_mode !== undefined) {
+                // Can be reset to 'none'
+                if (input.view_opts_replication_mode !== null) {
+                    const modes = ['materialized', 'realtime', 'none'];
+                    if (!modes.includes(input.view_opts_replication_mode))
+                        throw new SyntaxError(`View replication mode must be one of ${modes.join(', ')}. Got ${input.view_opts_replication_mode}`);
+                }
+                if (tblDef.view_opts_replication_mode !== (input.view_opts_replication_mode || 'none')) {
+                    tblDef.view_opts_replication_mode = input.view_opts_replication_mode || 'none';
+                    structuralChanges.view_opts_replication_mode = true;
+                }
+            } else if (isCreate) tblDef.view_opts_replication_mode = 'none';
+
+            if (input.view_opts_replication_origin !== undefined) {
+                // Can be reset to null
+                if (input.view_opts_replication_origin !== null) {
+                    if (typeof input.view_opts_replication_origin !== 'string')
+                        throw new SyntaxError(`View replication origin type must be string. Got type ${typeof input.view_opts_replication_origin}`);
+                }
+                if (tblDef.view_opts_replication_origin !== input.view_opts_replication_origin) {
+                    tblDef.view_opts_replication_origin = input.view_opts_replication_origin;
+                    structuralChanges.view_opts_replication_origin = true;
+                }
+            } else if (isCreate) tblDef.view_opts_replication_origin = null;
+
+            if (input.view_opts_replication_attrs !== undefined) {
+                // Can be reset to null
+                if (input.view_opts_replication_attrs !== null) {
+                    if (typeof input.view_opts_replication_attrs !== 'object')
+                        throw new SyntaxError(`View replication attrs type must be object. Got type ${typeof input.view_opts_replication_attrs}`);
+
+                    if (this.#engine._viewIsPureFederation(tblDef)) {
+                        for (const [k, v] of Object.entries(input.view_opts_replication_attrs)) {
+                            if (k === 'join_pushdown_size') {
+                                if (!/^\d+$/.test(v))
+                                    throw new SyntaxError(`view_opts_replication_attrs.${k} must be numeric; recieved ${v}`);
+                                tblDef.view_opts_replication_attrs = { ...(tblDef.view_opts_replication_attrs || {}), [k]: Number(v) }
+                            } else if (k === 'join_memoization') {
+                                if (!/^(true|false)$/i.test(v + ''))
+                                    throw new SyntaxError(`view_opts_replication_attrs.${k} must be true or false; recieved ${v}`);
+                                tblDef.view_opts_replication_attrs = { ...(tblDef.view_opts_replication_attrs || {}), [k]: Boolean(v) }
+                            } else {
+                                throw new SyntaxError(`Unexpected attribute: view_opts_replication_attrs.${k}`);
+                            }
+                        }
+                    } else {
+                        const attrKeys = Object.keys(input.view_opts_replication_attrs);
+                        if (attrKeys.length) throw new SyntaxError(`Unexpected attributes: ${attrKeys.map((k) => `view_opts_replication_attrs.${k}`).join(', ')}`);
+                        tblDef.view_opts_replication_attrs = { ...(tblDef.view_opts_replication_attrs || {}), ...input.view_opts_replication_attrs };
+                    }
+                } else {
+                    tblDef.view_opts_replication_attrs = input.view_opts_replication_attrs;
+                }
+            } else if (structuralChanges.view_opts_replication_mode && !this.#engine._viewIsPureFederation(tblDef)) {
+                tblDef.view_opts_replication_attrs = null;
+            } else if (isCreate) tblDef.view_opts_replication_attrs = null;
+        }
+
+        let reservedColumnConflict;
+        if (reservedColumnConflict = input.columns?.find((col) => col.name.startsWith('__'))) {
+            throw new Error(`[${reservedColumnConflict}] Reserved column namespace "__*"`);
+        }
+
+        // --- Expression
+        let sourceExprNode;
+
+        if (![null, undefined].includes(input.source_expr)) {
+            if (!['string', 'object'].includes(typeof input.source_expr))
+                throw new Error(`"source_expr" must be a string or an object`);
+            if (input.source_expr_ast) throw new Error(`Only one of "source_expr" or "source_expr_ast" may be specified`);
+
+            sourceExprNode = await this.#parser.parse(input.source_expr, { dialect: this.#engine.dialect });
+            tblDef.source_expr_ast = sourceExprNode.jsonfy();
+            structuralChanges.source_expr_ast = true;
+        } else {
+            const effectiveSourceExprAst = input.source_expr_ast || tblDef.source_expr_ast;
+            if (![null, undefined].includes(input.source_expr_ast) || !isCreate && Object.keys(structuralChanges).length) {
+                if (typeof effectiveSourceExprAst.nodeName === 'string') {
+                    tblDef.source_expr_ast = effectiveSourceExprAst;
+                    sourceExprNode = await this.#parser.parse(effectiveSourceExprAst);
+
+                    structuralChanges.source_expr_ast = true;
+                } else if (input.source_expr_ast.NODE_NAME) {
+                    sourceExprNode = input.source_expr_ast;
+                    tblDef.source_expr_ast = sourceExprNode.jsonfy();
+
+                    structuralChanges.source_expr_ast = true;
+                } else throw new Error(`The system "source_expr_ast" property must be a valid AST`);
+            } else if (isCreate) {
+                if (tblDef.kind === 'view') {
+                    throw new Error(`source_expr must be specified for a view`);
+                }
+                tblDef.columns = input.columns || [];
+                tblDef.constraints = input.constraints || [];
+                tblDef.indexes = input.indexes || [];
+            }
+        }
+
+        if (sourceExprNode) {
+            for (const col of input.columns || []) {
+                for (const k in col) {
+                    if (k !== 'name') throw new TypeError(`Unexpected ${k} attribute on column alias ${col.name}`);
+                }
+            }
+            if (input.constraints?.length) throw new TypeError(`Unexpected constraints list alongside a source-query-based relation`);
+            if (input.indexes?.length) throw new TypeError(`Unexpected constraints list alongside a source-query-based relation`);
+
+            let derivedColumns, derivedConstraints = [];
+
+            const schemaInference = await this.#engine.getSourceResolver(tblDef);
+            const resolvedQuery = await schemaInference.resolveQuery(sourceExprNode, { tx: schemaInference.storageEngine === this.#engine ? this : null });
+
+            const selectNode = sourceExprNode instanceof registry.CTE
+                ? sourceExprNode.body()
+                : sourceExprNode;
+
+            if (this.#engine._viewSourceExprIsPureRef(tblDef)) {
+                const [tblSchema] = resolvedQuery.originSchemas();
+                ({ columns: derivedColumns, constraints: derivedConstraints } = this.#parser.tableAST_to_tableDef(tblSchema));
+            } else {
+                if (!(selectNode instanceof registry.SelectStmt))
+                    throw new SyntaxError(`source_expr must be a valid SELECT statement or a CTE of such`);
+                derivedColumns = resolvedQuery.resultSchema().entries().map((col) => this.#parser.columnAST_to_columnDef(col));
+            }
+
+            if (input.columns?.length) {
+                if (input.columns.length !== derivedColumns.length)
+                    throw new Error(`View column list has ${input.columns.length} column(s), but query returns ${derivedColumns.length}`);
+
+                tblDef.columns = derivedColumns.map((col, i) => {
+                    if (typeof input.columns[i].name !== 'string') throw new TypeError(`Input column #${i} is missing a name property or property is invalid`);
+                    return { ...col, name: input.columns[i].name };
+                });
+            } else {
+                tblDef.columns = derivedColumns;
+            }
+
+            tblDef.constraints = derivedConstraints;
+        }
+
+        if ((isCreate || Object.keys(structuralChanges).length) && !tblDef.constraints?.find((con) => con.kind === 'PRIMARY KEY')) {
+            if (tblDef.kind === 'view' && !this.#engine._viewSourceExprIsPureRef(tblDef) && tblDef.view_opts_replication_mode === 'realtime') {
+                tblDef.columns = [{ name: '__id', type: 'TEXT', not_null: true, engine_attrs: { is_system_column: true } }].concat(tblDef.columns);
+                tblDef.constraints = [{ kind: 'PRIMARY KEY', columns: ['__id'] }].concat(tblDef.constraints);
+            } else if (!(tblDef.kind === 'view' && this.#engine._viewIsPureFederation(tblDef))) {
+                tblDef.columns = [{ name: '__id', type: 'INT', is_generated: true, generation_rule: 'by_default', engine_attrs: { is_system_column: true } }].concat(tblDef.columns);
+                tblDef.constraints = [{ kind: 'PRIMARY KEY', columns: ['__id'] }].concat(tblDef.constraints);
+            }
+        }
+
+        return { ...tblDef, structuralChanges };
     }
 
     async alterTable({
         namespace,
         name
     }, {
-        namespace: newNamespace = null,
-        name: newName = null,
-        view_spec: newViewSpec = null,
-        view_columns: newViewColumns = null,
-        persistence: newPersistence = null,
-        engine_attrs: newEngineAttrs = null,
+        // Note that all values' default have to be "undefined"
+        namespace: newNamespace,
+        name: newName,
+        source_expr,
+        source_expr_ast,
+        columns,
+        // View specific - tho not supported from the AST path
+        view_opts_replication_mode,
+        view_opts_replication_origin,
+        view_opts_replication_attrs,
+        // Rest
+        engine_attrs,
+        // actions
         actions = [],
+        ...unexpected
+    }, {
         assertIsView = false,
-    }) {
-        const tblDef = this.showTable({ namespace, name }, { assertIsView });
+        ifExists = false,
+    } = {}) {
+        if ((unexpected = Object.keys(unexpected)).length)
+            throw new Error(`Unexpected inputs: ${unexpected.join(', ')}`);
 
-        if (tblDef.kind === 'table') {
-            if (newViewSpec)
-                throw new Error(`Unexpected "view_spec" attribute for a non-view relation`);
-        }
+        if (!source_expr && !source_expr_ast && columns?.length)
+            throw new Error(`Unexpected column aliases when source expr is not provided`);
 
-        const newDef = {};
-        let returnValue;
+        const tblDef = this.showTable({ namespace, name }, { assertIsView, ifExists });
+        if (!tblDef) return null;
+
+        if (tblDef.kind === 'view' && actions?.length)
+            throw new Error(`Unexpected actions list for a view`);
+
+        const {
+            namespace_id: nsDef,
+            columns: resolveColumns,
+            constraints: resolvedConstraints,
+            structuralChanges,
+            ...resolvedTblDef
+        } = await this.#resolve_tableDef({ ...tblDef }, {
+            namespace: newNamespace,
+            name: newName,
+            source_expr,
+            source_expr_ast,
+            view_opts_replication_mode,
+            view_opts_replication_origin,
+            view_opts_replication_attrs,
+            engine_attrs,
+            columns
+        });
+
         let versionBump = 0;
 
-        if (newNamespace) {
-            const sysNs = this.getTable({ namespace: 'sys', name: 'sys_namespaces' });
-
-            const newNs = sysNs.get({ name: newNamespace }, { using: 'sys_namespaces__name_idx' });
-            if (!newNs) throw new Error(`Target namespace ${JSON.stringify(newNamespace)} does not exist`);
-
-            newDef.namespace_id = newNs.id;
+        // Identity change
+        if (nsDef.name !== tblDef.namespace_id.name
+            || resolvedTblDef.name !== tblDef.name) {
             versionBump = Math.max(versionBump, 3);
         }
 
-        if (newName) {
-            if (!/^[a-zA-Z_]/.test(newName))
-                throw new Error(`Relation name must start with a letter or underscore`);
-            newDef.name = newName;
+        // source_expr change
+        if (!matches(resolvedTblDef.source_expr_ast, tblDef.source_expr_ast)) {
             versionBump = Math.max(versionBump, 3);
+        } else if (Object.keys(structuralChanges).length) {
+            // replication_mode or replication_origin change
+            versionBump = Math.max(versionBump, 2);
         }
 
-        if (newPersistence) {
-            if (tblDef.kind !== 'view') {
-                throw new Error(`Unexpected "persistence" attribute for a non-view relation`);
-            }
-            newDef.persistence = newPersistence;
-            versionBump = Math.max(versionBump, 3);
-        }
-
-        if (newViewSpec) {
-            if (tblDef.kind !== 'view') {
-                throw new Error(`Unexpected "view_spec" attribute for a non-view relation`);
-            }
-            const nsDef = this.showNamespace({ id: tblDef.namespace_id.id });
-            if (newViewSpec.query) {
-                const query = await this.#parser.parse(newViewSpec.query);
-                const schemaInference = await this.#engine.getSourceResolver(nsDef);
-                const resolvedQuery = await schemaInference.resolveQuery(query, { tx: this });
-                newViewSpec = { ...newViewSpec, query: resolvedQuery.jsonfy() };
-
-                const derivedColumns = resolvedQuery.resultSchema().entries().map((col) => this.#parser.columnAST_to_columnDef(col));
-                if (newViewColumns?.length) {
-                    if (newViewColumns.length !== derivedColumns.length) {
-                        throw new Error(`View column list has ${newViewColumns.length} column(s), but query returns ${derivedColumns.length}`);
-                    }
-                    newViewColumns = derivedColumns.map((col, i) => ({ ...col, name: newViewColumns[i].name || col.name }));
-                } else {
-                    newViewColumns = derivedColumns;
-                }
-            }
-
-            newDef.view_spec = newViewSpec;
-            if (newViewColumns?.length) await this.#replaceViewColumns(tblDef, newViewColumns);
-            versionBump = Math.max(versionBump, 3);
-        }
-        if (newEngineAttrs) {
-            newDef.engine_attrs = newEngineAttrs;
+        // replication_attrs change
+        if (!matches(resolvedTblDef.view_opts_replication_attrs, tblDef.view_opts_replication_attrs)) {
             versionBump = Math.max(versionBump, 1);
         }
 
-        if (actions?.length) {
-            for (const action of actions) {
-                if (action.type === 'add_column') {
-                    await this.#addColumnsToRelation(tblDef, [action.column]);
-                    versionBump = Math.max(versionBump, 2);
-                } else if (action.type === 'add_constraint') {
-                    await this.#addConstraintsToRelation(tblDef, [action.constraint]);
-                    versionBump = Math.max(versionBump, 2);
-                } else if (action.type === 'add_index') {
-                    await this.#addIndexesToRelation(tblDef, [action.index]);
-                } else if (action.type === 'alter_column') {
-                    await this.#alterColumnInRelation(tblDef, action.name, action);
-                    versionBump = Math.max(versionBump, 1);
-                } else if (action.type === 'rename_column') {
-                    await this.#renameColumnInRelation(tblDef, action.oldName, action.name);
-                    versionBump = Math.max(versionBump, 2);
-                } else if (action.type === 'rename_index') {
-                    await this.#renameIndexInRelation(tblDef, action.oldName, action.name);
-                    versionBump = Math.max(versionBump, 2);
-                } else if (action.type === 'drop_column') {
-                    await this.#dropColumnsFromRelation(tblDef, [action.name], { cascade: action.cascade === true });
-                    versionBump = Math.max(versionBump, 2);
-                } else if (action.type === 'drop_constraint') {
-                    await this.#dropConstraintsFromRelation(tblDef, [action.name], { cascade: action.cascade === true });
-                    versionBump = Math.max(versionBump, 2);
-                } else if (action.type === 'drop_index') {
-                    await this.#dropIndexesFromRelation(tblDef, [action.name], { cascade: action.cascade === true });
-                    versionBump = Math.max(versionBump, 2);
-                } else {
-                    throw new Error(`Unsupported ALTER TABLE action ${JSON.stringify(action.type)}`);
-                }
+        // engine_attrs change
+        if (!matches(resolvedTblDef.engine_attrs, tblDef.engine_attrs)) {
+            versionBump = Math.max(versionBump, 1);
+        }
+
+        if (Object.keys(structuralChanges).length) {
+            if (tblDef.kind === 'view') {
+                await this.resetView({ namespace: tblDef.namespace_id.name, name: tblDef.name }, { syncForget: false });
+            }
+            const sysColumns = this.getTable({ namespace: 'sys', name: 'sys_columns' });
+            const sysConstraints = this.getTable({ namespace: 'sys', name: 'sys_constraints' });
+            const sysIndexes = this.getTable({ namespace: 'sys', name: 'sys_indexes' });
+
+            const existingColumns = sysColumns.get({ relation_id: tblDef.id }, { using: 'sys_columns__relation_id_idx', multiple: true });
+            const existingConstraints = sysConstraints.get({ relation_id: tblDef.id }, { using: 'sys_constraints__relation_id_idx', multiple: true });
+            const existingIndexes = sysIndexes.get({ relation_id: tblDef.id }, { using: 'sys_indexes__relation_id_idx', multiple: true });
+            // Drop all existing columns and constraints and indexes
+            await this.#dropColumns(existingColumns, true);
+            await this.#dropConstraints(existingConstraints, true);
+            await this.#dropConstraints(existingIndexes, true);
+            // Add new derived columns
+            let resultCols = [];
+            if (resolveColumns.length) resultCols = await this.#insertColumns(tblDef, resolveColumns);
+            if (resolvedConstraints.length) await this.#insertConstraints(tblDef, resolvedConstraints, resultCols);
+        }
+
+        for (const action of actions || []) {
+            if (action.type === 'add:column') {
+                await this.#addColumnsToRelation(tblDef, [action.column]);
+                versionBump = Math.max(versionBump, 2);
+            } else if (action.type === 'add:constraint') {
+                await this.#addConstraintsToRelation(tblDef, [action.constraint]);
+                versionBump = Math.max(versionBump, 2);
+            } else if (action.type === 'add:index') {
+                await this.#addIndexesToRelation(tblDef, [action.index]);
+            } else if (action.type === 'alter:column') {
+                await this.#alterColumnInRelation(tblDef, action.name, action);
+                versionBump = Math.max(versionBump, 1);
+            } else if (action.type === 'rename:column') {
+                await this.#renameColumnInRelation(tblDef, action.oldName, action.name);
+                versionBump = Math.max(versionBump, 2);
+            } else if (action.type === 'rename:index') {
+                await this.#renameIndexInRelation(tblDef, action.oldName, action.name);
+                versionBump = Math.max(versionBump, 2);
+            } else if (action.type === 'drop:column') {
+                await this.#dropColumnsFromRelation(tblDef, [action.name], { cascade: action.cascade === true });
+                versionBump = Math.max(versionBump, 2);
+            } else if (action.type === 'drop:constraint') {
+                await this.#dropConstraintsFromRelation(tblDef, [action.name], { cascade: action.cascade === true });
+                versionBump = Math.max(versionBump, 2);
+            } else if (action.type === 'drop:index') {
+                await this.#dropIndexesFromRelation(tblDef, [action.name], { cascade: action.cascade === true });
+                versionBump = Math.max(versionBump, 2);
+            } else {
+                throw new Error(`Unsupported ALTER TABLE action ${JSON.stringify(action.type)}`);
             }
         }
 
         if (versionBump) {
-            Object.assign(newDef, this.#nextVersion(tblDef, versionBump));
-        }
-
-        if (Object.keys(newDef).length) {
+            Object.assign(resolvedTblDef, this.#nextVersion(tblDef, versionBump));
             const sysTables = this.getTable({ namespace: 'sys', name: 'sys_relations' });
-            returnValue = await sysTables.update(tblDef, newDef, { systemTag: SYSTEM_TAG });
+            return await sysTables.update(tblDef, {
+                namespace_id: nsDef.id,
+                ...resolvedTblDef
+            }, { systemTag: SYSTEM_TAG });
         }
 
-        return returnValue;
+        return tblDef;
     }
 
-    async dropTable({ namespace, name }, { ifExists = false, cascade = false, assertIsView = false } = {}) {
+    async dropTable({ namespace, name }, { assertIsView = false, assertPersistence = null, ifExists = false, cascade = false } = {}) {
         const tblDef = this.showTable({ namespace, name }, { ifExists, assertIsView });
-        tblDef && await this.#dropRelations([tblDef], cascade);
+
+        if (assertPersistence && tblDef && tblDef.persistence !== assertPersistence)
+            throw new Error(`The referenced relation ${JSON.stringify(namespace)}.${JSON.stringify(name)} has a different persitence mode "${tblDef.persistence}" than the implied "${assertPersistence}"`);
+
+        if (tblDef) await this.#dropRelations([tblDef], cascade);
+        return tblDef;
     }
 
     // ----------
@@ -787,7 +1046,7 @@ export class Transaction {
             filter = null;
         }
         const filterFn = typeof filter === 'function' ? filter : null;
-        const { namespace, persistence } = typeof filter === 'object' && filter ? filter : {};
+        const { namespace, persistence, replication_mode } = typeof filter === 'object' && filter ? filter : {};
 
         if (filterFn) {
             return this.listTables((tblDef) => {
@@ -796,53 +1055,74 @@ export class Transaction {
             }, { details });
         }
 
-        return this.listTables({ namespace, kind: 'view', persistence }, { details });
+        return this.listTables({ namespace, kind: 'view', persistence, replication_mode }, { details });
     }
 
     showView({ namespace, namespace_id = null, name, id = null }, { schema = false, ifExists = false } = {}) {
         return this.showTable({ namespace, namespace_id, name, id }, { schema, ifExists, assertIsView: true });
     }
 
-    async createView({ kind, ...createTableSpec }, createTableOpts = {}) {
-        return await this.createTable({ ...createTableSpec, kind: 'view' }, createTableOpts);
+    async createView({
+        replication_mode = null,
+        replication_origin = null,
+        replication_attrs = null,
+        ...createPayload
+    }, createOpts = {}) {
+
+        const result = await this.createTable({
+            view_opts_replication_mode: replication_mode,
+            view_opts_replication_origin: replication_origin,
+            view_opts_replication_attrs: replication_attrs,
+            ...createPayload,
+            kind: 'view' // Force
+        }, createOpts);
+
+        const syncResult = await this.#engine.sync.sync({ [createPayload.namespace]: createPayload.name }, { tx: this });
+        if (syncResult.failed?.length) throw new Error(`View was created but sync failed with error: ${syncResult.failed[0].error}`);
+
+        return result;
     }
 
-    async alterView(alterTableSpec, alterTableOpts) {
-        return await this.alterTable(alterTableSpec, { ...alterTableOpts, assertIsView: true });
+    async alterView({ namespace, name }, {
+        // Note that all values' default have to be "undefined"
+        replication_mode,
+        replication_origin,
+        replication_attrs,
+        ...alterPayload
+    }, alterOpts = {}) {
+        await this.#engine.sync.forget({ [namespace]: name }, { tx: this });
+
+        const result = await this.alterTable({ namespace, name }, {
+            view_opts_replication_mode: replication_mode,
+            view_opts_replication_origin: replication_origin,
+            view_opts_replication_attrs: replication_attrs,
+            ...alterPayload
+        }, { ...alterOpts, assertIsView: true });
+
+        if (result) await this.#engine.sync.sync({ [alterPayload.namespace || namespace]: alterPayload.name || name }, { tx: this });
+        return result;
     }
 
-    async dropView(dropTableSpec, dropTableOpts) {
-        return await this.dropTable(dropTableSpec, { ...dropTableOpts, assertIsView: true });
+    async dropView({ namespace, name }, dropOpts) {
+        const result = await this.dropTable({ namespace, name }, { ...dropOpts, assertIsView: true });
+        if (result) await this.#engine.sync.forget({ [namespace]: name }, { tx: this });
+        return result;
     }
 
-    async resetView(tableRef) {
-        const tableStorage = this.getTable(tableRef, { assertIsView: true });
+    async resetView({ namespace, name }, { assertReplicationMode = null, syncForget = true } = {}) {
+        const tableStorage = this.getTable({ namespace, name }, { assertIsView: true });
+
+        if (assertReplicationMode && tableStorage.schema.view_opts_replication_mode !== assertReplicationMode)
+            throw new Error(`The referenced view ${JSON.stringify(namespace)}.${JSON.stringify(name)} has a different replication mode "${tableStorage.schema.view_opts_replication_mode}" than the implied "${assertReplicationMode}"`);
+
         await tableStorage.truncate();
+        if (syncForget) await this.#engine.sync.forget({ [namespace]: name }, { tx: this });
     }
 
-    async refreshView(tableRef) {
-        const viewDef = this.showView(tableRef, { schema: true });
-        const querySpec = { ...(viewDef.view_spec || {}) };
-
-        if (!querySpec.name && !querySpec.query) {
-            throw new Error(`View ${JSON.stringify(viewDef.name)} has invalid view_spec`);
-        }
-        if (!querySpec.query) {
-            querySpec.namespace = querySpec.namespace || viewDef.namespace_id.name;
-        }
-
-        const sourceClient = await this.#engine.getSourceClient(viewDef.namespace_id);
-        const result = await sourceClient.query(querySpec);
-        const rows = result?.rows || [];
-        const preparedRows = rows.map((row) => this.#prepareViewRowForStorage(viewDef, row));
-
-        await this.resetView(tableRef);
-        const tableStorage = this.getTable(tableRef, { assertIsView: true });
-        for (const row of preparedRows) {
-            await tableStorage.insert(row, { systemTag: SYSTEM_TAG });
-        }
-
-        return preparedRows.length;
+    async refreshView({ namespace, name }, { assertReplicationMode = null } = {}) {
+        const result = await this.resetView({ namespace, name }, { assertReplicationMode });
+        await this.#engine.sync.sync({ [namespace]: name }, { forceSync: true, tx: this });
+        return result;
     }
 
     // ----------
@@ -980,21 +1260,6 @@ export class Transaction {
             return idx;
         });
         await this.#dropIndexes(indexes, cascade);
-    }
-
-    async #replaceViewColumns(tblDef, columns) {
-        const sysColumns = this.getTable({ namespace: 'sys', name: 'sys_columns' });
-        const currentCols = sysColumns.get({ relation_id: tblDef.id }, { using: 'sys_columns__relation_id_idx', multiple: true });
-        const userColumns = currentCols.filter((col) => !col.engine_attrs?.is_system_column);
-        if (userColumns.length) await this.#dropColumns(userColumns, true);
-        await this.#insertColumns(tblDef, columns);
-        await this.#rewriteRelationRows(tblDef, (row) => {
-            const nextRow = {};
-            for (const [key, value] of Object.entries(row)) {
-                if (key.startsWith('__')) nextRow[key] = value;
-            }
-            return nextRow;
-        });
     }
 
     // ----------
@@ -1510,18 +1775,37 @@ export class Transaction {
         const tableStorage = this.getTable(tblDef);
         const rows = tableStorage.getAll();
         const hasNulls = rows.some((row) => row[columnName] === null || row[columnName] === undefined);
-        if (hasNulls) {
+        if (hasNulls)
             throw new Error(`Column ${JSON.stringify(columnName)} contains nulls and cannot be set NOT NULL`);
+    }
+}
+
+function matches(a, b) {
+    if (typeof a !== typeof b) return false;
+    if (Array.isArray(a) !== Array.isArray(b)) return false;
+
+    if (Array.isArray(a)) {
+        if (a.length !== b.length) return false;
+        for (const v of new Set(a.concat(b))) {
+            if (!a.includes(v) || !b.includes(v)) return false;
         }
+        return true;
     }
 
-    #prepareViewRowForStorage(viewDef, row) {
-        if (viewDef.persistence !== 'realtime') return { ...row };
-        if ('__id' in row) return { ...row };
+    if (typeof a === 'object') {
+        a = a || {};
+        b = b || {};
+        for (const k of new Set(Object.keys(a).concat(Object.keys(a)))) {
+            if (!matches(a[k], b[k])) return false;
+        }
+        return true;
+    }
 
-        const stableKey = JSON.stringify(
-            Object.keys(row).sort().map((key) => [key, row[key]])
-        );
-        return { __id: stableKey, ...row };
+    return a === b;
+}
+
+function captureStackTrace() {
+    try { throw new Error(''); } catch (e) {
+        return e.stack.split('\n').slice(3).join('\n');
     }
 }
