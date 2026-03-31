@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
 import '../src/lang/index.js';
-import { WalEngine } from '../src/proc/sync/WalEngine.js';
+import { WalEngine } from '../src/proc/timeline/WalEngine.js';
 import { RealtimeResult } from '../src/proc/realtime/RealtimeResult.js';
 import { FlashQL } from '../src/flashql/FlashQL.js';
 

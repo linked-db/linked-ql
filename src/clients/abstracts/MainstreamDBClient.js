@@ -1,7 +1,7 @@
 import { LinkedQLClient } from './LinkedQLClient.js';
 import { RealtimeClient } from '../../proc/realtime/RealtimeClient.js';
 import { SchemaInference } from './SchemaInference.js';
-import { WalEngine } from '../../proc/sync/WalEngine.js';
+import { WalEngine } from '../../proc/timeline/WalEngine.js';
 import { SQLParser } from '../../lang/SQLParser.js';
 import { registry } from '../../lang/registry.js';
 import { normalizeQueryArgs } from './util.js';

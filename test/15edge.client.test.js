@@ -21,7 +21,7 @@ const opFromUrl = (url) => new URL(url, 'http://localhost').searchParams.get('op
 
 describe('EdgeClient - Exhaustive (HTTP)', () => {
     it('rejects missing url', () => {
-        expect(() => new EdgeClient({})).to.throw('No url specified');
+        expect(() => new EdgeClient({})).to.throw('No url or worker specified');
     });
 
     it('rejects invalid type', () => {
