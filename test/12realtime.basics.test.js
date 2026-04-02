@@ -124,7 +124,7 @@ describe('Realtime - Basics', () => {
         );
 
         expect(result.rows).to.deep.eq([{ id: 2, name: 'Two' }]);
-        expect(result.mode).to.eq('streaming');
+        expect(result.mode).to.eq('callback');
 
         await client.query(`INSERT INTO public.rt_live (id, name) VALUES (3, 'Three')`);
         await waitFor(() => commits.some((c) => c.type === 'diff' && c.entries.some((e) => e.op === 'insert' && e.new?.id === 3)));

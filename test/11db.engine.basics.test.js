@@ -97,7 +97,7 @@ describe('FlashQL - Basic DDL', () => {
     let client;
 
     before(async () => {
-        client = await createClient(null, { onCreateForeignClient: () => {
+        client = await createClient(null, { getUpstreamClient: () => {
             return client;
         }});
     });

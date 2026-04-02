@@ -1,11 +1,12 @@
 import { registry } from '../../lang/registry.js';
 import { LinkedQLClient } from '../abstracts/LinkedQLClient.js';
+import { AbstractNode } from '../../lang/abstracts/AbstractNode.js';
 import { RealtimeResult } from '../../proc/realtime/RealtimeResult.js';
+import { normalizeQueryArgs } from '../abstracts/util.js';
 import { SchemaInference } from './SchemaInference.js';
 import { WalEngine } from './WalEngine.js';
 import { SQLParser } from './SQLParser.js';
 import { Result } from '../Result.js';
-import { normalizeQueryArgs } from '../abstracts/util.js';
 
 export class BaseEdgeClient extends LinkedQLClient {
 
@@ -14,6 +15,7 @@ export class BaseEdgeClient extends LinkedQLClient {
     #parser;
     #wal;
     #live;
+    #sync;
 
     get parser() { return this.#parser; }
     get resolver() {
@@ -22,6 +24,7 @@ export class BaseEdgeClient extends LinkedQLClient {
     }
     get wal() { return this.#wal; }
     get live() { return this.#live; }
+    get sync() { return this.#sync; }
 
     // Internal
 
@@ -47,6 +50,9 @@ export class BaseEdgeClient extends LinkedQLClient {
         });
         this.#live = {
             forget: async (id) => await this._exec('live:forget', { id }),
+        };
+        this.#sync = {
+            sync: async (selector = '*', { forceSync = false } = {}) => await this._exec('sync:sync', { selector, options: { forceSync } }),
         };
     }
 
@@ -96,7 +102,9 @@ export class BaseEdgeClient extends LinkedQLClient {
     // ------------
 
     async query(...args) {
-        const [query, { callback, signal, ...options }] = normalizeQueryArgs(...args);
+        let [query, { callback, signal, ...options }] = normalizeQueryArgs(...args);
+        if (query instanceof AbstractNode) query = query.jsonfy();
+
         const tx = options.tx && typeof options.tx === 'object' ? options.tx.id : options.tx;
 
         if (options.live && tx) {
@@ -148,6 +156,7 @@ export class BaseEdgeClient extends LinkedQLClient {
     }
 
     async stream(query, options) {
+        if (query instanceof AbstractNode) query = query.jsonfy();
         const tx = options?.tx && typeof options.tx === 'object' ? options.tx.id : options?.tx;
         return await this._exec(
             'stream',
@@ -170,6 +179,7 @@ export class BaseEdgeClient extends LinkedQLClient {
 
     // Called by this.#parser.parse() if options.preferRemote
     async _parse(query, { preferRemote = false, alias = null, dynamicWhereMode = false, ...options } = {}) {
+        if (query instanceof AbstractNode) query = query.jsonfy();
         const parseWith = async (options) => await this._exec('parser:parse', { query, options });
 
         if (dynamicWhereMode) {

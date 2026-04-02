@@ -49,6 +49,8 @@ export class SchemaInference {
         // Schema inference...
         const relationSelector = {};
         let anyFound = false;
+        let hasSugars = false;
+
         query.walkTree((v, k, scope) => {
             if (v instanceof registry.MYSetStmt
                 || v instanceof registry.PGSetStmt
@@ -65,6 +67,7 @@ export class SchemaInference {
             }
             if ((!(v instanceof registry.TableRef2) || v.parentNode instanceof registry.ColumnIdent)
                 && (!(v instanceof registry.TableRef1) || v.parentNode instanceof registry.ColumnRef1)) {
+                hasSugars ||= v.isSugar;
                 return v;
             }
             const namespaceName = v.qualifier()?._get('delim')
@@ -83,6 +86,7 @@ export class SchemaInference {
             }
         }, true);
 
+        if (!hasSugars && options.ifHasSugars) return query;
         if (anyFound) await this.preload(relationSelector, options);
 
         // DeSugaring...

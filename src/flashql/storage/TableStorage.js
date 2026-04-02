@@ -1,4 +1,4 @@
-import { ConflictError } from '../ConflictError.js';
+import { ConflictError } from '../errors/ConflictError.js';
 import { ExprEngine } from '../eval/ExprEngine.js';
 import { registry } from '../../lang/registry.js';
 
@@ -881,6 +881,18 @@ export class TableStorage {
     }
 
     async update(oldPk, payload, { using: keyName = null, multiple = false, systemTag = null } = {}) {
+        /*
+        if (this.#schema.kind === 'view') {
+            const updateTransform = this.#tx.engine._viewSourceExprUpdateTransform(this.#schema);
+            if (updateTransform) {
+                // It's an updateable view
+                const upstreamClient = await this.#tx.engine.getSourceClient(this.#schema);
+            } else {
+                // It's a view but not updateable
+            }
+        }
+        */
+
         oldPk = this.#formatKey(oldPk, keyName);
 
         let keyId;

@@ -3,6 +3,7 @@ import { MessagePortPlus } from '@webqit/port-plus';
 
 import '../src/lang/index.js';
 import { FlashQL } from '../src/flashql/FlashQL.js';
+import { EdgeClient } from '../src/clients/edge/EdgeClient.js';
 import { EdgeWorker } from '../src/clients/edge/EdgeWorker.js';
 
 const waitForEvent = (target, type, { timeout = 1000 } = {}) => {
@@ -113,5 +114,47 @@ describe('EdgeWorker integration (Port+ transport)', () => {
         expect(forgotten).to.eq(true);
 
         await clientPort.close();
+    });
+});
+
+describe('EdgeClient <-> EdgeWorker integration (SharedWorker transport)', () => {
+    let db;
+    let scope;
+
+    beforeEach(async () => {
+        db = new FlashQL();
+        await db.connect();
+        await db.query(`
+            CREATE TABLE public.edge_shared_users (
+                id INT PRIMARY KEY,
+                name TEXT
+            );
+            INSERT INTO public.edge_shared_users (id, name) VALUES (1, 'Ada'), (2, 'Linus');
+        `);
+
+        scope = new EventTarget();
+        EdgeWorker.sharedWorker({ worker: scope, db });
+    });
+
+    afterEach(async () => {
+        await db.disconnect();
+    });
+
+    it('routes queries over a SharedWorker port', async () => {
+        const { serverPort, clientPort } = createChannel();
+        const connectEvent = new Event('connect');
+        Object.defineProperty(connectEvent, 'ports', { value: [serverPort] });
+        scope.dispatchEvent(connectEvent);
+
+        const client = new EdgeClient({
+            worker: { port: clientPort },
+            type: 'shared_worker',
+        });
+
+        const result = await client.query('SELECT id, name FROM public.edge_shared_users ORDER BY id');
+        expect(result.rows).to.deep.eq([
+            { id: 1, name: 'Ada' },
+            { id: 2, name: 'Linus' },
+        ]);
     });
 });

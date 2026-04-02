@@ -13,6 +13,25 @@ export class EdgeWorker extends SimpleEmitter {
 
             await instance.handle(op, args, port);
         });
+
+        return instance;
+    }
+
+    static sharedWorker({ worker = self, ...options }) {
+        const instance = new EdgeWorker({ ...options, type: 'shared_worker' });
+
+        worker.addEventListener('connect', (e) => {
+            const port = e.ports?.[0];
+            if (!port) return;
+
+            MessagePortPlus.upgradeInPlace(port);
+            port.addRequestListener('message', async (evt) => {
+                const { data: { op, args }, ports: [replyPort] } = evt;
+                await instance.handle(op, args, replyPort);
+            });
+        });
+
+        return instance;
     }
 
     // -------------
@@ -192,6 +211,10 @@ export class EdgeWorker extends SimpleEmitter {
 
         if (op === 'live:forget') {
             return await this.#db.live.forget(args.id);
+        }
+
+        if (op === 'sync:sync') {
+            return await this.#db.sync?.sync(args.selector, args.options);
         }
     }
 

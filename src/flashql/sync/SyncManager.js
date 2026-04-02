@@ -1,6 +1,6 @@
-import { SimpleEmitter } from '../clients/abstracts/SimpleEmitter.js';
-import { matchRelationSelector, normalizeRelationSelectorArg } from '../clients/abstracts/util.js';
-import { SYSTEM_TAG } from './storage/TableStorage.js';
+import { SimpleEmitter } from '../../clients/abstracts/SimpleEmitter.js';
+import { matchRelationSelector, normalizeRelationSelectorArg } from '../../clients/abstracts/util.js';
+import { SYSTEM_TAG } from '../storage/TableStorage.js';
 
 export class SyncManager extends SimpleEmitter {
 
@@ -405,7 +405,7 @@ export class SyncManager extends SimpleEmitter {
                     }, { inputTx });
                 }, { live: true, id: slotId });
 
-                if (rtResult.mode !== 'streaming_only') {
+                if (rtResult.initial) {
                     await this.#replaceAllRows(view, rtResult.rows.map((row, i) => ({ __id: rtResult.hashes[i], ...row })), { inputTx });
                 }
 

@@ -13,7 +13,7 @@ export class RelationSourceExpr extends AbstractNode {
                 syntax: { type: 'Identifier', as: 'columns', arity: { min: 1 }, itemSeparator, autoIndent: true },
             },
             { type: 'keyword', value: 'AS' },
-            { type: 'SelectStmt', as: 'expr' },
+            { type: ['SelectStmt', 'TableStmt'], as: 'expr' },
         ];
     }
 

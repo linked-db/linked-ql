@@ -81,9 +81,9 @@ export class MainstreamDBClient extends LinkedQLClient {
         const [_query, options] = normalizeQueryArgs(...args);
         const query = await this.#parser.parse(_query, options);
 
-        const resolveQuery = async (query, tx = null) => {
+        const resolveQuery = async (query, tx = null, ifHasSugars = false) => {
             const schemaInference = this.resolver;
-            return await schemaInference.resolveQuery(query, { tx });
+            return await schemaInference.resolveQuery(query, { tx, ifHasSugars });
         };
 
         // Realtime query?
@@ -103,13 +103,13 @@ export class MainstreamDBClient extends LinkedQLClient {
             await this.transaction(async (tx) => {
                 for (const query of stmtGroups) {
                     result = await this._query(
-                        await resolveQuery(query, tx),
+                        await resolveQuery(query, tx, true),
                         { ...options, tx }
                     );
                 }
             });
         } else {
-            result = await this._query(await resolveQuery(query), options);
+            result = await this._query(await resolveQuery(query, null, true), options);
         }
 
         // The result instance
@@ -121,7 +121,7 @@ export class MainstreamDBClient extends LinkedQLClient {
         const query = await this.#parser.parse(_query, options);
 
         const schemaInference = this.resolver;
-        const resolvedQuery = await schemaInference.resolveQuery(query, options);
+        const resolvedQuery = await schemaInference.resolveQuery(query, { ...options, ifHasSugars: true });
 
         return await this._stream(resolvedQuery, options);
     }

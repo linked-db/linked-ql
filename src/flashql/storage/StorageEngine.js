@@ -5,7 +5,7 @@ import { matchRelationSelector, normalizeRelationSelectorArg } from '../../clien
 import { DEFAULT_USERSPACE_DATA } from './bootstrap/catalog.bootstrap.js';
 import { MVCCEngine } from './MVCCEngine.js';
 import { WalEngine } from './WalEngine.js';
-import { SyncManager } from '../SyncManager.js';
+import { SyncManager } from '../sync/SyncManager.js';
 
 export class StorageEngine extends MVCCEngine {
 
@@ -23,7 +23,7 @@ export class StorageEngine extends MVCCEngine {
     #forwardHistoryTruncated;
     #openedCommitTime = null;
 
-    #onCreateForeignClient;
+    #getUpstreamClient;
     #foreignClients = new Map;
 
     #catalog = new Map;
@@ -44,7 +44,7 @@ export class StorageEngine extends MVCCEngine {
     get _isHydrating() { return this.#isHydrating; }
     get _catalog() { return this.#catalog; }
 
-    constructor({ client = null, dialect = 'postgres', keyval = null, autoSync = true, onCreateForeignClient = null, readOnly = false, ...options } = {}) {
+    constructor({ client = null, dialect = 'postgres', keyval = null, autoSync = true, getUpstreamClient = null, readOnly = false, ...options } = {}) {
         super();
 
         this.#client = client;
@@ -53,7 +53,7 @@ export class StorageEngine extends MVCCEngine {
         this.#options = options;
 
         this.#autoSync = !!autoSync;
-        this.#onCreateForeignClient = onCreateForeignClient;
+        this.#getUpstreamClient = getUpstreamClient;
 
         this.#forcedReadOnly = !!readOnly;
         this.#readOnly = this.#forcedReadOnly;
@@ -161,28 +161,57 @@ export class StorageEngine extends MVCCEngine {
             name: tblRef.value,
         });
 
-        if (tblDef.source_expr_ast?.nodeName === registry.TableStmt.NODE_NAME)
+        if (tblDef?.source_expr_ast?.nodeName === registry.TableStmt.NODE_NAME)
             return extractFromTableRef(tblDef.source_expr_ast.table_ref);
 
-        if (tblDef.source_expr_ast?.nodeName === registry.CompleteSelectStmt.NODE_NAME) {
-            let selectList, fromItems;
+        if (tblDef?.source_expr_ast?.nodeName !== registry.CompleteSelectStmt.NODE_NAME)
+            return null;
 
-            if ((selectList = tblDef.source_expr_ast.select_list.entries).length > 1
-                || selectList[0].expr.nodeName !== registry.ColumnRef0.NODE_NAME)
-                return null;
+        let fromItems;
+        if ((fromItems = tblDef.source_expr_ast.from_clause.entries).length > 1
+            || fromItems[0].expr.nodeName !== registry.TableRef1.NODE_NAME)
+            return null;
 
-            if ((fromItems = tblDef.source_expr_ast.from_clause.entries).length > 1
-                || fromItems[0].expr.nodeName !== registry.TableRef1.NODE_NAME)
-                return null;
+        let selectList;
+        if ((selectList = tblDef.source_expr_ast.select_list.entries).length > 1
+            || selectList[0].expr.nodeName !== registry.ColumnRef0.NODE_NAME)
+            return null;
 
-            if (['order_by_clause', 'offset_clause', 'limit_clause', 'for_clause', 'pg_fetch_clause',
-                'distinct_clause', 'join_clauses', 'where_clause', 'group_by_clause', 'having_clause', 'window_clause', 'my_partition_clause'
-            ].find((k) => [].concat(tblDef.source_expr_ast[k] || []).length)) return null;
+        if (Object.entries(tblDef.source_expr_ast).filter(([k, v]) =>
+            k !== 'nodeName' && k !== 'from_clause' && k !== 'select_list' && [].concat(v || []).length).length)
+            return null;
 
-            return extractFromTableRef(fromItems[0].expr);
+        return extractFromTableRef(fromItems[0].expr);
+    }
+
+    _viewSourceExprUpdateTransform(tblDef) {
+        const transforms = {};
+
+        if (tblDef.source_expr_ast?.nodeName === registry.TableStmt.NODE_NAME)
+            return transforms;
+
+        if (tblDef.source_expr_ast?.nodeName !== registry.CompleteSelectStmt.NODE_NAME)
+            return null;
+
+        let fromItems;
+        if ((fromItems = tblDef.source_expr_ast.from_clause.entries).length > 1
+            || fromItems[0].expr.nodeName !== registry.TableRef1.NODE_NAME)
+            return null;
+
+        if (Object.entries(tblDef.source_expr_ast).filter(([k, v]) =>
+            k !== 'nodeName' && k !== 'from_clause' && k !== 'select_list' && k !== 'where_clause' && k !== 'order_by_clause'
+            && [].concat(v || []).length).length)
+            return null;
+
+        for (const si of tblDef.source_expr_ast.select_list.entries) {
+            if (si.expr.nodeName === registry.ColumnRef0.NODE_NAME) continue;
+            if (si.expr.nodeName !== registry.ColumnRef1.NODE_NAME) return null;
+            if (si.alias && si.alias.value !== si.expr.value) {
+                transforms[si.expr.value] = si.alias.value;
+            }
         }
 
-        return null;
+        return transforms;
     }
 
     _viewResolveOrigin(tblDef) {
@@ -197,11 +226,11 @@ export class StorageEngine extends MVCCEngine {
         return tblDef.view_opts_replication_origin;
     }
 
-    async getForeignClient(origin) {
-        if (!this.#onCreateForeignClient)
-            throw new Error('Cannot process foreign operation; missing options.onCreateForeignClient');
+    async getUpstreamClient(origin) {
+        if (!this.#getUpstreamClient)
+            throw new Error('Cannot process foreign operation; missing options.getUpstreamClient');
         if (!this.#foreignClients.has(origin)) {
-            this.#foreignClients.set(origin, await this.#onCreateForeignClient(origin));
+            this.#foreignClients.set(origin, await this.#getUpstreamClient(origin));
         }
         return this.#foreignClients.get(origin);
     }
@@ -209,7 +238,7 @@ export class StorageEngine extends MVCCEngine {
     async getSourceClient(tblDef, assert = true) {
         const replicationOrigin = this._viewResolveOrigin(tblDef);
         if (replicationOrigin)
-            return await this.getForeignClient(replicationOrigin);
+            return await this.getUpstreamClient(replicationOrigin);
         if (this.#client) return this.#client;
         if (assert) throw new Error('Operation requires a source client; configure StorageEngine with options.client or namespace replication origins');
     }

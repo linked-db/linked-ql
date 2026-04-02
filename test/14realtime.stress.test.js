@@ -141,7 +141,7 @@ describe('Realtime - Stress', () => {
                     { live: true }
                 );
 
-                expect(result.mode).to.eq('streaming');
+                expect(result.mode).to.eq('callback');
                 expect(result.rows.every((r) => r.id > minId)).to.eq(true);
 
                 await client.query(`INSERT INTO public.rt_stress_live (id, name) VALUES (10, 'Z')`);

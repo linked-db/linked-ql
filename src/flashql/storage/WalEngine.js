@@ -34,12 +34,12 @@ export class WalEngine extends BaseWalEngine {
         const gcArray = [];
 
         for (const [nsName, subs] of Object.entries(viewSubsMap)) {
-            for (const [tblName, tblDef] in Object.entries(subs)) {
-                const viewClient = await this.#storageEngine.getSourceClient(tblDef);
+            for (const [tblName, tblDef] of Object.entries(subs)) {
+                const upstreamClient = await this.#storageEngine.getSourceClient(tblDef);
                 const pureRefDecode = this.#storageEngine._viewSourceExprIsPureRef(tblDef);
                 
                 if (pureRefDecode) {
-                    gcArray.push(viewClient.wal.subscribe({ [pureRefDecode.namespace]: pureRefDecode.name }, async (commit) => {
+                    gcArray.push(upstreamClient.wal.subscribe({ [pureRefDecode.namespace]: pureRefDecode.name }, async (commit) => {
                         if (!commit.computed) {
                             const remappedEntries = commit.entries.map((e) => ({ ...e, relation: { ...e.relation, namespace: nsName, name: tblName } }));
                             await callback({ ...commit, entries: remappedEntries });
@@ -48,7 +48,7 @@ export class WalEngine extends BaseWalEngine {
                         }
                     }, { tx, ...options }));
                 } else {
-                    const rtResult = await viewClient.query(tblDef.source_expr_ast, callback, { tx, ...options, live: true });
+                    const rtResult = await upstreamClient.query(tblDef.source_expr_ast, callback, { tx, ...options, live: true });
                     gcArray.push(() => rtResult.abort());
                     // TODO: decide what happens on first result
                 }

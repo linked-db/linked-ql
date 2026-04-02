@@ -26,12 +26,10 @@ export class RealtimeClient {
         let resultJson;
 
         if (options.id && (queryWindow = await this.findWindow(async (w) => await w.wal.hasSlot(options.id)))) {
-            resultJson = callback
-                ? { rows: [], hashes: [], mode: 'streaming_only' } // Resume streaming
-                : await queryWindow.currentRendering();
+            resultJson = { rows: [], hashes: [], initial: false, mode: callback ? 'callback' : 'live' };
         } else {
             queryWindow = await this.createWindow(query, options);
-            resultJson = { ...await queryWindow.currentRendering(), mode: callback ? 'streaming' : 'live' };
+            resultJson = { ...await queryWindow.currentRendering(), initial: true, mode: callback ? 'callback' : 'live' };
         }
 
         const realtimeResult = new RealtimeResult(resultJson, async ({ forget = false } = {}) => {

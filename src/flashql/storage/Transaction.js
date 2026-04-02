@@ -1,5 +1,5 @@
 import { SQLParser } from '../../lang/SQLParser.js';
-import { ConflictError } from '../ConflictError.js';
+import { ConflictError } from '../errors/ConflictError.js';
 import { bootstrapCatalog } from './bootstrap/catalog.bootstrap.js';
 import { TableStorage } from './TableStorage.js';
 import { SYSTEM_TAG } from './TableStorage.js';

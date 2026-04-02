@@ -13,6 +13,14 @@ export class EdgeClient extends BaseEdgeClient {
     #rowsStreaming;
     #workerEventNamespace;
 
+    static #resolveWorkerPort(worker, type) {
+        if (!worker) return worker;
+        if (type === 'shared_worker') {
+            return worker.port || worker;
+        }
+        return worker;
+    }
+
     constructor({
         url,
         worker = null,
@@ -40,11 +48,12 @@ export class EdgeClient extends BaseEdgeClient {
             };
         } else {
             if (worker) {
-                this.#worker = worker;
+                this.#worker = EdgeClient.#resolveWorkerPort(worker, this.#type);
             } else {
-                this.#worker = this.#type === 'shared_worker'
+                const workerInstance = this.#type === 'shared_worker'
                     ? new SharedWorker(url, { type: 'module' })
                     : new Worker(url, { type: 'module' });
+                this.#worker = EdgeClient.#resolveWorkerPort(workerInstance, this.#type);
             }
             MessagePortPlus.upgradeInPlace(this.#worker);
         }

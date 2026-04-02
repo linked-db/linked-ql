@@ -251,7 +251,7 @@ await db.disconnect();
 | :-- | :-- | :-- | :-- |
 | `dialect` | `'postgres' \| 'mysql'` | `'postgres'` | default parse/execute dialect |
 | `keyval` | key-value backend | `null` | persistence backend for storage/WAL/sync state |
-| `onCreateForeignClient` | `(origin) => client` | `null` | factory for upstream clients used by foreign namespaces |
+| `getUpstreamClient` | `(origin) => client` | `null` | factory for upstream clients used by foreign namespaces |
 | `versionStop` | `string \| object` | `null` | boot the store at a chosen relation-version boundary |
 | `overwriteForward` | `boolean` | `false` | allow writable continuation from a historical boot point |
 | `autoSync` | `boolean` | `true` | automatically run `db.sync.sync()` on connect when persistent storage is present |

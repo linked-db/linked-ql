@@ -6,15 +6,18 @@ export class RealtimeResult extends Result {
 
     #hashes;
     #abortLine;
+    #initial;
     #mode;
 
     get hashes() { return this.#hashes; }
+    get initial() { return this.#initial; }
     get mode() { return this.#mode; }
     
-    constructor({ rows = [], hashes = [], mode = 'live' } = {}, abortLine = (() => undefined), signal = undefined) {
+    constructor({ rows = [], hashes = [], initial = true, mode = 'live' } = {}, abortLine = (() => undefined), signal = undefined) {
         super({ rows });
 
         this.#hashes = hashes;
+        this.#initial = initial;
         this.#mode = mode;
 
         this.#abortLine = abortLine;
@@ -41,7 +44,7 @@ export class RealtimeResult extends Result {
                         }
                     }
                     if (event.op === 'insert') {
-                        $rows.push(event.new);
+                        $rows.push(Object.assign(Object.create(null), event.new));
                         $hashes.push(event.newHash);
                     }
                     if (event.op === 'delete') {
@@ -91,6 +94,7 @@ export class RealtimeResult extends Result {
         return {
             rows: this.rows,
             hashes: this.#hashes,
+            initial: this.#initial,
             mode: this.#mode,
         };
     }

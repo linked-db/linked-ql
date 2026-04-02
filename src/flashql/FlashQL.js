@@ -146,12 +146,15 @@ export class FlashQL extends LinkedQLClient {
 
                     const tblDef = tx.showView({ namespace: nsName, name: tblName }, { ifExists: true });
                     const replicationOrigin = this.#storageEngine._viewResolveOrigin(tblDef);
+                    let pureRefDecode;
+
 
                     if (tblDef
                         // Is pure federation?
                         && this.#storageEngine._viewIsPureFederation(tblDef)
                         // Source expr is pure ref
-                        && !!this.#storageEngine._viewSourceExprIsPureRef(tblDef)
+                        && (pureRefDecode = this.#storageEngine._viewSourceExprIsPureRef(tblDef))
+                        && (pureRefDecode.namespace === nsName && pureRefDecode.name === tblName)
                         // Is same origin
                         && (canDirectlyForwardTo === null || canDirectlyForwardTo === replicationOrigin)) {
                         canDirectlyForwardTo = canDirectlyForwardTo || replicationOrigin;
@@ -163,8 +166,8 @@ export class FlashQL extends LinkedQLClient {
 
             if (canDirectlyForwardTo) {
                 await tx.abort(); // Abandon tx
-                const client = await this.#storageEngine.getForeignClient(canDirectlyForwardTo);
-                return await client.query(query, options);
+                const upstreamClient = await this.#storageEngine.getUpstreamClient(canDirectlyForwardTo);
+                return await upstreamClient.query(query, options);
             }
 
             const result = await this.#queryEngine.query(query, { ...options, tx });

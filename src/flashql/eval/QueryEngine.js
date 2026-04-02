@@ -1,6 +1,6 @@
 import { registry } from '../../lang/registry.js';
 import { AbstractNode } from '../../lang/abstracts/AbstractNode.js';
-import { ConflictError } from '../ConflictError.js';
+import { ConflictError } from '../errors/ConflictError.js';
 import { SQLParser } from '../../lang/SQLParser.js';
 import { ExprEngine } from './ExprEngine.js';
 
@@ -317,7 +317,7 @@ export class QueryEngine {
 
     async #evaluateDROP_TABLE_STMT(stmtNode, queryCtx) {
         const dropOpts = { ifExists: !!stmtNode.ifExists(), cascade: stmtNode.cascadeRule() === 'CASCADE', assertPersistence: stmtNode.myTemporaryKW() ? 'temporary' : null };
-       
+
         const tableNames = stmtNode.names().map((n) => {
             const nsName = n.qualifier()?.value() || queryCtx.nsName || this.#defaultNamespace(queryCtx);
             return [n.value(), nsName];
@@ -368,7 +368,7 @@ export class QueryEngine {
         const alterOpts = { ifExists: !!stmtNode.ifExists?.() };
         const alterPayload = { actions: [] };
 
-        for (const action of stmtNode.actions()) {            
+        for (const action of stmtNode.actions()) {
             if (action instanceof registry.RenameViewAction) alterPayload.name = action.name().value();
             else if (action instanceof registry.SetViewSchemaAction) alterPayload.namespace = action.schema().value();
             else if (action instanceof registry.RelationSourceExpr) {
@@ -751,7 +751,6 @@ export class QueryEngine {
 
         for await (let logicalRecord of stream) {
             for (const [tableAlias, tblName, nsName, versionSpec] of deleteTargets) {
-
                 const tableStorage = this.#getTable(nsName, tblName, versionSpec, queryCtx);
 
                 logicalRecord[tableAlias] = await tableStorage.delete(logicalRecord[tableAlias]);
@@ -834,13 +833,21 @@ export class QueryEngine {
     async * #evaluateTABLE_STMT(stmtNode, queryCtx) {
         // Resolve namespace/table spec
         const tableRef = stmtNode.tableRef();
-        const tblName = tableRef.value();
-        const versionSpec = tableRef.versionSpec()?.value();
+
+        const [tblDef, upstreamClient] = await this.#resolveIfPureFederation(tableRef, queryCtx.options, queryCtx);
+        if (upstreamClient) {
+            yield* await upstreamClient.stream(tblDef.source_expr_ast);
+            return;
+        }
+
         const nsName = tableRef.qualifier()?.value() || this.#defaultNamespace(queryCtx);
+        const tblName = tableRef.value();
+
+        const versionSpec = tableRef.versionSpec()?.value();
         const tableStorage = this.#getTable(nsName, tblName, versionSpec, queryCtx);
 
         // Execute table scan
-        let allRows = tableStorage.getAll({ hiddenCols: false });
+        const allRows = tableStorage.getAll({ hiddenCols: false });
         yield* allRows;
     }
 
@@ -924,10 +931,10 @@ export class QueryEngine {
         const firstItemAlias = firstItem.alias?.()?.value();
 
         // Pre-resolve foreign calls
-        const [foreignClient, tblDef] = await this.#isForeignRef(firstItem.expr?.(), queryCtx.options, queryCtx);
+        const [tblDef, upstreamClient] = await this.#resolveIfPureFederation(firstItem.expr?.(), queryCtx.options, queryCtx);
         let foreignStream;
-        if (foreignClient) {
-            foreignStream = await foreignClient.stream(tblDef.source_expr_ast);
+        if (upstreamClient) {
+            foreignStream = await upstreamClient.stream(tblDef.source_expr_ast);
         }
 
         let leftStream = this.evaluateFromItem(firstItem, _originSchema(firstItemAlias), { ...queryCtx, foreignStream });
@@ -967,13 +974,13 @@ export class QueryEngine {
             let createRightStream;
 
             // Pre-resolve foreign calls
-            const [foreignClient, tblDef] = await this.#isForeignRef(rightItem.expr?.(), queryCtx);
-            if (foreignClient) {
+            const [tblDef, upstreamClient] = await this.#resolveIfPureFederation(rightItem.expr?.(), queryCtx);
+            if (upstreamClient) {
                 let createForeignStream;
                 // Resolve foreign stream
                 [leftStream, createForeignStream, joinCondition] = await this.#deriveCreateForeignStream(
                     leftStream,
-                    foreignClient,
+                    upstreamClient,
                     tblDef,
                     joinCondition,
                     leftAlias,
@@ -1001,7 +1008,7 @@ export class QueryEngine {
 
     // ---------- begin util
 
-    async #deriveCreateForeignStream(leftStream, foreignClient, tblDef, joinCondition, leftAlias, rightAlias, queryCtx) {
+    async #deriveCreateForeignStream(leftStream, upstreamClient, tblDef, joinCondition, leftAlias, rightAlias, queryCtx) {
         let createForeignStream;
 
         const joinMemoization = !!tblDef.view_opts_replication_attrs?.join_memoization;
@@ -1018,7 +1025,7 @@ export class QueryEngine {
             }
 
             // Compile
-            const foreignQuery_Where = await foreignClient.parser.parse(tblDef.source_expr_ast, {
+            const foreignQuery_Where = await upstreamClient.parser.parse(tblDef.source_expr_ast, {
                 alias: rightAlias,
                 dynamicWhereMode: true,
             });
@@ -1066,7 +1073,7 @@ export class QueryEngine {
                     if (i === 0 || i > $i) {
                         if (i > $i) foreignQuery = await concatWhere(); // lazily
                         if (foreignQuery) {
-                            foreignStream = await foreignClient.stream(foreignQuery);
+                            foreignStream = await upstreamClient.stream(foreignQuery);
                         } else foreignStream = (async function* () { })();
                     }
                     return foreignStream;
@@ -1077,7 +1084,7 @@ export class QueryEngine {
                     let pushDownLogic = await this.#exprEngine.evaluate(conditionExpr, { ...lateralCtx, [rightAlias]: TBL_PLACEHOLDER }, queryCtx);
                     if (pushDownLogic instanceof AbstractNode || (pushDownLogic = Boolean(pushDownLogic))) {
                         const foreignQuery = foreignQuery_Where(pushDownLogic);
-                        return await foreignClient.stream(foreignQuery);
+                        return await upstreamClient.stream(foreignQuery);
                     }
                     return (async function* () { })();
                 };
@@ -1087,18 +1094,19 @@ export class QueryEngine {
         } else {
             // No WHERE at all
             if (joinMemoization) {
-                const foreignStream = await foreignClient.stream(tblDef.source_expr_ast);
+                const foreignStream = await upstreamClient.stream(tblDef.source_expr_ast);
                 createForeignStream = this.#memoizeStream(foreignStream);
             } else {
-                createForeignStream = async () => await foreignClient.stream(tblDef.source_expr_ast);
+                createForeignStream = async () => await upstreamClient.stream(tblDef.source_expr_ast);
             }
         }
 
         return [leftStream, createForeignStream, joinCondition];
     }
 
-    async #isForeignRef(fromItemExpr, queryCtx) {
-        if (!(fromItemExpr instanceof registry.TableRef1)
+    async #resolveIfPureFederation(fromItemExpr, queryCtx) {
+        if (!(fromItemExpr instanceof registry.TableRef2)
+            && !(fromItemExpr instanceof registry.TableRef1)
             || fromItemExpr.resolution() !== 'default') return [];
 
         const nsName = fromItemExpr.qualifier()?.value() || this.#defaultNamespace(queryCtx);
@@ -1107,9 +1115,9 @@ export class QueryEngine {
         const tblDef = queryCtx.tx.showView({ namespace: nsName, name: tblName }, { ifExists: true });
         if (!this.#storageEngine._viewIsPureFederation(tblDef)) return [];
 
-        const foreignClient = await this.#storageEngine.getSourceClient(tblDef);
+        const upstreamClient = await this.#storageEngine.getSourceClient(tblDef);
 
-        return [foreignClient, tblDef];
+        return [tblDef, upstreamClient];
     }
 
     #memoizeStream(stream, callback = null) {
