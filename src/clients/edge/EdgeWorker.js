@@ -4,10 +4,9 @@ import { SimpleEmitter } from '../abstracts/SimpleEmitter.js';
 export class EdgeWorker extends SimpleEmitter {
 
     static webWorker({ worker = self, ...options }) {
-        MessagePortPlus.upgradeInPlace(worker);
-
         const instance = new EdgeWorker({ ...options, type: 'worker' });
 
+        MessagePortPlus.upgradeInPlace(worker);
         worker.addRequestListener('message', async (e) => {
             const { data: { op, args }, ports: [port] } = e;
 
@@ -31,6 +30,11 @@ export class EdgeWorker extends SimpleEmitter {
             });
         });
 
+        return instance;
+    }
+
+    static http({ ...options }) {
+        const instance = new EdgeWorker({ ...options, type: 'http' });
         return instance;
     }
 
