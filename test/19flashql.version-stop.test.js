@@ -23,7 +23,7 @@ describe('FlashQL - versionStop boot mode', () => {
             });
         });
         await seed.transaction(async (tx) => {
-            await tx.getTable({ namespace: 'public', name: 'snap_tbl' }).insert({ id: 1 });
+            await tx.getRelation({ namespace: 'public', name: 'snap_tbl' }).insert({ id: 1 });
         });
         await seed.transaction(async (tx) => {
             await tx.alterTable({ namespace: 'public', name: 'snap_tbl' }, { name: 'snap_tbl_tmp' });
@@ -32,7 +32,7 @@ describe('FlashQL - versionStop boot mode', () => {
             await tx.alterTable({ namespace: 'public', name: 'snap_tbl_tmp' }, { name: 'snap_tbl' });
         });
         await seed.transaction(async (tx) => {
-            await tx.getTable({ namespace: 'public', name: 'snap_tbl' }).insert({ id: 2 });
+            await tx.getRelation({ namespace: 'public', name: 'snap_tbl' }).insert({ id: 2 });
         });
         await seed.close({ destroy: false });
 
@@ -65,7 +65,7 @@ describe('FlashQL - versionStop boot mode', () => {
             });
         });
         await seed.transaction(async (tx) => {
-            await tx.getTable({ namespace: 'public', name: 'snap_tbl' }).insert({ id: 1 });
+            await tx.getRelation({ namespace: 'public', name: 'snap_tbl' }).insert({ id: 1 });
         });
         await seed.transaction(async (tx) => {
             await tx.alterTable({ namespace: 'public', name: 'snap_tbl' }, { name: 'snap_tbl_tmp' });
@@ -74,7 +74,7 @@ describe('FlashQL - versionStop boot mode', () => {
             await tx.alterTable({ namespace: 'public', name: 'snap_tbl_tmp' }, { name: 'snap_tbl' });
         });
         await seed.transaction(async (tx) => {
-            await tx.getTable({ namespace: 'public', name: 'snap_tbl' }).insert({ id: 2 });
+            await tx.getRelation({ namespace: 'public', name: 'snap_tbl' }).insert({ id: 2 });
         });
         await seed.close({ destroy: false });
 

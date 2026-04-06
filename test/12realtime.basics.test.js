@@ -38,17 +38,17 @@ describe('Realtime - Basics', () => {
         const unsubscribe = await client.wal.subscribe((commit) => events.push(commit));
 
         const tx1 = client.storageEngine.begin();
-        const table1 = tx1.getTable({ namespace: 'public', name: 'rt_events' });
+        const table1 = tx1.getRelation({ namespace: 'public', name: 'rt_events' });
         await table1.insert({ id: 10, name: 'John' });
         await tx1.commit();
 
         const tx2 = client.storageEngine.begin();
-        const table2 = tx2.getTable({ namespace: 'public', name: 'rt_events' });
+        const table2 = tx2.getRelation({ namespace: 'public', name: 'rt_events' });
         await table2.update({ id: 10 }, { id: 10, name: 'John Doe' });
         await tx2.commit();
 
         const tx3 = client.storageEngine.begin();
-        const table3 = tx3.getTable({ namespace: 'public', name: 'rt_events' });
+        const table3 = tx3.getRelation({ namespace: 'public', name: 'rt_events' });
         await table3.delete({ id: 10 });
         await tx3.commit();
 
@@ -85,8 +85,8 @@ describe('Realtime - Basics', () => {
         const offB = await client.wal.subscribe({ public: ['rt_b'] }, (commit) => onlyB.push(commit));
 
         const tx = client.storageEngine.begin();
-        const a = tx.getTable({ namespace: 'public', name: 'rt_a' });
-        const b = tx.getTable({ namespace: 'public', name: 'rt_b' });
+        const a = tx.getRelation({ namespace: 'public', name: 'rt_a' });
+        const b = tx.getRelation({ namespace: 'public', name: 'rt_b' });
         await a.insert({ id: 1, name: 'A1' });
         await b.insert({ id: 1, name: 'B1' });
         await tx.commit();

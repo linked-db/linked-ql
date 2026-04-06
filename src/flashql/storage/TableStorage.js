@@ -19,6 +19,7 @@ export class TableStorage {
     #schema;
     #namespace;
     #name;
+    #prettyName;
 
     #rows;
     #indexes = new Map;
@@ -33,9 +34,11 @@ export class TableStorage {
     get schema() { return this.#schema; }
     get rows() { return this.#rows; }
     get indexes() { return this.#indexes; }
+    get tx() { return this.#tx; }
 
     get namespace() { return this.#namespace; }
     get name() { return this.#name; }
+    get prettyName() { return this.#prettyName; }
 
     get dialect() { return this.#dialect; }
     get materialized() { return this.#materialized; }
@@ -54,6 +57,7 @@ export class TableStorage {
         this.#schema = schema;
         this.#name = schema.name;
         this.#namespace = schema.namespace_id.name;
+        this.#prettyName = `${JSON.stringify(this.#namespace)}.${JSON.stringify(this.#name)}`
 
         let { rows, indexes } = this.#tx.engine._catalog.get(schema.id) || {};
         if (!rows) {
@@ -80,6 +84,48 @@ export class TableStorage {
 
     async _restore({ tx }) {
         this.#tx = tx;
+    }
+
+    _quoteIdent(name) {
+        return `"${String(name).replace(/"/g, '""')}"`;
+    }
+
+    _quoteQualifiedRelation({ namespace, name }) {
+        return namespace
+            ? `${this._quoteIdent(namespace)}.${this._quoteIdent(name)}`
+            : this._quoteIdent(name);
+    }
+
+    _serializeValue(value) {
+        if (value === null) return 'NULL';
+        if (typeof value === 'number') {
+            if (!Number.isFinite(value)) throw new TypeError(`[${this.#prettyName}] Cannot serialize non-finite number`);
+            return String(value);
+        }
+        if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE';
+        if (typeof value === 'string') return `'${value.replace(/'/g, "''")}'`;
+        if (value instanceof Date) return `'${value.toISOString().replace(/'/g, "''")}'`;
+        return `'${JSON.stringify(value).replace(/'/g, "''")}'`;
+    }
+
+    _buildRow(input, base = null, options = {}) {
+        return this.#buildRow(input, base, options);
+    }
+
+    async _applyColumnDefaults(input, options = {}) {
+        return await this.#applyColumnDefaults(input, options);
+    }
+
+    _applyAutoIncr(input) {
+        return this.#applyAutoIncr(input);
+    }
+
+    _runTypeChecks(input) {
+        return this.#runTypeChecks(input);
+    }
+
+    async _runCKChecks(input) {
+        return await this.#runCKChecks(input);
     }
 
     // ----- mvcc -----
@@ -151,39 +197,12 @@ export class TableStorage {
         return true;
     }
 
-    #isVisible_(version) {
-        // Created by this tx or a tx in lineage?
-        if (this.#tx.matchXMIN(version, this.#tx.id)) {
-            // Assert that it hasn't also, at the same time, been dropped in lineage
-            return !this.#tx.matchXMAX(version, this.#tx.id);
-        }
-
-        const xminMeta = this.#tx.engine.txMeta(version.XMIN);
-        if (xminMeta?.state !== 'committed') return false;
-        if (xminMeta.commitTime > this.#tx.snapshot) return false;
-
-        if (version.XMAX === 0) return true;
-
-        // if not 0, v.XMAX CAN BE an array
-        // on transactions with strategy === FirstCommitterWins
-        return [].concat(version.XMAX).every((xmax) => {
-            if (xmax === this.#tx.id) return false;
-            const meta = this.#tx.engine.txMeta(xmax);
-
-            if (!meta) return true;
-            if (meta.state === 'aborted') return true;
-            if (meta.state === 'active') return true;
-            if (meta.commitTime > this.#tx.snapshot) return true;
-            return false;
-        });
-    }
-
     // ----- row construction -----
 
     #buildRow(input, base = null, { systemTag = null } = {}) {
         for (const colName in input) {
             if (!this.#schema.columns.has(colName)) {
-                throw new TypeError(`[${this.#name}] Unknown column ${colName}`);
+                throw new TypeError(`[${this.#prettyName}] Unknown column ${colName}`);
             }
         }
 
@@ -193,15 +212,15 @@ export class TableStorage {
             const hasValue = colName in input;
 
             if (col.is_generated && col.generation_expr_ast && hasValue) {
-                throw new TypeError(`[${this.#name}] Cannot insert into generated column ${colName}`);
+                throw new TypeError(`[${this.#prettyName}] Cannot insert into generated column ${colName}`);
             }
 
             if (col.is_generated && !col.generation_expr_ast && col.generation_rule === 'always' && hasValue) {
-                throw new TypeError(`[${this.#name}] Cannot insert into identity column ${colName}`);
+                throw new TypeError(`[${this.#prettyName}] Cannot insert into identity column ${colName}`);
             }
 
             if (col.engine_attrs?.is_system_column && hasValue && systemTag !== SYSTEM_TAG) {
-                throw new TypeError(`[${this.#name}] Cannot insert into system column ${colName}`);
+                throw new TypeError(`[${this.#prettyName}] Cannot insert into system column ${colName}`);
             }
 
             row[colName] = !hasValue && base ? base[colName] : input[colName];
@@ -219,7 +238,7 @@ export class TableStorage {
                 col.default_expr_ast ||
                 !col.not_null) continue;
 
-            throw new TypeError(`[${this.#name}] Missing value for required field ${colName}`);
+            throw new TypeError(`[${this.#prettyName}] Missing value for required field ${colName}`);
         }
 
         return row;
@@ -311,7 +330,7 @@ export class TableStorage {
             switch (col.type_id.name) {
                 case 'SMALLINT':
                     if (!isIntegerNumber(value) || value < -32768 || value > 32767) {
-                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected SMALLINT`);
+                        throw new TypeError(`[${this.#prettyName}] Invalid value for ${colName}: expected SMALLINT`);
                     }
                     break;
                 case 'INT':
@@ -320,42 +339,42 @@ export class TableStorage {
                 case 'SERIAL':
                 case 'BIGSERIAL':
                     if (!isIntegerNumber(value)) {
-                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected ${col.type_id.name} but got ${value}`);
+                        throw new TypeError(`[${this.#prettyName}] Invalid value for ${colName}: expected ${col.type_id.name} but got ${value}`);
                     }
                     break;
                 case 'NUMERIC':
                 case 'DECIMAL':
                     if (!(isNumber(value) || (typeof value === 'string' && NUMERIC_REGEX.test(value)))) {
-                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected ${col.type_id.name}`);
+                        throw new TypeError(`[${this.#prettyName}] Invalid value for ${colName}: expected ${col.type_id.name}`);
                     }
                     break;
                 case 'REAL':
                 case 'DOUBLE PRECISION':
                     if (!isNumber(value)) {
-                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected ${col.type_id.name}`);
+                        throw new TypeError(`[${this.#prettyName}] Invalid value for ${colName}: expected ${col.type_id.name}`);
                     }
                     break;
                 case 'TEXT':
                 case 'VARCHAR':
                 case 'CHAR':
                     if (typeof value !== 'string') {
-                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected ${col.type_id.name}`);
+                        throw new TypeError(`[${this.#prettyName}] Invalid value for ${colName}: expected ${col.type_id.name}`);
                     }
                     break;
                 case 'BOOLEAN':
                     if (typeof value !== 'boolean') {
-                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected BOOLEAN`);
+                        throw new TypeError(`[${this.#prettyName}] Invalid value for ${colName}: expected BOOLEAN`);
                     }
                     break;
                 case 'JSON':
                 case 'JSONB':
                     if (!isJsonValue(value)) {
-                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected ${col.type_id.name}`);
+                        throw new TypeError(`[${this.#prettyName}] Invalid value for ${colName}: expected ${col.type_id.name}`);
                     }
                     break;
                 case 'UUID':
                     if (typeof value !== 'string' || !UUID_REGEX.test(value)) {
-                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected UUID`);
+                        throw new TypeError(`[${this.#prettyName}] Invalid value for ${colName}: expected UUID`);
                     }
                     break;
                 case 'BYTEA':
@@ -364,37 +383,37 @@ export class TableStorage {
                         (typeof Buffer !== 'undefined' && value instanceof Buffer) ||
                         value instanceof ArrayBuffer
                     )) {
-                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected BYTEA`);
+                        throw new TypeError(`[${this.#prettyName}] Invalid value for ${colName}: expected BYTEA`);
                     }
                     break;
                 case 'ARRAY':
                     if (!Array.isArray(value)) {
-                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected ARRAY`);
+                        throw new TypeError(`[${this.#prettyName}] Invalid value for ${colName}: expected ARRAY`);
                     }
                     break;
                 case 'DATE':
                     if (!(typeof value === 'string' && DATE_REGEX.test(value))) {
-                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected DATE`);
+                        throw new TypeError(`[${this.#prettyName}] Invalid value for ${colName}: expected DATE`);
                     }
                     break;
                 case 'TIME':
                     if (!(typeof value === 'string' && TIME_REGEX.test(value))) {
-                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected TIME`);
+                        throw new TypeError(`[${this.#prettyName}] Invalid value for ${colName}: expected TIME`);
                     }
                     break;
                 case 'TIMESTAMP':
                     if (!(value instanceof Date || (typeof value === 'string' && TIMESTAMP_REGEX.test(value)))) {
-                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected TIMESTAMP`);
+                        throw new TypeError(`[${this.#prettyName}] Invalid value for ${colName}: expected TIMESTAMP`);
                     }
                     break;
                 case 'TIMESTAMPTZ':
                     if (!(value instanceof Date || (typeof value === 'string' && TIMESTAMPTZ_REGEX.test(value)))) {
-                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected TIMESTAMPTZ`);
+                        throw new TypeError(`[${this.#prettyName}] Invalid value for ${colName}: expected TIMESTAMPTZ`);
                     }
                     break;
                 case 'INTERVAL':
                     if (!(typeof value === 'string' && INTERVAL_REGEX.test(value.trim()))) {
-                        throw new TypeError(`[${this.#name}] Invalid value for ${colName}: expected INTERVAL`);
+                        throw new TypeError(`[${this.#prettyName}] Invalid value for ${colName}: expected INTERVAL`);
                     }
                     break;
                 default:
@@ -428,7 +447,7 @@ export class TableStorage {
             for (const v of visible) {
                 if (skip && v === skip) continue;
 
-                throw new ConflictError(`[${this.#name}] Duplicate entry for unique index "${idxName}" key ${key}`, v);
+                throw new ConflictError(`[${this.#prettyName}] Duplicate entry for unique index "${idxName}" key ${key}`, v);
             }
         }
     }
@@ -436,7 +455,7 @@ export class TableStorage {
     #runFKChecks(input) {
         for (const { name: conName, ...conDef } of this.#schema.constraints?.get('FOREIGN KEY') || []) {
 
-            const targetTable = this.#tx.getTable(conDef.fk_target_relation_id);
+            const targetTable = this.#tx.getRelation(conDef.fk_target_relation_id);
             const matchRule = (conDef.fk_match_rule || 'NONE').toUpperCase();
 
             const parts = conDef.column_ids.map((c, i) => ({
@@ -452,7 +471,7 @@ export class TableStorage {
             if (matchRule === 'FULL') {
                 if (allNull) continue;
                 if (hasNullPart) {
-                    throw new ReferenceError(`[${this.#name}] Foreign key constraint violation: "${conName}"`);
+                    throw new ReferenceError(`[${this.#prettyName}] Foreign key constraint violation: "${conName}"`);
                 }
             } else if (matchRule === 'PARTIAL') {
                 // MATCH PARTIAL: if partially null, referenced row must match non-null parts.
@@ -464,7 +483,7 @@ export class TableStorage {
                     );
 
                     if (!existsPartial) {
-                        throw new ReferenceError(`[${this.#name}] Foreign key constraint violation: "${conName}"`);
+                        throw new ReferenceError(`[${this.#prettyName}] Foreign key constraint violation: "${conName}"`);
                     }
                     continue;
                 }
@@ -491,7 +510,7 @@ export class TableStorage {
                 );
 
             if (!matches) {
-                throw new ReferenceError(`[${this.#name}] Foreign key constraint violation: "${conName}"`);
+                throw new ReferenceError(`[${this.#prettyName}] Foreign key constraint violation: "${conName}"`);
             }
         }
     }
@@ -509,20 +528,20 @@ export class TableStorage {
 
             const result = await this.#exprEngine.evaluateToScalar(exprNode, { [this.#name]: input });
             if (result === false) {
-                throw new Error(`[${this.#name}] Check constraint violation: "${conName}"`);
+                throw new Error(`[${this.#prettyName}] Check constraint violation: "${conName}"`);
             }
         }
     }
 
     #runReverseFKRoutines(op, version, isCommitTime = true, newRow = null) {
-        const sysConstraints = this.#tx.getTable({ namespace: 'sys', name: 'sys_constraints' });
+        const sysConstraints = this.#tx.getRelation({ namespace: 'sys', name: 'sys_constraints' });
         const incomingRefDefs = sysConstraints.get({ fk_target_relation_id: this.#schema.id }, { using: 'sys_constraints__fk_target_relation_id_idx', multiple: true });
 
         const handlers = [];
         let hasDeferred = false;
 
         for (let conDef of incomingRefDefs) {
-            const referencingTable = this.#tx.getTable({ id: conDef.relation_id });
+            const referencingTable = this.#tx.getRelation({ id: conDef.relation_id });
             conDef = referencingTable.schema.constraints.get('FOREIGN KEY').find((c) => c.id === conDef.id);
 
             const correlation = (version) => Object.fromEntries(conDef.fk_target_column_ids.map(
@@ -545,7 +564,7 @@ export class TableStorage {
             }
 
             if (['NO ACTION', 'RESTRICT'].includes(rule)) {
-                throw new ReferenceError(`[${this.#name}] Foreign key constraint violation: "${conDef.name}" by ${op} operation`);
+                throw new ReferenceError(`[${this.#prettyName}] Foreign key constraint violation: "${conDef.name}" by ${op} operation`);
             }
 
             if (rule === 'CASCADE') {
@@ -657,7 +676,7 @@ export class TableStorage {
 
         for (const colName of keyColumns) {
             if (!(colName in version) && assert)
-                throw new TypeError(`[${this.#name}] Missing value for primary key field ${colName}`);
+                throw new TypeError(`[${this.#prettyName}] Missing value for primary key field ${colName}`);
 
             const v = version[colName];
             keyValues.push([undefined, null].includes(v) ? '' : v);
@@ -672,9 +691,9 @@ export class TableStorage {
 
         if (keyName) {
             const idxDef = this.#schema.indexes.get(keyName);
-            if (!idxDef) throw new ReferenceError(`[${this.#name}] Invalid index name ${keyName}`);
+            if (!idxDef) throw new ReferenceError(`[${this.#prettyName}] Invalid index name ${keyName}`);
             if (idxDef.kind !== 'column')
-                throw new Error(`[${this.#name}] Index kind ${idxDef.kind} not supported at the moment`);
+                throw new Error(`[${this.#prettyName}] Index kind ${idxDef.kind} not supported at the moment`);
 
             keyColumns = idxDef.column_ids.map((x) => x.name);
             keyDesc = `${keyName} index`;
@@ -689,7 +708,7 @@ export class TableStorage {
 
         const format = (_idxValue) => {
             if (_idxValue.length !== keyColumns.length)
-                throw new Error(`[${this.#name}] Invalid ${keyDesc} value ${idxValue}`);
+                throw new Error(`[${this.#prettyName}] Invalid ${keyDesc} value ${idxValue}`);
             return JSON.stringify(_idxValue);
         };
 
@@ -720,7 +739,7 @@ export class TableStorage {
 
         if (keyName) {
             keyId = this.#schema.indexes.get(keyName)?.id;
-            if (!keyId) throw new ReferenceError(`[${this.#name}] Invalid index name ${keyName}`);
+            if (!keyId) throw new ReferenceError(`[${this.#prettyName}] Invalid index name ${keyName}`);
             keyColumns = this.#schema.indexes.get(keyName).column_ids.map((x) => x.name);
         } else {
             keyColumns = this.#schema.keyColumns;
@@ -769,7 +788,7 @@ export class TableStorage {
 
         if (keyName) {
             keyId = this.#schema.indexes.get(keyName)?.id;
-            if (!keyId) throw new ReferenceError(`[${this.#name}] Invalid index name ${keyName}`);
+            if (!keyId) throw new ReferenceError(`[${this.#prettyName}] Invalid index name ${keyName}`);
             keyColumns = this.#schema.indexes.get(keyName).column_ids.map((x) => x.name);
         } else {
             keyColumns = this.#schema.keyColumns;
@@ -827,7 +846,7 @@ export class TableStorage {
 
         const conflicting = this.#getVisibleVersion(this.#rows, newPk);
         if (conflicting) {
-            throw new ConflictError(`[${this.#name}] Duplicate entry for key ${newPk}`, conflicting);
+            throw new ConflictError(`[${this.#prettyName}] Duplicate entry for key ${newPk}`, conflicting);
         }
 
         // --- Assert data consistency
@@ -876,30 +895,18 @@ export class TableStorage {
             return await this.insert(newRow, { systemTag });
         } catch (e) {
             if (!(e instanceof ConflictError)) throw e;
-            return this.update(e.existing, newRow, { systemTag });
+            return await this.update(e.existing, newRow, { systemTag });
         }
     }
 
     async update(oldPk, payload, { using: keyName = null, multiple = false, systemTag = null } = {}) {
-        /*
-        if (this.#schema.kind === 'view') {
-            const updateTransform = this.#tx.engine._viewSourceExprUpdateTransform(this.#schema);
-            if (updateTransform) {
-                // It's an updateable view
-                const upstreamClient = await this.#tx.engine.getSourceClient(this.#schema);
-            } else {
-                // It's a view but not updateable
-            }
-        }
-        */
-
         oldPk = this.#formatKey(oldPk, keyName);
 
         let keyId;
 
         if (keyName) {
             keyId = this.#schema.indexes.get(keyName)?.id;
-            if (!keyId) throw new ReferenceError(`[${this.#name}] Invalid index name ${keyName}`);
+            if (!keyId) throw new ReferenceError(`[${this.#prettyName}] Invalid index name ${keyName}`);
         }
 
         const rows = keyId
@@ -927,7 +934,7 @@ export class TableStorage {
             if (newPk !== oldPk) {
                 const conflicting = this.#getVisibleVersion(rows, newPk);
                 if (conflicting) {
-                    throw new ConflictError(`[${this.#name}] Duplicate entry for primary key ${newPk}`, conflicting);
+                    throw new ConflictError(`[${this.#prettyName}] Duplicate entry for primary key ${newPk}`, conflicting);
                 }
             }
             const fKRulesResult = this.#runReverseFKRoutines('update', oldRow, false, newRow);
@@ -991,14 +998,14 @@ export class TableStorage {
             : newRows[0];
     }
 
-    async delete(oldPk, { using: keyName = null, multiple = false } = {}) {
+    async delete(oldPk, { using: keyName = null, multiple = false, systemTag = null } = {}) {
         oldPk = this.#formatKey(oldPk, keyName);
 
         let keyId;
 
         if (keyName) {
             keyId = this.#schema.indexes.get(keyName)?.id;
-            if (!keyId) throw new ReferenceError(`[${this.#name}] Invalid index name ${keyName}`);
+            if (!keyId) throw new ReferenceError(`[${this.#prettyName}] Invalid index name ${keyName}`);
         }
 
         const rows = keyId
@@ -1047,7 +1054,7 @@ export class TableStorage {
             : oldRows[0];
     }
 
-    async truncate() {
+    async truncate({ systemTag = null } = {}) {
         const affected = [];
 
         for (const [pk] of this.#rows) {
@@ -1094,6 +1101,8 @@ export class TableStorage {
 
     // ------------
 
+    // TODO:
+    // vacuum() hasn't been wired
     vacuum() {
         const oldest = this.#tx.engine.getOldestActiveSnapshot();
 

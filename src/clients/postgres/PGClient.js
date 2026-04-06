@@ -156,9 +156,8 @@ export class PGClient extends MainstreamDBClient {
         this.#walClient.subscribe(walPlugin, this.#walSlotName, confirmed_flush_lsn);
 
         // Message handling
-        let currentXid = null;
-        const walCommits = new Map();
-        const walRelations = new Map();
+        const walCommits = new Map;
+        const xidTrail = [];
 
         // Listen to changes
         this.#walClient.on('data', async (lsn, msg) => {
@@ -166,24 +165,17 @@ export class PGClient extends MainstreamDBClient {
 
                 case 'begin':
                     walCommits.set(msg.xid, { txId: msg.xid, entries: [] });
-                    break;
-
-                case 'relation':
-                    walRelations.set(msg.relationOid, {
-                        namespace: msg.schema,
-                        name: msg.name,
-                        keyColumns: msg.keyColumns,
-                    });
+                    xidTrail.unshift(msg.xid);
                     break;
 
                 case 'insert':
                 case 'update':
                 case 'delete': {
-                    const rel = msg.relation ? {
+                    const rel = {
                         namespace: msg.relation.schema,
                         name: msg.relation.name,
                         keyColumns: msg.relation.keyColumns,
-                    } : walRelations.get(msg.relation.relationOid);
+                    };
                     const entry = {
                         op: msg.tag,
                         relation: rel
@@ -201,17 +193,15 @@ export class PGClient extends MainstreamDBClient {
                         entry.old = msg.old; // If REPLICA IDENTITY FULL
                         entry.oldKey = msg.key || Object.fromEntries(rel.keyColumns.map((k) => [k, msg.old[k]]));
                     }
-                    walCommits.get(msg.xid)?.entries.push(entry);
+                    walCommits.get(xidTrail[0])?.entries.push(entry);
                     break;
                 }
 
                 case 'commit': {
-                    const commit = walCommits.get(msg.xid);
+                    const xid = xidTrail.shift();
+                    const commit = walCommits.get(xid);
+                    walCommits.delete(xid);
                     if (commit) await this.wal.dispatch(commit);
-
-                    walCommits.delete(msg.xid);
-                    // clear stale relations every 100 transactions
-                    if (walRelations.size > 1000) walRelations.clear();
                     break;
                 }
 

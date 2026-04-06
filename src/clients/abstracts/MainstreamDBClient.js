@@ -1,7 +1,7 @@
 import { LinkedQLClient } from './LinkedQLClient.js';
 import { RealtimeClient } from '../../proc/realtime/RealtimeClient.js';
-import { SchemaInference } from './SchemaInference.js';
-import { WalEngine } from '../../proc/timeline/WalEngine.js';
+import { MainstreamSchemaInference } from './MainstreamSchemaInference.js';
+import { MainstreamWalEngine } from './MainstreamWalEngine.js';
 import { SQLParser } from '../../lang/SQLParser.js';
 import { registry } from '../../lang/registry.js';
 import { normalizeQueryArgs } from './util.js';
@@ -18,7 +18,7 @@ export class MainstreamDBClient extends LinkedQLClient {
     get parser() { return this.#parser; }
     get resolver() {
         return super.resolveGetResolver(() =>
-            new SchemaInference({ client: this }));
+            new MainstreamSchemaInference({ client: this, dialect: this.dialect }));
     }
     get wal() { return this.#wal; }
     get live() { return this.#live; }
@@ -33,7 +33,8 @@ export class MainstreamDBClient extends LinkedQLClient {
         super(options);
 
         this.#parser = new SQLParser({ dialect: this.dialect });
-        this.#wal = new WalEngine({
+        this.#wal = new MainstreamWalEngine({
+            client: this,
             drainMode: 'drain',
             lifecycleHook: async (status) => {
                 await this.setCapability({ realtime: !!status });

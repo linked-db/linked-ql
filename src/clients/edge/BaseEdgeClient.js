@@ -3,8 +3,8 @@ import { LinkedQLClient } from '../abstracts/LinkedQLClient.js';
 import { AbstractNode } from '../../lang/abstracts/AbstractNode.js';
 import { RealtimeResult } from '../../proc/realtime/RealtimeResult.js';
 import { normalizeQueryArgs } from '../abstracts/util.js';
-import { SchemaInference } from './SchemaInference.js';
-import { WalEngine } from './WalEngine.js';
+import { EdgeSchemaInference } from './EdgeSchemaInference.js';
+import { EdgeWalEngine } from './EdgeWalEngine.js';
 import { SQLParser } from './SQLParser.js';
 import { Result } from '../Result.js';
 
@@ -20,7 +20,7 @@ export class BaseEdgeClient extends LinkedQLClient {
     get parser() { return this.#parser; }
     get resolver() {
         return super.resolveGetResolver(() =>
-            new SchemaInference({ client: this }));
+            new EdgeSchemaInference({ client: this }));
     }
     get wal() { return this.#wal; }
     get live() { return this.#live; }
@@ -41,7 +41,7 @@ export class BaseEdgeClient extends LinkedQLClient {
         this.#workerEventNamespace = workerEventNamespace;
 
         this.#parser = new SQLParser({ dialect: this.dialect });
-        this.#wal = new WalEngine({
+        this.#wal = new EdgeWalEngine({
             client: this,
             drainMode: 'drain',
             lifecycleHook: async (status) => {

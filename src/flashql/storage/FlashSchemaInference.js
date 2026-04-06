@@ -2,7 +2,7 @@ import { registry } from '../../lang/registry.js';
 import { SchemaInference as BaseSchemaInference } from '../../lang/SchemaInference.js';
 import { SQLParser } from '../../lang/SQLParser.js';
 
-export class SchemaInference extends BaseSchemaInference {
+export class FlashSchemaInference extends BaseSchemaInference {
 
     #storageEngine;
     #parser;

@@ -29,7 +29,10 @@ export class RealtimeClient {
             resultJson = { rows: [], hashes: [], initial: false, mode: callback ? 'callback' : 'live' };
         } else {
             queryWindow = await this.createWindow(query, options);
-            resultJson = { ...await queryWindow.currentRendering(), initial: true, mode: callback ? 'callback' : 'live' };
+            const initial = options.initial === false
+                ? { initial: false }
+                : { ...await queryWindow.currentRendering(), initial: true };
+            resultJson = { ...initial, mode: callback ? 'callback' : 'live' };
         }
 
         const realtimeResult = new RealtimeResult(resultJson, async ({ forget = false } = {}) => {
@@ -82,10 +85,12 @@ export class RealtimeClient {
         }
 
         // Register
+        const abortWatch = newWindow.on('error', (e) => this.#driver.emit('error', e));
         this.#windows.add(newWindow);
         newWindow.onClose(() => {
             this.#windows.delete(newWindow);
             newWindow.stop();
+            abortWatch();
         });
 
         return newWindow;

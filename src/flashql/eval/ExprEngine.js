@@ -882,7 +882,11 @@ export class ExprEngine {
         }
         for (const alias of Object.keys(compositeRow)) {
             const table = compositeRow[alias];
-            if (colName in table) return table[colName];
+            let _colName = colName;
+            
+            if (_colName in table) return table[_colName];
+            if ((_colName = colName.toLowerCase()) in table) return table[_colName];
+            if ((_colName = colName.toUpperCase()) in table) return table[_colName];
         }
 
         throw new Error(`Column ${colName} not found in the current context`);

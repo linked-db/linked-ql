@@ -2,7 +2,7 @@ import { SchemaInference as BaseSchemaInference } from '../../lang/SchemaInferen
 import { normalizeRelationSelectorArg, parseRelationSelectors } from './util.js';
 import { registry } from '../../lang/registry.js';
 
-export class SchemaInference extends BaseSchemaInference {
+export class MainstreamSchemaInference extends BaseSchemaInference {
 
     #client;
     get client() { return this.#client; }

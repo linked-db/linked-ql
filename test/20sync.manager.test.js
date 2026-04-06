@@ -39,14 +39,14 @@ describe('SyncManager - FlashQL.sync', () => {
                 name: 'mv_users',
                 replication_mode: 'materialized',
                 source_expr: { namespace: 'public', name: 'src_users' },
-                columns: [{ name: 'id' }, { name: 'name' }],
+                column_aliases: [{ name: 'id' }, { name: 'name' }],
             });
             await tx.createView({
                 namespace: 'public',
                 name: 'rt_users',
                 replication_mode: 'realtime',
                 source_expr: { namespace: 'public', name: 'src_users' },
-                columns: [{ name: 'id' }, { name: 'name' }],
+                column_aliases: [{ name: 'id' }, { name: 'name' }],
             });
         });
     });
@@ -60,7 +60,7 @@ describe('SyncManager - FlashQL.sync', () => {
         expect(summary.materialized.length).to.eq(1);
 
         const rows = await client.storageEngine.transaction(async (tx) => {
-            return tx.getTable({ namespace: 'public', name: 'mv_users' }).getAll().sort((a, b) => a.id - b.id);
+            return tx.getRelation({ namespace: 'public', name: 'mv_users' }).getAll().sort((a, b) => a.id - b.id);
         });
         expect(rows).to.deep.eq([{ id: 1, id: 1, name: 'Ada' }]);
 
@@ -70,16 +70,14 @@ describe('SyncManager - FlashQL.sync', () => {
     });
 
     it('sync() starts realtime jobs, stop() disables, and resume() re-enables', async () => {
-        globalThis.__ = 33;
         const started = await client.sync.sync({ public: ['rt_users'] });
         expect(started.realtime.length).to.eq(1);
-        globalThis.__ = 0;
 
         await client.query(`INSERT INTO public.src_users (id, name) VALUES (2, 'Linus')`);
 
         await waitFor(async () => {
             const rows = await client.storageEngine.transaction(async (tx) => {
-                return tx.getTable({ namespace: 'public', name: 'rt_users' }).getAll();
+                return tx.getRelation({ namespace: 'public', name: 'rt_users' }).getAll();
             });
             return rows.some((r) => r.id === 2);
         });
@@ -93,7 +91,7 @@ describe('SyncManager - FlashQL.sync', () => {
         await sleep(40);
 
         const rows = await client.storageEngine.transaction(async (tx) => {
-            return tx.getTable({ namespace: 'public', name: 'rt_users' }).getAll().sort((a, b) => a.id - b.id);
+            return tx.getRelation({ namespace: 'public', name: 'rt_users' }).getAll().sort((a, b) => a.id - b.id);
         });
         expect(rows.map((r) => r.id)).to.deep.eq([1, 2]);
 
@@ -107,7 +105,7 @@ describe('SyncManager - FlashQL.sync', () => {
         await sleep(40);
 
         const rowsAfterSync = await client.storageEngine.transaction(async (tx) => {
-            return tx.getTable({ namespace: 'public', name: 'rt_users' }).getAll().sort((a, b) => a.id - b.id);
+            return tx.getRelation({ namespace: 'public', name: 'rt_users' }).getAll().sort((a, b) => a.id - b.id);
         });
         expect(rowsAfterSync.map((r) => r.id)).to.deep.eq([1, 2]);
 
@@ -119,7 +117,7 @@ describe('SyncManager - FlashQL.sync', () => {
 
         await waitFor(async () => {
             const rows = await client.storageEngine.transaction(async (tx) => {
-                return tx.getTable({ namespace: 'public', name: 'rt_users' }).getAll().sort((a, b) => a.id - b.id);
+                return tx.getRelation({ namespace: 'public', name: 'rt_users' }).getAll().sort((a, b) => a.id - b.id);
             });
             return rows.map((r) => r.id).join(',') === '1,2,3,4';
         });
@@ -131,14 +129,13 @@ describe('SyncManager - FlashQL.sync', () => {
 
         client.query = async (...args) => {
             const [querySpec] = args;
-            const pureRefDecode = client.storageEngine._viewSourceExprIsPureRef({ source_expr_ast: querySpec });
+            const { value: tblName, qualifier: { value: nsName } = {} } = querySpec.from_clause.entries[0]?.expr || {};
 
-            if (pureRefDecode
-                && pureRefDecode.namespace === 'public'
-                && pureRefDecode.name === 'src_users') {
+            if (nsName === 'public' && tblName === 'src_users') {
                 materializeCalls += 1;
                 await sleep(40);
             }
+            
             return await originalQuery(...args);
         };
         try {

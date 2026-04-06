@@ -63,10 +63,15 @@ await db2.connect();
 
 await db2.query(`
   CREATE SCHEMA offline;
-  CREATE VIEW offline.users AS
+  CREATE REALTIME VIEW offline.users AS
+  -- SELECT *, xmin AS "XMIN" FROM public.users
+  -- SELECT id, name, xmin FROM public.users
   TABLE public.users
-  WITH(replication_origin = 'primary')
+  WITH(replication_origin = 'flashql:primary')
 `);
+db1.on('error', (e) => {
+  console.log('||||||||', e);
+});
 
 
 

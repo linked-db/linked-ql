@@ -458,7 +458,7 @@ export class QueryWindow extends SimpleEmitter {
                 $keyColumns,
                 usingAllColumnsForKeyColumns = false;
             if (originSchema instanceof registry.JSONSchema) {
-                $columns = originSchema.entries().map((e) => getJson(e.name()));
+                $columns = originSchema.columns().map((e) => getJson(e.name()));
                 if (relationHashes.size > 1 || !($keyColumns = originSchema.entries().filter((e) => e.pkConstraint()).map(getJson)).length) {
                     $keyColumns = structuredClone($columns);
                     usingAllColumnsForKeyColumns = true;
@@ -495,11 +495,15 @@ export class QueryWindow extends SimpleEmitter {
         const newOrderElementsJson = this.#resolvedOrderElements.map((oi) => oi.jsonfy());
         let newQueryHead = this.#originAliases.reduce((acc, aliasJson) => {
             const originSchema = this.#originSchemas.get(aliasJson.value);
+            const XMIN_autoInjection = this.#driver.dialect !== 'mysql' && !originSchema.$columns.find((c) => c.value.toUpperCase() === 'XMIN');
 
             // Column key/value construction
             const createColKeyValJson = (colJson) => {
                 const keyJson = { nodeName: 'STRING_LITERAL', ...colJson };
                 let colRefJson = { nodeName: 'COLUMN_REF1', ...colJson, qualifier: { nodeName: 'TABLE_REF1', ...aliasJson } };
+                if (colJson.value === 'XMIN' && XMIN_autoInjection) {
+                    colRefJson = { nodeName: 'CAST_EXPR', expr: colRefJson, data_type: { nodeName: 'DATA_TYPE', value: 'INT' } };
+                }
                 // Format for strategy.aggrMode === 2?
                 if (analysis.hasAggrFunctions) {
                     const fnName = this.#driver.dialect === 'mysql' ? 'JSON_STRINGAGG' : 'JSON_AGG';
@@ -509,8 +513,11 @@ export class QueryWindow extends SimpleEmitter {
             };
             // Compose the cols JSON
             const fnName = this.#driver.dialect === 'mysql' ? 'JSON_OBJECT' : 'JSON_BUILD_OBJECT';
-            const fnArgs = (strategy.ssr ? originSchema.$keyColumns : originSchema.$columns)
-                .reduce((colKeyValJsons, colJson) => ([...colKeyValJsons, ...createColKeyValJson(colJson)]), []);
+            const fnArgs = (
+                strategy.ssr
+                    ? originSchema.$keyColumns
+                    : originSchema.$columns.concat(XMIN_autoInjection ? { value: 'XMIN', delim: '"' } : [])
+            ).reduce((colKeyValJsons, colJson) => ([...colKeyValJsons, ...createColKeyValJson(colJson)]), []);
             const aliasColsExpr = { nodeName: 'CALL_EXPR', name: fnName, arguments: fnArgs };
 
             // Format for strategy.ssr?
@@ -774,7 +781,7 @@ export class QueryWindow extends SimpleEmitter {
 
     // -------------
 
-    #normalizeEvents(events) {
+    #normalizeEvents({ txId, entries: events }) {
         const normalizedEventsMap = new Map;
         const keyHistoryMap = new Map;
         const allAffectedAliases = new Set;
@@ -782,6 +789,7 @@ export class QueryWindow extends SimpleEmitter {
         for (const e of events) {
             if (!(e.op === 'insert' || e.op === 'update' || e.op === 'delete')
                 || !e.relation?.keyColumns) continue;
+
             const relationHash = JSON.stringify([e.relation.namespace, e.relation.name]);
 
             const affectedAliasesEntries = [...this.#originSchemas.entries()].filter(([, originSchema]) => originSchema.relationHashes.has(relationHash));
@@ -802,7 +810,12 @@ export class QueryWindow extends SimpleEmitter {
                 ? Object.values(e.newKey)
                 : keyColumns.map((k) => (e.new || e.old)[k]);
 
-            const normalizedEvent = { ...e, keyColumns, oldKey, newKey, relationHash, affectedAliases };
+            let eWithXMIN = e;
+            if (this.#driver.dialect !== 'mysql' && e.new/* INSERT|UPDATE */ && !(e.new.xmin || e.new.XMIN)) {
+                eWithXMIN = { ...e, new: { ...e.new, XMIN: txId }};
+            }
+
+            const normalizedEvent = { ...eWithXMIN, keyColumns, oldKey, newKey, relationHash, affectedAliases };
 
             let rowKeyHash_old = this.#stringifyLogicalHash([e.relation.namespace, e.relation.name, normalizedEvent.oldKey]);
             let rowKeyHash_new, previous;
@@ -873,7 +886,7 @@ export class QueryWindow extends SimpleEmitter {
             // Aggr functions in the house
             return await this.#diffWithOrigin_Wholistic(commitMeta);
         }
-        const normalizeEvents = this.#normalizeEvents(commit.entries);
+        const normalizeEvents = this.#normalizeEvents(commit);
         if (normalizeEvents === true) {
             return await this.#diffWithOrigin_Wholistic(commitMeta);
         }

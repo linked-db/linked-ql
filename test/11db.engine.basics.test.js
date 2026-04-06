@@ -87,7 +87,7 @@ const showView = async (client, namespace, name) => {
 const listIndexes = async (client, namespace, table) => {
     return await client.storageEngine.transaction(async (tx) => {
         const tbl = tx.showTable({ namespace, name: table });
-        return tx.getTable({ namespace: 'sys', name: 'sys_indexes' })
+        return tx.getRelation({ namespace: 'sys', name: 'sys_indexes' })
             .get({ relation_id: tbl.id }, { using: 'sys_indexes__relation_id_idx', multiple: true })
             .map((idx) => idx.name);
     });
@@ -97,9 +97,11 @@ describe('FlashQL - Basic DDL', () => {
     let client;
 
     before(async () => {
-        client = await createClient(null, { getUpstreamClient: () => {
-            return client;
-        }});
+        client = await createClient(null, {
+            getUpstreamClient: () => {
+                return client;
+            }
+        });
     });
 
     after(async () => {
@@ -255,13 +257,60 @@ describe('FlashQL - Basic DDL', () => {
         });
 
         it('should set and reset schema options', async () => {
-            await client.query(`CREATE SCHEMA IF NOT EXISTS lq_schema_opts WITH (default_replication_origin = 'origin_a')`);
-            await client.query(`ALTER SCHEMA lq_schema_opts SET (default_replication_origin = 'origin_b')`);
+            await client.query(`CREATE SCHEMA IF NOT EXISTS lq_schema_opts WITH (default_replication_origin = 'flashql:origin_a')`);
+            await client.query(`ALTER SCHEMA lq_schema_opts SET (default_replication_origin = 'flashql:origin_b')`);
             let ns = await showNamespace(client, 'lq_schema_opts');
-            expect(ns.view_opts_default_replication_origin).to.eq('origin_b');
+            expect(ns.view_opts_default_replication_origin).to.eq('flashql:origin_b');
             await client.query(`ALTER SCHEMA lq_schema_opts RESET (default_replication_origin)`);
             ns = await showNamespace(client, 'lq_schema_opts');
             expect(ns.view_opts_default_replication_origin).to.eq(null);
+        });
+
+        it('should reject resetting schema replication origin when inheriting views exist', async () => {
+            await client.query(`DROP SCHEMA IF EXISTS lq_schema_opts_inherit_reset CASCADE`);
+            await client.query(`CREATE SCHEMA lq_schema_opts_inherit_reset WITH (default_replication_origin = 'flashql:origin_a')`);
+            await client.query(`CREATE TABLE lq_schema_opts_inherit_reset.src (id INT PRIMARY KEY, name TEXT)`);
+            await client.query(`CREATE VIEW lq_schema_opts_inherit_reset.v_inherit AS SELECT id, name FROM lq_schema_opts_inherit_reset.src`);
+            await client.query(`ALTER VIEW lq_schema_opts_inherit_reset.v_inherit SET (replication_origin = 'inherit')`);
+
+            await expect(
+                client.query(`ALTER SCHEMA lq_schema_opts_inherit_reset RESET (default_replication_origin)`)
+            ).to.not.be.rejected;
+
+            const ns = await showNamespace(client, 'lq_schema_opts_inherit_reset');
+            const view = await showView(client, 'lq_schema_opts_inherit_reset', 'v_inherit');
+            expect(ns.view_opts_default_replication_origin).to.be.null;
+            expect(view.view_opts_replication_origin).to.eq('inherit');
+
+            await client.query(`DROP SCHEMA lq_schema_opts_inherit_reset CASCADE`);
+        });
+
+        it('should redefine inheriting views when schema replication origin changes', async () => {
+            await client.query(`DROP SCHEMA IF EXISTS lq_schema_opts_inherit_change CASCADE`);
+            await client.query(`CREATE SCHEMA lq_schema_opts_inherit_change WITH (default_replication_origin = 'flashql:origin_a')`);
+            await client.query(`CREATE TABLE lq_schema_opts_inherit_change.src (id INT PRIMARY KEY, name TEXT)`);
+            await client.query(`CREATE VIEW lq_schema_opts_inherit_change.v_inherit AS SELECT id, name FROM lq_schema_opts_inherit_change.src`);
+            await client.query(`ALTER VIEW lq_schema_opts_inherit_change.v_inherit SET (replication_origin = 'inherit')`);
+
+            const before = await showView(client, 'lq_schema_opts_inherit_change', 'v_inherit');
+            await client.query(`ALTER SCHEMA lq_schema_opts_inherit_change SET (default_replication_origin = 'flashql:origin_b')`);
+
+            const ns = await showNamespace(client, 'lq_schema_opts_inherit_change');
+            const after = await showView(client, 'lq_schema_opts_inherit_change', 'v_inherit');
+            expect(ns.view_opts_default_replication_origin).to.eq('flashql:origin_b');
+            expect(after.view_opts_replication_origin).to.eq('inherit');
+            expect(after.id).to.eq(before.id);
+            expect([
+                after.version_major,
+                after.version_minor,
+                after.version_patch,
+            ]).to.not.deep.eq([
+                before.version_major,
+                before.version_minor,
+                before.version_patch,
+            ]);
+
+            await client.query(`DROP SCHEMA lq_schema_opts_inherit_change CASCADE`);
         });
     });
 
@@ -309,15 +358,127 @@ describe('FlashQL - Basic DDL', () => {
         });
 
         it('should replace a view\'s replication_origin', async () => {
-            await client.query('ALTER VIEW lq_test_view_archive.v2 SET (replication_origin = \'primary\')');
+            await client.query('ALTER VIEW lq_test_view_archive.v2 SET (replication_origin = \'flashql:primary\')');
             const view = await showView(client, 'lq_test_view_archive', 'v2');
-            expect(view.view_opts_replication_origin).to.eq('primary');
+            expect(view.view_opts_replication_origin).to.eq('flashql:primary');
             await client.query('ALTER VIEW lq_test_view_archive.v2 RESET (replication_origin)');
             const view2 = await showView(client, 'lq_test_view_archive', 'v2');
             expect(view2.view_opts_replication_origin).to.be.null;
         });
 
-        it('should replace a view\'s replication_mode but reject it\'s reset', async () => {
+        it('should replace a view\'s replication_origin with inherit', async () => {
+            await client.query(`CREATE SCHEMA IF NOT EXISTS lq_test_view_inherit WITH (default_replication_origin = 'flashql:origin_a')`);
+            await client.query('CREATE TABLE IF NOT EXISTS lq_test_view_inherit.src (id INT PRIMARY KEY, name TEXT)');
+            await client.query('CREATE VIEW lq_test_view_inherit.v1 AS SELECT id, name FROM lq_test_view_inherit.src');
+
+            await client.query('ALTER VIEW lq_test_view_inherit.v1 SET (replication_origin = \'inherit\')');
+
+            const view = await showView(client, 'lq_test_view_inherit', 'v1');
+            expect(view.view_opts_replication_origin).to.eq('inherit');
+
+            await client.query('DROP SCHEMA lq_test_view_inherit CASCADE');
+        });
+
+        it('should derive updateability metadata for direct remote-backed views', async () => {
+            await client.query(`
+                CREATE MATERIALIZED VIEW lq_test_view.v_updateable_direct AS
+                TABLE lq_test_view.src
+                WITH (replication_origin = 'flashql:primary')
+            `);
+
+            const view = await showView(client, 'lq_test_view', 'v_updateable_direct');
+            expect(view.view_mode_replication_attrs.mapping_level).to.eq('table');
+            expect(view.view_mode_replication_attrs.upstream_relation).to.deep.eq({
+                namespace: 'lq_test_view',
+                name: 'src',
+                keyColumns: ['id'],
+                mvccKey: 'XMIN'
+            });
+            expect(view.view_mode_replication_attrs.effective_upstream_mvcc_key).to.eq('XMIN');
+            expect(view.view_mode_replication_attrs).to.deep.eq({
+                mapping_level: 'table',
+                effective_replication_origin: 'flashql:primary',
+                insertable: true,
+                updatable: true,
+                deletable: true,
+                upstream_relation: {
+                    namespace: 'lq_test_view',
+                    name: 'src',
+                    keyColumns: ['id'],
+                    mvccKey: 'XMIN'
+                },
+                column_mapping: { id: 'id', name: 'name' },
+                key_columns: ['id'],
+                derived_columns: [],
+                required_columns: ['id'],
+                effective_upstream_mvcc_key: 'XMIN',
+                fixed_predicate: null,
+            });
+            expect(view.source_expr_ast.select_list.entries.some((si) => si.alias?.value === '__upstream_mvcc_tag')).to.eq(true);
+        });
+
+        it('should derive updateability metadata for projected remote-backed views', async () => {
+            await client.query(`
+                CREATE MATERIALIZED VIEW lq_test_view.v_updateable_projection AS
+                SELECT id AS user_id, name AS full_name FROM lq_test_view.src
+                WITH (replication_origin = 'flashql:primary')
+            `);
+
+            const view = await showView(client, 'lq_test_view', 'v_updateable_projection');
+            expect(view.view_mode_replication_attrs.mapping_level).to.eq('derived');
+            expect(view.view_mode_replication_attrs.upstream_relation.keyColumns).to.deep.eq(['id']);
+            expect(view.view_mode_replication_attrs.effective_upstream_mvcc_key).to.eq('XMIN');
+            expect(view.view_mode_replication_attrs).to.deep.eq({
+                mapping_level: 'derived',
+                effective_replication_origin: 'flashql:primary',
+                insertable: true,
+                updatable: true,
+                deletable: true,
+                upstream_relation: {
+                    namespace: 'lq_test_view',
+                    name: 'src',
+                    keyColumns: ['id'],
+                    mvccKey: 'XMIN'
+                },
+                column_mapping: { user_id: 'id', full_name: 'name' },
+                key_columns: ['user_id'],
+                derived_columns: [],
+                required_columns: ['user_id'],
+                effective_upstream_mvcc_key: 'XMIN',
+                fixed_predicate: null,
+            });
+            expect(view.source_expr_ast.select_list.entries.some((si) => si.alias?.value === '__upstream_mvcc_tag')).to.eq(true);
+        });
+
+        it('should default replicated write policy to origin_first and add __staged for local_first views', async () => {
+            await client.storageEngine.transaction(async (tx) => {
+                await tx.createView({
+                    namespace: 'lq_test_view',
+                    name: 'v_updateable_default_policy',
+                    source_expr: 'TABLE lq_test_view.src',
+                    replication_mode: 'materialized',
+                    replication_origin: 'flashql:primary',
+                });
+                await tx.createView({
+                    namespace: 'lq_test_view',
+                    name: 'v_updateable_local_first',
+                    source_expr: 'TABLE lq_test_view.src',
+                    replication_mode: 'materialized',
+                    replication_origin: 'flashql:primary',
+                    replication_opts: { write_policy: 'local_first' },
+                });
+            });
+
+            const defaultView = await showView(client, 'lq_test_view', 'v_updateable_default_policy');
+            const localFirstView = await client.storageEngine.transaction(async (tx) =>
+                tx.showView({ namespace: 'lq_test_view', name: 'v_updateable_local_first' }, { schema: true })
+            );
+            expect(defaultView.view_opts_replication_opts.write_policy).to.eq('origin_first');
+            expect(localFirstView.view_opts_replication_opts.write_policy).to.eq('local_first');
+            expect(localFirstView.columns.has('__staged')).to.eq(true);
+        });
+
+        it('should replace a view\'s replication_mode and accept it\'s reset', async () => {
             await client.query('ALTER VIEW lq_test_view_archive.v2 SET (replication_mode = \'realtime\')');
             const view = await showView(client, 'lq_test_view_archive', 'v2');
             expect(view.view_opts_replication_mode).to.eq('realtime');
@@ -331,15 +492,112 @@ describe('FlashQL - Basic DDL', () => {
             await client.query(`INSERT INTO lq_test_view.src (id, name) VALUES (1, 'A')`);
             await client.query(`INSERT INTO lq_test_view.src (id, name) VALUES (2, 'B')`);
 
-            //await client.query('REFRESH materialized VIEW lq_test_view_archive.v2');
-            await client.query('REFRESH realtime VIEW lq_test_view_archive.v2');
+            await client.query('REFRESH REALTIME VIEW lq_test_view_archive.v2');
             const storage = await client.storageEngine.transaction(async (tx) => {
-                return tx.getTable({ namespace: 'lq_test_view_archive', name: 'v2' }, { assertIsView: true });
+                return tx.getRelation({ namespace: 'lq_test_view_archive', name: 'v2' }, { assertIsView: true });
             });
             expect(storage.getAll().map((row) => ({ id: row.id, name: row.name }))).to.deep.eq([
                 { id: 1, name: 'A' },
                 { id: 2, name: 'B' },
             ]);
+        });
+
+        it('should support blocking insert, update and delete through direct runtime upstream-backed views at the storage layer', async () => {
+            await client.query(`DROP SCHEMA IF EXISTS lq_test_view_writable CASCADE`);
+            await client.query(`
+                CREATE SCHEMA lq_test_view_writable;
+                CREATE TABLE lq_test_view_writable.src (id INT PRIMARY KEY, name TEXT);
+                CREATE VIEW lq_test_view_writable.v_runtime AS
+                TABLE lq_test_view_writable.src
+                WITH (replication_origin = 'flashql:primary');
+            `);
+
+            await client.storageEngine.transaction(async (tx) => {
+                const view = tx.getRelation({ namespace: 'lq_test_view_writable', name: 'v_runtime' }, { assertIsView: true });
+                await view.insert({ id: 1, name: 'Ada' });
+            });
+
+            let result = await client.query(`SELECT id, name FROM lq_test_view_writable.src`);
+            expect(result.rows).to.deep.eq([{ id: 1, name: 'Ada' }]);
+
+            // ----------------
+
+            await client.storageEngine.transaction(async (tx) => {
+                const view = tx.getRelation({ namespace: 'lq_test_view_writable', name: 'v_runtime' }, { assertIsView: true });
+                await view.update({ id: 1, name: 'Ada' }, { name: 'Ada Lovelace' });
+            });
+
+            result = await client.query(`SELECT id, name FROM lq_test_view_writable.src`);
+            expect(result.rows).to.deep.eq([{ id: 1, name: 'Ada Lovelace' }]);
+
+            // ----------------
+
+            await client.storageEngine.transaction(async (tx) => {
+                const view = tx.getRelation({ namespace: 'lq_test_view_writable', name: 'v_runtime' }, { assertIsView: true });
+                await view.delete({ id: 1, name: 'Ada Lovelace' });
+            });
+
+            result = await client.query(`SELECT id, name FROM lq_test_view_writable.src`);
+            expect(result.rows).to.deep.eq([]);
+
+            // ----------------
+
+            await client.query(`DROP SCHEMA lq_test_view_writable CASCADE`);
+        });
+
+        it('should support blocking insert, update and delete through realtime upstream-backed views at the storage layer', async () => {
+            await client.query(`DROP SCHEMA IF EXISTS lq_test_view_writable CASCADE`);
+            await client.query(`
+                CREATE SCHEMA lq_test_view_writable;
+                CREATE TABLE lq_test_view_writable.src (id INT PRIMARY KEY, name TEXT);
+                CREATE REALTIME VIEW lq_test_view_writable.v_runtime AS
+                TABLE lq_test_view_writable.src
+                WITH (replication_origin = 'flashql:primary');
+            `);
+
+            await client.storageEngine.transaction(async (tx) => {
+                const view = tx.getRelation({ namespace: 'lq_test_view_writable', name: 'v_runtime' }, { assertIsView: true });
+                await view.insert({ id: 1, name: 'Ada' });
+            });
+
+            let upstream = await client.query(`SELECT id, name FROM lq_test_view_writable.src`);
+            expect(upstream.rows).to.deep.eq([{ id: 1, name: 'Ada' }]);
+
+            // Ideally await inboud sync to bring the commit back to local
+            let local = await client.query(`SELECT id, name FROM lq_test_view_writable.v_runtime`);
+            expect(local.rows).to.deep.eq([{ id: 1, name: 'Ada' }]);
+
+            // ----------------
+
+            await client.storageEngine.transaction(async (tx) => {
+                const view = tx.getRelation({ namespace: 'lq_test_view_writable', name: 'v_runtime' }, { assertIsView: true });
+                await view.update({ id: 1, name: 'Ada' }, { name: 'Ada Lovelace' });
+            });
+
+            upstream = await client.query(`SELECT id, name FROM lq_test_view_writable.src`);
+            expect(upstream.rows).to.deep.eq([{ id: 1, name: 'Ada Lovelace' }]);
+
+            // Ideally await inboud sync to bring the commit back to local
+            local = await client.query(`SELECT id, name FROM lq_test_view_writable.v_runtime`);
+            expect(local.rows).to.deep.eq([{ id: 1, name: 'Ada Lovelace' }]);
+
+            // ----------------
+
+            await client.storageEngine.transaction(async (tx) => {
+                const view = tx.getRelation({ namespace: 'lq_test_view_writable', name: 'v_runtime' }, { assertIsView: true });
+                await view.delete({ id: 1, name: 'Ada Lovelace' });
+            });
+
+            upstream = await client.query(`SELECT id, name FROM lq_test_view_writable.src`);
+            expect(upstream.rows).to.deep.eq([]);
+
+            // Ideally await inboud sync to bring the commit back to local
+            local = await client.query(`SELECT id, name FROM lq_test_view_writable.v_runtime`);
+            expect(local.rows).to.deep.eq([]);
+
+            // ----------------
+
+            await client.query(`DROP SCHEMA lq_test_view_writable CASCADE`);
         });
 
         it('should drop a view', async () => {
@@ -645,7 +903,7 @@ describe('FlashQL - DML', () => {
     // helper to read table storage rows (values)
     async function tableRows(tableName, namespace = 'lq_test_dml') {
         return await client.storageEngine.transaction(async (tx) => {
-            const tableStorage = tx.getTable({ namespace, name: tableName });
+            const tableStorage = tx.getRelation({ namespace, name: tableName });
             return tableStorage.getAll();
         });
     }
@@ -653,7 +911,7 @@ describe('FlashQL - DML', () => {
     // helper to clear tables by name
     async function clearTable(tableName, namespace = 'lq_test_dml') {
         return await client.storageEngine.transaction(async (tx) => {
-            const tableStorage = tx.getTable({ namespace, name: tableName });
+            const tableStorage = tx.getRelation({ namespace, name: tableName });
             await tableStorage.truncate();
         });
     }

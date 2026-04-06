@@ -1,6 +1,6 @@
 import { WalEngine as BaseWalEngine } from '../../proc/timeline/WalEngine.js';
 
-export class WalEngine extends BaseWalEngine {
+export class EdgeWalEngine extends BaseWalEngine {
 
     #client;
 
@@ -10,7 +10,8 @@ export class WalEngine extends BaseWalEngine {
     }
 
     async subscribe(...args) {
-        const options = typeof args[args.length - 1] === 'object' && args[args.length - 1]
+        const options = typeof args[args.length - 1] === 'object'
+            && args[args.length - 1]
             ? args[args.length - 1]
             : {};
 
@@ -19,5 +20,10 @@ export class WalEngine extends BaseWalEngine {
         }
 
         return await super.subscribe(...args);
+    }
+
+    async handleDownstreamCommit(commit, options = {}) {
+        const procName = 'wal:handle_downstream_commit';
+        return await this.#client._exec(procName, { commit, options });
     }
 }

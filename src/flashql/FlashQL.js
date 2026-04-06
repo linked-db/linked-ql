@@ -133,7 +133,7 @@ export class FlashQL extends LinkedQLClient {
         }
 
         const tx = this.#storageEngine.begin({ parentTx: options.tx });
-        let canDirectlyForwardTo = null;
+        let canDirectlyForwardTo = undefined;
 
         try {
             query.walkTree((v) => {
@@ -145,19 +145,20 @@ export class FlashQL extends LinkedQLClient {
                     && (tblName = v.value())) {
 
                     const tblDef = tx.showView({ namespace: nsName, name: tblName }, { ifExists: true });
-                    const replicationOrigin = this.#storageEngine._viewResolveOrigin(tblDef);
-                    let pureRefDecode;
-
+                    const replicationAttrs = tblDef?.view_mode_replication_attrs;
+                    const effectiveReplicationOrigin = replicationAttrs?.effective_replication_origin;
+                    let upstreamRelation;
 
                     if (tblDef
                         // Is pure federation?
-                        && this.#storageEngine._viewIsPureFederation(tblDef)
+                        && tblDef.view_opts_replication_mode === 'none'
+                        && replicationAttrs.mapping_level === 'table'
                         // Source expr is pure ref
-                        && (pureRefDecode = this.#storageEngine._viewSourceExprIsPureRef(tblDef))
-                        && (pureRefDecode.namespace === nsName && pureRefDecode.name === tblName)
+                        && (upstreamRelation = replicationAttrs.upstream_relation)
+                        && (upstreamRelation.namespace === nsName && upstreamRelation.name === tblName)
                         // Is same origin
-                        && (canDirectlyForwardTo === null || canDirectlyForwardTo === replicationOrigin)) {
-                        canDirectlyForwardTo = canDirectlyForwardTo || replicationOrigin;
+                        && (canDirectlyForwardTo === undefined || canDirectlyForwardTo === effectiveReplicationOrigin)) {
+                        canDirectlyForwardTo = canDirectlyForwardTo || effectiveReplicationOrigin;
                     } else {
                         canDirectlyForwardTo = false;
                     }

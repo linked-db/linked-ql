@@ -1,7 +1,7 @@
-import { PGClient } from '../src/entry/postgres/PGClient.js';
-import { Script } from '../src/lang/Script.js';
+import { PGClient } from '../src/clients/postgres/PGClient.js';
+import { SQLScript } from '../src/lang/SQLScript.js';
 
-//const r = await Script.parse(`SELECdT INTO`);
+//const r = await SQLScript.parse(`SELECdT INTO`);
 //console.log(r.entries()[0], r+'', r.jsonfy());
 //process.exit();
 

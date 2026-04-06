@@ -69,7 +69,6 @@ export class SyncManager extends SimpleEmitter {
                 }
             } catch (e) {
                 this.emit('error', e);
-                console.log('____', e);
                 summary.failed.push({ relation_id: view.id, error: String(e?.message || e) });
             }
         }
@@ -189,7 +188,7 @@ export class SyncManager extends SimpleEmitter {
         if (!views.length) return [];
 
         return await this.#transaction(async (tx) => {
-            const jobs = tx.getTable({ namespace: 'sys', name: 'sys_sync_jobs' });
+            const jobs = tx.getRelation({ namespace: 'sys', name: 'sys_sync_jobs' });
             return views.map((view) => {
                 const job = jobs.get({ relation_id: view.id }, { using: 'sys_sync_jobs__relation_id_idx' });
                 return {
@@ -223,19 +222,23 @@ export class SyncManager extends SimpleEmitter {
 
         // Execute forget first
         if (view.view_opts_replication_mode === 'realtime') {
-            const sourceClient = await this.#storageEngine.getSourceClient(view);
-            const pureRefDecode = this.#storageEngine._viewSourceExprIsPureRef(view);
+            const replicationAttrs = view.view_mode_replication_attrs;
+
+            const upstreamRelation = replicationAttrs.mapping_level === 'table'
+                ? replicationAttrs.upstream_relation
+                : null;
+            const sourceClient = await this.#storageEngine.getEffectiveClient(view);
 
             const slotId = `lq_sync_${view.id}`;
-            if (pureRefDecode) {
+            if (upstreamRelation) {
                 await sourceClient.wal.forget(slotId);
             } else await sourceClient.live.forget(slotId);
         }
 
         // Delete local job entry
         return await this.#transaction(async (tx) => {
-            const jobs = tx.getTable({ namespace: 'sys', name: 'sys_sync_jobs' });
-            return await jobs.delete({ relation_id: view.id }, { using: 'sys_sync_jobs__relation_id_idx' });
+            const jobs = tx.getRelation({ namespace: 'sys', name: 'sys_sync_jobs' });
+            return await jobs.delete({ relation_id: view.id }, { using: 'sys_sync_jobs__relation_id_idx', systemTag: SYSTEM_TAG });
         }, { inputTx });
     }
 
@@ -277,7 +280,7 @@ export class SyncManager extends SimpleEmitter {
         const now = Date.now();
 
         return await this.#transaction(async (tx) => {
-            const jobs = tx.getTable({ namespace: 'sys', name: 'sys_sync_jobs' });
+            const jobs = tx.getRelation({ namespace: 'sys', name: 'sys_sync_jobs' });
             const existing = jobs.get({ relation_id: view.id }, { using: 'sys_sync_jobs__relation_id_idx' });
             if (existing) return existing;
 
@@ -297,7 +300,7 @@ export class SyncManager extends SimpleEmitter {
                 lease_expires_at: null,
                 updated_at: now,
                 engine_attrs: null,
-            });
+            }, { systemTag: SYSTEM_TAG });
         }, { inputTx });
     }
 
@@ -307,10 +310,10 @@ export class SyncManager extends SimpleEmitter {
         }
 
         await this.#transaction(async (tx) => {
-            const jobs = tx.getTable({ namespace: 'sys', name: 'sys_sync_jobs' });
+            const jobs = tx.getRelation({ namespace: 'sys', name: 'sys_sync_jobs' });
             const row = jobs.get({ relation_id: relationId }, { using: 'sys_sync_jobs__relation_id_idx' });
             if (row) {
-                await jobs.update(row, patch);
+                await jobs.update(row, patch, { systemTag: SYSTEM_TAG });
             }
         }, { inputTx });
     }
@@ -326,11 +329,13 @@ export class SyncManager extends SimpleEmitter {
         }, { inputTx });
 
         try {
-            const sourceClient = await this.#storageEngine.getSourceClient(view);
+            const sourceClient = await this.#storageEngine.getEffectiveClient(view);
             const result = await sourceClient.query(view.source_expr_ast, { tx: sourceClient.storageEngine === this.#storageEngine ? inputTx : null });
             const rows = result.rows;
 
-            await this.#replaceAllRows(view, rows, { inputTx });
+            await this.#transaction(async (tx) => {
+                await tx.getRelation({ namespace: view.namespace, name: view.name }, { assertIsView: true }).handleUpstreamCommit({ type: 'result', rows });
+            }, { inputTx });
 
             await this.#updateJob(view.id, {
                 state: 'synced',
@@ -374,17 +379,26 @@ export class SyncManager extends SimpleEmitter {
             updated_at: Date.now(),
         }, { inputTx });
 
-        const sourceClient = await this.#storageEngine.getSourceClient(view);
-        const pureRefDecode = this.#storageEngine._viewSourceExprIsPureRef(view);
+        const sourceClient = await this.#storageEngine.getEffectiveClient(view);
+        const replicationAttrs = view.view_mode_replication_attrs;
+
+        const upstreamRelation = replicationAttrs.mapping_level === 'table'
+            ? replicationAttrs.upstream_relation
+            : null;
+        const upstreamMvccKey = replicationAttrs.effective_upstream_mvcc_key;
+        const upstreamMvccKey_isXMIN = upstreamMvccKey?.toUpperCase() === 'XMIN';
+
         try {
             let abortLine;
-            if (pureRefDecode) {
+            if (upstreamRelation && (!upstreamMvccKey || upstreamMvccKey_isXMIN)) {
                 await this.#materializeView(view, { inputTx });
 
-                const selector = { [pureRefDecode.namespace]: [pureRefDecode.name] };
+                const selector = { [upstreamRelation.namespace]: [upstreamRelation.name] };
 
                 abortLine = await sourceClient.wal.subscribe(selector, async (commit) => {
-                    await this.#applyReferenceCommit(view, commit, { inputTx });
+                    await this.#transaction(async (tx) => {
+                        await tx.getRelation({ namespace: view.namespace, name: view.name }, { assertIsView: true }).handleUpstreamCommit(commit);
+                    }, { inputTx });
                     await this.#updateJob(view.id, {
                         state: 'running',
                         last_seen_commit: commit.commitTime,
@@ -396,7 +410,9 @@ export class SyncManager extends SimpleEmitter {
                 this.#activeRealtimeJobs.set(view.id, abortLine);
             } else {
                 const rtResult = await sourceClient.query(view.source_expr_ast, async (commit) => {
-                    await this.#applyQueryBasedCommit(view, commit, { inputTx });
+                    await this.#transaction(async (tx) => {
+                        await tx.getRelation({ namespace: view.namespace, name: view.name }, { assertIsView: true }).handleUpstreamCommit(commit);
+                    }, { inputTx });
                     await this.#updateJob(view.id, {
                         state: 'running',
                         last_seen_commit: commit.commitTime,
@@ -406,7 +422,9 @@ export class SyncManager extends SimpleEmitter {
                 }, { live: true, id: slotId });
 
                 if (rtResult.initial) {
-                    await this.#replaceAllRows(view, rtResult.rows.map((row, i) => ({ __id: rtResult.hashes[i], ...row })), { inputTx });
+                    await this.#transaction(async (tx) => {
+                        await tx.getRelation({ namespace: view.namespace, name: view.name }, { assertIsView: true }).handleUpstreamCommit({ type: 'result', rows: rtResult.rows, hashes: rtResult.hashes });
+                    }, { inputTx });
                 }
 
                 abortLine = async () => await rtResult.abort();
@@ -441,64 +459,4 @@ export class SyncManager extends SimpleEmitter {
         }
     }
 
-    async #replaceAllRows(view, rows, { inputTx = null } = {}) {
-        await this.#transaction(async (tx) => {
-            await tx.resetView({ namespace: view.namespace, name: view.name }, { syncForget: false });
-            const tableStorage = tx.getTable({ namespace: view.namespace, name: view.name }, { assertIsView: true });
-            for (const row of rows) {
-                await tableStorage.insert(row, { systemTag: SYSTEM_TAG });
-            }
-        }, { meta: { source: 'sync' }, inputTx });
-    }
-
-    async #applyQueryBasedCommit(view, commit, { inputTx }) {
-        if (!commit || !commit.type) return;
-
-        if (commit.type === 'result') {
-            const rows = (commit.rows || []).map((row, i) => ({ __id: commit.hashes[i], ...row }));
-            await this.#replaceAllRows(view, rows, { inputTx });
-            return;
-        }
-
-        if (commit.type !== 'diff' || !Array.isArray(commit.entries)) return;
-
-        await this.#transaction(async (tx) => {
-            const tableStorage = tx.getTable({ namespace: view.namespace, name: view.name }, { assertIsView: true });
-
-            for (const event of commit.entries) {
-                if (event.op === 'insert') {
-                    const row = { __id: event.newHash, ...event.new };
-                    await tableStorage.upsert(row, { systemTag: SYSTEM_TAG });
-                } else if (event.op === 'update') {
-                    const oldKey = { __id: event.oldHash };
-                    const newRow = { __id: event.newHash, ...event.new };
-                    const updated = await tableStorage.update(oldKey, newRow, { systemTag: SYSTEM_TAG });
-                    if (!updated) await tableStorage.insert(newRow, { systemTag: SYSTEM_TAG });
-                } else if (event.op === 'delete') {
-                    await tableStorage.delete({ __id: event.oldHash });
-                }
-            }
-        }, { meta: { source: 'sync' }, inputTx });
-    }
-
-    async #applyReferenceCommit(view, commit, { inputTx }) {
-        if (!commit || commit.computed || !Array.isArray(commit.entries)) return;
-
-        await this.#transaction(async (tx) => {
-            const tableStorage = tx.getTable({ namespace: view.namespace, name: view.name }, { assertIsView: true });
-
-            for (const event of commit.entries) {
-                if (event.op === 'insert') {
-                    await tableStorage.upsert(event.new);
-                } else if (event.op === 'update') {
-                    const oldRef = event.old || event.oldKey;
-                    const updated = await tableStorage.update(oldRef, event.new);
-                    if (!updated) await tableStorage.insert(event.new);
-                } else if (event.op === 'delete') {
-                    const oldRef = event.old || event.oldKey;
-                    await tableStorage.delete(oldRef);
-                }
-            }
-        }, { meta: { source: 'sync' }, inputTx });
-    }
 }

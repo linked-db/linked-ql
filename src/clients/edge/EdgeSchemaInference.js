@@ -1,6 +1,6 @@
 import { SchemaInference as BaseSchemaInference } from '../../lang/SchemaInference.js';
 
-export class SchemaInference extends BaseSchemaInference {
+export class EdgeSchemaInference extends BaseSchemaInference {
 
     #client;
     get client() { return this.#client; }

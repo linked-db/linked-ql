@@ -175,7 +175,7 @@ describe('Client.transaction(cb)', () => {
             await client.query('CREATE TABLE public.tx_tbl (id INT PRIMARY KEY, name TEXT)');
 
             await client.transaction(async (tx) => {
-                const table = tx.getTable({ namespace: 'public', name: 'tx_tbl' });
+                const table = tx.getRelation({ namespace: 'public', name: 'tx_tbl' });
                 await table.insert({ id: 1, name: 'A' });
             });
 
@@ -194,7 +194,7 @@ describe('Client.transaction(cb)', () => {
             await client.query('CREATE TABLE public.tx_tbl_rollback (id INT PRIMARY KEY, name TEXT)');
 
             await expect(client.transaction(async (tx) => {
-                const table = tx.getTable({ namespace: 'public', name: 'tx_tbl_rollback' });
+                const table = tx.getRelation({ namespace: 'public', name: 'tx_tbl_rollback' });
                 await table.insert({ id: 1, name: 'A' });
                 throw new Error('rollback please');
             })).to.be.rejectedWith('rollback please');

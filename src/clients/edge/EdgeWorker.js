@@ -220,6 +220,10 @@ export class EdgeWorker extends SimpleEmitter {
         if (op === 'sync:sync') {
             return await this.#db.sync?.sync(args.selector, args.options);
         }
+
+        if (op === 'wal:handle_downstream_commit') {
+            return await this.#db.wal.handleDownstreamCommit(args.commit, args.options);
+        }
     }
 
     async #streamCursorOverPort(iterator, port, batchSize = 100) {
