@@ -9,7 +9,7 @@ import { SYSTEM_TAG } from '../TableStorage.js';
 import { NamespaceDDL } from './NamespaceDDL.js';
 import { RelationDDL } from './RelationDDL.js';
 
-export class DDLAPI {
+export class CatalogAPI {
 
     #engine;
     #tx;
@@ -557,7 +557,7 @@ export class DDLAPI {
             // Drop all existing columns and constraints and indexes
             await this.#dropColumns(existingColumns, true);
             await this.#dropConstraints(existingConstraints, true);
-            await this.#dropConstraints(existingIndexes, true);
+            await this.#dropIndexes(existingIndexes, true);
 
             // Add new derived columns
             let resultCols = [];

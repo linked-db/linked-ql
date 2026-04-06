@@ -1,6 +1,6 @@
-import { DDLAPI } from './schemas/DDLAPI.js';
+import { CatalogAPI } from './schemas/CatalogAPI.js';
 
-export class Transaction extends DDLAPI {
+export class Transaction extends CatalogAPI {
 
     #engine;
     #parentTx;

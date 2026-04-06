@@ -171,7 +171,7 @@ export class ViewStorage extends TableStorage {
             // boottime WAL replay
             // DDL manipulation
             // Upstream sync event
-            return await super.delete(oldPk, newRow, { using: keyName, multiple, systemTag });
+            return await super.delete(oldPk, { using: keyName, multiple, systemTag });
         }
 
         const replicationAttrs = this.schema.view_mode_replication_attrs;
