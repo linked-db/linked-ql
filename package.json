@@ -14,7 +14,7 @@
   ],
   "homepage": "https://linked-ql.netlify.app/",
   "icon": "https://webqit.io/icon.svg",
-  "version": "1.0.5",
+  "version": "1.0.6-next.0",
   "license": "MIT",
   "repository": {
     "type": "git",
