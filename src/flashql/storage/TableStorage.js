@@ -210,7 +210,7 @@ export class TableStorage {
         const row = {};
 
         for (const [colName, col] of this.#schema.columns) {
-            const hasValue = colName in input;
+            const hasValue = Object.prototype.hasOwnProperty.call(input, colName) && input[colName] !== undefined;
 
             if (col.is_generated && col.generation_expr_ast && hasValue) {
                 throw new TypeError(`[${this.#prettyName}] Cannot insert into generated column ${colName}`);
@@ -472,6 +472,12 @@ export class TableStorage {
     }
 
     #runFKChecks(input) {
+        if (this.#tx.engine._isHydrating
+            && this.#schema.namespace_id?.name === 'sys'
+            && ['sys_insync_jobs', 'sys_outsync_queue'].includes(this.#schema.name)) {
+            return;
+        }
+
         for (const { name: conName, ...conDef } of this.#schema.constraints?.get('FOREIGN KEY') || []) {
 
             const targetTable = this.#tx.getRelation(conDef.fk_target_relation_id);
@@ -602,7 +608,12 @@ export class TableStorage {
 
             if (rule === 'SET DEFAULT') {
                 handlers.push(async () => {
-                    await referencingTable.update(fkWhere, correlation(undefined), { using: keyName, multiple: true });
+                    const defaultPayload = correlation(undefined);
+                    await referencingTable.update(fkWhere, defaultPayload, {
+                        using: keyName,
+                        multiple: true,
+                        defaultColumns: Object.keys(defaultPayload),
+                    });
                 });
             }
         }
@@ -918,7 +929,7 @@ export class TableStorage {
         }
     }
 
-    async update(oldPk, payload, { using: keyName = null, multiple = false, systemTag = null } = {}) {
+    async update(oldPk, payload, { using: keyName = null, multiple = false, systemTag = null, defaultColumns = null } = {}) {
         oldPk = this.#formatKey(oldPk, keyName);
 
         let keyId;
@@ -940,6 +951,9 @@ export class TableStorage {
             // --- Build new version and resolve new PK
             const newRow = this.#buildRow(payload, oldRow, { systemTag });
 
+            if (defaultColumns?.length) {
+                await this.#applyColumnDefaults(newRow, { forColumns: defaultColumns });
+            }
             await this.#applyColumnDefaults(newRow);
 
             // --- Assert data consistency

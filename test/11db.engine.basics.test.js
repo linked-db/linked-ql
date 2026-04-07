@@ -468,6 +468,112 @@ describe('FlashQL - Basic DDL', () => {
             expect(mvccSelectItem.expr.expr.data_type.value).to.eq('TEXT');
         });
 
+        it('should create a view from a CTE source expression', async () => {
+            await client.storageEngine.transaction(async (tx) => {
+                await tx.createView({
+                    namespace: 'lq_test_view',
+                    name: 'v_from_cte',
+                    source_expr: `
+                        WITH cte_users AS (
+                            SELECT id, name FROM lq_test_view.src
+                        )
+                        SELECT id, name FROM cte_users
+                    `,
+                });
+            });
+
+            const view = await showView(client, 'lq_test_view', 'v_from_cte');
+            expect(view.source_expr_ast).to.be.an('object');
+            expect(view.source_expr_ast.nodeName).to.match(/CTE$/);
+        });
+
+        it('should create a view from a UNION source expression', async () => {
+            await client.query(`
+                CREATE VIEW lq_test_view.v_from_union AS
+                SELECT id, name FROM lq_test_view.src
+                UNION
+                SELECT id, name FROM lq_test_view.src
+            `);
+
+            const view = await showView(client, 'lq_test_view', 'v_from_union');
+            expect(view.source_expr_ast).to.be.an('object');
+            expect(view.source_expr_ast.nodeName).to.match(/SELECT_STMT$/);
+        });
+
+        it('should create a view from a VALUES source expression', async () => {
+            await client.query(`
+                CREATE VIEW lq_test_view.v_from_values AS
+                SELECT v.id, v.name
+                FROM (VALUES (1, 'Ada'), (2, 'Linus')) AS v(id, name)
+            `);
+
+            const rows = await client.query(`SELECT id, name FROM lq_test_view.v_from_values ORDER BY id`);
+            expect(rows.rows).to.deep.eq([
+                { id: 1, name: 'Ada' },
+                { id: 2, name: 'Linus' },
+            ]);
+        });
+
+        it('should keep UNION-backed replicated views non-updatable', async () => {
+            await client.query(`
+                CREATE MATERIALIZED VIEW lq_test_view.v_union_remote AS
+                SELECT id, name FROM lq_test_view.src
+                UNION
+                SELECT id, name FROM lq_test_view.src
+                WITH (replication_origin = 'flashql:primary')
+            `);
+
+            const view = await showView(client, 'lq_test_view', 'v_union_remote');
+            expect(view.view_mode_replication_attrs.updatable).to.eq(false);
+            expect(view.view_mode_replication_attrs.insertable).to.eq(false);
+            expect(view.view_mode_replication_attrs.deletable).to.eq(false);
+            expect(view.view_mode_replication_attrs.upstream_relation).to.eq(null);
+        });
+
+        it('should keep VALUES-backed replicated views non-updatable', async () => {
+            await client.storageEngine.transaction(async (tx) => {
+                await tx.createView({
+                    namespace: 'lq_test_view',
+                    name: 'v_values_remote',
+                    replication_mode: 'materialized',
+                    replication_origin: 'flashql:primary',
+                    source_expr: `
+                        SELECT v.id, v.name
+                        FROM (VALUES (1, 'Ada'), (2, 'Linus')) AS v(id, name)
+                    `,
+                });
+            });
+
+            const view = await showView(client, 'lq_test_view', 'v_values_remote');
+            expect(view.view_mode_replication_attrs.updatable).to.eq(false);
+            expect(view.view_mode_replication_attrs.insertable).to.eq(false);
+            expect(view.view_mode_replication_attrs.deletable).to.eq(false);
+            expect(view.view_mode_replication_attrs.upstream_relation).to.eq(null);
+        });
+
+        it('should keep CTE-backed replicated views non-updatable', async () => {
+            await client.storageEngine.transaction(async (tx) => {
+                await tx.createView({
+                    namespace: 'lq_test_view',
+                    name: 'v_cte_remote',
+                    replication_mode: 'materialized',
+                    replication_origin: 'flashql:primary',
+                    source_expr: `
+                        WITH cte_users AS (
+                            SELECT id, name FROM lq_test_view.src
+                        )
+                        SELECT id, name FROM cte_users
+                    `,
+                });
+            });
+
+            const view = await showView(client, 'lq_test_view', 'v_cte_remote');
+            expect(view.view_mode_replication_attrs.updatable).to.eq(false);
+            expect(view.view_mode_replication_attrs.insertable).to.eq(false);
+            expect(view.view_mode_replication_attrs.deletable).to.eq(false);
+            expect(view.view_mode_replication_attrs.upstream_relation).to.eq(null);
+        });
+
         it('should default replicated write policy to origin_first and add __staged for local_first views', async () => {
             await client.storageEngine.transaction(async (tx) => {
                 await tx.createView({
@@ -564,8 +670,14 @@ describe('FlashQL - Basic DDL', () => {
         });
 
         it('should queue origin_first writes for realtime upstream-backed views without mutating local rows inline', async () => {
-            await client.query(`DROP SCHEMA IF EXISTS lq_test_view_writable CASCADE`);
-            await client.query(`
+            let testClient;
+            testClient = await createClient(null, {
+                autoSync: false,
+                getUpstreamClient: () => testClient,
+            });
+
+            await testClient.query(`DROP SCHEMA IF EXISTS lq_test_view_writable CASCADE`);
+            await testClient.query(`
                 CREATE SCHEMA lq_test_view_writable;
                 CREATE TABLE lq_test_view_writable.src (id INT PRIMARY KEY, name TEXT);
                 CREATE REALTIME VIEW lq_test_view_writable.v_runtime AS
@@ -573,18 +685,18 @@ describe('FlashQL - Basic DDL', () => {
                 WITH (replication_origin = 'flashql:primary');
             `);
 
-            await client.storageEngine.transaction(async (tx) => {
+            await testClient.storageEngine.transaction(async (tx) => {
                 const view = tx.getRelation({ namespace: 'lq_test_view_writable', name: 'v_runtime' }, { assertIsView: true });
                 await view.insert({ id: 1, name: 'Ada' });
             });
 
-            let upstream = await client.query(`SELECT id, name FROM lq_test_view_writable.src`);
+            let upstream = await testClient.query(`SELECT id, name FROM lq_test_view_writable.src`);
             expect(upstream.rows).to.deep.eq([]);
 
-            let local = await client.query(`SELECT id, name FROM lq_test_view_writable.v_runtime`);
+            let local = await testClient.query(`SELECT id, name FROM lq_test_view_writable.v_runtime`);
             expect(local.rows).to.deep.eq([]);
 
-            let outsyncRows = await client.storageEngine.transaction(async (tx) => {
+            let outsyncRows = await testClient.storageEngine.transaction(async (tx) => {
                 return tx.getRelation({ namespace: 'sys', name: 'sys_outsync_queue' })
                     .getAll()
                     .filter((row) => row.relation_id === tx.showView({ namespace: 'lq_test_view_writable', name: 'v_runtime' }).id);
@@ -596,7 +708,7 @@ describe('FlashQL - Basic DDL', () => {
                 new: { id: 1, name: 'Ada' },
             });
 
-            await client.storageEngine.transaction(async (tx) => {
+            await testClient.storageEngine.transaction(async (tx) => {
                 await tx.getRelation({ namespace: 'lq_test_view_writable', name: 'v_runtime' }, { assertIsView: true })
                     .applyUpstreamCommit({
                         txId: 1,
@@ -606,17 +718,17 @@ describe('FlashQL - Basic DDL', () => {
 
             // ----------------
 
-            await client.storageEngine.transaction(async (tx) => {
+            await testClient.storageEngine.transaction(async (tx) => {
                 const view = tx.getRelation({ namespace: 'lq_test_view_writable', name: 'v_runtime' }, { assertIsView: true });
                 await view.update({ id: 1, name: 'Ada' }, { name: 'Ada Lovelace' });
             });
 
-            upstream = await client.query(`SELECT id, name FROM lq_test_view_writable.src`);
+            upstream = await testClient.query(`SELECT id, name FROM lq_test_view_writable.src`);
             expect(upstream.rows).to.deep.eq([]);
-            local = await client.query(`SELECT id, name FROM lq_test_view_writable.v_runtime`);
+            local = await testClient.query(`SELECT id, name FROM lq_test_view_writable.v_runtime`);
             expect(local.rows).to.deep.eq([{ id: 1, name: 'Ada' }]);
 
-            outsyncRows = await client.storageEngine.transaction(async (tx) => {
+            outsyncRows = await testClient.storageEngine.transaction(async (tx) => {
                 return tx.getRelation({ namespace: 'sys', name: 'sys_outsync_queue' })
                     .getAll()
                     .filter((row) => row.relation_id === tx.showView({ namespace: 'lq_test_view_writable', name: 'v_runtime' }).id);
@@ -627,7 +739,7 @@ describe('FlashQL - Basic DDL', () => {
                 new: { name: 'Ada Lovelace' },
             });
 
-            await client.storageEngine.transaction(async (tx) => {
+            await testClient.storageEngine.transaction(async (tx) => {
                 await tx.getRelation({ namespace: 'lq_test_view_writable', name: 'v_runtime' }, { assertIsView: true })
                     .applyUpstreamCommit({
                         txId: 2,
@@ -637,17 +749,17 @@ describe('FlashQL - Basic DDL', () => {
 
             // ----------------
 
-            await client.storageEngine.transaction(async (tx) => {
+            await testClient.storageEngine.transaction(async (tx) => {
                 const view = tx.getRelation({ namespace: 'lq_test_view_writable', name: 'v_runtime' }, { assertIsView: true });
                 await view.delete({ id: 1, name: 'Ada Lovelace' });
             });
 
-            upstream = await client.query(`SELECT id, name FROM lq_test_view_writable.src`);
+            upstream = await testClient.query(`SELECT id, name FROM lq_test_view_writable.src`);
             expect(upstream.rows).to.deep.eq([]);
-            local = await client.query(`SELECT id, name FROM lq_test_view_writable.v_runtime`);
+            local = await testClient.query(`SELECT id, name FROM lq_test_view_writable.v_runtime`);
             expect(local.rows).to.deep.eq([{ id: 1, name: 'Ada Lovelace' }]);
 
-            outsyncRows = await client.storageEngine.transaction(async (tx) => {
+            outsyncRows = await testClient.storageEngine.transaction(async (tx) => {
                 return tx.getRelation({ namespace: 'sys', name: 'sys_outsync_queue' })
                     .getAll()
                     .filter((row) => row.relation_id === tx.showView({ namespace: 'lq_test_view_writable', name: 'v_runtime' }).id);
@@ -656,16 +768,23 @@ describe('FlashQL - Basic DDL', () => {
 
             // ----------------
 
-            await client.query(`DROP SCHEMA lq_test_view_writable CASCADE`);
+            await testClient.query(`DROP SCHEMA lq_test_view_writable CASCADE`);
+            await testClient.disconnect();
         });
 
         it('should stage local_first writes locally while still queueing outbound work', async () => {
-            await client.query(`DROP SCHEMA IF EXISTS lq_test_view_writable CASCADE`);
-            await client.query(`
+            let testClient;
+            testClient = await createClient(null, {
+                autoSync: false,
+                getUpstreamClient: () => testClient,
+            });
+
+            await testClient.query(`DROP SCHEMA IF EXISTS lq_test_view_writable CASCADE`);
+            await testClient.query(`
                 CREATE SCHEMA lq_test_view_writable;
                 CREATE TABLE lq_test_view_writable.src (id INT PRIMARY KEY, name TEXT);
             `);
-            await client.storageEngine.transaction(async (tx) => {
+            await testClient.storageEngine.transaction(async (tx) => {
                 await tx.createView({
                     namespace: 'lq_test_view_writable',
                     name: 'v_runtime',
@@ -676,22 +795,22 @@ describe('FlashQL - Basic DDL', () => {
                 });
             });
 
-            await client.storageEngine.transaction(async (tx) => {
+            await testClient.storageEngine.transaction(async (tx) => {
                 const view = tx.getRelation({ namespace: 'lq_test_view_writable', name: 'v_runtime' }, { assertIsView: true });
                 await view.insert({ id: 1, name: 'Ada' });
             });
 
-            const upstream = await client.query(`SELECT id, name FROM lq_test_view_writable.src`);
+            const upstream = await testClient.query(`SELECT id, name FROM lq_test_view_writable.src`);
             expect(upstream.rows).to.deep.eq([]);
 
-            const localState = await client.storageEngine.transaction(async (tx) => {
+            const localState = await testClient.storageEngine.transaction(async (tx) => {
                 return tx.getRelation({ namespace: 'lq_test_view_writable', name: 'v_runtime' }, { assertIsView: true })
                     .getAll({ hiddenCols: true });
             });
             expect(localState).to.have.lengthOf(1);
             expect(localState[0]).to.deep.include({ id: 1, name: 'Ada', __staged: true });
 
-            const outsyncRows = await client.storageEngine.transaction(async (tx) => {
+            const outsyncRows = await testClient.storageEngine.transaction(async (tx) => {
                 return tx.getRelation({ namespace: 'sys', name: 'sys_outsync_queue' })
                     .getAll()
                     .filter((row) => row.relation_id === tx.showView({ namespace: 'lq_test_view_writable', name: 'v_runtime' }).id);
@@ -699,7 +818,8 @@ describe('FlashQL - Basic DDL', () => {
             expect(outsyncRows).to.have.lengthOf(1);
             expect(outsyncRows[0].status).to.eq('pending');
 
-            await client.query(`DROP SCHEMA lq_test_view_writable CASCADE`);
+            await testClient.query(`DROP SCHEMA lq_test_view_writable CASCADE`);
+            await testClient.disconnect();
         });
 
         it('should drain queued outsync entries through sync.sync()', async () => {
@@ -881,6 +1001,313 @@ describe('FlashQL - Basic DDL', () => {
             const after = await showTable(client, 'lq_test_table', 'bump_tbl2');
             expect([after.version_major, after.version_minor, after.version_patch]).to.deep.eq([before.version_major + 1, 0, 0]);
         });
+    });
+});
+
+describe('FlashQL - ExprEngine Parity', () => {
+    let client;
+
+    before(async () => {
+        client = await createClient();
+    });
+
+    after(async () => {
+        await client.disconnect();
+    });
+
+    it('supports common scalar functions in queries', async () => {
+        const result = await client.query(`
+            SELECT
+                LOWER('Ada') AS lower_v,
+                UPPER('ada') AS upper_v,
+                COALESCE(NULL, 'fallback') AS coalesce_v,
+                NULLIF('same', 'same') AS nullif_v
+        `);
+
+        expect(result.rows).to.deep.eq([{
+            lower_v: 'ada',
+            upper_v: 'ADA',
+            coalesce_v: 'fallback',
+            nullif_v: null,
+        }]);
+    });
+
+    it('supports common string functions in queries', async () => {
+        const result = await client.query(`
+            SELECT
+                CONCAT('Ada', ' ', 'Lovelace') AS concat_v,
+                TRIM('  Ada  ') AS trim_v,
+                LTRIM('  Ada') AS ltrim_v,
+                RTRIM('Ada  ') AS rtrim_v,
+                REPLACE('Ada Lovelace', 'Ada', 'Augusta') AS replace_v,
+                SUBSTRING('Lovelace', 2, 4) AS substring_v,
+                POSITION('love', LOWER('Ada Lovelace')) AS position_v
+        `);
+
+        expect(result.rows).to.deep.eq([{
+            concat_v: 'Ada Lovelace',
+            trim_v: 'Ada',
+            ltrim_v: 'Ada',
+            rtrim_v: 'Ada',
+            replace_v: 'Augusta Lovelace',
+            substring_v: 'ovel',
+            position_v: 5,
+        }]);
+    });
+
+    it('supports common numeric functions in queries', async () => {
+        const result = await client.query(`
+            SELECT
+                ROUND(12.3456, 2) AS round_v,
+                FLOOR(12.9) AS floor_v,
+                CEIL(12.1) AS ceil_v,
+                GREATEST(3, 9, 1) AS greatest_v,
+                LEAST(3, 9, 1) AS least_v
+        `);
+
+        expect(result.rows).to.deep.eq([{
+            round_v: 12.35,
+            floor_v: 12,
+            ceil_v: 13,
+            greatest_v: 9,
+            least_v: 1,
+        }]);
+    });
+
+    it('supports common date and json helpers in queries', async () => {
+        const result = await client.query(`
+            SELECT
+                EXTRACT('YEAR', '2026-03-01T11:22:33Z') AS extract_year,
+                DATE_TRUNC('DAY', '2026-03-01T11:22:33Z') AS trunc_day,
+                JSON_ARRAY(1, 'two', true) AS json_array_v,
+                JSON_OBJECT('name', 'Ada', 'age', 32) AS json_object_v
+        `);
+
+        expect(result.rows).to.deep.eq([{
+            extract_year: 2026,
+            trunc_day: '2026-03-01',
+            json_array_v: [1, 'two', true],
+            json_object_v: { name: 'Ada', age: 32 },
+        }]);
+    });
+
+    it('supports broader date/time constructor and truncation helpers in queries', async () => {
+        const result = await client.query(`
+            SELECT
+                MAKE_DATE(2026, 4, 7) AS make_date_v,
+                MAKE_TIME(9, 8, 7) AS make_time_v,
+                MAKE_TIMESTAMP(2026, 4, 7, 9, 8, 7) AS make_ts_v,
+                EXTRACT('MONTH', '2026-04-07T09:08:07Z') AS extract_month_v,
+                EXTRACT('HOUR', '2026-04-07T09:08:07Z') AS extract_hour_v,
+                DATE_TRUNC('HOUR', '2026-04-07T09:08:07Z') AS trunc_hour_v,
+                DATE_TRUNC('MINUTE', '2026-04-07T09:08:07Z') AS trunc_minute_v
+        `);
+
+        expect(result.rows).to.deep.eq([{
+            make_date_v: '2026-04-07',
+            make_time_v: '09:08:07',
+            make_ts_v: '2026-04-07 09:08:07',
+            extract_month_v: 4,
+            extract_hour_v: 9,
+            trunc_hour_v: '2026-04-07T09:00:00',
+            trunc_minute_v: '2026-04-07T09:08:00',
+        }]);
+    });
+
+    it('supports practical json operators in queries', async () => {
+        const result = await client.query(`
+            SELECT
+                CAST('{"profile":{"name":"Ada"},"tags":["x","y"]}' AS JSONB) -> 'profile' AS profile_v,
+                CAST('{"profile":{"name":"Ada"},"tags":["x","y"]}' AS JSONB) #>> CAST('["profile","name"]' AS ARRAY) AS profile_name_v,
+                CAST('{"active":true,"name":"Ada"}' AS JSONB) ? 'active' AS has_active_v,
+                CAST('{"active":true,"name":"Ada"}' AS JSONB) @> CAST('{"active":true}' AS JSONB) AS contains_active_v
+        `);
+
+        expect(result.rows).to.deep.eq([{
+            profile_v: { name: 'Ada' },
+            profile_name_v: 'Ada',
+            has_active_v: true,
+            contains_active_v: true,
+        }]);
+    });
+
+    it('supports bigint-safe casts in queries', async () => {
+        const result = await client.query(`
+            SELECT
+                CAST('123' AS INT) AS int_v,
+                CAST('9223372036854775807' AS BIGINT) AS bigint_v
+        `);
+
+        expect(result.rows).to.have.lengthOf(1);
+        expect(result.rows[0].int_v).to.eq(123);
+        expect(result.rows[0].bigint_v).to.eq(9223372036854775807n);
+    });
+
+    it('supports a broader cast surface in queries', async () => {
+        const result = await client.query(`
+            SELECT
+                CAST('123.45' AS NUMERIC) AS num_v,
+                CAST('1.5' AS REAL) AS real_v,
+                CAST('2.5' AS DOUBLE PRECISION) AS dbl_v,
+                CAST('550e8400-e29b-41d4-a716-446655440000' AS UUID) AS uuid_v,
+                CAST('{"a":1}' AS JSON) AS json_v,
+                CAST('["x",2]' AS JSONB) AS jsonb_v,
+                CAST('2026-03-01' AS DATE) AS date_v,
+                CAST('11:22:33' AS TIME) AS time_v,
+                CAST('2026-03-01 11:22:33' AS TIMESTAMP) AS ts_v,
+                CAST('2026-03-01T11:22:33Z' AS TIMESTAMPTZ) AS tstz_v,
+                CAST('2 days 3 hours' AS INTERVAL) AS interval_v
+        `);
+
+        expect(result.rows).to.deep.eq([{
+            num_v: 123.45,
+            real_v: 1.5,
+            dbl_v: 2.5,
+            uuid_v: '550e8400-e29b-41d4-a716-446655440000',
+            json_v: { a: 1 },
+            jsonb_v: ['x', 2],
+            date_v: '2026-03-01',
+            time_v: '11:22:33',
+            ts_v: '2026-03-01 11:22:33',
+            tstz_v: '2026-03-01T11:22:33Z',
+            interval_v: '2 days 3 hours',
+        }]);
+    });
+
+    it('supports array and bytea casts in queries', async () => {
+        const result = await client.query(`
+            SELECT
+                CAST('[1,"two",true]' AS ARRAY) AS array_v,
+                CAST('hello' AS BYTEA) AS bytea_v
+        `);
+
+        expect(result.rows).to.have.lengthOf(1);
+        expect(result.rows[0].array_v).to.deep.eq([1, 'two', true]);
+        expect(Array.from(result.rows[0].bytea_v)).to.deep.eq(Array.from(new TextEncoder().encode('hello')));
+    });
+
+    it('supports array literals in queries', async () => {
+        const result = await client.query(`
+            SELECT
+                ARRAY['x', '2', 'true'] AS array_literal_v,
+                ARRAY[JSON_OBJECT('a', 1), JSON_OBJECT('b', 2)] AS array_json_v
+        `);
+
+        expect(result.rows).to.deep.eq([{
+            array_literal_v: ['x', '2', 'true'],
+            array_json_v: [{ a: 1 }, { b: 2 }],
+        }]);
+    });
+
+    it('evaluates functions and casts through defaults, generated columns, and checks on writes', async () => {
+        await client.storageEngine.transaction(async (tx) => {
+            await tx.createTable({
+                namespace: 'public',
+                name: 'expr_surface_accounts',
+                columns: [
+                    { name: 'id', type: 'INT', not_null: true },
+                    { name: 'raw_name', type: 'TEXT', not_null: true },
+                    { name: 'normalized_name', type: 'TEXT', is_generated: true, generation_expr: 'UPPER(TRIM(raw_name))', generation_rule: 'always' },
+                    { name: 'meta', type: 'JSON', default_expr: `JSON_OBJECT('active', true)` },
+                    { name: 'created_day', type: 'DATE', default_expr: `CAST('2026-03-01' AS DATE)` },
+                ],
+                constraints: [
+                    { kind: 'PRIMARY KEY', columns: ['id'] },
+                    { name: 'expr_surface_accounts__raw_name_ck', kind: 'CHECK', expression: `LENGTH(TRIM(raw_name)) > 0` },
+                ],
+            });
+        });
+
+        await client.query(`INSERT INTO public.expr_surface_accounts (id, raw_name) VALUES (1, '  Ada  ')`);
+        const inserted = await client.query(`SELECT id, raw_name, normalized_name, meta, created_day FROM public.expr_surface_accounts`);
+        expect(inserted.rows).to.deep.eq([{
+            id: 1,
+            raw_name: '  Ada  ',
+            normalized_name: 'ADA',
+            meta: { active: true },
+            created_day: '2026-03-01',
+        }]);
+
+        await expect(
+            client.query(`INSERT INTO public.expr_surface_accounts (id, raw_name) VALUES (2, '   ')`)
+        ).to.be.rejectedWith('Check constraint violation');
+    });
+
+    it('supports typed SQL writes through QueryEngine and TableStorage together', async () => {
+        await client.storageEngine.transaction(async (tx) => {
+            await tx.createTable({
+                namespace: 'public',
+                name: 'expr_surface_types',
+                columns: [
+                    { name: 'id', type: 'INT', not_null: true },
+                    { name: 'big_v', type: 'BIGINT' },
+                    { name: 'num_v', type: 'NUMERIC' },
+                    { name: 'json_v', type: 'JSONB' },
+                    { name: 'array_v', type: 'ARRAY' },
+                    { name: 'bytea_v', type: 'BYTEA' },
+                    { name: 'date_v', type: 'DATE' },
+                    { name: 'time_v', type: 'TIME' },
+                    { name: 'ts_v', type: 'TIMESTAMP' },
+                    { name: 'tstz_v', type: 'TIMESTAMPTZ' },
+                    { name: 'interval_v', type: 'INTERVAL' },
+                ],
+                constraints: [
+                    { kind: 'PRIMARY KEY', columns: ['id'] },
+                ],
+            });
+        });
+
+        await client.query(`
+            INSERT INTO public.expr_surface_types (
+                id, big_v, num_v, json_v, array_v, bytea_v, date_v, time_v, ts_v, tstz_v, interval_v
+            ) VALUES (
+                1,
+                CAST('9223372036854775807' AS BIGINT),
+                CAST('123.45' AS NUMERIC),
+                CAST('{"a":1}' AS JSONB),
+                CAST('[1,"two",true]' AS ARRAY),
+                CAST('hello' AS BYTEA),
+                CAST('2026-03-01' AS DATE),
+                CAST('11:22:33' AS TIME),
+                CAST('2026-03-01 11:22:33' AS TIMESTAMP),
+                CAST('2026-03-01T11:22:33Z' AS TIMESTAMPTZ),
+                CAST('2 days 3 hours' AS INTERVAL)
+            )
+        `);
+
+        let result = await client.query(`SELECT * FROM public.expr_surface_types`);
+        expect(result.rows).to.deep.eq([{
+            id: 1,
+            big_v: 9223372036854775807n,
+            num_v: 123.45,
+            json_v: { a: 1 },
+            array_v: [1, 'two', true],
+            bytea_v: new TextEncoder().encode('hello'),
+            date_v: '2026-03-01',
+            time_v: '11:22:33',
+            ts_v: '2026-03-01 11:22:33',
+            tstz_v: '2026-03-01T11:22:33Z',
+            interval_v: '2 days 3 hours',
+        }]);
+
+        await client.query(`
+            UPDATE public.expr_surface_types
+            SET
+                num_v = ROUND(CAST('987.654' AS NUMERIC), 2),
+                json_v = JSON_OBJECT('name', 'Ada', 'active', true),
+                array_v = CAST('["next",2,false]' AS ARRAY),
+                bytea_v = CAST('world' AS BYTEA),
+                date_v = DATE_TRUNC('DAY', '2026-04-05T10:20:30Z')
+            WHERE id = 1
+        `);
+
+        result = await client.query(`SELECT num_v, json_v, array_v, bytea_v, date_v FROM public.expr_surface_types WHERE id = 1`);
+        expect(result.rows).to.have.lengthOf(1);
+        expect(result.rows[0].num_v).to.eq(987.65);
+        expect(result.rows[0].json_v).to.deep.eq({ name: 'Ada', active: true });
+        expect(result.rows[0].array_v).to.deep.eq(['next', 2, false]);
+        expect(Array.from(result.rows[0].bytea_v)).to.deep.eq(Array.from(new TextEncoder().encode('world')));
+        expect(result.rows[0].date_v).to.eq('2026-04-05');
     });
 });
 

@@ -510,12 +510,18 @@ export class QueryEngine {
         // Resolve column names
         const definedColumns = Object.fromEntries(tableSchema.columns().map((col) => [col.name().value(), col]));
         const columnNames = stmtNode.columnList()?.entries().map((col) => col.value())
-            || Object.keys(definedColumns);
+            || tableSchema.columns()
+                .map((col) => col.name().value())
+                .filter((colName) => {
+                    const colSchema = definedColumns[colName];
+                    return !colName.startsWith('__')
+                        && !colSchema.expressionConstraint?.();
+                });
 
         // Resolve defaults and constraints
         const defaultRecord = Object.create(null);
         for (const [colName, colSchema] of Object.entries(definedColumns)) {
-            if (colName.startsWith('__') && !columnNames.includes(colName)) continue;
+            if (!columnNames.includes(colName)) continue;
 
             defaultRecord[colName] = null;
             if (_.cons = colSchema.defaultConstraint()) {

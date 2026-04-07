@@ -5,6 +5,8 @@ import { registry } from '../../lang/registry.js';
 const TBL_PLACEHOLDER = Symbol.for('tbl_placeholder');
 const GROUPING_META = Symbol.for('grouping_meta');
 const WINDOW_META = Symbol.for('window_meta');
+const hasExplicitTimezone = (value) => typeof value === 'string'
+    && /(?:z|[+-]\d{2}(?::?\d{2})?)$/i.test(value.trim());
 
 export class ExprEngine {
 
@@ -196,17 +198,104 @@ export class ExprEngine {
             );
         }
         // -----------
+        if (L === null || L === undefined) return null;
         const DT = dataType.value();
+        const asString = (value) => String(value);
+        const asNumber = (value) => Number(value);
+        const asIsoTimestamp = (date) => date.toISOString().slice(0, 19).replace('T', ' ');
+        const asIsoTime = (date) => date.toISOString().slice(11, 19);
+        const normalizeBigInt = (value) => {
+            if (typeof value === 'bigint') return value;
+            if (typeof value === 'number') return BigInt(Math.trunc(value));
+            if (typeof value === 'string') return BigInt(value.trim());
+            return BigInt(value);
+        };
+        const normalizeJson = (value) => {
+            if (typeof value !== 'string') return value;
+            return JSON.parse(value);
+        };
+        const normalizeBytea = (value) => {
+            if (value instanceof Uint8Array) return value;
+            if (typeof Buffer !== 'undefined' && value instanceof Buffer) return value;
+            if (value instanceof ArrayBuffer) return new Uint8Array(value);
+            if (Array.isArray(value)) return Uint8Array.from(value);
+            if (typeof value === 'string') return new TextEncoder().encode(value);
+            return value;
+        };
+        const normalizeDate = (value) => {
+            if (value instanceof Date) return value.toISOString().slice(0, 10);
+            const str = String(value).trim();
+            if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+            return new Date(str).toISOString().slice(0, 10);
+        };
+        const normalizeTime = (value) => {
+            if (value instanceof Date) return asIsoTime(value);
+            const str = String(value).trim();
+            const match = str.match(/\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?/);
+            if (match) return match[0];
+            return asIsoTime(new Date(str));
+        };
+        const normalizeTimestamp = (value) => {
+            if (value instanceof Date) return asIsoTimestamp(value);
+            const str = String(value).trim();
+            if (/^\d{4}-\d{2}-\d{2}[ t]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?$/.test(str)) {
+                return str.replace('T', ' ');
+            }
+            return asIsoTimestamp(new Date(str));
+        };
+        const normalizeTimestamptz = (value) => {
+            if (value instanceof Date) return value.toISOString();
+            const str = String(value).trim();
+            if (/^\d{4}-\d{2}-\d{2}[ t]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:z|[+-]\d{2}(?::?\d{2})?)$/i.test(str)) {
+                return str;
+            }
+            return new Date(str).toISOString();
+        };
         switch (DT) {
             case 'SMALLINT':
             case 'INT':
             case 'INTEGER':
-            case 'BIGINT':
             case 'SERIAL':
+                return asNumber(L);
+            case 'NUMERIC':
+            case 'DECIMAL':
+            case 'REAL':
+            case 'DOUBLE PRECISION':
+                return asNumber(L);
+            case 'BIGINT':
             case 'BIGSERIAL':
-                return Number(L);
-            case 'TEXT': return String(L);
-            case 'BOOLEAN': return Boolean(L);
+                return normalizeBigInt(L);
+            case 'TEXT':
+            case 'VARCHAR':
+            case 'CHAR':
+            case 'UUID':
+            case 'INTERVAL':
+                return asString(L);
+            case 'JSON':
+            case 'JSONB':
+                return normalizeJson(L);
+            case 'ARRAY':
+                return typeof L === 'string' ? JSON.parse(L) : L;
+            case 'BYTEA':
+                return normalizeBytea(L);
+            case 'DATE':
+                return normalizeDate(L);
+            case 'TIME':
+                return normalizeTime(L);
+            case 'TIMESTAMP':
+                return normalizeTimestamp(L);
+            case 'TIMESTAMPTZ':
+                return normalizeTimestamptz(L);
+            case 'BOOLEAN':
+                if (typeof L === 'boolean') return L;
+                if (typeof L === 'number') return L !== 0;
+                if (typeof L === 'bigint') return L !== 0n;
+                if (typeof L === 'string') {
+                    const normalized = L.trim().toLowerCase();
+                    if (['true', 't', '1', 'yes', 'y', 'on'].includes(normalized)) return true;
+                    if (['false', 'f', '0', 'no', 'n', 'off'].includes(normalized)) return false;
+                }
+                return Boolean(L);
             default: return L;
         }
     }
@@ -547,13 +636,69 @@ export class ExprEngine {
 
             case 'UPPER': return String(args[0] ?? '').toUpperCase();
 
+            case 'CONCAT': return args.map((arg) => arg == null ? '' : String(arg)).join('');
+
+            case 'CONCAT_WS': {
+                const [separator, ...rest] = args;
+                return rest
+                    .filter((arg) => arg != null)
+                    .map((arg) => String(arg))
+                    .join(String(separator ?? ''));
+            }
+
+            case 'TRIM':
+                return args[0] == null ? null : String(args[0]).trim();
+
+            case 'LTRIM':
+                return args[0] == null ? null : String(args[0]).replace(/^\s+/, '');
+
+            case 'RTRIM':
+                return args[0] == null ? null : String(args[0]).replace(/\s+$/, '');
+
             case 'LENGTH': return args[0] == null ? null : String(args[0]).length;
 
             case 'ABS': return Math.abs(Number(args[0]));
 
+            case 'ROUND': {
+                const value = Number(args[0]);
+                const scale = args[1] == null ? 0 : Number(args[1]);
+                const factor = 10 ** scale;
+                return Math.round(value * factor) / factor;
+            }
+
+            case 'FLOOR': return Math.floor(Number(args[0]));
+
+            case 'CEIL':
+            case 'CEILING': return Math.ceil(Number(args[0]));
+
+            case 'GREATEST':
+                return args.reduce((max, cur) => max == null || cur > max ? cur : max, null);
+
+            case 'LEAST':
+                return args.reduce((min, cur) => min == null || cur < min ? cur : min, null);
+
             case 'COALESCE': return args.reduce((prev, cur) => prev !== null ? prev : cur, null);
 
             case 'NULLIF': return _eq(args[0], args[1]) ? null : args[0];
+
+            case 'REPLACE':
+                return args[0] == null ? null : String(args[0]).split(String(args[1] ?? '')).join(String(args[2] ?? ''));
+
+            case 'SUBSTRING':
+            case 'SUBSTR': {
+                if (args[0] == null) return null;
+                const source = String(args[0]);
+                const start = Math.max(Number(args[1] ?? 1) - 1, 0);
+                const length = args[2] == null ? undefined : Math.max(Number(args[2]), 0);
+                return length === undefined ? source.slice(start) : source.slice(start, start + length);
+            }
+
+            case 'POSITION': {
+                const needle = String(args[0] ?? '');
+                const haystack = String(args[1] ?? '');
+                const idx = haystack.indexOf(needle);
+                return idx < 0 ? 0 : idx + 1;
+            }
 
             case 'JSON_BUILD_ARRAY':
             case 'JSON_ARRAY': return args;
@@ -577,17 +722,39 @@ export class ExprEngine {
 
             case 'CURRENT_TIMESTAMP': return new Date().toISOString();
 
+            case 'MAKE_DATE': {
+                const [year, month, day] = args.map((arg) => Number(arg));
+                return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            }
+
+            case 'MAKE_TIME': {
+                const [hour, minute, second] = args.map((arg) => Number(arg));
+                return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`;
+            }
+
+            case 'MAKE_TIMESTAMP': {
+                const [year, month, day, hour, minute, second] = args.map((arg) => Number(arg));
+                return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`;
+            }
+
             case 'EXTRACT':
                 const [field, date1] = args;
                 const dateObj1 = new Date(date1);
                 const fieldName = field.toUpperCase();
+                const useUTC1 = hasExplicitTimezone(date1);
+                const getYear1 = useUTC1 ? dateObj1.getUTCFullYear() : dateObj1.getFullYear();
+                const getMonth1 = useUTC1 ? dateObj1.getUTCMonth() : dateObj1.getMonth();
+                const getDay1 = useUTC1 ? dateObj1.getUTCDate() : dateObj1.getDate();
+                const getHour1 = useUTC1 ? dateObj1.getUTCHours() : dateObj1.getHours();
+                const getMinute1 = useUTC1 ? dateObj1.getUTCMinutes() : dateObj1.getMinutes();
+                const getSecond1 = useUTC1 ? dateObj1.getUTCSeconds() : dateObj1.getSeconds();
                 switch (fieldName) {
-                    case 'YEAR': return dateObj1.getFullYear();
-                    case 'MONTH': return dateObj1.getMonth() + 1;
-                    case 'DAY': return dateObj1.getDate();
-                    case 'HOUR': return dateObj1.getHours();
-                    case 'MINUTE': return dateObj1.getMinutes();
-                    case 'SECOND': return dateObj1.getSeconds();
+                    case 'YEAR': return getYear1;
+                    case 'MONTH': return getMonth1 + 1;
+                    case 'DAY': return getDay1;
+                    case 'HOUR': return getHour1;
+                    case 'MINUTE': return getMinute1;
+                    case 'SECOND': return getSecond1;
                     default: throw new Error(`Unsupported date/time field ${field}`);
                 }
 
@@ -595,13 +762,20 @@ export class ExprEngine {
                 const [dateUnit, date2] = args;
                 const dateObj2 = new Date(date2);
                 const unitName = dateUnit.toUpperCase();
+                const useUTC2 = hasExplicitTimezone(date2);
+                const getYear2 = useUTC2 ? dateObj2.getUTCFullYear() : dateObj2.getFullYear();
+                const getMonth2 = (useUTC2 ? dateObj2.getUTCMonth() : dateObj2.getMonth()) + 1;
+                const getDay2 = useUTC2 ? dateObj2.getUTCDate() : dateObj2.getDate();
+                const getHour2 = useUTC2 ? dateObj2.getUTCHours() : dateObj2.getHours();
+                const getMinute2 = useUTC2 ? dateObj2.getUTCMinutes() : dateObj2.getMinutes();
+                const getSecond2 = useUTC2 ? dateObj2.getUTCSeconds() : dateObj2.getSeconds();
                 switch (unitName) {
-                    case 'YEAR': return `${dateObj2.getFullYear()}-01-01`;
-                    case 'MONTH': return `${dateObj2.getFullYear()}-${String(dateObj2.getMonth() + 1).padStart(2, '0')}-01`;
-                    case 'DAY': return `${dateObj2.getFullYear()}-${String(dateObj2.getMonth() + 1).padStart(2, '0')}-${String(dateObj2.getDate()).padStart(2, '0')}`;
-                    case 'HOUR': return `${dateObj2.getFullYear()}-${String(dateObj2.getMonth() + 1).padStart(2, '0')}-${String(dateObj2.getDate()).padStart(2, '0')}T${String(dateObj2.getHours()).padStart(2, '0')}:00:00`;
-                    case 'MINUTE': return `${dateObj2.getFullYear()}-${String(dateObj2.getMonth() + 1).padStart(2, '0')}-${String(dateObj2.getDate()).padStart(2, '0')}T${String(dateObj2.getHours()).padStart(2, '0')}:${String(dateObj2.getMinutes()).padStart(2, '0')}:00`;
-                    case 'SECOND': return `${dateObj2.getFullYear()}-${String(dateObj2.getMonth() + 1).padStart(2, '0')}-${String(dateObj2.getDate()).padStart(2, '0')}T${String(dateObj2.getHours()).padStart(2, '0')}:${String(dateObj2.getMinutes()).padStart(2, '0')}:${String(dateObj2.getSeconds()).padStart(2, '0')}`;
+                    case 'YEAR': return `${getYear2}-01-01`;
+                    case 'MONTH': return `${getYear2}-${String(getMonth2).padStart(2, '0')}-01`;
+                    case 'DAY': return `${getYear2}-${String(getMonth2).padStart(2, '0')}-${String(getDay2).padStart(2, '0')}`;
+                    case 'HOUR': return `${getYear2}-${String(getMonth2).padStart(2, '0')}-${String(getDay2).padStart(2, '0')}T${String(getHour2).padStart(2, '0')}:00:00`;
+                    case 'MINUTE': return `${getYear2}-${String(getMonth2).padStart(2, '0')}-${String(getDay2).padStart(2, '0')}T${String(getHour2).padStart(2, '0')}:${String(getMinute2).padStart(2, '0')}:00`;
+                    case 'SECOND': return `${getYear2}-${String(getMonth2).padStart(2, '0')}-${String(getDay2).padStart(2, '0')}T${String(getHour2).padStart(2, '0')}:${String(getMinute2).padStart(2, '0')}:${String(getSecond2).padStart(2, '0')}`;
                     default: throw new Error(`Unsupported date/time unit ${dateUnit}`);
                 }
 

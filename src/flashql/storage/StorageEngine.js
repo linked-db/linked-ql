@@ -186,6 +186,7 @@ export class StorageEngine extends MVCCEngine {
         this.#isHydrating = true;
         let lastMatchedCommitTime = null;
         let lastReplayedCommitTime = null;
+        let pendingEntries = [];
 
         try {
             for await (const commit of this.#wal.streamCommits()) {
@@ -194,7 +195,18 @@ export class StorageEngine extends MVCCEngine {
                 }
 
                 await this.transaction(async (tx) => {
-                    await tx.replay(commit.entries);
+                    for (const event of commit.entries) {
+                        try {
+                            await tx.replay([event]);
+                        } catch (e) {
+                            if (!this.#canDeferHydrationEvent(event, e)) throw e;
+                            pendingEntries.push(event);
+                        }
+                    }
+
+                    if (pendingEntries.length) {
+                        pendingEntries = await this.#drainPendingHydrationEntries(tx, pendingEntries);
+                    }
 
                     if (findLastMatch && versionStop) {
                         const tblDef = tx.showTable(versionStop, { ifExists: true });
@@ -210,11 +222,54 @@ export class StorageEngine extends MVCCEngine {
                 }
                 lastReplayedCommitTime = commit.commitTime;
             }
+
+            if (pendingEntries.length) {
+                await this.transaction(async (tx) => {
+                    pendingEntries = await this.#drainPendingHydrationEntries(tx, pendingEntries, { assertFullyDrained: true });
+                });
+            }
         } finally {
             this.#isHydrating = false;
         }
 
         return { lastMatchedCommitTime, lastReplayedCommitTime };
+    }
+
+    #canDeferHydrationEvent(event, error) {
+        if (!this.#isHydrating) return false;
+        const message = String(error?.message || error);
+        return /does not exist/.test(message)
+            && !!event?.relation?.namespace
+            && !!event?.relation?.name;
+    }
+
+    async #drainPendingHydrationEntries(tx, entries, { assertFullyDrained = false } = {}) {
+        let pending = [...entries];
+        let progressed = true;
+
+        while (pending.length && progressed) {
+            progressed = false;
+            const deferred = [];
+
+            for (const event of pending) {
+                try {
+                    await tx.replay([event]);
+                    progressed = true;
+                } catch (e) {
+                    if (!this.#canDeferHydrationEvent(event, e)) throw e;
+                    deferred.push(event);
+                }
+            }
+
+            pending = deferred;
+        }
+
+        if (assertFullyDrained && pending.length) {
+            const unresolved = pending[0];
+            throw new Error(`Hydration could not resolve persisted event for relation ${JSON.stringify(unresolved.relation.namespace)}.${JSON.stringify(unresolved.relation.name)}`);
+        }
+
+        return pending;
     }
 
     async #federateCommit(tx, timestamp) {
@@ -258,6 +313,29 @@ export class StorageEngine extends MVCCEngine {
         for (const [targetOrigin, entries] of tx._upstreamLog) {
             await federateCommit(targetOrigin, entries);
         }
+    }
+
+    #queuedSyncSelectorFor(tx) {
+        if (!tx._upstreamQueue.size) return null;
+
+        const selector = {};
+        for (const entries of tx._upstreamQueue.values()) {
+            for (const changePayload of entries) {
+                const relation = tx.getRelation({ id: changePayload.relation_id });
+                if (!relation?.namespace || !relation?.name) continue;
+                if (!selector[relation.namespace]) selector[relation.namespace] = [];
+                if (!selector[relation.namespace].includes(relation.name)) {
+                    selector[relation.namespace].push(relation.name);
+                }
+            }
+        }
+
+        return Object.keys(selector).length ? selector : null;
+    }
+
+    #scheduleAutoSync(selector) {
+        if (!selector) return;
+        void this.#sync.sync(selector).catch(() => {});
     }
 
     async #persistCommit(tx, timestamp) {
@@ -397,6 +475,7 @@ export class StorageEngine extends MVCCEngine {
 
     async commit(tx) {
         let timestamp;
+        let queuedSyncSelector = null;
         if (!this.#isHydrating) {
             if (this.#overwriteForward && !this.#forwardHistoryTruncated && tx._changeLog.length) {
                 await this.#wal.truncateForward(this.#openedCommitTime);
@@ -404,6 +483,9 @@ export class StorageEngine extends MVCCEngine {
             }
             timestamp = Date.now();
             await this.#federateCommit(tx, timestamp);
+            if (this.#autoSync) {
+                queuedSyncSelector = this.#queuedSyncSelectorFor(tx);
+            }
         }
 
         const returnValue = await super.commit(tx);
@@ -415,6 +497,7 @@ export class StorageEngine extends MVCCEngine {
             if (!(this.#overwriteForward && !this.#forwardHistoryTruncated && !tx._changeLog.length)) {
                 this.#openedCommitTime = this.txMeta(tx.id)?.commitTime;
             }
+            this.#scheduleAutoSync(queuedSyncSelector);
         }
 
         return returnValue;

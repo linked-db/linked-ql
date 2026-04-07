@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import { MessagePortPlus } from '@webqit/port-plus';
+import { InMemoryKV } from '@webqit/keyval/inmemory';
 
 import '../src/lang/index.js';
 import { FlashQL } from '../src/flashql/FlashQL.js';
@@ -139,9 +140,13 @@ describe('Real-world sync integration stacks', () => {
         let uiDb;
         let upstreamBridge;
         let schemaName;
+        let keyvalRegistry;
+        let keyval;
 
         beforeEach(async () => {
             schemaName = randName('lq_stack_flash');
+            keyvalRegistry = new Map();
+            keyval = new InMemoryKV({ path: [schemaName, 'kv'], registry: keyvalRegistry });
 
             upstreamDb = new FlashQL({ autoSync: false });
             await upstreamDb.connect();
@@ -155,7 +160,8 @@ describe('Real-world sync integration stacks', () => {
             await upstreamBridge.attach(upstreamDb);
 
             localDb = new FlashQL({
-                autoSync: false,
+                autoSync: true,
+                keyval,
                 getUpstreamClient: async () => upstreamBridge,
             });
             await localDb.connect();
@@ -179,6 +185,51 @@ describe('Real-world sync integration stacks', () => {
             await localDb?.disconnect?.();
             await upstreamBridge?.disconnect?.();
             await upstreamDb?.disconnect?.();
+        });
+
+        it('comes up synced automatically on view creation and keeps realtime inbound running without manual sync', async function () {
+            this.timeout(10000);
+
+            let result = await uiDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`);
+            expect(result.rows).to.deep.eq([{ id: 1, name: 'Ada' }]);
+
+            await upstreamDb.query(`UPDATE ${schemaName}.users SET name = 'Ada Lovelace' WHERE id = 1`);
+            await waitFor(async () => {
+                const rows = (await uiDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`)).rows;
+                return rows[0]?.name === 'Ada Lovelace';
+            });
+
+            await upstreamDb.query(`INSERT INTO ${schemaName}.users (id, name) VALUES (2, 'Linus')`);
+            await waitFor(async () => {
+                const rows = (await uiDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`)).rows;
+                return rows.map((row) => row.id).join(',') === '1,2';
+            });
+
+            result = await uiDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`);
+            expect(result.rows).to.deep.eq([
+                { id: 1, name: 'Ada Lovelace' },
+                { id: 2, name: 'Linus' },
+            ]);
+        });
+
+        it('drains local_first writes automatically while online without a manual sync call', async function () {
+            this.timeout(10000);
+
+            await uiDb.query(`INSERT INTO ${schemaName}.users (id, name) VALUES (2, 'Grace')`);
+
+            await waitFor(async () => {
+                const upstream = await upstreamDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`);
+                return upstream.rows.some((row) => row.id === 2 && row.name === 'Grace');
+            });
+
+            await waitFor(async () => {
+                const rows = await getViewRows(localDb, { namespace: schemaName, name: 'users' }, { hiddenCols: true });
+                return rows.some((row) => row.id === 2 && row.name === 'Grace' && row.__staged === false);
+            });
+
+            const outsyncRows = await getOutsyncRows(localDb, { namespace: schemaName, name: 'users' });
+            expect(outsyncRows).to.have.lengthOf(1);
+            expect(outsyncRows[0].status).to.eq('applied');
         });
 
         it('propagates inbound realtime changes and converges local_first writes after connectivity loss', async function () {
@@ -243,6 +294,58 @@ describe('Real-world sync integration stacks', () => {
                 { id: 3, name: 'Grace' },
             ]);
         });
+
+        it('replays staged rows and pending outsync after local restart, then converges on reconnect', async function () {
+            this.timeout(10000);
+
+            await uiDb.sync.sync({ [schemaName]: 'users' }, { forceSync: true });
+
+            upstreamBridge.setOnline(false);
+            await uiDb.query(`INSERT INTO ${schemaName}.users (id, name) VALUES (3, 'Grace')`);
+            await uiDb.sync.sync({ [schemaName]: 'users' }, { forceSync: true });
+
+            let stagedRows = await getViewRows(localDb, { namespace: schemaName, name: 'users' }, { hiddenCols: true });
+            expect(stagedRows.find((row) => row.id === 3)).to.include({ id: 3, name: 'Grace', __staged: true });
+
+            let outsyncRows = await getOutsyncRows(localDb, { namespace: schemaName, name: 'users' });
+            expect(outsyncRows).to.have.lengthOf(1);
+            expect(outsyncRows[0].status).to.eq('failed');
+
+            await uiDb.disconnect();
+            await localDb.disconnect();
+
+            localDb = new FlashQL({
+                autoSync: false,
+                keyval: new InMemoryKV({ path: [schemaName, 'kv'], registry: keyvalRegistry }),
+                getUpstreamClient: async () => upstreamBridge,
+            });
+            await localDb.connect();
+            uiDb = createWorkerEdgeClient(localDb);
+
+            stagedRows = await getViewRows(localDb, { namespace: schemaName, name: 'users' }, { hiddenCols: true });
+            expect(stagedRows.find((row) => row.id === 3)).to.include({ id: 3, name: 'Grace', __staged: true });
+
+            outsyncRows = await getOutsyncRows(localDb, { namespace: schemaName, name: 'users' });
+            expect(outsyncRows).to.have.lengthOf(1);
+            expect(outsyncRows[0].status).to.eq('failed');
+
+            upstreamBridge.setOnline(true);
+            await uiDb.sync.sync({ [schemaName]: 'users' }, { forceSync: true });
+
+            await waitFor(async () => {
+                const upstream = await upstreamDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`);
+                return upstream.rows.some((row) => row.id === 3 && row.name === 'Grace');
+            });
+
+            await waitFor(async () => {
+                const rows = await getViewRows(localDb, { namespace: schemaName, name: 'users' }, { hiddenCols: true });
+                return rows.some((row) => row.id === 3 && row.name === 'Grace' && row.__staged === false);
+            });
+
+            outsyncRows = await getOutsyncRows(localDb, { namespace: schemaName, name: 'users' });
+            expect(outsyncRows).to.have.lengthOf(1);
+            expect(outsyncRows[0].status).to.eq('applied');
+        });
     });
 
     describe('EdgeClient -> FlashQL -> Edge -> PG', () => {
@@ -284,7 +387,7 @@ describe('Real-world sync integration stacks', () => {
             await upstreamBridge.attach(upstreamDb);
 
             localDb = new FlashQL({
-                autoSync: false,
+                autoSync: true,
                 getUpstreamClient: async () => upstreamBridge,
             });
             await localDb.connect();
@@ -319,6 +422,51 @@ describe('Real-world sync integration stacks', () => {
             await upstreamBridge?.disconnect?.();
             await upstreamDb?.query(`DROP TABLE IF EXISTS public.${tableName}`).catch(() => { });
             await upstreamDb?.disconnect?.();
+        });
+
+        it('comes up synced automatically on view creation and keeps realtime PG inbound running without manual sync', async function () {
+            this.timeout(10000);
+
+            let localRows = await uiDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`);
+            expect(localRows.rows).to.deep.eq([{ id: 1, name: 'Ada' }]);
+
+            await upstreamDb.query(`UPDATE public.${tableName} SET name = 'Ada Lovelace' WHERE id = 1`);
+            await waitFor(async () => {
+                const rows = (await uiDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`)).rows;
+                return rows[0]?.name === 'Ada Lovelace';
+            });
+
+            await upstreamDb.query(`INSERT INTO public.${tableName} (id, name) VALUES (2, 'Linus')`);
+            await waitFor(async () => {
+                const rows = (await uiDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`)).rows;
+                return rows.map((row) => row.id).join(',') === '1,2';
+            });
+
+            localRows = await uiDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`);
+            expect(localRows.rows).to.deep.eq([
+                { id: 1, name: 'Ada Lovelace' },
+                { id: 2, name: 'Linus' },
+            ]);
+        });
+
+        it('drains local_first PG writes automatically while online without a manual sync call', async function () {
+            this.timeout(10000);
+
+            await uiDb.query(`INSERT INTO ${schemaName}.users (id, name) VALUES (2, 'Grace')`);
+
+            await waitFor(async () => {
+                const upstream = await upstreamDb.query(`SELECT id, name FROM public.${tableName} ORDER BY id`);
+                return upstream.rows.some((row) => row.id === 2 && row.name === 'Grace');
+            });
+
+            await waitFor(async () => {
+                const rows = await getViewRows(localDb, { namespace: schemaName, name: 'users' }, { hiddenCols: true });
+                return rows.some((row) => row.id === 2 && row.name === 'Grace' && row.__staged === false);
+            });
+
+            const outsyncRows = await getOutsyncRows(localDb, { namespace: schemaName, name: 'users' });
+            expect(outsyncRows).to.have.lengthOf(1);
+            expect(outsyncRows[0].status).to.eq('applied');
         });
 
         it('propagates inbound realtime PG changes and converges local_first writes after connectivity loss', async function () {
