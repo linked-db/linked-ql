@@ -5,7 +5,7 @@ export class ViewStorage extends TableStorage {
 
     // --------- Origin commits handler
 
-    async handleUpstreamCommit(commit) {
+    async applyUpstreamCommit(commit) {
 
         if (!commit.computed && Array.isArray(commit.entries)) {
             const replicationAttrs = this.schema.view_mode_replication_attrs;
@@ -13,17 +13,20 @@ export class ViewStorage extends TableStorage {
             const upstreamMvccKey = replicationAttrs.effective_upstream_mvcc_key;
             const upstreamMvccKey_isXMIN = upstreamMvccKey?.toUpperCase() === 'XMIN';
 
-            const resolveRow = (row) => upstreamMvccKey_isXMIN
-                ? { ...row, __upstream_mvcc_tag: commit.txId }
-                : row;
+            const formatRow = (row) => ({
+                ...(upstreamMvccKey_isXMIN
+                    ? { ...row, __upstream_mvcc_tag: commit.txId }
+                    : row),
+                __staged: false,
+            });
 
             for (const event of commit.entries) {
                 if (event.op === 'insert') {
-                    await super.upsert(resolveRow(event.new), { systemTag: SYSTEM_TAG });
+                    await super.upsert(formatRow(event.new), { systemTag: SYSTEM_TAG });
                 } else if (event.op === 'update') {
                     const oldRef = event.old || event.oldKey;
-                    const updated = await super.update(oldRef, resolveRow(event.new), { systemTag: SYSTEM_TAG });
-                    if (!updated) await super.insert(resolveRow(event.new), { systemTag: SYSTEM_TAG });
+                    const updated = await super.update(oldRef, formatRow(event.new), { systemTag: SYSTEM_TAG });
+                    if (!updated) await super.insert(formatRow(event.new), { systemTag: SYSTEM_TAG });
                 } else if (event.op === 'delete') {
                     const oldRef = event.old || event.oldKey;
                     await super.delete(oldRef, { systemTag: SYSTEM_TAG });
@@ -35,11 +38,11 @@ export class ViewStorage extends TableStorage {
         if (commit.type === 'diff' && Array.isArray(commit.entries)) {
             for (const event of commit.entries) {
                 if (event.op === 'insert') {
-                    const row = { __id: event.newHash, ...event.new };
+                    const row = { __id: event.newHash, __staged: false, ...event.new };
                     await super.upsert(row, { systemTag: SYSTEM_TAG });
                 } else if (event.op === 'update') {
                     const oldKey = { __id: event.oldHash };
-                    const newRow = { __id: event.newHash, ...event.new };
+                    const newRow = { __id: event.newHash, __staged: false, ...event.new };
                     const updated = await super.update(oldKey, newRow, { systemTag: SYSTEM_TAG });
                     if (!updated) await super.insert(newRow, { systemTag: SYSTEM_TAG });
                 } else if (event.op === 'delete') {
@@ -53,7 +56,7 @@ export class ViewStorage extends TableStorage {
 
         if (commit.type === 'result') {
             const rows = commit.rows.map((row, i) =>
-                commit.hashes?.[i] ? { __id: commit.hashes[i], ...row } : row
+                commit.hashes?.[i] ? { __id: commit.hashes[i], __staged: false, ...row } : { __staged: false, ...row }
             );
             await this.reset({ syncForget: false });
             for (const row of rows) {
@@ -95,6 +98,18 @@ export class ViewStorage extends TableStorage {
         return [mvccTag, upstreamPayload];
     }
 
+    #formatAsStaged(row) {
+        return { ...row, __staged: true };
+    }
+
+    #retrieveCurrentRows(oldPk, { using: keyName = null, multiple = false } = {}) {
+        const currentRows = [].concat(super.get(oldPk, { using: keyName, multiple, hiddenCols: true }) || []);
+        if (!currentRows.length) {
+            throw new Error(`[${this.prettyName}] Could not resolve the referenced local row(s) for origin-bound write`);
+        }
+        return currentRows;
+    }
+
     async insert(newRow, { systemTag = null } = {}) {
         if (systemTag) {
             // This is a system call – either from:
@@ -112,17 +127,21 @@ export class ViewStorage extends TableStorage {
             throw new Error(`[${this.prettyName}] Cannot insert to origin table through this view`);
 
         const [, upstreamNewRow] = this.#buildUpstreamPayload(newRow, replicationAttrs);
-        const event = {
-            op: 'insert',
-            relation: replicationAttrs.upstream_relation,
-            new: upstreamNewRow,
+        const changePayload = {
+            relation_id: this.schema.id,
+            origin: replicationAttrs.effective_replication_origin,
+            event: {
+                op: 'insert',
+                relation: replicationAttrs.upstream_relation,
+                new: upstreamNewRow,
+            }
         };
 
-        this.tx.recordUpstreamChange(
-            event,
-            replicationAttrs.effective_replication_origin,
-            { queued: !isRuntimeView }
-        );
+        this.tx.recordUpstreamChange(changePayload, { queued: !isRuntimeView });
+        if (isLocalFirst)
+            await super.insert(this.#formatAsStaged(newRow), { systemTag: SYSTEM_TAG });
+
+        return newRow;
     }
 
     async update(oldPk, newRow, { using: keyName = null, multiple = false, systemTag = null } = {}) {
@@ -141,28 +160,33 @@ export class ViewStorage extends TableStorage {
         if (!replicationAttrs.updatable)
             throw new Error(`[${this.prettyName}] Cannot update origin table through this view`);
 
-        const oldRowsOrKeys = replicationAttrs.effective_upstream_mvcc_key
-            ? [].concat(super.get(oldPk, { using: keyName, multiple, hiddenCols: true }))
-            : [oldPk];
-
         const [, upstreamNewRow] = this.#buildUpstreamPayload(newRow, replicationAttrs);
-        for (const old of oldRowsOrKeys) {
+        const currentRows = isRuntimeView
+            ? [].concat(oldPk)
+            : this.#retrieveCurrentRows(oldPk, { using: keyName, multiple });
+
+        for (const old of currentRows) {
             const [mvccTag, upstreamOldRow] = this.#buildUpstreamPayload(old, replicationAttrs);
 
-            const event = {
-                op: 'update',
-                relation: replicationAttrs.upstream_relation,
-                old: upstreamOldRow,
-                new: { ...upstreamNewRow },
-                mvccTag,
+            const changePayload = {
+                relation_id: this.schema.id,
+                origin: replicationAttrs.effective_replication_origin,
+                event: {
+                    op: 'update',
+                    relation: replicationAttrs.upstream_relation,
+                    old: upstreamOldRow,
+                    new: { ...upstreamNewRow },
+                    mvccTag,
+                }
             };
 
-            this.tx.recordUpstreamChange(
-                event,
-                replicationAttrs.effective_replication_origin,
-                { queued: !isRuntimeView }
-            );
+            this.tx.recordUpstreamChange(changePayload, { queued: !isRuntimeView });
         }
+
+        if (isLocalFirst)
+            await super.update(oldPk, this.#formatAsStaged(newRow), { using: keyName, multiple, systemTag: SYSTEM_TAG });
+        
+        return multiple ? currentRows : currentRows[0];
     }
 
     async delete(oldPk, { using: keyName = null, multiple = false, systemTag = null } = {}) {
@@ -181,26 +205,30 @@ export class ViewStorage extends TableStorage {
         if (!replicationAttrs.deletable)
             throw new Error(`[${this.prettyName}] Cannot delete origin row through this view`);
 
-        const oldRowsOrKeys = replicationAttrs.effective_upstream_mvcc_key
-            ? [].concat(super.get(oldPk, { using: keyName, multiple, hiddenCols: true }))
-            : [oldPk];
-
-        for (const old of oldRowsOrKeys) {
+        const currentRows = isRuntimeView
+            ? [].concat(oldPk)
+            : this.#retrieveCurrentRows(oldPk, { using: keyName, multiple });
+        for (const old of currentRows) {
             const [mvccTag, upstreamOldRow] = this.#buildUpstreamPayload(old, replicationAttrs);
 
-            const event = {
-                op: 'delete',
-                relation: replicationAttrs.upstream_relation,
-                old: upstreamOldRow,
-                mvccTag,
+            const changePayload = {
+                relation_id: this.schema.id,
+                origin: replicationAttrs.effective_replication_origin,
+                event: {
+                    op: 'delete',
+                    relation: replicationAttrs.upstream_relation,
+                    old: upstreamOldRow,
+                    mvccTag,
+                }
             };
 
-            this.tx.recordUpstreamChange(
-                event,
-                replicationAttrs.effective_replication_origin,
-                { queued: !isRuntimeView }
-            );
+            this.tx.recordUpstreamChange(changePayload, { queued: !isRuntimeView });
         }
+
+        if (isLocalFirst)
+            await super.delete(oldPk, { using: keyName, multiple, systemTag: SYSTEM_TAG });
+
+        return multiple ? currentRows : currentRows[0];
     }
 
     // --------- View state handlers

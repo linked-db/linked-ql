@@ -66,17 +66,37 @@ export class PGClient extends MainstreamDBClient {
     }
 
     async _beginTransaction() {
-        const conn = await this.connect();
+        let conn;
+        if (this.#poolMode) {
+            conn = await this.#driver.connect();
+        } else {
+            if (!this.#adminDriver) {
+                await this.connect();
+            }
+            conn = this.#driver;
+        }
         await conn.query('BEGIN');
         return { conn };
     }
 
     async _commitTransaction(tx) {
-        await tx.conn.query('COMMIT');
+        try {
+            await tx.conn.query('COMMIT');
+        } finally {
+            if (this.#poolMode) {
+                await tx.conn.release();
+            }
+        }
     }
 
     async _rollbackTransaction(tx) {
-        await tx.conn.query('ROLLBACK');
+        try {
+            await tx.conn.query('ROLLBACK');
+        } finally {
+            if (this.#poolMode) {
+                await tx.conn.release();
+            }
+        }
     }
 
     async _query(query, { values = [], prepared = null, tx = null }) {

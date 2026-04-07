@@ -136,7 +136,7 @@ export class Transaction extends CatalogAPI {
         super.recordChange(change);
     }
 
-    recordUpstreamChange(change, effectiveReplicationOrigin, { queued = true }) {
+    recordUpstreamChange(changePayload, { queued = true }) {
         if (this.#engine.readOnly && !this.#engine._isHydrating) {
             throw new Error('StorageEngine is read-only');
         }
@@ -144,10 +144,10 @@ export class Transaction extends CatalogAPI {
             ? this.#upstreamQueue
             : this.#upstreamLog;
         
-        effectiveReplicationOrigin ||= '';
-        if (!targetLog.has(effectiveReplicationOrigin))
-            targetLog.set(effectiveReplicationOrigin, []);
-        targetLog.get(effectiveReplicationOrigin).push(change);
+        const origin = changePayload.origin || '';
+        if (!targetLog.has(origin))
+            targetLog.set(origin, []);
+        targetLog.get(origin).push(changePayload);
     }
 
     addUndo(fn) {

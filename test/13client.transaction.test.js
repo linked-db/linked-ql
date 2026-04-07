@@ -4,6 +4,7 @@ use(chaiAsPromised);
 
 import '../src/lang/index.js';
 import { MainstreamDBClient } from '../src/clients/abstracts/MainstreamDBClient.js';
+import { ConflictError } from '../src/flashql/errors/ConflictError.js';
 import { BaseEdgeClient } from '../src/clients/edge/BaseEdgeClient.js';
 import { FlashQL } from '../src/flashql/FlashQL.js';
 
@@ -86,6 +87,25 @@ class MockEdgeLiveClient extends BaseEdgeClient {
     }
 }
 
+class MockEdgeWalClient extends BaseEdgeClient {
+    constructor() {
+        super({ dialect: 'postgres', workerEventNamespace: 'lnkd_' });
+        this.calls = [];
+    }
+
+    async _exec(op, args) {
+        this.calls.push([op, args]);
+        if (op === 'wal:subscribe') {
+            const port = new EventTarget();
+            port.readyStateChange = async () => undefined;
+            port.close = async () => undefined;
+            return { data: true, port };
+        }
+        if (op === 'wal:forget') return true;
+        return null;
+    }
+}
+
 describe('Client.transaction(cb)', () => {
     it('MainstreamDBClient: commits successful callback', async () => {
         const client = new MockMainstreamClient();
@@ -136,6 +156,70 @@ describe('Client.transaction(cb)', () => {
 
         expect(callbackCalled).to.eq(false);
         expect(client.calls).to.deep.eq(['begin']);
+    });
+
+    it('MainstreamWalEngine: applies downstream commits inside a transaction', async () => {
+        class WalMockClient extends MockMainstreamClient {
+            async _query(query, { tx = null } = {}) {
+                this.calls.push(['query', query + '', !!tx]);
+                return { rowCount: 1, rows: [] };
+            }
+        }
+
+        const client = new WalMockClient();
+        await client.wal.applyDownstreamCommit({
+            entries: [
+                {
+                    op: 'insert',
+                    relation: { namespace: 'public', name: 'users', keyColumns: ['id'] },
+                    new: { id: 1, name: 'Ada' },
+                },
+                {
+                    op: 'update',
+                    relation: { namespace: 'public', name: 'users', keyColumns: ['id'], mvccKey: 'xmin' },
+                    old: { id: 1 },
+                    new: { name: 'Ada Lovelace' },
+                    mvccTag: 7,
+                }
+            ],
+        });
+
+        expect(client.calls[0]).to.eq('begin');
+        expect(client.calls[1][0]).to.eq('query');
+        expect(client.calls[1][2]).to.eq(true);
+        expect(client.calls[1][1]).to.contain('INSERT INTO "public"."users"');
+        expect(client.calls[2][0]).to.eq('query');
+        expect(client.calls[2][2]).to.eq(true);
+        expect(client.calls[2][1]).to.contain('UPDATE "public"."users"');
+        expect(client.calls[2][1]).to.contain('CAST(CAST("xmin" AS TEXT) AS INT) = 7');
+        expect(client.calls[3]).to.deep.eq(['commit', 1]);
+    });
+
+    it('MainstreamWalEngine: raises ConflictError when update/delete affects no rows', async () => {
+        class ConflictWalClient extends MockMainstreamClient {
+            async _query(query, { tx = null } = {}) {
+                this.calls.push(['query', query + '', !!tx]);
+                return { rowCount: 0, rows: [] };
+            }
+        }
+
+        const client = new ConflictWalClient();
+
+        await expect(client.wal.applyDownstreamCommit({
+            entries: [
+                {
+                    op: 'update',
+                    relation: { namespace: 'public', name: 'users', keyColumns: ['id'], mvccKey: 'xmin' },
+                    old: { id: 1 },
+                    new: { name: 'Ada Lovelace' },
+                    mvccTag: 7,
+                }
+            ],
+        })).to.be.rejectedWith(ConflictError);
+
+        expect(client.calls[0]).to.eq('begin');
+        expect(client.calls[1][0]).to.eq('query');
+        expect(client.calls[2]).to.deep.eq(['rollback', 1]);
     });
 
     it('MainstreamDBClient: commit failure triggers rollback and surfaces commit error', async () => {
@@ -291,5 +375,55 @@ describe('Client.transaction(cb)', () => {
         const client = new MockEdgeLiveClient({ forgetResponse: 'ok' });
         const result = await client.query('SELECT 1', { live: true, id: 'slot_live_forget_bad' });
         await expect(result.abort({ forget: true })).to.be.rejectedWith('Could not execute forget() on remote stream');
+    });
+
+    it('EdgeWalEngine: preferRemote=true subscribes through remote edge transport', async () => {
+        const client = new MockEdgeWalClient();
+
+        const gc = await client.wal.subscribe({ public: ['users'] }, async () => undefined, {
+            id: 'slot_remote',
+            preferRemote: true,
+        });
+
+        expect(client.calls).to.have.length(1);
+        expect(client.calls[0][0]).to.eq('wal:subscribe');
+        expect(client.calls[0][1].selector).to.deep.eq({ public: ['users'] });
+        expect(client.calls[0][1].options).to.deep.include({ id: 'slot_remote', preferRemote: true });
+
+        await gc();
+    });
+
+    it('EdgeWalEngine: preferRemote=false subscribes through local broker and still receives commits', async () => {
+        const client = new MockEdgeWalClient();
+        const commits = [];
+
+        const gc = await client.wal.subscribe({ public: ['users'] }, async (commit) => {
+            commits.push(commit);
+        }, {
+            id: 'slot_local',
+            preferRemote: false,
+        });
+
+        const walSubscribeCalls = client.calls.filter(([op]) => op === 'wal:subscribe');
+        expect(walSubscribeCalls).to.have.length(1);
+        expect(walSubscribeCalls[0][1].selector).to.eq(undefined);
+        expect(walSubscribeCalls[0][1].options).to.deep.eq({});
+
+        await client.wal.dispatch({
+            txId: 1,
+            commitTime: 1,
+            entries: [
+                {
+                    op: 'insert',
+                    relation: { namespace: 'public', name: 'users', keyColumns: ['id'] },
+                    new: { id: 1, name: 'Ada' },
+                }
+            ],
+        });
+
+        expect(commits).to.have.length(1);
+        expect(commits[0].entries[0].new).to.deep.eq({ id: 1, name: 'Ada' });
+
+        await gc();
     });
 });

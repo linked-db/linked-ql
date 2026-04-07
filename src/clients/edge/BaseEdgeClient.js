@@ -234,7 +234,7 @@ export class BaseEdgeClient extends LinkedQLClient {
         responseJson.port.addEventListener(`${this.#workerEventNamespace}commit`, handleCommit);
         gcArray.push(() => responseJson.port.removeEventListener(`${this.#workerEventNamespace}commit`, handleCommit));
 
-        const gc = async ({ forget = false }) => {
+        const gc = async ({ forget = false } = {}) => {
             responseJson.port?.close();
 
             if (forget && options.id) {

@@ -282,16 +282,22 @@ export class RelationDDL {
             throw new SyntaxError(`Unexpected attribute: view_opts_replication_opts.${unrecognizedKey}`);
 
         if (this.#view_opts_replication_mode === 'none') {
-            if (![undefined, null].includes(value.join_pushdown_size)) {
-                if (!/^\d+$/.test(value.join_pushdown_size))
-                    throw new SyntaxError(`view_opts_replication_opts.join_pushdown_size must be numeric; recieved ${value.join_pushdown_size}`);
+            if (value.join_pushdown_size !== undefined) {
+                // Can be reset to null, thus 0
+                if (value.join_pushdown_size !== null) {
+                    if (!/^\d+$/.test(value.join_pushdown_size))
+                        throw new SyntaxError(`view_opts_replication_opts.join_pushdown_size must be numeric; recieved ${value.join_pushdown_size}`);
+                }
                 this.#view_opts_replication_opts.join_pushdown_size = Number(value.join_pushdown_size);
             }
 
-            if (!/^(true|false)$/i.test(value.join_memoization + '')) {
-                if (!/^\d+$/.test(value.join_memoization))
-                    throw new SyntaxError(`view_opts_replication_opts.join_memoization must be true or false; recieved ${value.join_memoization}`);
-                this.#view_opts_replication_opts.join_memoization = JSON.parse((value.join_memoization + '').toLocaleLowerCase());
+            if (value.join_memoization !== undefined) {
+                // Can be reset to null, thus false
+                if (value.join_memoization !== null) {
+                    if (!/^(true|false)$/i.test(value.join_memoization + ''))
+                        throw new SyntaxError(`view_opts_replication_opts.join_memoization must be true or false; recieved ${value.join_memoization}`);
+                }
+                this.#view_opts_replication_opts.join_memoization = JSON.parse(((value.join_memoization || 'false') + '').toLowerCase());
             }
         } else {
             if (value.upstream_mvcc_key !== undefined) {
@@ -305,11 +311,14 @@ export class RelationDDL {
                 this.#structuralChanges.upstream_mvcc_key = true;
             }
 
-            if (![undefined, null].includes(value.write_policy)) {
-                if (!['origin_first', 'local_first'].includes(value.write_policy))
-                    throw new SyntaxError(`view_opts_replication_opts.write_policy must be either "origin_first" or "local_first"`);
+            if (value.write_policy !== undefined) {
+                // Can be reset to null
+                if (value.write_policy !== null) {
+                    if (!['origin_first', 'local_first'].includes(value.write_policy))
+                        throw new SyntaxError(`view_opts_replication_opts.write_policy must be either "origin_first" or "local_first"`);
+                }
 
-                this.#view_opts_replication_opts.write_policy = value.write_policy;
+                this.#view_opts_replication_opts.write_policy = value.write_policy || 'origin_first';
                 this.#structuralChanges.write_policy = true;
             }
         }
@@ -400,23 +409,47 @@ export class RelationDDL {
                         this.#source_expr_ast = sourceExprNode.jsonfy({ toSelect: true });
                     }
 
+                    const isPostgresXmin = this.#view_mode_replication_attrs.effective_replication_origin?.startsWith('postgres:')
+                        && this.#view_mode_replication_attrs.effective_upstream_mvcc_key?.toUpperCase() === 'XMIN';
+                    const upstreamMvccExpr = isPostgresXmin
+                        ? {
+                            nodeName: 'CAST_EXPR',
+                            expr: {
+                                nodeName: 'CAST_EXPR',
+                                expr: {
+                                    nodeName: registry.ColumnRef1.NODE_NAME,
+                                    value: this.#view_mode_replication_attrs.effective_upstream_mvcc_key
+                                },
+                                data_type: { nodeName: 'DATA_TYPE', value: 'TEXT' }
+                            },
+                            data_type: { nodeName: 'DATA_TYPE', value: 'INT' }
+                        }
+                        : {
+                            nodeName: 'CAST_EXPR',
+                            expr: {
+                                nodeName: registry.ColumnRef1.NODE_NAME,
+                                value: this.#view_mode_replication_attrs.effective_upstream_mvcc_key
+                            },
+                            data_type: { nodeName: 'DATA_TYPE', value: 'INT' }
+                        };
+
                     // Add a __upstream_mvcc_tag field
                     this.#source_expr_ast.select_list.entries.push({
                         nodeName: registry.SelectItem.NODE_NAME,
-                        expr: {
-                            nodeName: 'CAST_EXPR', expr: {
-                                nodeName: registry.ColumnRef1.NODE_NAME,
-                                value: this.#view_mode_replication_attrs.effective_upstream_mvcc_key
-                            }, data_type: { nodeName: 'DATA_TYPE', value: 'INT' }
-                        },
+                        expr: upstreamMvccExpr,
                         alias: { nodeName: registry.SelectItemAlias.NODE_NAME, value: '__upstream_mvcc_tag', as_kw: true },
                     });
 
                     // Add a __upstream_mvcc_tag column
-                    this.#columns = [{ name: '__upstream_mvcc_tag', type: 'INT', not_null: true, engine_attrs: { is_system_column: true } }].concat(this.#columns);
+                    this.#columns = [{
+                        name: '__upstream_mvcc_tag',
+                        type: 'INT',
+                        not_null: false,
+                        engine_attrs: { is_system_column: true }
+                    }].concat(this.#columns);
                 }
             }
-            
+
             // Add a __staged column
             this.#columns = [{ name: '__staged', type: 'BOOLEAN', not_null: true, default_expr_ast: { nodeName: 'BOOL_LITERAL', value: false }, engine_attrs: { is_system_column: true } }].concat(this.#columns);
         }

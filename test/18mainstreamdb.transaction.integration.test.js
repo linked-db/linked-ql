@@ -13,6 +13,30 @@ const parseEnvJson = (name) => {
     return JSON.parse(raw);
 };
 
+const canUseDefaultPGConnection = async () => {
+    if (process.env.LINKEDQL_TEST_PG_AUTODETECT === '0') return false;
+
+    const client = new PGClient();
+    try {
+        await Promise.race([
+            client.connect(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500)),
+        ]);
+        return true;
+    } catch {
+        return false;
+    } finally {
+        await client.disconnect().catch(() => {});
+    }
+};
+
+const resolveTestConfig = async (envName, Client) => {
+    const config = parseEnvJson(envName);
+    if (config) return config;
+    if (Client === PGClient && await canUseDefaultPGConnection()) return {};
+    return null;
+};
+
 const randTable = (prefix) => `${prefix}_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
 
 const runTxSuite = ({ title, envName, Client, createSql, insertSql, selectSql, dropSql }) => {
@@ -24,7 +48,7 @@ const runTxSuite = ({ title, envName, Client, createSql, insertSql, selectSql, d
         let config;
 
         before(async function () {
-            config = parseEnvJson(envName);
+            config = await resolveTestConfig(envName, Client);
             if (!config) this.skip();
 
             client = new Client(config);

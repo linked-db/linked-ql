@@ -222,7 +222,7 @@ export class EdgeWorker extends SimpleEmitter {
         }
 
         if (op === 'wal:handle_downstream_commit') {
-            return await this.#db.wal.handleDownstreamCommit(args.commit, args.options);
+            return await this.#db.wal.applyDownstreamCommit(args.commit, args.options);
         }
     }
 

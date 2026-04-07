@@ -66,7 +66,7 @@ export class FlashWalEngine extends BaseWalEngine {
         return async () => await Promise.all(_gcArray.map((c) => c()));
     }
 
-    async handleDownstreamCommit(commit, { tx: inputTx = null } = {}) {
+    async applyDownstreamCommit(commit, { tx: inputTx = null } = {}) {
 
         const applyInTx = async (tx) => {
             for (const event of commit.entries) {

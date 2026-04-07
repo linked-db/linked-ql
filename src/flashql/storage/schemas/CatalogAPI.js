@@ -82,7 +82,7 @@ export class CatalogAPI {
         if (bootstrap) return bootstrapCatalog;
         if (this.#sysCatalog) return this.#sysCatalog;
 
-        const sysCatalog = new Map(['sys_namespaces', 'sys_relations', 'sys_types', 'sys_columns', 'sys_constraints', 'sys_indexes', 'sys_dependencies', 'sys_sync_jobs', 'sys_outsync_queue'].map(
+        const sysCatalog = new Map(['sys_namespaces', 'sys_relations', 'sys_types', 'sys_columns', 'sys_constraints', 'sys_indexes', 'sys_dependencies', 'sys_insync_jobs', 'sys_outsync_queue'].map(
             (n) => [n, this.getRelation({ namespace: 'sys', name: n })],
         ));
         this.#sysCatalog = sysCatalog;
@@ -919,8 +919,9 @@ export class CatalogAPI {
         for (const _col of columns) {
             const col = await this.#parser.resolve_columnDef(_col, (col, prop) => {
                 if (prop === 'type') {
-                    col.type_id = sysTypes.get({ namespace_id: 1, name: col.type }, { using: 'sys_types__namespace_id_name_idx' })?.id
-                        || altSysTypes.get({ namespace_id: 1, name: col.type }, { using: true })?.id;
+                    const normalizedTypeName = col.type.toUpperCase();
+                    col.type_id = sysTypes.get({ namespace_id: 1, name: normalizedTypeName }, { using: 'sys_types__namespace_id_name_idx' })?.id
+                        || altSysTypes.get({ namespace_id: 1, name: normalizedTypeName }, { using: true })?.id;
                     if (!col.type_id) throw new Error(`[${col.name}] Unknown column type "${col.type}"`);
                 } else if (prop === 'type_id') {
                     if (typeof col.type_id !== 'object')

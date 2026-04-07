@@ -502,7 +502,17 @@ export class QueryWindow extends SimpleEmitter {
                 const keyJson = { nodeName: 'STRING_LITERAL', ...colJson };
                 let colRefJson = { nodeName: 'COLUMN_REF1', ...colJson, qualifier: { nodeName: 'TABLE_REF1', ...aliasJson } };
                 if (colJson.value === 'XMIN' && XMIN_autoInjection) {
-                    colRefJson = { nodeName: 'CAST_EXPR', expr: colRefJson, data_type: { nodeName: 'DATA_TYPE', value: 'INT' } };
+                    colRefJson = this.#driver.dialect === 'postgres'
+                        ? {
+                            nodeName: 'CAST_EXPR',
+                            expr: {
+                                nodeName: 'CAST_EXPR',
+                                expr: colRefJson,
+                                data_type: { nodeName: 'DATA_TYPE', value: 'TEXT' }
+                            },
+                            data_type: { nodeName: 'DATA_TYPE', value: 'INT' }
+                        }
+                        : { nodeName: 'CAST_EXPR', expr: colRefJson, data_type: { nodeName: 'DATA_TYPE', value: 'INT' } };
                 }
                 // Format for strategy.aggrMode === 2?
                 if (analysis.hasAggrFunctions) {

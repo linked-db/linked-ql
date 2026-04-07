@@ -98,6 +98,7 @@ export class TableStorage {
 
     _serializeValue(value) {
         if (value === null) return 'NULL';
+        if (typeof value === 'bigint') return String(value);
         if (typeof value === 'number') {
             if (!Number.isFinite(value)) throw new TypeError(`[${this.#prettyName}] Cannot serialize non-finite number`);
             return String(value);
@@ -318,6 +319,17 @@ export class TableStorage {
     #runTypeChecks(input) {
         const isIntegerNumber = (v) => typeof v === 'number' && Number.isFinite(v) && Number.isInteger(v);
         const isNumber = (v) => typeof v === 'number' && Number.isFinite(v);
+        const isIntegerString = (v) => typeof v === 'string' && /^[-+]?\d+$/.test(v);
+        const normalizeBigIntValue = (v) => {
+            if (typeof v === 'bigint') return v;
+            if (isIntegerNumber(v)) return v;
+            if (!isIntegerString(v)) return v;
+            const asNumber = Number(v);
+            if (Number.isSafeInteger(asNumber) && String(asNumber) === String(parseInt(v, 10))) {
+                return asNumber;
+            }
+            return BigInt(v);
+        };
         const isJsonValue = (v) => {
             if (v === undefined || typeof v === 'function' || typeof v === 'symbol') return false;
             return true;
@@ -335,13 +347,20 @@ export class TableStorage {
                     break;
                 case 'INT':
                 case 'INTEGER':
-                case 'BIGINT':
                 case 'SERIAL':
-                case 'BIGSERIAL':
                     if (!isIntegerNumber(value)) {
                         throw new TypeError(`[${this.#prettyName}] Invalid value for ${colName}: expected ${col.type_id.name} but got ${value}`);
                     }
                     break;
+                case 'BIGINT':
+                case 'BIGSERIAL': {
+                    const normalized = normalizeBigIntValue(value);
+                    if (!(typeof normalized === 'bigint' || isIntegerNumber(normalized))) {
+                        throw new TypeError(`[${this.#prettyName}] Invalid value for ${colName}: expected ${col.type_id.name} but got ${value}`);
+                    }
+                    input[colName] = normalized;
+                    break;
+                }
                 case 'NUMERIC':
                 case 'DECIMAL':
                     if (!(isNumber(value) || (typeof value === 'string' && NUMERIC_REGEX.test(value)))) {

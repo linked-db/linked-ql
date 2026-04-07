@@ -346,10 +346,14 @@ export class QueryEngine {
         if (stmtNode.temporaryKW()) viewDef.persistence = 'temporary';
         if (stmtNode.replicationMode()) viewDef.replication_mode = stmtNode.replicationMode().toLowerCase();
         if (stmtNode.optionsClause()) {
-            const viewOptions = this.#parser.optionsASTS_to_optionsDef(stmtNode.optionsClause().entries() || [], { prefix: '' });
-            if (viewDef.replication_mode && viewOptions.replication_mode && viewOptions.replication_mode !== viewDef.replication_mode)
-                throw new Error(`replication_mode=${viewOptions.replication_mode} cannot be used with a ${viewDef.replication_mode.toUpperCase()} view`);
-            Object.assign(viewDef, viewOptions);
+            const { replication_mode = viewDef.replication_mode, replication_origin, ...replication_opts } = this.#parser.optionsASTS_to_optionsDef(stmtNode.optionsClause().entries() || [], { prefix: '' });
+            if (viewDef.replication_mode && replication_mode !== undefined && replication_mode !== viewDef.replication_mode)
+                throw new Error(`replication_mode=${replication_mode} cannot be used with a ${viewDef.replication_mode.toUpperCase()} view`);
+            Object.assign(viewDef, {
+                replication_mode,
+                replication_origin,
+                replication_opts
+            });
         }
 
         if (stmtNode.orReplace()) {
@@ -375,9 +379,19 @@ export class QueryEngine {
             else if (action instanceof registry.RelationSourceExpr) {
                 Object.assign(alterPayload, this.#parser.relationSourceExpr_to_relationSourceDef(action));
             } else if (action instanceof registry.OptionsSetClause) {
-                Object.assign(alterPayload, this.#parser.optionsASTS_to_optionsDef(action.entries(), { prefix: '' }));
+                const { replication_mode, replication_origin, ...replication_opts } = this.#parser.optionsASTS_to_optionsDef(action.entries(), { prefix: '' });
+                Object.assign(alterPayload, {
+                    replication_mode,
+                    replication_origin,
+                    replication_opts
+                });
             } else if (action instanceof registry.OptionsResetClause) {
-                Object.assign(alterPayload, this.#parser.optionsASTS_to_optionsDef(action.entries(), { prefix: '', reset: true }));
+                const { replication_mode, replication_origin, ...replication_opts } = this.#parser.optionsASTS_to_optionsDef(action.entries(), { prefix: '', reset: true });
+                Object.assign(alterPayload, {
+                    replication_mode,
+                    replication_origin,
+                    replication_opts
+                });
             } else {
                 throw new Error(`Unsupported ALTER VIEW action ${action.NODE_NAME}`);
             }

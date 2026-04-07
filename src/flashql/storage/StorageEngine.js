@@ -6,6 +6,7 @@ import { FlashSchemaInference } from './FlashSchemaInference.js';
 import { FlashWalEngine } from './FlashWalEngine.js';
 import { SyncManager } from '../sync/SyncManager.js';
 import { MVCCEngine } from './MVCCEngine.js';
+import { SYSTEM_TAG } from './TableStorage.js';
 
 export class StorageEngine extends MVCCEngine {
 
@@ -219,19 +220,43 @@ export class StorageEngine extends MVCCEngine {
     async #federateCommit(tx, timestamp) {
         const commitTime = this.txMeta(tx.id)?.commitTime;
 
-        const federateCommit = async (targetOrigin, entries, { queued }) => {
-            const commit = { txId: tx.id, commitTime, entries, timestamp };
+        const federateCommit = async (targetOrigin, entries, { queued = false } = {}) => {
+            if (queued) {
+                const outsyncQueue = tx.getRelation({ namespace: 'sys', name: 'sys_outsync_queue' });
+                for (const changePayload of entries) {
+                    await outsyncQueue.insert({
+                        relation_id: changePayload.relation_id,
+                        origin: changePayload.origin,
+                        event_payload: changePayload.event,
+                        status: 'pending',
+                        retry_count: 0,
+                        last_error: null,
+                        created_at: timestamp,
+                        updated_at: timestamp,
+                        next_retry_at: null,
+                    }, { systemTag: SYSTEM_TAG });
+                }
+                return;
+            }
+
+            const commit = {
+                txId: tx.id,
+                commitTime,
+                entries: entries.map((changePayload) => changePayload.event),
+                timestamp
+            };
+
             return targetOrigin
-                ? (await this.getUpstreamClient(targetOrigin)).wal.handleDownstreamCommit(commit)
-                : await this.wal.handleDownstreamCommit(commit, { tx });
+                ? (await this.getUpstreamClient(targetOrigin)).wal.applyDownstreamCommit(commit)
+                : await this.wal.applyDownstreamCommit(commit, { tx });
         };
 
-        for (const [targetOrigin, entries] of tx._upstreamLog) {
-            await federateCommit(targetOrigin, entries, { queued: false });
-        }
-        
         for (const [targetOrigin, entries] of tx._upstreamQueue) {
             await federateCommit(targetOrigin, entries, { queued: true });
+        }
+
+        for (const [targetOrigin, entries] of tx._upstreamLog) {
+            await federateCommit(targetOrigin, entries);
         }
     }
 
@@ -371,15 +396,19 @@ export class StorageEngine extends MVCCEngine {
     }
 
     async commit(tx) {
-        const returnValue = await super.commit(tx);
-
+        let timestamp;
         if (!this.#isHydrating) {
             if (this.#overwriteForward && !this.#forwardHistoryTruncated && tx._changeLog.length) {
                 await this.#wal.truncateForward(this.#openedCommitTime);
                 this.#forwardHistoryTruncated = true;
             }
-            const timestamp = Date.now();
+            timestamp = Date.now();
             await this.#federateCommit(tx, timestamp);
+        }
+
+        const returnValue = await super.commit(tx);
+
+        if (!this.#isHydrating) {
             await this.#persistCommit(tx, timestamp);
             // Keep the original versionStop anchor intact until first mutating commit
             // performs forward-history truncation.

@@ -22,7 +22,7 @@ export class EdgeWalEngine extends BaseWalEngine {
         return await super.subscribe(...args);
     }
 
-    async handleDownstreamCommit(commit, options = {}) {
+    async applyDownstreamCommit(commit, options = {}) {
         const procName = 'wal:handle_downstream_commit';
         return await this.#client._exec(procName, { commit, options });
     }

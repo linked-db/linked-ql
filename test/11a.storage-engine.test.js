@@ -120,10 +120,10 @@ describe('StorageEngine - Bootstrapping And Transactions', () => {
         expect(table.get(7002)).to.be.null;
     });
 
-    it('applies WAL-shaped changefeeds through storage wal.handleDownstreamCommit()', async () => {
+    it('applies WAL-shaped changefeeds through storage wal.applyDownstreamCommit()', async () => {
         const storageEngine = await createEngine({ withTestTable: true });
 
-        await storageEngine.wal.handleDownstreamCommit({
+        await storageEngine.wal.applyDownstreamCommit({
             entries: [
                 {
                     op: 'update',
@@ -145,7 +145,7 @@ describe('StorageEngine - Bootstrapping And Transactions', () => {
         expect(table.get(3)).to.deep.include({ id: 3, name: 'New User' });
     });
 
-    it('rejects wal.handleDownstreamCommit() writes when the expected XMIN no longer matches', async () => {
+    it('rejects wal.applyDownstreamCommit() writes when the expected XMIN no longer matches', async () => {
         const storageEngine = await createEngine({ withTestTable: true });
 
         const tx = storageEngine.begin();
@@ -154,7 +154,7 @@ describe('StorageEngine - Bootstrapping And Transactions', () => {
         await tx.abort();
 
         // Omits the mvccTag
-        await expect(storageEngine.wal.handleDownstreamCommit({
+        await expect(storageEngine.wal.applyDownstreamCommit({
             entries: [
                 {
                     op: 'update',
@@ -167,7 +167,7 @@ describe('StorageEngine - Bootstrapping And Transactions', () => {
         })).to.be.rejectedWith(SyntaxError);
 
         // Specifies the mvccTag but invalid
-        await expect(storageEngine.wal.handleDownstreamCommit({
+        await expect(storageEngine.wal.applyDownstreamCommit({
             entries: [
                 {
                     op: 'update',
@@ -378,6 +378,175 @@ describe('StorageEngine - DDL', () => {
     });
 });
 
+describe('StorageEngine - Outsync', () => {
+    it('retries failed outsync rows only after next_retry_at', async () => {
+        let attempts = 0;
+        let storageEngine;
+        const upstreamClient = {
+            wal: {
+                async applyDownstreamCommit() {
+                    attempts++;
+                    if (attempts === 1) throw new Error('temporary upstream failure');
+                    return true;
+                },
+                async subscribe() {
+                    return async () => {};
+                },
+                async forget() {
+                    return true;
+                }
+            },
+            async query() {
+                return { rows: [] };
+            },
+            live: {
+                async forget() {
+                    return true;
+                }
+            },
+            get resolver() {
+                return storageEngine.getResolver();
+            },
+        };
+
+        storageEngine = await createEngine({
+            autoSync: false,
+            getUpstreamClient: async () => upstreamClient,
+        });
+
+        await storageEngine.transaction(async (tx) => {
+            await tx.createTable({
+                namespace: 'public',
+                name: 'src',
+                columns: [
+                    { name: 'id', type: 'INT', not_null: true },
+                    { name: 'name', type: 'TEXT', not_null: true },
+                ],
+                constraints: [{ kind: 'PRIMARY KEY', columns: ['id'] }],
+            });
+
+            await tx.createView({
+                namespace: 'public',
+                name: 'v_src',
+                source_expr: 'TABLE public.src',
+                replication_mode: 'materialized',
+                replication_origin: 'flashql:primary',
+            });
+        });
+
+        await storageEngine.transaction(async (tx) => {
+            const view = tx.getRelation({ namespace: 'public', name: 'v_src' }, { assertIsView: true });
+            await view.insert({ id: 1, name: 'Ada' });
+        });
+
+        await storageEngine.sync.sync({ public: 'v_src' });
+        expect(attempts).to.eq(1);
+
+        let queueRows = await storageEngine.transaction(async (tx) => {
+            return tx.getRelation({ namespace: 'sys', name: 'sys_outsync_queue' }).getAll({ hiddenCols: true });
+        });
+        expect(queueRows).to.have.lengthOf(1);
+        expect(queueRows[0].status).to.eq('failed');
+        expect(queueRows[0].retry_count).to.eq(1);
+        expect(queueRows[0].last_error).to.contain('temporary upstream failure');
+        expect(queueRows[0].next_retry_at).to.be.a('number');
+
+        await storageEngine.sync.sync({ public: 'v_src' });
+        expect(attempts).to.eq(1);
+
+        await storageEngine.sync.sync({ public: 'v_src' }, { forceSync: true });
+        expect(attempts).to.eq(2);
+
+        queueRows = await storageEngine.transaction(async (tx) => {
+            return tx.getRelation({ namespace: 'sys', name: 'sys_outsync_queue' }).getAll({ hiddenCols: true });
+        });
+        expect(queueRows[0].status).to.eq('applied');
+        expect(queueRows[0].next_retry_at).to.eq(null);
+    });
+
+    it('marks outsync conflicts without scheduling retry and emits conflict', async () => {
+        let storageEngine;
+        const upstreamClient = {
+            wal: {
+                async applyDownstreamCommit() {
+                    throw new ConflictError('stale version');
+                },
+                async subscribe() {
+                    return async () => {};
+                },
+                async forget() {
+                    return true;
+                }
+            },
+            async query() {
+                return { rows: [] };
+            },
+            live: {
+                async forget() {
+                    return true;
+                }
+            },
+            get resolver() {
+                return storageEngine.getResolver();
+            },
+        };
+
+        storageEngine = await createEngine({
+            autoSync: false,
+            getUpstreamClient: async () => upstreamClient,
+        });
+
+        await storageEngine.transaction(async (tx) => {
+            await tx.createTable({
+                namespace: 'public',
+                name: 'src',
+                columns: [
+                    { name: 'id', type: 'INT', not_null: true },
+                    { name: 'name', type: 'TEXT', not_null: true },
+                ],
+                constraints: [{ kind: 'PRIMARY KEY', columns: ['id'] }],
+            });
+
+            await tx.createView({
+                namespace: 'public',
+                name: 'v_src',
+                source_expr: 'TABLE public.src',
+                replication_mode: 'materialized',
+                replication_origin: 'flashql:primary',
+            });
+        });
+
+        await storageEngine.transaction(async (tx) => {
+            const view = tx.getRelation({ namespace: 'public', name: 'v_src' }, { assertIsView: true });
+            await view.insert({ id: 1, name: 'Ada' });
+        });
+
+        const emitted = { conflict: [], error: [] };
+        const offConflict = storageEngine.sync.on('conflict', (payload) => emitted.conflict.push(payload));
+        const offError = storageEngine.sync.on('error', (payload) => emitted.error.push(payload));
+
+        await storageEngine.sync.sync({ public: 'v_src' });
+
+        offConflict();
+        offError();
+
+        const queueRows = await storageEngine.transaction(async (tx) => {
+            return tx.getRelation({ namespace: 'sys', name: 'sys_outsync_queue' }).getAll({ hiddenCols: true });
+        });
+
+        expect(queueRows).to.have.lengthOf(1);
+        expect(queueRows[0].status).to.eq('conflicted');
+        expect(queueRows[0].retry_count).to.eq(1);
+        expect(queueRows[0].next_retry_at).to.eq(null);
+        expect(queueRows[0].last_error).to.contain('stale version');
+
+        expect(emitted.conflict).to.have.lengthOf(1);
+        expect(emitted.conflict[0].phase).to.eq('outsync');
+        expect(emitted.conflict[0].queue_status).to.eq('conflicted');
+        expect(emitted.error).to.have.lengthOf(0);
+    });
+});
+
 describe('StorageEngine - TableStorage CRUD And Constraints', () => {
     let storageEngine, tx, users;
 
@@ -456,6 +625,25 @@ describe('StorageEngine - TableStorage CRUD And Constraints', () => {
         expect(row.uuid_v).to.eq('550e8400-e29b-41d4-a716-446655440000');
         expect(row.arr_v).to.deep.eq([1, 'two', false]);
         expect([...row.bytea_v]).to.deep.eq([1, 2, 3]);
+    });
+
+    it('accepts BIGINT values returned as strings and normalizes them', async () => {
+        await tx.createTable({
+            namespace: 'public',
+            name: 'pg_bigint_strings',
+            columns: [
+                { name: 'id', type: 'INT', not_null: true },
+                { name: 'big_v', type: 'BIGINT' },
+            ],
+            constraints: [{ kind: 'PRIMARY KEY', columns: ['id'] }],
+        });
+
+        const tbl = tx.getRelation({ namespace: 'public', name: 'pg_bigint_strings' });
+        await tbl.insert({ id: 1, big_v: '1234567890' });
+        await tbl.insert({ id: 2, big_v: '9223372036854775807' });
+
+        expect(tbl.get({ id: 1 }).big_v).to.eq(1234567890);
+        expect(tbl.get({ id: 2 }).big_v).to.eq(9223372036854775807n);
     });
 
     it('rejects invalid values for common pg-like scalar types', async () => {

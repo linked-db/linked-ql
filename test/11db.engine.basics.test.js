@@ -450,6 +450,24 @@ describe('FlashQL - Basic DDL', () => {
             expect(view.source_expr_ast.select_list.entries.some((si) => si.alias?.value === '__upstream_mvcc_tag')).to.eq(true);
         });
 
+        it('should project postgres XMIN through a bigint-safe __upstream_mvcc_tag cast', async () => {
+            await client.query(`
+                CREATE MATERIALIZED VIEW lq_test_view.v_updateable_pg AS
+                TABLE lq_test_view.src
+                WITH (replication_origin = 'postgres:primary')
+            `);
+
+            const view = await client.storageEngine.transaction(async (tx) => {
+                return tx.showView({ namespace: 'lq_test_view', name: 'v_updateable_pg' }, { schema: true });
+            });
+            const mvccCol = [...view.columns.values()].find((col) => col.name === '__upstream_mvcc_tag');
+            const mvccSelectItem = view.source_expr_ast.select_list.entries.find((si) => si.alias?.value === '__upstream_mvcc_tag');
+
+            expect(mvccCol.type_id.name).to.eq('INT');
+            expect(mvccSelectItem.expr.data_type.value).to.eq('INT');
+            expect(mvccSelectItem.expr.expr.data_type.value).to.eq('TEXT');
+        });
+
         it('should default replicated write policy to origin_first and add __staged for local_first views', async () => {
             await client.storageEngine.transaction(async (tx) => {
                 await tx.createView({
@@ -545,7 +563,7 @@ describe('FlashQL - Basic DDL', () => {
             await client.query(`DROP SCHEMA lq_test_view_writable CASCADE`);
         });
 
-        it('should support blocking insert, update and delete through realtime upstream-backed views at the storage layer', async () => {
+        it('should queue origin_first writes for realtime upstream-backed views without mutating local rows inline', async () => {
             await client.query(`DROP SCHEMA IF EXISTS lq_test_view_writable CASCADE`);
             await client.query(`
                 CREATE SCHEMA lq_test_view_writable;
@@ -561,11 +579,30 @@ describe('FlashQL - Basic DDL', () => {
             });
 
             let upstream = await client.query(`SELECT id, name FROM lq_test_view_writable.src`);
-            expect(upstream.rows).to.deep.eq([{ id: 1, name: 'Ada' }]);
+            expect(upstream.rows).to.deep.eq([]);
 
-            // Ideally await inboud sync to bring the commit back to local
             let local = await client.query(`SELECT id, name FROM lq_test_view_writable.v_runtime`);
-            expect(local.rows).to.deep.eq([{ id: 1, name: 'Ada' }]);
+            expect(local.rows).to.deep.eq([]);
+
+            let outsyncRows = await client.storageEngine.transaction(async (tx) => {
+                return tx.getRelation({ namespace: 'sys', name: 'sys_outsync_queue' })
+                    .getAll()
+                    .filter((row) => row.relation_id === tx.showView({ namespace: 'lq_test_view_writable', name: 'v_runtime' }).id);
+            });
+            expect(outsyncRows).to.have.lengthOf(1);
+            expect(outsyncRows[0].status).to.eq('pending');
+            expect(outsyncRows[0].event_payload).to.deep.include({
+                op: 'insert',
+                new: { id: 1, name: 'Ada' },
+            });
+
+            await client.storageEngine.transaction(async (tx) => {
+                await tx.getRelation({ namespace: 'lq_test_view_writable', name: 'v_runtime' }, { assertIsView: true })
+                    .applyUpstreamCommit({
+                        txId: 1,
+                        entries: [{ op: 'insert', new: { id: 1, name: 'Ada' } }],
+                    });
+            });
 
             // ----------------
 
@@ -575,11 +612,28 @@ describe('FlashQL - Basic DDL', () => {
             });
 
             upstream = await client.query(`SELECT id, name FROM lq_test_view_writable.src`);
-            expect(upstream.rows).to.deep.eq([{ id: 1, name: 'Ada Lovelace' }]);
-
-            // Ideally await inboud sync to bring the commit back to local
+            expect(upstream.rows).to.deep.eq([]);
             local = await client.query(`SELECT id, name FROM lq_test_view_writable.v_runtime`);
-            expect(local.rows).to.deep.eq([{ id: 1, name: 'Ada Lovelace' }]);
+            expect(local.rows).to.deep.eq([{ id: 1, name: 'Ada' }]);
+
+            outsyncRows = await client.storageEngine.transaction(async (tx) => {
+                return tx.getRelation({ namespace: 'sys', name: 'sys_outsync_queue' })
+                    .getAll()
+                    .filter((row) => row.relation_id === tx.showView({ namespace: 'lq_test_view_writable', name: 'v_runtime' }).id);
+            });
+            expect(outsyncRows).to.have.lengthOf(2);
+            expect(outsyncRows[1].event_payload).to.deep.include({
+                op: 'update',
+                new: { name: 'Ada Lovelace' },
+            });
+
+            await client.storageEngine.transaction(async (tx) => {
+                await tx.getRelation({ namespace: 'lq_test_view_writable', name: 'v_runtime' }, { assertIsView: true })
+                    .applyUpstreamCommit({
+                        txId: 2,
+                        entries: [{ op: 'update', old: { id: 1, name: 'Ada' }, new: { id: 1, name: 'Ada Lovelace' } }],
+                    });
+            });
 
             // ----------------
 
@@ -590,13 +644,104 @@ describe('FlashQL - Basic DDL', () => {
 
             upstream = await client.query(`SELECT id, name FROM lq_test_view_writable.src`);
             expect(upstream.rows).to.deep.eq([]);
-
-            // Ideally await inboud sync to bring the commit back to local
             local = await client.query(`SELECT id, name FROM lq_test_view_writable.v_runtime`);
-            expect(local.rows).to.deep.eq([]);
+            expect(local.rows).to.deep.eq([{ id: 1, name: 'Ada Lovelace' }]);
+
+            outsyncRows = await client.storageEngine.transaction(async (tx) => {
+                return tx.getRelation({ namespace: 'sys', name: 'sys_outsync_queue' })
+                    .getAll()
+                    .filter((row) => row.relation_id === tx.showView({ namespace: 'lq_test_view_writable', name: 'v_runtime' }).id);
+            });
+            expect(outsyncRows).to.have.lengthOf(3);
 
             // ----------------
 
+            await client.query(`DROP SCHEMA lq_test_view_writable CASCADE`);
+        });
+
+        it('should stage local_first writes locally while still queueing outbound work', async () => {
+            await client.query(`DROP SCHEMA IF EXISTS lq_test_view_writable CASCADE`);
+            await client.query(`
+                CREATE SCHEMA lq_test_view_writable;
+                CREATE TABLE lq_test_view_writable.src (id INT PRIMARY KEY, name TEXT);
+            `);
+            await client.storageEngine.transaction(async (tx) => {
+                await tx.createView({
+                    namespace: 'lq_test_view_writable',
+                    name: 'v_runtime',
+                    source_expr: 'TABLE lq_test_view_writable.src',
+                    replication_mode: 'realtime',
+                    replication_origin: 'flashql:primary',
+                    replication_opts: { write_policy: 'local_first' },
+                });
+            });
+
+            await client.storageEngine.transaction(async (tx) => {
+                const view = tx.getRelation({ namespace: 'lq_test_view_writable', name: 'v_runtime' }, { assertIsView: true });
+                await view.insert({ id: 1, name: 'Ada' });
+            });
+
+            const upstream = await client.query(`SELECT id, name FROM lq_test_view_writable.src`);
+            expect(upstream.rows).to.deep.eq([]);
+
+            const localState = await client.storageEngine.transaction(async (tx) => {
+                return tx.getRelation({ namespace: 'lq_test_view_writable', name: 'v_runtime' }, { assertIsView: true })
+                    .getAll({ hiddenCols: true });
+            });
+            expect(localState).to.have.lengthOf(1);
+            expect(localState[0]).to.deep.include({ id: 1, name: 'Ada', __staged: true });
+
+            const outsyncRows = await client.storageEngine.transaction(async (tx) => {
+                return tx.getRelation({ namespace: 'sys', name: 'sys_outsync_queue' })
+                    .getAll()
+                    .filter((row) => row.relation_id === tx.showView({ namespace: 'lq_test_view_writable', name: 'v_runtime' }).id);
+            });
+            expect(outsyncRows).to.have.lengthOf(1);
+            expect(outsyncRows[0].status).to.eq('pending');
+
+            await client.query(`DROP SCHEMA lq_test_view_writable CASCADE`);
+        });
+
+        it('should drain queued outsync entries through sync.sync()', async () => {
+            await client.query(`DROP SCHEMA IF EXISTS lq_test_view_writable CASCADE`);
+            await client.query(`
+                CREATE SCHEMA lq_test_view_writable;
+                CREATE TABLE lq_test_view_writable.src (id INT PRIMARY KEY, name TEXT);
+                CREATE REALTIME VIEW lq_test_view_writable.v_runtime AS
+                TABLE lq_test_view_writable.src
+                WITH (replication_origin = 'flashql:primary');
+            `);
+
+            await client.storageEngine.transaction(async (tx) => {
+                const view = tx.getRelation({ namespace: 'lq_test_view_writable', name: 'v_runtime' }, { assertIsView: true });
+                await view.insert({ id: 1, name: 'Ada' });
+            });
+
+            let outsyncRows = await client.storageEngine.transaction(async (tx) => {
+                return tx.getRelation({ namespace: 'sys', name: 'sys_outsync_queue' })
+                    .getAll()
+                    .filter((row) => row.relation_id === tx.showView({ namespace: 'lq_test_view_writable', name: 'v_runtime' }).id);
+            });
+            expect(outsyncRows).to.have.lengthOf(1);
+            expect(outsyncRows[0].status).to.eq('pending');
+
+            await client.storageEngine.sync.sync({ lq_test_view_writable: 'v_runtime' });
+
+            const upstream = await client.query(`SELECT id, name FROM lq_test_view_writable.src`);
+            expect(upstream.rows).to.deep.eq([{ id: 1, name: 'Ada' }]);
+
+            const local = await client.query(`SELECT id, name FROM lq_test_view_writable.v_runtime`);
+            expect(local.rows).to.deep.eq([{ id: 1, name: 'Ada' }]);
+
+            outsyncRows = await client.storageEngine.transaction(async (tx) => {
+                return tx.getRelation({ namespace: 'sys', name: 'sys_outsync_queue' })
+                    .getAll()
+                    .filter((row) => row.relation_id === tx.showView({ namespace: 'lq_test_view_writable', name: 'v_runtime' }).id);
+            });
+            expect(outsyncRows).to.have.lengthOf(1);
+            expect(outsyncRows[0].status).to.eq('applied');
+
+            await client.storageEngine.sync.stop({ lq_test_view_writable: 'v_runtime' });
             await client.query(`DROP SCHEMA lq_test_view_writable CASCADE`);
         });
 

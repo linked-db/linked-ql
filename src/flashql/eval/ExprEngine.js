@@ -198,7 +198,13 @@ export class ExprEngine {
         // -----------
         const DT = dataType.value();
         switch (DT) {
-            case 'INT': return parseInt(L);
+            case 'SMALLINT':
+            case 'INT':
+            case 'INTEGER':
+            case 'BIGINT':
+            case 'SERIAL':
+            case 'BIGSERIAL':
+                return Number(L);
             case 'TEXT': return String(L);
             case 'BOOLEAN': return Boolean(L);
             default: return L;
