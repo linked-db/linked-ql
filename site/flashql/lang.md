@@ -15,7 +15,7 @@ Just as important is what this page is *not* saying:
 - it does not treat every parsed construct as fully supported at runtime
 - it does not treat storage-transaction APIs as identical to SQL DDL support
 
-## Reading this page
+## Reading This Page
 
 Use this page in three ways:
 
@@ -30,7 +30,7 @@ For more focused guides, also see:
 - [UPSERT](/capabilities/upsert)
 - [Version Binding](/capabilities/version-binding)
 
-## Query language at a glance
+## Query Language at a Glance
 
 FlashQL is strongest today in the application-facing query layer:
 
@@ -48,7 +48,7 @@ FlashQL is strongest today in the application-facing query layer:
 
 These are not just parser-level claims. They are exercised across the parser, desugaring layer, and engine tests.
 
-## DQL: querying data
+## DQL: Querying Data
 
 ### Basic `SELECT`
 
@@ -99,7 +99,7 @@ const result = await db.query(`
 `);
 ```
 
-### `VALUES` and derived row sets
+### `VALUES` and Derived Row Sets
 
 ```js
 const result = await db.query(`
@@ -115,7 +115,7 @@ This is useful when:
 - you want to join query data against app-supplied rows
 - you are composing more advanced CTE pipelines
 
-### Set-returning functions and `ROWS FROM`
+### Set-Returning Functions and `ROWS FROM`
 
 FlashQL parses and executes tested forms such as:
 
@@ -131,7 +131,7 @@ const result = await db.query(`
 
 This matters because FlashQL is not restricted to base tables. It can treat function output as relational input.
 
-### Set operations
+### Set Operations
 
 Supported and tested:
 
@@ -167,7 +167,7 @@ const result = await db.query(`
 
 Writable CTE pipelines are also part of the tested surface when combined with `RETURNING`.
 
-## DML: writing data
+## DML: Writing Data
 
 ### `INSERT`
 
@@ -254,7 +254,7 @@ const result = await db.query(`
 
 See also: [UPSERT](/capabilities/upsert)
 
-## Window functions
+## Window Functions
 
 Window functions are part of the parser surface and are exercised in engine tests for tested shapes such as:
 
@@ -280,11 +280,11 @@ const result = await db.query(`
 
 This is one of the areas where the older docs were badly behind the code. Window-function support is not merely "planned."
 
-## DDL and schema operations
+## DDL and Schema Operations
 
 FlashQL now exposes a meaningful SQL DDL surface alongside the lower-level storage transaction APIs.
 
-### Supported today
+### Supported Today
 
 At the SQL-facing level, tested and used support includes:
 
@@ -317,7 +317,7 @@ At the storage-transaction level, support exists for:
 - `alterIndex()`
 - `dropIndex()`
 
-### Important nuance about dialects
+### Important Nuance About Dialects
 
 The SQL surface is intentionally selective rather than claiming full PostgreSQL or MySQL DDL parity. The parser is dialect-aware and covers the supported overlap plus FlashQL-specific extensions such as:
 
@@ -347,7 +347,7 @@ This does **not** mean the SQL command family:
 
 should be read as the primary way to control transactions in FlashQL. The JS transaction API is the intended surface.
 
-## JSON literals and structured data
+## JSON Literals and Structured Data
 
 FlashQL extends SQL with native JSON-style literals.
 
@@ -377,7 +377,7 @@ DeepRefs also show up in write syntax and desugaring workflows.
 
 See: [DeepRefs](/capabilities/deeprefs)
 
-## Version binding
+## Version Binding
 
 FlashQL supports version-qualified relation references such as:
 
@@ -407,7 +407,7 @@ For point-in-time replay, use FlashQL boot options such as `versionStop`.
 
 See: [Version Binding](/capabilities/version-binding)
 
-## Point-in-time replay
+## Point-in-Time Replay
 
 Point-in-time replay is not a query operator. It is a FlashQL boot mode.
 
@@ -424,9 +424,9 @@ This replays persisted history to a chosen relation-version boundary and boots t
 
 That is separate from version binding inside a query.
 
-## Dialect notes
+## Dialect Notes
 
-### PostgreSQL flavor
+### PostgreSQL Flavor
 
 This is the strongest and most fully exercised dialect path today.
 
@@ -439,13 +439,13 @@ Particularly strong areas include:
 - version binding
 - many parser and execution tests
 
-### MySQL flavor
+### MySQL Flavor
 
 MySQL-flavored parsing is supported, and FlashQL can switch dialect per client or per query. But the broadest execution coverage still centers on PostgreSQL-style usage.
 
 That does not make MySQL support fake. It just means readers should calibrate expectations correctly.
 
-## Practical reading of "support"
+## Practical Reading of "Support"
 
 When evaluating whether FlashQL supports a given language feature, use this order of confidence:
 
@@ -455,7 +455,7 @@ When evaluating whether FlashQL supports a given language feature, use this orde
 
 That is why this page focuses on the features that are clearly alive in the current codebase rather than pretending every parsed form has equal runtime maturity.
 
-## Where to go next
+## Where to Go Next
 
 - [Query Interface](/docs/query-api)
 - [DeepRefs](/capabilities/deeprefs)

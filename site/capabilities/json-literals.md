@@ -170,7 +170,7 @@ SELECT
 FROM posts AS p;
 ```
 
-## See also
+## See Also
 
 - [DeepRefs](/capabilities/deeprefs)
 - [FlashQL Language Reference](/flashql/lang)

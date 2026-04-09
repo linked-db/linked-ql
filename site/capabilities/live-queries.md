@@ -8,7 +8,7 @@ const result = await db.query('SELECT * FROM posts', { live: true });
 
 You get back a live view of your query, in realtime.
 
-## General idea
+## General Idea
 
 Live queries are a first-class concept in LinkedQL.
 
@@ -55,11 +55,11 @@ Above, `result` is a [`RealtimeResult`](/docs/query-api#realtimeresult).
 The mechanics of the engine are covered in the [LinkedQL Realtime Engineering Paper](/engineering/realtime-engine).
 :::
 
-## Live queries in practice
+## Live Queries in Practice
 
 Live querie have various real-world use cases. Consider the following.
 
-### Analytics dashboards
+### Analytics Dashboards
 
 A live metric board where aggregates and rollups update as source data changes.
 
@@ -77,7 +77,7 @@ GROUP BY GROUPING SETS ((region, product), (region), ());
 
 Observed effect: totals and subtotals rebalance in place as orders stream in. Charts can update directly from the live view instead of being rebuilt from ad hoc event logic.
 
-### Collaborative workspaces
+### Collaborative Workspaces
 
 A shared document list showing current editors, owners, or status indicators.
 
@@ -94,7 +94,7 @@ When a user opens or leaves a document, the corresponding row in the result upda
 
 Observed effect: the row persists while the joined field changes in place. The view stays continuous.
 
-### Live feeds
+### Live Feeds
 
 A user-facing feed ordered by recency and limited in size.
 
@@ -109,7 +109,7 @@ Here the live result keeps representing "the newest twenty posts", not anymore "
 
 Observed effect: new posts slide into the top of the view; older ones fall off. Ordering and window limits continue to hold.
 
-### Rankings and leaderboards
+### Rankings and Leaderboards
 
 Window functions and aggregates often define the visible shape of the result itself.
 
@@ -126,7 +126,7 @@ As scores change, ranks move as part of the query result.
 
 Observed effect: scores accumulate in place and ranks shift as the underlying rows change.
 
-### Mixed and derived sources
+### Mixed and Derived Sources
 
 Queries that combine subqueries, derived tables, and inline relations behave the same way.
 
@@ -151,7 +151,7 @@ LEFT JOIN (
 
 Observed effect: changes to reactions or comments are reflected in the joined aggregate view itself, not leaked as unrelated table events for the application to reconcile manually.
 
-## Live views in detail
+## Live Views in Detail
 
 `result.rows` is a self-updating array of objects, each row in the array reflecting the current query truth in realtime.
 
@@ -202,7 +202,7 @@ DELETE FROM posts WHERE title = 'Hello Again';
 
 That is the simplest live-view model: the query result automatically remains current.
 
-## Joins and join transitions
+## Joins and Join Transitions
 
 Once a query involves joins:
 
@@ -228,7 +228,7 @@ By default, certain join transitions should cause the corresponding old row in t
 
 The observed effect is: stable rows that simply mutate in-place in however the underlying tables change.
 
-### Scenario 1: a join materializes after an INSERT
+### Scenario 1: A Join Materializes After an INSERT
 
 Suppose a post already exists with an `author_id: 42`, but the matching user row does not yet exist. The following INSERT would materialize the join:
 
@@ -244,7 +244,7 @@ The observed effect in the view is that the existing row now gains a right-hand 
 └──────────────────────────────────────────────────────────────┘
 ```
 
-### Scenario 2: the join relationship changes after an UPDATE
+### Scenario 2: The Join Relationship Changes After an UPDATE
 
 Suppose `author_id` is updated to point to another user. That would change the join relation.
 
@@ -264,7 +264,7 @@ The observed effect becomes:
 └───────────────────────────────────────────────────────────────┘
 ```
 
-### Scenario 3: the join dissolves after a DELETE
+### Scenario 3: The Join Dissolves After a DELETE
 
 Suppose the current right-hand match is deleted. That would dissolve the relationship.
 
@@ -483,7 +483,7 @@ const liveHandle = await client.query(
 
 Compared to the default live view concept, custom event handling sits closer to the wire.
 
-## Stable subscription slots
+## Stable Subscription Slots
 
 You can attach an id to a subscription:
 
@@ -510,7 +510,7 @@ To drop the slot itself, pass `{ forget: true }` to the `abort()` call:
 await result.abort({ forget: true });
 ```
 
-## Query inheritance and scaling
+## Query Inheritance and Scaling
 
 Live queries are efficient because LinkedQL does not have to treat each subscription as an isolated process.
 

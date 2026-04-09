@@ -9,8 +9,17 @@ export class EdgeWorker extends SimpleEmitter {
         MessagePortPlus.upgradeInPlace(worker);
         worker.addRequestListener('message', async (e) => {
             const { data: { op, args }, ports: [port] } = e;
-
-            await instance.handle(op, args, port);
+            try {
+                await instance.handle(op, args, port);
+            } catch (error) {
+                port?.postMessage({
+                    __error: {
+                        name: error?.name || 'Error',
+                        message: error?.message || String(error),
+                        stack: error?.stack || null,
+                    }
+                });
+            }
         });
 
         return instance;
@@ -26,7 +35,17 @@ export class EdgeWorker extends SimpleEmitter {
             MessagePortPlus.upgradeInPlace(port);
             port.addRequestListener('message', async (evt) => {
                 const { data: { op, args }, ports: [replyPort] } = evt;
-                await instance.handle(op, args, replyPort);
+                try {
+                    await instance.handle(op, args, replyPort);
+                } catch (error) {
+                    replyPort?.postMessage({
+                        __error: {
+                            name: error?.name || 'Error',
+                            message: error?.message || String(error),
+                            stack: error?.stack || null,
+                        }
+                    });
+                }
             });
         });
 

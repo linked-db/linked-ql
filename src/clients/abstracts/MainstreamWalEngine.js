@@ -43,7 +43,7 @@ export class MainstreamWalEngine extends BaseWalEngine {
             if (!event.mvccTag)
                 throw new TypeError(`Missing event.mvccTag for the specified mvccKey ${mvccKey}`);
             const mvccExpr = this.#client.dialect === 'postgres' && mvccKey.toUpperCase() === 'XMIN'
-                ? `CAST(CAST(${this._quoteIdent(mvccKey)} AS TEXT) AS INT)`
+                ? 'CAST(CAST(xmin AS TEXT) AS BIGINT)'
                 : this._quoteIdent(mvccKey);
             sql += ` AND ${mvccExpr} = ${this._serializeValue(event.mvccTag)}`;
         }

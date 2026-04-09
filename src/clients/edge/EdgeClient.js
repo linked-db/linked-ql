@@ -1,6 +1,7 @@
 import { BaseEdgeClient } from './BaseEdgeClient.js';
 import { MessagePortPlus } from '@webqit/port-plus';
 import { LiveResponse } from '@webqit/fetch-plus';
+import { ConflictError } from '../../flashql/errors/ConflictError.js';
 
 export class EdgeClient extends BaseEdgeClient {
 
@@ -90,6 +91,14 @@ export class EdgeClient extends BaseEdgeClient {
             { op, args },
             { once: !liveMode && !streamMode }
         ).then((e) => {
+            if (e.data?.__error) {
+                const error = e.data.__error.name === 'ConflictError'
+                    ? new ConflictError(e.data.__error.message)
+                    : new Error(e.data.__error.message);
+                error.name = e.data.__error.name || error.name || 'Error';
+                if (e.data.__error.stack) error.stack = e.data.__error.stack;
+                throw error;
+            }
             if (streamMode) return this.#portToAsyncIterable(e.target);
             if (liveMode) return { data: e.data, port: e.target };
             return e.data;

@@ -18,7 +18,7 @@ for await (const row of asyncIterable) {
 }
 ```
 
-## What streaming is and is not
+## What Streaming Is and Is Not
 
 Streaming is:
 
@@ -37,7 +37,7 @@ If you need those, see:
 - [Live Queries](/capabilities/live-queries)
 - [Changefeeds](/capabilities/changefeeds)
 
-## Why `stream()` exists
+## Why `stream()` Exists
 
 Buffered queries are convenient:
 
@@ -54,7 +54,7 @@ Streaming gives you the right trade there:
 - earlier consumption
 - simpler handling of large result sets
 
-## Basic example
+## Basic Example
 
 ```js
 const rows = await db.stream(`
@@ -74,7 +74,7 @@ What this does:
 - returns an async iterable
 - yields one row at a time to your loop
 
-## Example: processing a large export
+## Example: Processing a Large Export
 
 ```js
 const rows = await db.stream(`
@@ -90,11 +90,11 @@ for await (const row of rows) {
 
 This is a better fit than `query()` when the output could be large and you want to process rows incrementally.
 
-## Streaming inside a transaction
+## Streaming Inside a Transaction
 
 `stream()` can participate in explicit transactions.
 
-### Example with `EdgeClient`
+### Example With `EdgeClient`
 
 ```js
 await edge.transaction(async (tx) => {
@@ -116,9 +116,9 @@ The same idea applies across runtimes:
 - pass `tx`
 - consume rows lazily
 
-## Runtime notes
+## Runtime Notes
 
-### Mainstream DB clients
+### Mainstream DB Clients
 
 For `PGClient`, `MySQLClient`, and `MariaDBClient`, streaming maps to the underlying client/runtime's stream-capable path.
 
@@ -146,7 +146,7 @@ That makes it useful for:
 - browser/worker exports
 - large local result sets where full buffering is unnecessary
 
-## Related docs
+## Related Docs
 
 - [Query Interface](/docs/query-api)
 - [Live Queries](/capabilities/live-queries)

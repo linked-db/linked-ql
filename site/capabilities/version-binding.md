@@ -12,7 +12,7 @@ It is especially useful when:
 - you want queries to fail fast when storage no longer matches that expectation
 - you want joins to assert that both sides of the query still satisfy the version assumptions they were written against
 
-## Basic form
+## Basic Form
 
 Version binding is attached directly to relation references:
 
@@ -25,7 +25,7 @@ That query is saying:
 
 > "Run this query only if `public.users` satisfies the version spec `=3`."
 
-## Version spec operators
+## Version Spec Operators
 
 Common forms include:
 
@@ -38,7 +38,7 @@ public.users@>=4
 public.users@=3_4
 ```
 
-## Join example
+## Join Example
 
 Version binding becomes especially valuable when multiple relations participate in a query.
 
@@ -57,7 +57,7 @@ How to read this:
 - the query expects `public.vjb` at relation version `1`
 - if either side no longer satisfies that contract, the query should not silently continue as if nothing changed
 
-## Why version binding exists
+## Why Version Binding Exists
 
 Most schema drift bugs are painful because they fail too late:
 
@@ -69,7 +69,7 @@ Version binding gives you a way to express:
 
 > "This query is coupled to this relation version. If the storage side has moved, fail visibly."
 
-## What version binding is not
+## What Version Binding Is Not
 
 This point is critical.
 
@@ -85,7 +85,7 @@ It means:
 
 For historical replay, use FlashQL's point-in-time boot support with `versionStop`.
 
-## FlashQL-specific support
+## FlashQL-Specific Support
 
 Version binding is a FlashQL-oriented capability today because it depends on relation-version knowledge inside the local storage/runtime layer.
 
@@ -95,7 +95,7 @@ You will most commonly use it in:
 - FlashQL joins
 - FlashQL historical/branching workflows
 
-## Example: bind and then boot historically
+## Example: Bind and Then Boot Historically
 
 ```js
 const db = new FlashQL({
@@ -117,7 +117,7 @@ In that shape:
 - `versionStop` chooses the historical replay boundary
 - `@=1` asserts the query's relation-version expectation
 
-## When to reach for version binding
+## When to Reach for Version Binding
 
 Use it when:
 

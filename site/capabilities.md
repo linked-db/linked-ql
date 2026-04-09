@@ -2,21 +2,6 @@
 
 The capability side of LinkedQL is where its identity shifts from a classic query client to **SQL for modern applications**.
 
-
-
-<!--
-LinkedQL introduces useful additions to SQL and the database itself that directly suport how modern applications are built — removing scaffolding layers between code and data.
-
-The result is: ... -> as first-class language primitives.
-LinkedQL takes the same syntax, relational model, and execution model
-as SQL and adapts it to modern application paradigms, letting you build these applications
-without scaffolding between code and data..
-
-An application-ready SQL makes it possible to **move from the tooling layer to the language, and from code to query.**
-**application-ready** form of SQL
-You get SQL that’s expressive, optimized for readability, and aligned with how data actually relates and moves.
--->
-
 ## Language Capabilities
 
 LinkedQL extends the SQL language to bring in useful syntax shorthands for relationships, JSON, and other SQL constructs.
@@ -146,7 +131,7 @@ LinkedQL bundles an embeddable SQL engine, **FlashQL**, that brings its full cap
 | :----------------- | :------------------------------------------------------------ | :----------------------------------- |
 | **Local Database** | Run a full SQL engine in memory — same semantics, zero setup. | [FlashQL](/flashql) |
 | **Federation**     | Declare foreign namespaces and non-persistent views directly in SQL. | [FlashQL](/flashql) |
-| **Sync**           | Materialize and keep remote-backed views aligned with `db.sync`. | [FlashQL](/flashql) |
+| **Sync**           | Build bidirectional, view-based sync with predictable conflict behavior. | [FlashQL Sync](/flashql/foreign-io) |
 
 ### Examples
 
@@ -175,12 +160,12 @@ console.log(result.rows);
 ```js
 await db.query(`
   CREATE SCHEMA store
-  WITH (replication_origin = 'primary')
 `);
 
 await db.query(`
   CREATE VIEW store.orders AS
   SELECT * FROM public.orders
+  WITH (replication_origin = 'postgres://db.url.com')
 `);
 
 const result = await db.query(`
@@ -196,20 +181,23 @@ const result = await db.query(`
 
 ::: details **(c)** Sync — Continuous Alignment {name="embed-capab"}
 
-> Keep local and remote tables automatically synchronized.
+> Keep local and origin data aligned through sync-enabled views.
 
 ```js
 await db.query(`
   CREATE SCHEMA store
-  WITH (replication_origin = 'primary')
+  WITH (default_replication_origin = 'postgres://db.url.com')
 `);
 
 await db.query(`
   CREATE REALTIME VIEW store.orders AS
   SELECT * FROM public.orders
+  WITH (replication_origin = INHERIT)
 `);
 
-await db.sync.sync({ store: ['orders'] });
+self.addEventListener('online', async () => {
+  await db.sync.sync({ store: ['orders'] });
+});
 ```
 
 :::

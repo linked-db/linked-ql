@@ -6,7 +6,7 @@ _Subscribe directly to table-level changefeeds_.
 await db.wal.subscribe(...)
 ```
 
-## The minimal form
+## The Minimal Form
 
 ```js
 const unsubscribe = await db.wal.subscribe((commit) => {
@@ -16,7 +16,7 @@ const unsubscribe = await db.wal.subscribe((commit) => {
 
 This subscribes to all matching commits the database produces.
 
-## Filtering by selector
+## Filtering by Selector
 
 Most real use cases want to narrow the scope to specific table names.
 
@@ -29,7 +29,7 @@ const unsubscribe = await db.wal.subscribe(
 );
 ```
 
-### Common selector forms
+### Common Selector Forms
 
 ```js
 '*'
@@ -40,11 +40,19 @@ const unsubscribe = await db.wal.subscribe(
 
 The selector is normalized internally into a namespace-to-table mapping.
 
-## What commit objects look like
+## What Commit Objects Look Like
 
 A commit contains one or more entries describing row-level changes.
 
-Typical entries look like this:
+```js
+{
+  txId: 234214,
+  entries: [...]
+}
+```
+
++ `txId` is the ID of the transaction
++ `entries` is an array of one or more change descriptors
 
 ```js
 {
@@ -81,7 +89,7 @@ The exact payload depends on the mutation and runtime, but this is the mental mo
 - `relation` tells you where it happened
 - `old` / `new` describe the row transition
 
-## Example: subscribe to all commits on one table
+## Example: Subscribe to All Commits on One Table
 
 ```js
 const events = [];
@@ -91,20 +99,22 @@ const unsubscribe = await db.wal.subscribe(
   (commit) => events.push(commit)
 );
 
-await db.query(`INSERT INTO public.users (id, name) VALUES (1, 'Ada')`);
-await db.query(`UPDATE public.users SET name = 'Ada Lovelace' WHERE id = 1`);
+await db.query(`
+  INSERT INTO public.users (id, name) VALUES (1, 'Ada');
+  UPDATE public.users SET name = 'Ada Lovelace' WHERE id = 1
+`);
 await db.query(`DELETE FROM public.users WHERE id = 1`);
 
 await unsubscribe();
 ```
 
-What this gives you:
+What you get:
 
-- insert commit entries
-- update commit entries
-- delete commit entries
+- two commit events, not three
+- the first containing two entries: insert and update
+- the second containing one: delete
 
-## Stable subscription ids and forgetting state
+## Stable Subscription Slots
 
 Subscriptions can be given a stable id:
 
@@ -116,23 +126,24 @@ const unsubscribe = await db.wal.subscribe(
 );
 ```
 
-The id gives the subscription a stable slot identity.
+That id is more than a label. It gives the subscription a durable slot identity, and LinkedQL binds that subscription to the same slot each time it is recreated with the same id.
 
-When the subscription is re-issued with the same id, LinkedQL binds it to that same slot and:
+With that slot identity, the runtime:
 
-- looks up the last commit successfuly consumed by the subscriber
-- catches the subscriber up on missed-but-cached commits
+- resumes from the same logical slot
+- catches up on commits that were missed while the subscriber was away
 - continue emitting to the subscriber from there
+- avoids treating every reconnect as a brand-new subscription
 
-With stable slot IDs, a subscription stops being a disposable one-off subscription and becomes a resumable data channel with continuity across disconnects.
+That matters when changefeeds back application caches, replicas, sync workers, or long-lived UI sessions that must continue from a known point rather than restarting blindly from "now."
 
-When you want to remove that persisted slot state, pass `{ forget: true }` to the `unsubscribe()` call:
+To drop the slot itself, pass `{ forget: true }` to the `unsubscribe()` call:
 
 ```js
 await unsubscribe({ forget: true });
 ```
 
-## Runtime notes
+## Runtime Notes
 
 ### FlashQL
 
@@ -155,6 +166,6 @@ With `PGClient`, WAL-backed capabilities rely on PostgreSQL logical replication 
 - `PGClient` behind an `EdgeWorker`
 - `FlashQL` behind an `EdgeWorker`
 
-## Related docs
+## Related Docs
 
 - [Live Queries](/capabilities/live-queries)

@@ -25,5 +25,5 @@ features:
   - title: Versioning Solved
     details: Get automatic database versioning as you iterate and evolve your schemas. LinkedQL makes that a reality right on your database. And that means, no more manual migration practices. 
   - title: Embedding, Federation & Sync Solved
-    details: Run SQL anywhere with <b>FlashQL</b>, declare foreign namespaces and views in SQL, materialize them locally, and keep them in sync without bolting on a separate replication stack.
+    details: Run SQL anywhere with <b>FlashQL</b>, declare foreign views in SQL, materialize them locally, and keep them in sync without bolting on a separate replication stack.
 ---

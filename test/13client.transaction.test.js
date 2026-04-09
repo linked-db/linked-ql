@@ -191,7 +191,7 @@ describe('Client.transaction(cb)', () => {
         expect(client.calls[2][0]).to.eq('query');
         expect(client.calls[2][2]).to.eq(true);
         expect(client.calls[2][1]).to.contain('UPDATE "public"."users"');
-        expect(client.calls[2][1]).to.contain('CAST(CAST("xmin" AS TEXT) AS INT) = 7');
+        expect(client.calls[2][1]).to.contain('CAST(CAST(xmin AS TEXT) AS BIGINT) = 7');
         expect(client.calls[3]).to.deep.eq(['commit', 1]);
     });
 

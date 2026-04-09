@@ -3,7 +3,7 @@ import { EdgeWorker } from '../src/clients/edge/EdgeWorker.js';
 import { InMemoryKV } from '@webqit/keyval/inmemory';
 import { FlashQL } from '../src/flashql/FlashQL.js';
 import Observer from '@webqit/observer';
-
+console.log(`\n\nStage 1:________________________________________\n\n`);
 /**
  * This is DB1 - the upstream DB.
  * Has a table called public.users

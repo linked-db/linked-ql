@@ -50,7 +50,7 @@ export default defineConfig({
                         { text: 'Capabilities Overview', link: '/capabilities' },
                         { text: 'Live Queries', link: '/capabilities/live-queries' },
                         { text: 'Streaming', link: '/capabilities/streaming' },
-                        { text: 'Changefeeds (WAL)', link: '/capabilities/changefeeds' },
+                        { text: 'Changefeeds', link: '/capabilities/changefeeds' },
                         { text: 'DeepRefs', link: '/capabilities/deeprefs' },
                         { text: 'JSON Literals', link: '/capabilities/json-literals' },
                         { text: 'UPSERT', link: '/capabilities/upsert' },
@@ -61,8 +61,10 @@ export default defineConfig({
                     text: 'FlashQL',
                     items: [
                         { text: 'FlashQL Overview', link: '/flashql' },
-                        { text: 'Federation & Sync', link: '/flashql/foreign-io' },
-                        { text: 'Sync', link: '/flashql/sync' },
+                        { text: 'Federation, Materialization, & Sync', link: '/flashql/foreign-io' },
+                        { text: 'The Sync API', link: '/flashql/sync-api' },
+                        { text: 'Conflict Handling', link: '/flashql/conflicts' },
+                        { text: 'Sync Integration Patterns', link: '/flashql/sync-patterns' },
                         { text: 'Language Reference', link: '/flashql/lang' },
                     ]
                 },

@@ -5,6 +5,7 @@ export class ConflictError extends Error {
 
     constructor(message, existing) {
         super(message);
+        this.name = 'ConflictError';
         this.#existing = existing;
     }
 }

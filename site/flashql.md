@@ -6,15 +6,14 @@ FlashQL is LinkedQL's embeddable database engine: a complete in-process SQL runt
 
 FlashQL brings together:
 
-- SQL parsing and execution
-- transactional local storage
+- a full relational SQL engine
 - live queries
-- WAL and changefeed access
-- federation over foreign data
-- local materialization and realtime mirroring
+- federation, materialization, and sync
+- observable commit stream via a Write-Ahead Log (WAL)
+- transactional local storage, with MVCC-based architecture
 - point-in-time boot through version-aware replay
 
-## Why FlashQL exists
+## Why FlashQL
 
 Modern applications increasingly need database power in places where a traditional database server is inconvenient, expensive, unavailable, or simply the wrong abstraction.
 
@@ -26,7 +25,7 @@ Sometimes you want:
 - reactivity over query results, not just table events
 - the ability to materialize or keep remote relations hot locally
 
-Just spin up an instance in-app and run SQL:
+Just spin up a FlashQL instance and run SQL:
 
 ```js
 import { FlashQL } from '@linked-db/linked-ql/flashql';
@@ -48,16 +47,7 @@ This is the smallest useful FlashQL shape:
 - run SQL
 - disconnect it
 
-## What FlashQL is good at
-
-FlashQL is especially strong when you need one or more of these:
-
-- a SQL runtime embedded inside an app, worker, or edge process
-- a persistent local-first data layer
-- live queries over local state
-- one query space spanning local and remote relations
-- explicit control over federation, materialization, and realtime mirroring
-- point-in-time boot and version-bound execution
+The goal is application-level SQL power in places where an embeddable runtime is the right tool.
 
 ## Persistence
 
@@ -76,9 +66,9 @@ await db.connect();
 
 With a `keyval` backend:
 
-- schema and data can survive reloads
-- WAL history can be persisted
-- sync state can be persisted
+- schema and data survive reloads
+- WAL history is persisted
+- sync state is persisted
 - FlashQL becomes appropriate for browser PWAs and local-first applications
 
 Without a persistence backend, the engine is still useful for tests, ephemeral sessions, and in-process computation, but the state disappears when the process ends.
@@ -101,7 +91,7 @@ await db.query('SELECT `name` FROM `users`', { dialect: 'mysql' });
 
 Where not specified, FlashQL defaults to `postgres`.
 
-## Compatibility in practice
+## Compatibility in Practice
 
 FlashQL speaks real SQL, but it is not trying to be a byte-for-byte clone of PostgreSQL or MySQL.
 
@@ -286,29 +276,25 @@ Capabilities demonstrated:
 
 These examples show the shape of SQL FlashQL can execute.
 
-They show that FlashQL is meant for real relational composition, not only toy queries.
-
-## The common query surface
+## The Common Query Surface
 
 FlashQL supports the same top-level application contract as the other LinkedQL clients:
 
 - `db.query()`
+- `db.query({ live: true })`
 - `db.stream()`
 - `db.transaction()`
 - `db.wal.subscribe()`
 
-And then adds local-engine-specific capabilities such as:
+And then extends that with:
 
-- `db.storageEngine`
 - `db.sync.sync()`
-- `versionStop`
-- `overwriteForward`
 
-## Live queries, streams, and WAL
+## Live Queries, Streams, and the Commit Stream (WAL)
 
-FlashQL also supports modern application data flows directly.
+FlashQL supports modern application data flows directly.
 
-### Live queries
+### Live Queries
 
 ```js
 const result = await db.query(
@@ -324,7 +310,9 @@ await result.abort();
 
 Use live queries when the application wants the query result itself to remain current over time.
 
-See: [Live Queries](/capabilities/live-queries)
+Take a deep dive in:
+
+* [Live Queries](/capabilities/live-queries)
 
 ### Streaming
 
@@ -336,11 +324,9 @@ for await (const row of await db.stream('SELECT * FROM public.big_table ORDER BY
 
 This lets you consume large results lazily instead of buffering the full result in memory first.
 
-Use streams when you want lazy one-time iteration instead of a fully buffered result set.
+See more in [Streaming](/capabilities/streaming)
 
-See: [Streaming](/capabilities/streaming)
-
-### WAL subscriptions
+### The Commit Stream (WAL)
 
 ```js
 const unsubscribe = await db.wal.subscribe(
@@ -357,66 +343,80 @@ Use WAL subscriptions when you care about table-level commit events directly.
 
 See: [Changefeeds](/capabilities/changefeeds)
 
-## Transactions and MVCC
+## Transactions and the Multi-Version Concurrency Control (MVCC) Architecture
 
-FlashQL is transaction-first. It exposes both a SQL-facing query surface and a lower-level storage transaction surface.
+FlashQL uses **Multi-Version Concurrency Control (MVCC)**, the same core model used by PostgreSQL.
 
-```js
-await db.transaction(async (tx) => {
-  await db.query(
-    `INSERT INTO public.users (id, name)
-    VALUES (1, 'Ada')`,
-    { tx }
-  );
-});
-```
+Every write creates a new version of a row, and every transaction reads from a **consistent snapshot in time**.
 
-This uses the SQL-facing query surface inside a transaction.
+While you don't think about it, each query you run
 
 ```js
-await db.transaction(async (tx) => {
-  const table = tx.getTable({ namespace: 'public', name: 'users' });
-  await table.insert({ id: 1, name: 'Ada' });
-});
+await db.query(
+  `INSERT INTO public.users (id, name)
+  VALUES (1, 'Ada');
+  DELETE FROM public.orders WHERE id = 2;`
+);
 ```
 
-This uses the lower-level storage transaction surface directly.
+executes within a transaction. Errors are isolated to that transaction, and the entire operation is automatically rolled back on error.
 
-Internally, FlashQL's storage engine uses versioned transactional state and WAL replay to support:
+Internally:
 
-- isolated transactional work
-- live-query invalidation and diffing
-- version-aware replay to earlier points in history
+* transactions don’t overwrite rows—they produce new versions
+* each transaction sees a stable view of the database
+* reads and writes don’t block each other
 
-This is not incidental implementation detail. MVCC is part of why FlashQL can do several important things at once without collapsing them into one coarse state model:
+If you’ve used PostgreSQL, this is the same idea—just running locally, in-process.
 
-- transactions can work against isolated versions instead of mutating shared state in place
-- readers and writers can preserve coherent visibility boundaries
-- live queries can diff and advance from versioned state transitions
-- persisted history can be replayed to earlier points in time
+Because everything is versioned, FlashQL can layer on:
 
-In practical terms, MVCC is what lets FlashQL be both a transactional local database and a realtime engine, rather than forcing one of those concerns to weaken the other.
+* **a row-version-aware sync engine**
+* **WAL-based change streams**
+* **replay and point-in-time boot**
 
-## Foreign data and local-first orchestration
+—all without introducing a separate model for reactivity or sync.
 
-One of FlashQL's defining ideas is that local and remote data can belong to one query space.
+## Federation, Materialization, and Sync
 
-FlashQL can attach foreign clients, register foreign namespaces, and expose upstream data locally through views that behave in one of three ways:
+FlashQL can compute both local and remote data in **the same query**.
 
-- `none`: federated at read time
-- `materialized`: copied locally on sync
-- `realtime`: copied locally and kept hot after sync
+You simply define a table locally (a database view precisely) to mirror remote data; you decide how it behaves locally in one of three modes:
 
-Those concepts are covered in detail in:
+* **federated** — querying the table queries the source directly
+* **materialized** — the table is a materialized copy of the source data
+* **realtime** — the table materializes and stays in sync with source data
 
-- [Federation, Materialization, and Realtime Views](/flashql/foreign-io)
-- [FlashQL Sync](/flashql/sync)
+Your code sees normal tables:
 
-## Point-in-time boot
+```sql
+SELECT *
+FROM public.local_users u
+JOIN public.remote_orders o ON o.user_id = u.id;
+```
+
+FlashQL computes the local + remote data as one relational graph.
+
+What changes is what you don't get to build:
+
+* dedicated REST APIs for reads
+* caching layers for performance
+* subscription systems (e.g. GraphQL) for updates
+* a dedicated sync engine to synchronize local and remote states
+* the orchestration layer for the whole system
+
+FlashQL is designed as a drop-in primitive for the modern app.
+
+Take a deep dive in:
+
+- [Federation, Materialization, and Sync](/flashql/foreign-io)
+- [The Sync API](/flashql/sync-api)
+
+## Point-in-Time Boot
 
 FlashQL can boot itself to a point in history – the state of the database at a certain table name and version.
 
-### Read-only historical boot
+### Read-Only Historical Boot
 
 ```js
 const historical = new FlashQL({
@@ -445,28 +445,17 @@ const branch = new FlashQL({
 await branch.connect();
 ```
 
-With `overwriteForward: true`, FlashQL keeps the history intact until the first mutating commit, then truncates forward history and lets you continue from that historical point.
+With `overwriteForward: true`, FlashQL keeps the history intact until the first mutating commit is made, then truncates forward histories and lets you continue from that historical point.
 
 That turns the historical boot into a branch point: read-only until the first write, then writable from that point forward.
 
 See also:
 
 - [Version Binding](/capabilities/version-binding)
-- [FlashQL Language Reference](/flashql/lang)
 
-## What FlashQL does not try to be
+## Where to Go Next
 
-FlashQL is ambitious, but it is still useful to say what it is not trying to do.
-
-- It is not a byte-for-byte clone of PostgreSQL or MySQL.
-- It does not claim universal parity with every DDL and operational feature of mainstream servers.
-- Some schema-evolution surfaces are still catching up.
-
-The goal is application-level SQL power in places where an embeddable runtime is the right tool.
-
-## Where to go next
-
-- [FlashQL Language Reference](/flashql/lang)
-- [Federation, Materialization, and Realtime Views](/flashql/foreign-io)
-- [FlashQL Sync](/flashql/sync)
+- [Federation, Materialization, and Sync](/flashql/foreign-io)
+- [The Sync API](/flashql/sync-api)
 - [Query Interface](/docs/query-api)
+- [FlashQL Language Reference](/flashql/lang)

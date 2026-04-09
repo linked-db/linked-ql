@@ -108,7 +108,7 @@ This ensures deterministic, schema-aware conflict resolution for PostgreSQL.
 * Multi-row inserts are fully supported.
 * In PostgreSQL, the target table must define at least one **unique** or **primary key** constraint.
 
-## See also
+## See Also
 
 - [FlashQL Language Reference](/flashql/lang)
 - [Query Interface](/docs/query-api)

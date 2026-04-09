@@ -143,6 +143,35 @@ describe('Real-world sync integration stacks', () => {
         let keyvalRegistry;
         let keyval;
 
+        const createPeer = async (suffix = 'kv2') => {
+            const bridge = new SwitchableEdgeUpstream();
+            await bridge.attach(upstreamDb);
+
+            const db = new FlashQL({
+                autoSync: true,
+                keyval: new InMemoryKV({ path: [schemaName, suffix], registry: keyvalRegistry }),
+                getUpstreamClient: async () => bridge,
+            });
+            await db.connect();
+            await db.query(`CREATE SCHEMA ${schemaName}`);
+            await db.storageEngine.transaction(async (tx) => {
+                await tx.createView({
+                    namespace: schemaName,
+                    name: 'users',
+                    source_expr: `TABLE ${schemaName}.users`,
+                    replication_mode: 'realtime',
+                    replication_origin: 'flashql:primary',
+                    replication_opts: { write_policy: 'local_first' },
+                });
+            });
+
+            return {
+                bridge,
+                db,
+                ui: createWorkerEdgeClient(db),
+            };
+        };
+
         beforeEach(async () => {
             schemaName = randName('lq_stack_flash');
             keyvalRegistry = new Map();
@@ -346,6 +375,203 @@ describe('Real-world sync integration stacks', () => {
             expect(outsyncRows).to.have.lengthOf(1);
             expect(outsyncRows[0].status).to.eq('applied');
         });
+
+        it('handles competing offline local_first updates across two clients predictably', async function () {
+            this.timeout(15000);
+
+            const { bridge: bridge2, db: localDb2, ui: uiDb2 } = await createPeer('kv2');
+
+            try {
+                await waitFor(async () => {
+                    const rows1 = (await uiDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`)).rows;
+                    const rows2 = (await uiDb2.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`)).rows;
+                    return rows1[0]?.name === 'Ada' && rows2[0]?.name === 'Ada';
+                });
+
+                upstreamBridge.setOnline(false);
+                bridge2.setOnline(false);
+
+                await uiDb.query(`UPDATE ${schemaName}.users SET name = 'Ada Client 1' WHERE id = 1`);
+                await uiDb2.query(`UPDATE ${schemaName}.users SET name = 'Ada Client 2' WHERE id = 1`);
+
+                await waitFor(async () => {
+                    const rows = await getOutsyncRows(localDb, { namespace: schemaName, name: 'users' });
+                    return rows.length === 1 && rows[0].status === 'failed';
+                });
+                await waitFor(async () => {
+                    const rows = await getOutsyncRows(localDb2, { namespace: schemaName, name: 'users' });
+                    return rows.length === 1 && rows[0].status === 'failed';
+                });
+
+                const stagedRows1 = await getViewRows(localDb, { namespace: schemaName, name: 'users' }, { hiddenCols: true });
+                const stagedRows2 = await getViewRows(localDb2, { namespace: schemaName, name: 'users' }, { hiddenCols: true });
+                expect(stagedRows1.find((row) => row.id === 1)).to.include({ name: 'Ada Client 1', __staged: true });
+                expect(stagedRows2.find((row) => row.id === 1)).to.include({ name: 'Ada Client 2', __staged: true });
+
+                upstreamBridge.setOnline(true);
+                await uiDb.sync.sync({ [schemaName]: 'users' }, { forceSync: true });
+
+                await waitFor(async () => {
+                    const upstream = await upstreamDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`);
+                    return upstream.rows[0]?.name === 'Ada Client 1';
+                });
+                await waitFor(async () => {
+                    const rows = await getViewRows(localDb, { namespace: schemaName, name: 'users' }, { hiddenCols: true });
+                    return rows.find((row) => row.id === 1)?.__staged === false;
+                });
+                await waitFor(async () => {
+                    const rows = await getOutsyncRows(localDb, { namespace: schemaName, name: 'users' });
+                    return rows.length === 1 && rows[0].status === 'applied';
+                });
+
+                bridge2.setOnline(true);
+                await uiDb2.sync.sync({ [schemaName]: 'users' }, { forceSync: true });
+
+                await waitFor(async () => {
+                    const rows = await getOutsyncRows(localDb2, { namespace: schemaName, name: 'users' });
+                    return rows.length === 1 && rows[0].status === 'conflicted';
+                });
+                await waitFor(async () => {
+                    const rows = await getViewRows(localDb2, { namespace: schemaName, name: 'users' }, { hiddenCols: true });
+                    const row = rows.find((candidate) => candidate.id === 1);
+                    return row?.name === 'Ada Client 1' && row?.__staged === false;
+                });
+
+                const finalRows1 = await uiDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`);
+                const finalRows2 = await uiDb2.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`);
+                expect(finalRows1.rows).to.deep.eq([{ id: 1, name: 'Ada Client 1' }]);
+                expect(finalRows2.rows).to.deep.eq([{ id: 1, name: 'Ada Client 1' }]);
+            } finally {
+                await uiDb2.disconnect();
+                await localDb2.disconnect();
+                await bridge2.disconnect();
+            }
+        });
+
+        it('handles offline delete losing to a competing offline update predictably', async function () {
+            this.timeout(15000);
+
+            const { bridge: bridge2, db: localDb2, ui: uiDb2 } = await createPeer('kv3');
+
+            try {
+                await waitFor(async () => {
+                    const rows1 = (await uiDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`)).rows;
+                    const rows2 = (await uiDb2.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`)).rows;
+                    return rows1[0]?.name === 'Ada' && rows2[0]?.name === 'Ada';
+                });
+
+                upstreamBridge.setOnline(false);
+                bridge2.setOnline(false);
+
+                await uiDb.query(`DELETE FROM ${schemaName}.users WHERE id = 1`);
+                await uiDb2.query(`UPDATE ${schemaName}.users SET name = 'Ada Updated' WHERE id = 1`);
+
+                await waitFor(async () => {
+                    const rows = await getOutsyncRows(localDb, { namespace: schemaName, name: 'users' });
+                    return rows.length === 1 && rows[0].status === 'failed';
+                });
+                await waitFor(async () => {
+                    const rows = await getOutsyncRows(localDb2, { namespace: schemaName, name: 'users' });
+                    return rows.length === 1 && rows[0].status === 'failed';
+                });
+
+                bridge2.setOnline(true);
+                await uiDb2.sync.sync({ [schemaName]: 'users' }, { forceSync: true });
+
+                await waitFor(async () => {
+                    const upstream = await upstreamDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`);
+                    return upstream.rows.length === 1 && upstream.rows[0]?.name === 'Ada Updated';
+                });
+                await waitFor(async () => {
+                    const rows = await getOutsyncRows(localDb2, { namespace: schemaName, name: 'users' });
+                    return rows.length === 1 && rows[0].status === 'applied';
+                });
+
+                upstreamBridge.setOnline(true);
+                await uiDb.sync.sync({ [schemaName]: 'users' }, { forceSync: true });
+
+                await waitFor(async () => {
+                    const rows = await getOutsyncRows(localDb, { namespace: schemaName, name: 'users' });
+                    return rows.length === 1 && rows[0].status === 'conflicted';
+                });
+                await waitFor(async () => {
+                    const rows = await getViewRows(localDb, { namespace: schemaName, name: 'users' }, { hiddenCols: true });
+                    const row = rows.find((candidate) => candidate.id === 1);
+                    return row?.name === 'Ada Updated' && row?.__staged === false;
+                });
+
+                const finalRows1 = await uiDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`);
+                const finalRows2 = await uiDb2.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`);
+                expect(finalRows1.rows).to.deep.eq([{ id: 1, name: 'Ada Updated' }]);
+                expect(finalRows2.rows).to.deep.eq([{ id: 1, name: 'Ada Updated' }]);
+            } finally {
+                await uiDb2.disconnect();
+                await localDb2.disconnect();
+                await bridge2.disconnect();
+            }
+        });
+
+        it('handles offline update losing to a competing offline delete predictably', async function () {
+            this.timeout(15000);
+
+            const { bridge: bridge2, db: localDb2, ui: uiDb2 } = await createPeer('kv4');
+
+            try {
+                await waitFor(async () => {
+                    const rows1 = (await uiDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`)).rows;
+                    const rows2 = (await uiDb2.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`)).rows;
+                    return rows1[0]?.name === 'Ada' && rows2[0]?.name === 'Ada';
+                });
+
+                upstreamBridge.setOnline(false);
+                bridge2.setOnline(false);
+
+                await uiDb.query(`UPDATE ${schemaName}.users SET name = 'Ada Updated' WHERE id = 1`);
+                await uiDb2.query(`DELETE FROM ${schemaName}.users WHERE id = 1`);
+
+                await waitFor(async () => {
+                    const rows = await getOutsyncRows(localDb, { namespace: schemaName, name: 'users' });
+                    return rows.length === 1 && rows[0].status === 'failed';
+                });
+                await waitFor(async () => {
+                    const rows = await getOutsyncRows(localDb2, { namespace: schemaName, name: 'users' });
+                    return rows.length === 1 && rows[0].status === 'failed';
+                });
+
+                bridge2.setOnline(true);
+                await uiDb2.sync.sync({ [schemaName]: 'users' }, { forceSync: true });
+
+                await waitFor(async () => {
+                    const upstream = await upstreamDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`);
+                    return upstream.rows.length === 0;
+                });
+                await waitFor(async () => {
+                    const rows = await getOutsyncRows(localDb2, { namespace: schemaName, name: 'users' });
+                    return rows.length === 1 && rows[0].status === 'applied';
+                });
+
+                upstreamBridge.setOnline(true);
+                await uiDb.sync.sync({ [schemaName]: 'users' }, { forceSync: true });
+
+                await waitFor(async () => {
+                    const rows = await getOutsyncRows(localDb, { namespace: schemaName, name: 'users' });
+                    return rows.length === 1 && rows[0].status === 'conflicted';
+                });
+                await waitFor(async () => {
+                    const rows = await getViewRows(localDb, { namespace: schemaName, name: 'users' }, { hiddenCols: true });
+                    return !rows.some((candidate) => candidate.id === 1);
+                });
+
+                const finalRows1 = await uiDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`);
+                const finalRows2 = await uiDb2.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`);
+                expect(finalRows1.rows).to.deep.eq([]);
+                expect(finalRows2.rows).to.deep.eq([]);
+            } finally {
+                await uiDb2.disconnect();
+                await localDb2.disconnect();
+                await bridge2.disconnect();
+            }
+        });
     });
 
     describe('EdgeClient -> FlashQL -> Edge -> PG', () => {
@@ -356,6 +582,33 @@ describe('Real-world sync integration stacks', () => {
         let upstreamBridge;
         let tableName;
         let schemaName;
+
+        const createPeer = async (dbName) => {
+            const bridge = new SwitchableEdgeUpstream();
+            await bridge.attach(upstreamDb);
+
+            const db = new FlashQL({
+                autoSync: true,
+                keyval: new InMemoryKV({ path: [schemaName, dbName], registry: new Map() }),
+                getUpstreamClient: async () => bridge,
+            });
+            await db.connect();
+            await db.query(`CREATE SCHEMA ${schemaName}`);
+            await db.query(`
+                CREATE REALTIME VIEW ${schemaName}.users AS
+                TABLE public.${tableName}
+                WITH (
+                    replication_origin = 'postgres:primary',
+                    write_policy = 'local_first'
+                )
+            `);
+
+            return {
+                bridge,
+                db,
+                ui: createWorkerEdgeClient(db),
+            };
+        };
 
         before(async function () {
             pgConfig = await resolvePGConfig();
@@ -531,6 +784,179 @@ describe('Real-world sync integration stacks', () => {
                 { id: 2, name: 'Linus' },
                 { id: 3, name: 'Grace' },
             ]);
+        });
+
+        it('handles competing offline local_first PG updates across two clients predictably', async function () {
+            this.timeout(15000);
+
+            const { bridge: bridge2, db: localDb2, ui: uiDb2 } = await createPeer('pg_kv2');
+
+            try {
+                await waitFor(async () => {
+                    const rows1 = (await uiDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`)).rows;
+                    const rows2 = (await uiDb2.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`)).rows;
+                    return rows1[0]?.name === 'Ada' && rows2[0]?.name === 'Ada';
+                });
+
+                upstreamBridge.setOnline(false);
+                bridge2.setOnline(false);
+
+                await uiDb.query(`UPDATE ${schemaName}.users SET name = 'Ada Client 1' WHERE id = 1`);
+                await uiDb2.query(`UPDATE ${schemaName}.users SET name = 'Ada Client 2' WHERE id = 1`);
+
+                await waitFor(async () => {
+                    const rows = await getOutsyncRows(localDb, { namespace: schemaName, name: 'users' });
+                    return rows.length === 1 && rows[0].status === 'failed';
+                });
+                await waitFor(async () => {
+                    const rows = await getOutsyncRows(localDb2, { namespace: schemaName, name: 'users' });
+                    return rows.length === 1 && rows[0].status === 'failed';
+                });
+
+                upstreamBridge.setOnline(true);
+                await uiDb.sync.sync({ [schemaName]: 'users' }, { forceSync: true });
+
+                await waitFor(async () => {
+                    const upstream = await upstreamDb.query(`SELECT id, name FROM public.${tableName} ORDER BY id`);
+                    return upstream.rows[0]?.name === 'Ada Client 1';
+                });
+                await waitFor(async () => {
+                    const rows = await getOutsyncRows(localDb, { namespace: schemaName, name: 'users' });
+                    return rows.length === 1 && rows[0].status === 'applied';
+                });
+
+                bridge2.setOnline(true);
+                await uiDb2.sync.sync({ [schemaName]: 'users' }, { forceSync: true });
+
+                await waitFor(async () => {
+                    const rows = await getOutsyncRows(localDb2, { namespace: schemaName, name: 'users' });
+                    return rows.length === 1 && rows[0].status === 'conflicted';
+                });
+                await waitFor(async () => {
+                    const rows = await getViewRows(localDb2, { namespace: schemaName, name: 'users' }, { hiddenCols: true });
+                    const row = rows.find((candidate) => candidate.id === 1);
+                    return row?.name === 'Ada Client 1' && row?.__staged === false;
+                });
+            } finally {
+                await uiDb2.disconnect();
+                await localDb2.disconnect();
+                await bridge2.disconnect();
+            }
+        });
+
+        it('handles offline delete losing to a competing offline PG update predictably', async function () {
+            this.timeout(15000);
+
+            const { bridge: bridge2, db: localDb2, ui: uiDb2 } = await createPeer('pg_kv3');
+
+            try {
+                await waitFor(async () => {
+                    const rows1 = (await uiDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`)).rows;
+                    const rows2 = (await uiDb2.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`)).rows;
+                    return rows1[0]?.name === 'Ada' && rows2[0]?.name === 'Ada';
+                });
+
+                upstreamBridge.setOnline(false);
+                bridge2.setOnline(false);
+
+                await uiDb.query(`DELETE FROM ${schemaName}.users WHERE id = 1`);
+                await uiDb2.query(`UPDATE ${schemaName}.users SET name = 'Ada Updated' WHERE id = 1`);
+
+                await waitFor(async () => {
+                    const rows = await getOutsyncRows(localDb, { namespace: schemaName, name: 'users' });
+                    return rows.length === 1 && rows[0].status === 'failed';
+                });
+                await waitFor(async () => {
+                    const rows = await getOutsyncRows(localDb2, { namespace: schemaName, name: 'users' });
+                    return rows.length === 1 && rows[0].status === 'failed';
+                });
+
+                bridge2.setOnline(true);
+                await uiDb2.sync.sync({ [schemaName]: 'users' }, { forceSync: true });
+
+                await waitFor(async () => {
+                    const upstream = await upstreamDb.query(`SELECT id, name FROM public.${tableName} ORDER BY id`);
+                    return upstream.rows.length === 1 && upstream.rows[0]?.name === 'Ada Updated';
+                });
+                await waitFor(async () => {
+                    const rows = await getOutsyncRows(localDb2, { namespace: schemaName, name: 'users' });
+                    return rows.length === 1 && rows[0].status === 'applied';
+                });
+
+                upstreamBridge.setOnline(true);
+                await uiDb.sync.sync({ [schemaName]: 'users' }, { forceSync: true });
+
+                await waitFor(async () => {
+                    const rows = await getOutsyncRows(localDb, { namespace: schemaName, name: 'users' });
+                    return rows.length === 1 && rows[0].status === 'conflicted';
+                });
+                await waitFor(async () => {
+                    const rows = await getViewRows(localDb, { namespace: schemaName, name: 'users' }, { hiddenCols: true });
+                    const row = rows.find((candidate) => candidate.id === 1);
+                    return row?.name === 'Ada Updated' && row?.__staged === false;
+                });
+            } finally {
+                await uiDb2.disconnect();
+                await localDb2.disconnect();
+                await bridge2.disconnect();
+            }
+        });
+
+        it('handles offline update losing to a competing offline PG delete predictably', async function () {
+            this.timeout(15000);
+
+            const { bridge: bridge2, db: localDb2, ui: uiDb2 } = await createPeer('pg_kv4');
+
+            try {
+                await waitFor(async () => {
+                    const rows1 = (await uiDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`)).rows;
+                    const rows2 = (await uiDb2.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`)).rows;
+                    return rows1[0]?.name === 'Ada' && rows2[0]?.name === 'Ada';
+                });
+
+                upstreamBridge.setOnline(false);
+                bridge2.setOnline(false);
+
+                await uiDb.query(`UPDATE ${schemaName}.users SET name = 'Ada Updated' WHERE id = 1`);
+                await uiDb2.query(`DELETE FROM ${schemaName}.users WHERE id = 1`);
+
+                await waitFor(async () => {
+                    const rows = await getOutsyncRows(localDb, { namespace: schemaName, name: 'users' });
+                    return rows.length === 1 && rows[0].status === 'failed';
+                });
+                await waitFor(async () => {
+                    const rows = await getOutsyncRows(localDb2, { namespace: schemaName, name: 'users' });
+                    return rows.length === 1 && rows[0].status === 'failed';
+                });
+
+                bridge2.setOnline(true);
+                await uiDb2.sync.sync({ [schemaName]: 'users' }, { forceSync: true });
+
+                await waitFor(async () => {
+                    const upstream = await upstreamDb.query(`SELECT id, name FROM public.${tableName} ORDER BY id`);
+                    return upstream.rows.length === 0;
+                });
+                await waitFor(async () => {
+                    const rows = await getOutsyncRows(localDb2, { namespace: schemaName, name: 'users' });
+                    return rows.length === 1 && rows[0].status === 'applied';
+                });
+
+                upstreamBridge.setOnline(true);
+                await uiDb.sync.sync({ [schemaName]: 'users' }, { forceSync: true });
+
+                await waitFor(async () => {
+                    const rows = await getOutsyncRows(localDb, { namespace: schemaName, name: 'users' });
+                    return rows.length === 1 && rows[0].status === 'conflicted';
+                });
+                await waitFor(async () => {
+                    const rows = await getViewRows(localDb, { namespace: schemaName, name: 'users' }, { hiddenCols: true });
+                    return !rows.some((candidate) => candidate.id === 1);
+                });
+            } finally {
+                await uiDb2.disconnect();
+                await localDb2.disconnect();
+                await bridge2.disconnect();
+            }
         });
     });
 });

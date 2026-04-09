@@ -22,7 +22,7 @@ export class SyncManager extends SimpleEmitter {
     }
 
     #classifyError(error) {
-        return error instanceof ConflictError ? 'conflict' : 'error';
+        return error instanceof ConflictError || error?.name === 'ConflictError' ? 'conflict' : 'error';
     }
 
     #emitIssue(error, context = {}) {
@@ -319,7 +319,7 @@ export class SyncManager extends SimpleEmitter {
             await this.#dispatchOutsyncCommit(queueRow.origin, commit);
             await this.#markOutsyncApplied(queueRow.id, { inputTx });
         } catch (e) {
-            const queueStatus = e instanceof ConflictError ? 'conflicted' : 'failed';
+            const queueStatus = e instanceof ConflictError || e?.name === 'ConflictError' ? 'conflicted' : 'failed';
             await this.#markOutsyncFailure(queueRow.id, e, { queueStatus, inputTx });
             summary?.failed.push({ relation_id: view.id, queue_id: queueRow.id, error: String(e?.message || e) });
             this.#emitIssue(e, { phase: 'outsync', relation_id: view.id, queue_id: queueRow.id, queue_status: queueStatus });
