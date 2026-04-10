@@ -732,9 +732,9 @@ Every emission falls into one of three event types:
 
 | Event | Shape | Meaning |
 |-------|-------|---------|
-| `result` | `{ rows, hashes }` | A full materialization update carrying the current canonical state of the query. |
 | `diff` | `[{ type, old?, new?, oldHash?, newHash? }]` | Inserts, updates, and deletions carrying incremental state change. |
 | `swap` | `[[hashA, hashB], …]` | Positional update carrying explicit key-swap pairs. |
+| `result` | `{ rows, hashes }` | A full materialization update carrying the current canonical state of the query. |
 
 Each record in an emission carries a **logical hash** $h$ that expresses semantic identity:
 
@@ -759,13 +759,15 @@ These hashes remain stable across updates, anchoring diffs and swaps so that con
 
 #### The Callback Model
 
-LinkedQL clients offer a **callback model** for live queries, delivering emissions directly to your handler. When a query is issued with `{ live: true }`, the client invokes the callback for each event type (`result`, `diff`, `swap`) as changes occur.
+LinkedQL clients offer a **callback model** for live queries, delivering emissions directly to your handler. When a query is issued with `{ live: true }`, the client invokes the callback for each event type (`diff`, `swap`, `result`) as changes occur.
 
 Example:
 ```js
-client.query(query, { live: true }, (eventName, eventData) => {
-    if (eventName === 'diff') for (const e of eventData) apply(e);
-});
+await client.query(query, (commit) => {
+    if (commit.type === 'diff') for (const e of commit.entries) mutationState(e);
+    if (commit.type === 'swap') applySwaps(commit.entries);
+    if (commit.type === 'result') replaceState(commit.rows, commit.hashes);
+}, { live: true });
 ```
 
 This interface is consistent across LinkedQL drivers and enables fine-grained, atomic state updates with minimal ceremony.
@@ -780,13 +782,13 @@ Live queries are also delivered as a "live", self-updating array — `result.row
 const result = await client.query(query, { live: true });
 ```
 
-Here, `RealtimeResult` self-binds to the event vocabulary (`result`, `diff`, `swap`) and mutates internal state as events stream in.
+Here, `RealtimeResult` self-binds to the event vocabulary (`diff`, `swap`, `result`) and mutates internal state as events stream in.
 
-| Event    | Internal effect in `RealtimeResult` |
+| Event    | Meaning | Internal effect in `RealtimeResult` |
 | -------- | ----------------------------------- |
-| `result` | Replace the entire canonical state. |
-| `diff`   | Apply inserts/updates/deletes by logical hash. |
-| `swap`   | Incrementally reorder by swapping hashed keys. |
+| `diff`   | Incremental inserts, updates, and deletes | Apply inserts/updates/deletes by logical hash |
+| `swap`   | Positional swaps that satisfy an `ORDER BY` clause | Surgically reorder by swapping hashed keys |
+| `result` | A new snapshot of the query result | Replace the entire canonical state |
 
 All mutations occur inside `Observer.batch` by which the atomicity of received events is preserved. Observers never see half-applied state.
 
@@ -816,7 +818,6 @@ Events → RealtimeResult._apply(...) → result.rows (observable)
 ```
 
 For a quick note on terminology: “event”, as used here, denotes the runtime concept; “message” denotes a transport vehicle (e.g., over a wire).
-
 
 ---
 

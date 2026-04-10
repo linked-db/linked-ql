@@ -66,17 +66,37 @@ export class PGClient extends MainstreamDBClient {
     }
 
     async _beginTransaction() {
-        const conn = await this.connect();
+        let conn;
+        if (this.#poolMode) {
+            conn = await this.#driver.connect();
+        } else {
+            if (!this.#adminDriver) {
+                await this.connect();
+            }
+            conn = this.#driver;
+        }
         await conn.query('BEGIN');
         return { conn };
     }
 
     async _commitTransaction(tx) {
-        await tx.conn.query('COMMIT');
+        try {
+            await tx.conn.query('COMMIT');
+        } finally {
+            if (this.#poolMode) {
+                await tx.conn.release();
+            }
+        }
     }
 
     async _rollbackTransaction(tx) {
-        await tx.conn.query('ROLLBACK');
+        try {
+            await tx.conn.query('ROLLBACK');
+        } finally {
+            if (this.#poolMode) {
+                await tx.conn.release();
+            }
+        }
     }
 
     async _query(query, { values = [], prepared = null, tx = null }) {
@@ -156,62 +176,63 @@ export class PGClient extends MainstreamDBClient {
         this.#walClient.subscribe(walPlugin, this.#walSlotName, confirmed_flush_lsn);
 
         // Message handling
-        let currentXid = null;
-        const walCommits = new Map();
-        const walRelations = new Map();
+        const walCommits = new Map;
+        const xidTrail = [];
 
         // Listen to changes
         this.#walClient.on('data', async (lsn, msg) => {
             switch (msg.tag) {
 
                 case 'begin':
-                    walCommits.set(msg.xid, { txId: msg.xid, entries: [] });
-                    break;
-
-                case 'relation':
-                    walRelations.set(msg.relationOid, {
-                        namespace: msg.schema,
-                        name: msg.name,
-                        keyColumns: msg.keyColumns,
+                    walCommits.set(msg.xid, {
+                        txId: msg.xid,
+                        commitTime: pgTimestampToNowLike(msg.commitTime),
+                        entries: [],
                     });
+                    xidTrail.unshift(msg.xid);
                     break;
 
                 case 'insert':
                 case 'update':
                 case 'delete': {
-                    const rel = msg.relation ? {
+                    const rel = {
                         namespace: msg.relation.schema,
                         name: msg.relation.name,
                         keyColumns: msg.relation.keyColumns,
-                    } : walRelations.get(msg.relation.relationOid);
+                    };
                     const entry = {
                         op: msg.tag,
                         relation: rel
                     };
                     if (msg.tag === 'insert') {
                         entry.new = msg.new;
-                        entry.newKey = msg.key || Object.fromEntries(rel.keyColumns.map((k) => [k, msg.new[k]]));
                     } else if (msg.tag === 'update') {
-                        entry.old = msg.old; // If REPLICA IDENTITY FULL
                         entry.new = msg.new;
-                        entry.oldKey = msg.key
-                            || Object.fromEntries(rel.keyColumns.map((k) => [k, (msg.old || msg.new)[k]]));
-                        entry.newKey = Object.fromEntries(rel.keyColumns.map((k) => [k, msg.new[k]]));
+                        if (msg.old) {
+                            // If REPLICA IDENTITY FULL
+                            entry.old = msg.old;
+                        } else {
+                            // If REPLICA IDENTITY DEFAULT
+                            entry.key = msg.key || Object.fromEntries(msg.relation.keyColumns.map((k) => [k, msg.new[k]]));
+                        }
                     } else if (msg.tag === 'delete') {
-                        entry.old = msg.old; // If REPLICA IDENTITY FULL
-                        entry.oldKey = msg.key || Object.fromEntries(rel.keyColumns.map((k) => [k, msg.old[k]]));
+                        if (msg.old) {
+                            // If REPLICA IDENTITY FULL
+                            entry.old = msg.old;
+                        } else {
+                            // If REPLICA IDENTITY DEFAULT
+                            entry.key = msg.key;
+                        }
                     }
-                    walCommits.get(msg.xid)?.entries.push(entry);
+                    walCommits.get(xidTrail[0])?.entries.push(entry);
                     break;
                 }
 
                 case 'commit': {
-                    const commit = walCommits.get(msg.xid);
+                    const xid = xidTrail.shift();
+                    const commit = walCommits.get(xid);
+                    walCommits.delete(xid);
                     if (commit) await this.wal.dispatch(commit);
-
-                    walCommits.delete(msg.xid);
-                    // clear stale relations every 100 transactions
-                    if (walRelations.size > 1000) walRelations.clear();
                     break;
                 }
 
@@ -230,4 +251,13 @@ export class PGClient extends MainstreamDBClient {
         this.#walClient = null;
         this.#walInit = false;
     }
+}
+
+const POSTGRES_EPOCH_OFFSET_MS = 946684800 * 1000;
+
+function pgTimestampToNowLike(pgTimestamp) {
+  if (typeof pgTimestamp === 'bigint') {
+    return Number(pgTimestamp / 1000n) + POSTGRES_EPOCH_OFFSET_MS;
+  }
+  return pgTimestamp / 1000 + POSTGRES_EPOCH_OFFSET_MS;
 }

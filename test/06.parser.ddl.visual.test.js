@@ -489,14 +489,14 @@ $describe('Parser - DDL Constraints', () => {
     ['CreateSchemaStmt', 'CREATE SCHEMA crm'],
     ['CreateSchemaStmt', 'CREATE SCHEMA IF NOT EXISTS crm'],
     ['CreateSchemaStmt', 'CREATE SCHEMA crm AUTHORIZATION CURRENT_USER', { dialect: 'postgres' }],
-    ['CreateSchemaStmt', ['CREATE SCHEMA crm WITH (replication_origin = primary)', 'CREATE SCHEMA crm WITH (replication_origin = PRIMARY)']],
+    ['CreateSchemaStmt', ['CREATE SCHEMA crm WITH (replication_origin = \'flashql:primary\')', 'CREATE SCHEMA crm WITH (replication_origin = \'flashql:primary\')']],
     ['CreateSchemaStmt', 'CREATE DATABASE crm', { dialect: 'mysql' }],
-    ['CreateSchemaStmt', ['CREATE DATABASE IF NOT EXISTS crm WITH (replication_origin = primary)', 'CREATE DATABASE IF NOT EXISTS crm WITH (replication_origin = PRIMARY)'], { dialect: 'mysql' }],
+    ['CreateSchemaStmt', ['CREATE DATABASE IF NOT EXISTS crm WITH (replication_origin = \'flashql:primary\')', 'CREATE DATABASE IF NOT EXISTS crm WITH (replication_origin = \'flashql:primary\')'], { dialect: 'mysql' }],
     ['AlterSchemaStmt', 'ALTER SCHEMA crm RENAME TO analytics', { dialect: 'postgres' }],
-    ['AlterSchemaStmt', ['ALTER SCHEMA crm SET (replication_origin = primary)', 'ALTER SCHEMA crm SET (replication_origin = PRIMARY)'], { dialect: 'postgres' }],
+    ['AlterSchemaStmt', ['ALTER SCHEMA crm SET (replication_origin = \'flashql:primary\')', 'ALTER SCHEMA crm SET (replication_origin = \'flashql:primary\')'], { dialect: 'postgres' }],
     ['AlterSchemaStmt', 'ALTER SCHEMA crm RESET (replication_origin)', { dialect: 'postgres' }],
     ['AlterSchemaStmt', 'ALTER DATABASE crm RENAME TO analytics', { dialect: 'mysql' }],
-    ['AlterSchemaStmt', ['ALTER DATABASE crm SET (replication_origin = primary)', 'ALTER DATABASE crm SET (replication_origin = PRIMARY)'], { dialect: 'mysql' }],
+    ['AlterSchemaStmt', ['ALTER DATABASE crm SET (replication_origin = \'flashql:primary\')', 'ALTER DATABASE crm SET (replication_origin = \'flashql:primary\')'], { dialect: 'mysql' }],
     ['AlterSchemaStmt', 'ALTER DATABASE crm RESET (replication_origin)', { dialect: 'mysql' }],
   ];
 

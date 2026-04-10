@@ -1,8 +1,8 @@
-# Getting Started with LinkedQL
+# Getting Started With LinkedQL
 
 This guide takes you from installation to your first query with LinkedQL.
 
-If you are totally new here, you may want to begin with [What is LinkedQL](/overview). If you already know you want the embeddable local runtime, jump to [FlashQL](/flashql).
+If you are totally new here, you may want to begin with [What is LinkedQL](/overview). If you are here for the embeddable local runtime, jump to [FlashQL](/flashql).
 
 ## Installation
 
@@ -16,16 +16,16 @@ The package exports the client entry points.
 
 Import and use the Client for your database. LinkedQL works the same across all clients.
 
-| **Dialect**         | **Import Path**                | **Guide**                          |
+| **Client**          | **Import Path**                | **Guide**                          |
 | :------------------ | :----------------------------- | :--------------------------------- |
-| PostgreSQL          | `@linked-db/linked-ql/postgres`      | [PostgreSQL ↗](/docs/setup#postgresql) |
-| MySQL               | `@linked-db/linked-ql/mysql`   | [MySQL ↗](/docs/setup#mysql)           |
-| MariaDB             | `@linked-db/linked-ql/mariadb` | [MariaDB ↗](/docs/setup#mariadb)       |
-| FlashQL (In-Memory) | `@linked-db/linked-ql/flashql`   | [FlashQL ↗](/docs/setup#flashql)       |
-| EdgeClient          | `@linked-db/linked-ql/edge`    | [Edge / Browser ↗](/docs/setup#edge)   |
-| EdgeWorker          | `@linked-db/linked-ql/edge-worker` | [Edge Worker ↗](/docs/setup#edge) |
+| `PGClient`            | `@linked-db/linked-ql/postgres`      | [PostgreSQL ↗](/docs/setup#postgresql) |
+| `MySQLClient`         | `@linked-db/linked-ql/mysql`   | [MySQL ↗](/docs/setup#mysql)           |
+| `MariaDBClient`       | `@linked-db/linked-ql/mariadb` | [MariaDB ↗](/docs/setup#mariadb)       |
+| `FlashQL`             | `@linked-db/linked-ql/flashql`   | [FlashQL ↗](/docs/setup#flashql)       |
+| `EdgeClient`          | `@linked-db/linked-ql/edge`    | [Edge / Browser ↗](/docs/setup#edgeclient)   |
+| `EdgeWorker`          | `@linked-db/linked-ql/edge-worker` | [Edge Worker ↗](/docs/setup#edgeworker) |
 
-## Your first query: direct database client
+## Your First Query: Direct Database Client
 
 A good first look is with a regular database client.
 
@@ -49,7 +49,7 @@ console.log(result.rows);
 await db.disconnect();
 ```
 
-## Your first query: local runtime with FlashQL
+## Your First Query: Local Runtime With FlashQL
 
 LinkedQL ships with FlashQL, an embeddable SQL runtime that runs in-process.
 
@@ -63,12 +63,10 @@ await db.query(`
   CREATE TABLE public.users (
     id INT PRIMARY KEY,
     name TEXT
-  )
-`);
+  );
 
-await db.query(`
   INSERT INTO public.users (id, name)
-  VALUES (1, 'Ada'), (2, 'Linus')
+  VALUES (1, 'Ada'), (2, 'Linus');
 `);
 
 const result = await db.query(`
@@ -83,35 +81,21 @@ console.log(result.rows);
 await db.disconnect();
 ```
 
-FlashQL is a real local runtime with the same top-level query surface as the mainstream clients.
+FlashQL has the same top-level query surface as the mainstream clients.
 
-## Which client should you start with?
-
-Use the client that matches where the query should run:
-
-| Client | Use it when | Guide |
-| :-- | :-- | :-- |
-| `PGClient` | your app talks directly to PostgreSQL | [Dialects & Clients](/docs/setup#postgresql) |
-| `MySQLClient` | your app talks directly to MySQL | [Dialects & Clients](/docs/setup#mysql) |
-| `MariaDBClient` | your app talks directly to MariaDB | [Dialects & Clients](/docs/setup#mariadb) |
-| `EdgeClient` | your app lives in the browser or on the edge and needs to talk to the database in a remote worker or server | [Dialects & Clients](/docs/setup#edgeclient) |
-| `FlashQL` | you want an embeddable local SQL runtime | [Dialects & Clients](/docs/setup#flashql) |
-
-LinkedQL is designed for these architectural options.
-
-## What comes next
+## What Comes Next
 
 While deliberately simple, the same interface above quickly opens into deeper grounds:
 
 - live queries with `{ live: true }`
-- lazy result streaming with `db.stream()`
-- table-level changefeeds with `db.wal.subscribe()`
-- language extensions such as DeepRefs and JSON literals
-- FlashQL orchestration with foreign namespaces, non-persistent views, `materialized` views, `realtime` views, and `db.sync.sync()`
+- iterator-based querying with `db.stream()`
+- table-level changefeed subscriptions with `db.wal.subscribe()`
+- language extensions like DeepRefs and JSON literals
+- FlashQL orchestration with fedration, materialization, and sync
 
-## Where to go next
+## Where to Go Next
 
-- [Dialects & Clients](/docs/setup) for setup by runtime
+- [Setup Guide](/docs/setup) for detailed setup by runtime
 - [Query Interface](/docs/query-api) for the common method contract
 - [Capabilities Overview](/capabilities) for language and runtime extensions
 - [FlashQL](/flashql) for the local runtime and sync model

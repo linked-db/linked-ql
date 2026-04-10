@@ -136,7 +136,7 @@ describe('EdgeClient - Exhaustive (HTTP)', () => {
 
             const client = new EdgeClient({
                 url: '/db',
-                rowsStreaming: false,
+                portBasedStreaming: false,
                 fetchApi: async (url) => {
                     const op = opFromUrl(url);
                     if (op === 'stream') return ndjsonResponse(rows);

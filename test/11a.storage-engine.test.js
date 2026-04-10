@@ -5,7 +5,9 @@ use(chaiAsPromised);
 import '../src/lang/index.js';
 import { StorageEngine } from '../src/flashql/storage/StorageEngine.js';
 import { TableStorage } from '../src/flashql/storage/TableStorage.js';
+import { ConflictError } from '../src/flashql/errors/ConflictError.js';
 import { InMemoryKV } from '@webqit/keyval/inmemory';
+import { FlashQL } from '../src/flashql/FlashQL.js';
 
 const testTableFeeds = [
     {
@@ -79,7 +81,7 @@ const createUsersTable = async (tx, { tableName = 'users' } = {}) => {
         ],
     });
 
-    return tx.getTable({ namespace: 'public', name: tableName });
+    return tx.getRelation({ namespace: 'public', name: tableName });
 };
 
 describe('StorageEngine - Bootstrapping And Transactions', () => {
@@ -95,12 +97,12 @@ describe('StorageEngine - Bootstrapping And Transactions', () => {
         const storageEngine = await createEngine({ withTestTable: true });
 
         await storageEngine.transaction(async (tx) => {
-            const table = tx.getTable({ namespace: 'public', name: 'test' });
+            const table = tx.getRelation({ namespace: 'public', name: 'test' });
             await table.insert({ id: 7001, name: 'Committed' });
         });
 
         const tx = storageEngine.begin();
-        const table = tx.getTable({ namespace: 'public', name: 'test' });
+        const table = tx.getRelation({ namespace: 'public', name: 'test' });
         expect(table.get(7001)).to.deep.include({ id: 7001, name: 'Committed' });
     });
 
@@ -108,14 +110,79 @@ describe('StorageEngine - Bootstrapping And Transactions', () => {
         const storageEngine = await createEngine({ withTestTable: true });
 
         await expect(storageEngine.transaction(async (tx) => {
-            const table = tx.getTable({ namespace: 'public', name: 'test' });
+            const table = tx.getRelation({ namespace: 'public', name: 'test' });
             await table.insert({ id: 7002, name: 'RolledBack' });
             throw new Error('force rollback');
         })).to.be.rejectedWith('force rollback');
 
         const tx = storageEngine.begin();
-        const table = tx.getTable({ namespace: 'public', name: 'test' });
+        const table = tx.getRelation({ namespace: 'public', name: 'test' });
         expect(table.get(7002)).to.be.null;
+    });
+
+    it('applies WAL-shaped changefeeds through storage wal.applyDownstreamCommit()', async () => {
+        const storageEngine = await createEngine({ withTestTable: true });
+
+        await storageEngine.wal.applyDownstreamCommit({
+            entries: [
+                {
+                    op: 'update',
+                    relation: { namespace: 'public', name: 'test', keyColumns: ['id'] },
+                    old: { id: 1, name: 'John Doe' },
+                    new: { id: 1, name: 'John Wick' }
+                },
+                {
+                    op: 'insert',
+                    relation: { namespace: 'public', name: 'test', keyColumns: ['id'] },
+                    new: { id: 3, name: 'New User' }
+                }
+            ]
+        });
+
+        const tx = storageEngine.begin();
+        const table = tx.getRelation({ namespace: 'public', name: 'test' });
+        expect(table.get(1)).to.deep.include({ id: 1, name: 'John Wick' });
+        expect(table.get(3)).to.deep.include({ id: 3, name: 'New User' });
+    });
+
+    it('rejects wal.applyDownstreamCommit() writes when the expected XMIN no longer matches', async () => {
+        const storageEngine = await createEngine({ withTestTable: true });
+
+        const tx = storageEngine.begin();
+        const table = tx.getRelation({ namespace: 'public', name: 'test' });
+        const row = table.get(1, { hiddenCols: true });
+        await tx.abort();
+
+        // Omits the mvccTag
+        await expect(storageEngine.wal.applyDownstreamCommit({
+            entries: [
+                {
+                    op: 'update',
+                    relation: { namespace: 'public', name: 'test', keyColumns: ['id'], mvccKey: 'XMIN' },
+                    old: { id: 1, name: 'John Doe', },
+                    new: { id: 1, name: 'John Conflict' },
+                    //mvccTag: row.XMIN + 999
+                }
+            ],
+        })).to.be.rejectedWith(SyntaxError);
+
+        // Specifies the mvccTag but invalid
+        await expect(storageEngine.wal.applyDownstreamCommit({
+            entries: [
+                {
+                    op: 'update',
+                    relation: { namespace: 'public', name: 'test', keyColumns: ['id'], mvccKey: 'XMIN' },
+                    old: { id: 1, name: 'John Doe', },
+                    new: { id: 1, name: 'John Conflict' },
+                    mvccTag: row.XMIN + 999
+                }
+            ],
+        })).to.be.rejectedWith(ConflictError);
+
+        const verifyTx = storageEngine.begin();
+        const verifyTable = verifyTx.getRelation({ namespace: 'public', name: 'test' });
+        expect(verifyTable.get(1)).to.deep.include({ id: 1, name: 'John Doe' });
+        await verifyTx.abort();
     });
 });
 
@@ -123,7 +190,10 @@ describe('StorageEngine - DDL', () => {
     let storageEngine;
 
     beforeEach(async () => {
-        storageEngine = await createEngine();
+        storageEngine = await createEngine({
+            autoSync: false,
+            getUpstreamClient: async () => new FlashQL({ storageEngine }),
+        });
     });
 
     it('creates table and exposes schema metadata', async () => {
@@ -135,6 +205,54 @@ describe('StorageEngine - DDL', () => {
         expect(users.schema.keyColumns).to.deep.eq(['id']);
         expect([...users.schema.constraints.keys()]).to.include('PRIMARY KEY');
         expect([...users.schema.constraints.keys()]).to.include('FOREIGN KEY');
+    });
+
+    it('exposes a canonical write spec for updateable remote-backed views', async () => {
+        const tx = storageEngine.begin();
+        await tx.createNamespace({
+            name: 'remote_views',
+            view_opts_default_replication_origin: 'flashql:primary',
+        });
+        await tx.createTable({
+            namespace: 'remote_views',
+            name: 'src',
+            columns: [
+                { name: 'id', type: 'INT', not_null: true },
+                { name: 'name', type: 'TEXT', not_null: true },
+            ],
+            constraints: [{ kind: 'PRIMARY KEY', columns: ['id'] }],
+        });
+        await tx.createView({
+            namespace: 'remote_views',
+            name: 'v_users',
+            source_expr: 'SELECT id AS user_id, name AS full_name FROM remote_views.src',
+            replication_mode: 'materialized',
+            replication_origin: 'inherit',
+            replication_opts: { write_policy: 'local_first' },
+        });
+
+        const viewDef = tx.showTable({ namespace: 'remote_views', name: 'v_users' }, { schema: true });
+        expect(viewDef.view_opts_replication_opts.write_policy).to.eq('local_first');
+        expect(viewDef.columns.get('__staged')).to.deep.include({ name: '__staged', not_null: true });
+        expect(viewDef.view_mode_replication_attrs).to.deep.eq({
+            mapping_level: 'derived',
+            effective_replication_origin: 'flashql:primary',
+            insertable: true,
+            updatable: true,
+            deletable: true,
+            upstream_relation: {
+                namespace: 'remote_views',
+                name: 'src',
+                keyColumns: ['id'],
+                mvccKey: 'XMIN'
+            },
+            column_mapping: { user_id: 'id', full_name: 'name' },
+            key_columns: ['user_id'],
+            derived_columns: [],
+            required_columns: ['user_id', 'full_name'],
+            effective_upstream_mvcc_key: 'XMIN',
+            fixed_predicate: null
+        });
     });
 
     it('rejects duplicate table names in a namespace', async () => {
@@ -186,15 +304,15 @@ describe('StorageEngine - DDL', () => {
             columns: ['fname'],
         });
 
-        let table = tx.getTable({ namespace: 'public', name: 'idx_tbl' });
+        let table = tx.getRelation({ namespace: 'public', name: 'idx_tbl' });
         expect(table.schema.indexes.has('idx_tbl__fname_manual_idx')).to.be.true;
 
         await tx.alterIndex({ namespace: 'public', table: 'idx_tbl', name: 'idx_tbl__fname_manual_idx' }, { name: 'idx_tbl__fname_manual_idx2' });
-        table = tx.getTable({ namespace: 'public', name: 'idx_tbl' });
+        table = tx.getRelation({ namespace: 'public', name: 'idx_tbl' });
         expect(table.schema.indexes.has('idx_tbl__fname_manual_idx2')).to.be.true;
 
         await tx.dropIndex({ namespace: 'public', table: 'idx_tbl', name: 'idx_tbl__fname_manual_idx2' });
-        table = tx.getTable({ namespace: 'public', name: 'idx_tbl' });
+        table = tx.getRelation({ namespace: 'public', name: 'idx_tbl' });
         expect(table.schema.indexes.has('idx_tbl__fname_manual_idx2')).to.be.false;
     });
 
@@ -260,6 +378,175 @@ describe('StorageEngine - DDL', () => {
     });
 });
 
+describe('StorageEngine - Outsync', () => {
+    it('retries failed outsync rows only after next_retry_at', async () => {
+        let attempts = 0;
+        let storageEngine;
+        const upstreamClient = {
+            wal: {
+                async applyDownstreamCommit() {
+                    attempts++;
+                    if (attempts === 1) throw new Error('temporary upstream failure');
+                    return true;
+                },
+                async subscribe() {
+                    return async () => {};
+                },
+                async forget() {
+                    return true;
+                }
+            },
+            async query() {
+                return { rows: [] };
+            },
+            live: {
+                async forget() {
+                    return true;
+                }
+            },
+            get resolver() {
+                return storageEngine.getResolver();
+            },
+        };
+
+        storageEngine = await createEngine({
+            autoSync: false,
+            getUpstreamClient: async () => upstreamClient,
+        });
+
+        await storageEngine.transaction(async (tx) => {
+            await tx.createTable({
+                namespace: 'public',
+                name: 'src',
+                columns: [
+                    { name: 'id', type: 'INT', not_null: true },
+                    { name: 'name', type: 'TEXT', not_null: true },
+                ],
+                constraints: [{ kind: 'PRIMARY KEY', columns: ['id'] }],
+            });
+
+            await tx.createView({
+                namespace: 'public',
+                name: 'v_src',
+                source_expr: 'TABLE public.src',
+                replication_mode: 'materialized',
+                replication_origin: 'flashql:primary',
+            });
+        });
+
+        await storageEngine.transaction(async (tx) => {
+            const view = tx.getRelation({ namespace: 'public', name: 'v_src' }, { assertIsView: true });
+            await view.insert({ id: 1, name: 'Ada' });
+        });
+
+        await storageEngine.sync.sync({ public: 'v_src' });
+        expect(attempts).to.eq(1);
+
+        let queueRows = await storageEngine.transaction(async (tx) => {
+            return tx.getRelation({ namespace: 'sys', name: 'sys_outsync_queue' }).getAll({ hiddenCols: true });
+        });
+        expect(queueRows).to.have.lengthOf(1);
+        expect(queueRows[0].status).to.eq('failed');
+        expect(queueRows[0].retry_count).to.eq(1);
+        expect(queueRows[0].last_error).to.contain('temporary upstream failure');
+        expect(queueRows[0].next_retry_at).to.be.a('number');
+
+        await storageEngine.sync.sync({ public: 'v_src' });
+        expect(attempts).to.eq(1);
+
+        await storageEngine.sync.sync({ public: 'v_src' }, { forceSync: true });
+        expect(attempts).to.eq(2);
+
+        queueRows = await storageEngine.transaction(async (tx) => {
+            return tx.getRelation({ namespace: 'sys', name: 'sys_outsync_queue' }).getAll({ hiddenCols: true });
+        });
+        expect(queueRows[0].status).to.eq('applied');
+        expect(queueRows[0].next_retry_at).to.eq(null);
+    });
+
+    it('marks outsync conflicts without scheduling retry and emits conflict', async () => {
+        let storageEngine;
+        const upstreamClient = {
+            wal: {
+                async applyDownstreamCommit() {
+                    throw new ConflictError('stale version');
+                },
+                async subscribe() {
+                    return async () => {};
+                },
+                async forget() {
+                    return true;
+                }
+            },
+            async query() {
+                return { rows: [] };
+            },
+            live: {
+                async forget() {
+                    return true;
+                }
+            },
+            get resolver() {
+                return storageEngine.getResolver();
+            },
+        };
+
+        storageEngine = await createEngine({
+            autoSync: false,
+            getUpstreamClient: async () => upstreamClient,
+        });
+
+        await storageEngine.transaction(async (tx) => {
+            await tx.createTable({
+                namespace: 'public',
+                name: 'src',
+                columns: [
+                    { name: 'id', type: 'INT', not_null: true },
+                    { name: 'name', type: 'TEXT', not_null: true },
+                ],
+                constraints: [{ kind: 'PRIMARY KEY', columns: ['id'] }],
+            });
+
+            await tx.createView({
+                namespace: 'public',
+                name: 'v_src',
+                source_expr: 'TABLE public.src',
+                replication_mode: 'materialized',
+                replication_origin: 'flashql:primary',
+            });
+        });
+
+        await storageEngine.transaction(async (tx) => {
+            const view = tx.getRelation({ namespace: 'public', name: 'v_src' }, { assertIsView: true });
+            await view.insert({ id: 1, name: 'Ada' });
+        });
+
+        const emitted = { conflict: [], error: [] };
+        const offConflict = storageEngine.sync.on('conflict', (payload) => emitted.conflict.push(payload));
+        const offError = storageEngine.sync.on('error', (payload) => emitted.error.push(payload));
+
+        await storageEngine.sync.sync({ public: 'v_src' });
+
+        offConflict();
+        offError();
+
+        const queueRows = await storageEngine.transaction(async (tx) => {
+            return tx.getRelation({ namespace: 'sys', name: 'sys_outsync_queue' }).getAll({ hiddenCols: true });
+        });
+
+        expect(queueRows).to.have.lengthOf(1);
+        expect(queueRows[0].status).to.eq('conflicted');
+        expect(queueRows[0].retry_count).to.eq(1);
+        expect(queueRows[0].next_retry_at).to.eq(null);
+        expect(queueRows[0].last_error).to.contain('stale version');
+
+        expect(emitted.conflict).to.have.lengthOf(1);
+        expect(emitted.conflict[0].phase).to.eq('outsync');
+        expect(emitted.conflict[0].queue_status).to.eq('conflicted');
+        expect(emitted.error).to.have.lengthOf(0);
+    });
+});
+
 describe('StorageEngine - TableStorage CRUD And Constraints', () => {
     let storageEngine, tx, users;
 
@@ -310,7 +597,7 @@ describe('StorageEngine - TableStorage CRUD And Constraints', () => {
             constraints: [{ kind: 'PRIMARY KEY', columns: ['id'] }],
         });
 
-        const tbl = tx.getTable({ namespace: 'public', name: 'pg_like_types' });
+        const tbl = tx.getRelation({ namespace: 'public', name: 'pg_like_types' });
         await tbl.insert({
             id: 1,
             small_v: 12,
@@ -340,6 +627,25 @@ describe('StorageEngine - TableStorage CRUD And Constraints', () => {
         expect([...row.bytea_v]).to.deep.eq([1, 2, 3]);
     });
 
+    it('accepts BIGINT values returned as strings and normalizes them', async () => {
+        await tx.createTable({
+            namespace: 'public',
+            name: 'pg_bigint_strings',
+            columns: [
+                { name: 'id', type: 'INT', not_null: true },
+                { name: 'big_v', type: 'BIGINT' },
+            ],
+            constraints: [{ kind: 'PRIMARY KEY', columns: ['id'] }],
+        });
+
+        const tbl = tx.getRelation({ namespace: 'public', name: 'pg_bigint_strings' });
+        await tbl.insert({ id: 1, big_v: '1234567890' });
+        await tbl.insert({ id: 2, big_v: '9223372036854775807' });
+
+        expect(tbl.get({ id: 1 }).big_v).to.eq(1234567890);
+        expect(tbl.get({ id: 2 }).big_v).to.eq(9223372036854775807n);
+    });
+
     it('rejects invalid values for common pg-like scalar types', async () => {
         await tx.createTable({
             namespace: 'public',
@@ -360,7 +666,7 @@ describe('StorageEngine - TableStorage CRUD And Constraints', () => {
             constraints: [{ kind: 'PRIMARY KEY', columns: ['id'] }],
         });
 
-        const tbl = tx.getTable({ namespace: 'public', name: 'pg_like_invalids' });
+        const tbl = tx.getRelation({ namespace: 'public', name: 'pg_like_invalids' });
 
         await expect(tbl.insert({ id: 1, small_v: 50000 })).to.be.rejectedWith('expected SMALLINT');
         await expect(tbl.insert({ id: 2, num_v: 'not-a-number' })).to.be.rejectedWith('expected NUMERIC');
@@ -457,7 +763,7 @@ describe('StorageEngine - FK Match Rules', () => {
             constraints: [{ kind: 'PRIMARY KEY', columns: ['a', 'b'] }],
         });
 
-        const parents = tx.getTable({ namespace: 'public', name: 'parents_comp' });
+        const parents = tx.getRelation({ namespace: 'public', name: 'parents_comp' });
         await parents.insert({ a: 1, b: 10 });
         await parents.insert({ a: 2, b: 20 });
     });
@@ -485,7 +791,7 @@ describe('StorageEngine - FK Match Rules', () => {
             ],
         });
 
-        const children = tx.getTable({ namespace: 'public', name: 'children_full' });
+        const children = tx.getRelation({ namespace: 'public', name: 'children_full' });
         await expect(children.insert({ a: null, b: null })).to.not.be.rejected;
         await expect(children.insert({ a: 1, b: null })).to.be.rejected;
     });
@@ -513,7 +819,7 @@ describe('StorageEngine - FK Match Rules', () => {
             ],
         });
 
-        const children = tx.getTable({ namespace: 'public', name: 'children_partial' });
+        const children = tx.getRelation({ namespace: 'public', name: 'children_partial' });
         await expect(children.insert({ a: 1, b: null })).to.not.be.rejected;
         await expect(children.insert({ a: 99, b: null })).to.be.rejected;
     });
@@ -541,7 +847,7 @@ describe('StorageEngine - FK Match Rules', () => {
             ],
         });
 
-        const children = tx.getTable({ namespace: 'public', name: 'children_none' });
+        const children = tx.getRelation({ namespace: 'public', name: 'children_none' });
         await expect(children.insert({ a: 999, b: null })).to.not.be.rejected;
     });
 });
@@ -584,7 +890,7 @@ describe('StorageEngine - Replay And Visibility', () => {
         await replayTx.commit();
 
         const verifyTx = storageEngine.begin();
-        const events = verifyTx.getTable({ namespace: 'public', name: 'events' });
+        const events = verifyTx.getRelation({ namespace: 'public', name: 'events' });
         expect(events.get(1)).to.be.null;
     });
 
@@ -592,17 +898,17 @@ describe('StorageEngine - Replay And Visibility', () => {
         const storageEngine = await createEngine({ withTestTable: true });
 
         const tx1 = storageEngine.begin();
-        const t1 = tx1.getTable({ namespace: 'public', name: 'test' });
+        const t1 = tx1.getRelation({ namespace: 'public', name: 'test' });
         await t1.insert({ id: 9991, name: 'InvisibleUntilCommit' });
 
         const tx2 = storageEngine.begin();
-        const t2 = tx2.getTable({ namespace: 'public', name: 'test' });
+        const t2 = tx2.getRelation({ namespace: 'public', name: 'test' });
         expect(t2.get(9991)).to.be.null;
 
         await tx1.commit();
 
         const tx3 = storageEngine.begin();
-        const t3 = tx3.getTable({ namespace: 'public', name: 'test' });
+        const t3 = tx3.getRelation({ namespace: 'public', name: 'test' });
         expect(t3.get(9991)).to.deep.include({ id: 9991, name: 'InvisibleUntilCommit' });
     });
 });
@@ -627,7 +933,7 @@ describe('StorageEngine - Persistent WAL Integration', () => {
         });
 
         await engine1.transaction(async (tx) => {
-            const users = tx.getTable({ namespace: 'public', name: 'persist_users' });
+            const users = tx.getRelation({ namespace: 'public', name: 'persist_users' });
             const r1 = await users.insert({ name: 'A' });
             const r2 = await users.insert({ name: 'B' });
             expect(r1.id).to.eq(1);
@@ -637,7 +943,7 @@ describe('StorageEngine - Persistent WAL Integration', () => {
         const engine2 = await createEngine({ keyval: new InMemoryKV({ path: ['linkedql-test'], registry }) });
 
         const tx2 = engine2.begin();
-        const users2 = tx2.getTable({ namespace: 'public', name: 'persist_users' });
+        const users2 = tx2.getRelation({ namespace: 'public', name: 'persist_users' });
         const persisted = users2.getAll();
         expect(persisted.map((r) => r.name)).to.deep.eq(['A', 'B']);
 
@@ -663,7 +969,7 @@ describe('StorageEngine - Persistent WAL Integration', () => {
         });
 
         await engine1.transaction(async (tx) => {
-            const t = tx.getTable({ namespace: 'public', name: 'versioned_tbl' });
+            const t = tx.getRelation({ namespace: 'public', name: 'versioned_tbl' });
             await t.insert({ id: 1 });
         });
 
@@ -676,7 +982,7 @@ describe('StorageEngine - Persistent WAL Integration', () => {
         });
 
         await engine1.transaction(async (tx) => {
-            const t = tx.getTable({ namespace: 'public', name: 'versioned_tbl' });
+            const t = tx.getRelation({ namespace: 'public', name: 'versioned_tbl' });
             await t.insert({ id: 2 });
         });
 
@@ -684,9 +990,9 @@ describe('StorageEngine - Persistent WAL Integration', () => {
         await engine2.open({ versionStop: 'public.versioned_tbl@=1' });
 
         const tx2 = engine2.begin();
-        const t2 = tx2.getTable({ namespace: 'public', name: 'versioned_tbl', versionSpec: '=1' });
+        const t2 = tx2.getRelation({ namespace: 'public', name: 'versioned_tbl', versionSpec: '=1' });
         expect(t2.getAll().map((r) => r.id)).to.deep.eq([1]);
-        expect(() => tx2.getTable({ namespace: 'public', name: 'versioned_tbl', versionSpec: '>=2' })).to.throw();
+        expect(() => tx2.getRelation({ namespace: 'public', name: 'versioned_tbl', versionSpec: '>=2' })).to.throw();
     });
 
     it('open({ versionStop }) throws when replay completes without a match', async () => {
@@ -745,7 +1051,7 @@ describe('StorageEngine - Persistent WAL Integration', () => {
         await snapshot.open({ versionStop: 'public.openat_ro_tbl@1' });
 
         const tx = snapshot.begin();
-        const t = tx.getTable({ namespace: 'public', name: 'openat_ro_tbl' });
+        const t = tx.getRelation({ namespace: 'public', name: 'openat_ro_tbl' });
         await expect(t.insert({ id: 1 })).to.be.rejectedWith('read-only');
         await snapshot.close();
     });
@@ -765,7 +1071,7 @@ describe('StorageEngine - Persistent WAL Integration', () => {
             });
         });
         await source.transaction(async (tx) => {
-            const t = tx.getTable({ namespace: 'public', name: 'overwrite_tbl' });
+            const t = tx.getRelation({ namespace: 'public', name: 'overwrite_tbl' });
             await t.insert({ id: 1 });
         });
         await source.transaction(async (tx) => {
@@ -775,7 +1081,7 @@ describe('StorageEngine - Persistent WAL Integration', () => {
             await tx.alterTable({ namespace: 'public', name: 'overwrite_tbl_tmp' }, { name: 'overwrite_tbl' });
         });
         await source.transaction(async (tx) => {
-            const t = tx.getTable({ namespace: 'public', name: 'overwrite_tbl' });
+            const t = tx.getRelation({ namespace: 'public', name: 'overwrite_tbl' });
             await t.insert({ id: 2 });
         });
         await source.close();
@@ -788,18 +1094,18 @@ describe('StorageEngine - Persistent WAL Integration', () => {
 
         const beforeMutation = await createEngine({ keyval: new InMemoryKV({ path: sourcePath, registry }) });
         const beforeTx = beforeMutation.begin();
-        expect(beforeTx.getTable({ namespace: 'public', name: 'overwrite_tbl' }).getAll().map((r) => r.id)).to.deep.eq([1, 2]);
+        expect(beforeTx.getRelation({ namespace: 'public', name: 'overwrite_tbl' }).getAll().map((r) => r.id)).to.deep.eq([1, 2]);
         await beforeMutation.close({ destroy: false });
 
         await overwritten.transaction(async (tx) => {
-            const t = tx.getTable({ namespace: 'public', name: 'overwrite_tbl' });
+            const t = tx.getRelation({ namespace: 'public', name: 'overwrite_tbl' });
             await t.insert({ id: 3 });
         });
         await overwritten.close({ destroy: false });
 
         const verify = await createEngine({ keyval: new InMemoryKV({ path: sourcePath, registry }) });
         const tx = verify.begin();
-        expect(tx.getTable({ namespace: 'public', name: 'overwrite_tbl' }).getAll().map((r) => r.id)).to.deep.eq([1, 3]);
+        expect(tx.getRelation({ namespace: 'public', name: 'overwrite_tbl' }).getAll().map((r) => r.id)).to.deep.eq([1, 3]);
         await verify.close();
     });
 });
@@ -842,7 +1148,7 @@ describe('StorageEngine - Error And Validation Paths', () => {
         ])).to.be.rejectedWith('Unknown op type');
     });
 
-    it('tx.getTable() enforces versionSpec and respects ifExists on mismatch', async () => {
+    it('tx.getRelation() enforces versionSpec and respects ifExists on mismatch', async () => {
         const storageEngine = await createEngine();
         const tx = storageEngine.begin();
 
@@ -853,7 +1159,7 @@ describe('StorageEngine - Error And Validation Paths', () => {
             constraints: [{ kind: 'PRIMARY KEY', columns: ['id'] }],
         });
 
-        expect(() => tx.getTable({ namespace: 'public', name: 'version_gate_tbl', versionSpec: '>=2' })).to.throw('does not satisfy');
+        expect(() => tx.getRelation({ namespace: 'public', name: 'version_gate_tbl', versionSpec: '>=2' })).to.throw('does not satisfy');
         expect(tx.showTable(
             { namespace: 'public', name: 'version_gate_tbl', versionSpec: '>=2' },
             { ifExists: true }
@@ -877,7 +1183,7 @@ describe('StorageEngine - Error And Validation Paths', () => {
             kind: 'materialized_view',
             columns: [{ name: 'id', type: 'INT' }],
             constraints: [{ kind: 'PRIMARY KEY', columns: ['id'] }],
-        })).to.be.rejectedWith('Invalid relation kind');
+        })).to.be.rejectedWith('Unexpected inputs: kind');
 
         await expect(tx.createTable({
             namespace: 'public',
@@ -935,8 +1241,8 @@ describe('StorageEngine - FK Action Rules', () => {
             ],
         });
 
-        const parent = tx.getTable({ namespace: 'public', name: 'parent_fk' });
-        const child = tx.getTable({ namespace: 'public', name: 'child_fk' });
+        const parent = tx.getRelation({ namespace: 'public', name: 'parent_fk' });
+        const child = tx.getRelation({ namespace: 'public', name: 'child_fk' });
         await parent.insert({ id: 1 });
         await parent.insert({ id: 777 });
         await child.insert({ id: 10, parent_id: 1 });
@@ -1283,7 +1589,7 @@ describe('StorageEngine - Persistence Metadata Nuances', () => {
                 columns: [{ name: 'id', type: 'INT', is_generated: true, generation_rule: 'by_default' }],
                 constraints: [{ kind: 'PRIMARY KEY', columns: ['id'] }],
             });
-            const tbl = tx.getTable({ namespace: 'public', name: 'wal_payload_tbl' });
+            const tbl = tx.getRelation({ namespace: 'public', name: 'wal_payload_tbl' });
             await tbl.insert({});
         });
 
@@ -1325,7 +1631,7 @@ describe('StorageEngine - MVCC Strategy Interop', () => {
                 constraints: [{ kind: 'PRIMARY KEY', columns: ['id'] }],
             });
 
-            const table = tx.getTable({ namespace: 'public', name: 'mvcc_case' });
+            const table = tx.getRelation({ namespace: 'public', name: 'mvcc_case' });
             await table.insert({ id: 1, name: 'row1' });
             await table.insert({ id: 2, name: 'row2' });
         });
@@ -1337,8 +1643,8 @@ describe('StorageEngine - MVCC Strategy Interop', () => {
         const storageEngine = await setup();
         const tx1 = storageEngine.begin({ strategySpec: 'first_updater_wins' });
         const tx2 = storageEngine.begin({ strategySpec: 'first_updater_wins' });
-        const t1 = tx1.getTable({ namespace: 'public', name: 'mvcc_case' });
-        const t2 = tx2.getTable({ namespace: 'public', name: 'mvcc_case' });
+        const t1 = tx1.getRelation({ namespace: 'public', name: 'mvcc_case' });
+        const t2 = tx2.getRelation({ namespace: 'public', name: 'mvcc_case' });
 
         await expect(t1.update(1, { id: 1, name: 'tx1' })).to.not.be.rejected;
         await expect(t2.update(1, { id: 1, name: 'tx2' })).to.be.rejectedWith('Write conflict');
@@ -1348,8 +1654,8 @@ describe('StorageEngine - MVCC Strategy Interop', () => {
         const storageEngine = await setup();
         const tx1 = storageEngine.begin({ strategySpec: 'first_updater_wins' });
         const tx2 = storageEngine.begin({ strategySpec: 'first_updater_wins' });
-        const t1 = tx1.getTable({ namespace: 'public', name: 'mvcc_case' });
-        const t2 = tx2.getTable({ namespace: 'public', name: 'mvcc_case' });
+        const t1 = tx1.getRelation({ namespace: 'public', name: 'mvcc_case' });
+        const t2 = tx2.getRelation({ namespace: 'public', name: 'mvcc_case' });
 
         await expect(t1.update(1, { id: 1, name: 'tx1' })).to.not.be.rejected;
         await expect(t2.update(2, { id: 2, name: 'tx2' })).to.not.be.rejected;
@@ -1361,8 +1667,8 @@ describe('StorageEngine - MVCC Strategy Interop', () => {
         const storageEngine = await setup();
         const tx1 = storageEngine.begin({ strategySpec: 'first_committer_wins' });
         const tx2 = storageEngine.begin({ strategySpec: 'first_committer_wins' });
-        const t1 = tx1.getTable({ namespace: 'public', name: 'mvcc_case' });
-        const t2 = tx2.getTable({ namespace: 'public', name: 'mvcc_case' });
+        const t1 = tx1.getRelation({ namespace: 'public', name: 'mvcc_case' });
+        const t2 = tx2.getRelation({ namespace: 'public', name: 'mvcc_case' });
 
         await expect(t1.update(1, { id: 1, name: 'tx1' })).to.not.be.rejected;
         await expect(t2.update(1, { id: 1, name: 'tx2' })).to.not.be.rejected;
@@ -1376,8 +1682,8 @@ describe('StorageEngine - MVCC Strategy Interop', () => {
         const txReader = storageEngine.begin({ strategySpec: 'first_committer_wins' });
         const txWriter = storageEngine.begin({ strategySpec: 'first_committer_wins' });
 
-        const readerTable = txReader.getTable({ namespace: 'public', name: 'mvcc_case' });
-        const writerTable = txWriter.getTable({ namespace: 'public', name: 'mvcc_case' });
+        const readerTable = txReader.getRelation({ namespace: 'public', name: 'mvcc_case' });
+        const writerTable = txWriter.getRelation({ namespace: 'public', name: 'mvcc_case' });
 
         expect(readerTable.get(1).name).to.eq('row1'); // registers read set
         await writerTable.update(1, { id: 1, name: 'writer' });
@@ -1390,8 +1696,8 @@ describe('StorageEngine - MVCC Strategy Interop', () => {
         const storageEngine = await setup();
         const txFUW = storageEngine.begin({ strategySpec: 'first_updater_wins' });
         const txFCW = storageEngine.begin({ strategySpec: 'first_committer_wins' });
-        const tFUW = txFUW.getTable({ namespace: 'public', name: 'mvcc_case' });
-        const tFCW = txFCW.getTable({ namespace: 'public', name: 'mvcc_case' });
+        const tFUW = txFUW.getRelation({ namespace: 'public', name: 'mvcc_case' });
+        const tFCW = txFCW.getRelation({ namespace: 'public', name: 'mvcc_case' });
 
         await expect(tFUW.update(1, { id: 1, name: 'fuw' })).to.not.be.rejected;
         await expect(tFCW.update(1, { id: 1, name: 'fcw' })).to.be.rejectedWith('Write conflict');
@@ -1401,8 +1707,8 @@ describe('StorageEngine - MVCC Strategy Interop', () => {
         const storageEngine = await setup();
         const txFCW = storageEngine.begin({ strategySpec: 'first_committer_wins' });
         const txFUW = storageEngine.begin({ strategySpec: 'first_updater_wins' });
-        const tFCW = txFCW.getTable({ namespace: 'public', name: 'mvcc_case' });
-        const tFUW = txFUW.getTable({ namespace: 'public', name: 'mvcc_case' });
+        const tFCW = txFCW.getRelation({ namespace: 'public', name: 'mvcc_case' });
+        const tFUW = txFUW.getRelation({ namespace: 'public', name: 'mvcc_case' });
 
         await expect(tFCW.update(1, { id: 1, name: 'fcw' })).to.not.be.rejected;
         await expect(tFUW.update(1, { id: 1, name: 'fuw' })).to.be.rejectedWith('Write conflict');
@@ -1422,7 +1728,7 @@ describe('StorageEngine - Serializable Strategy', () => {
                 ],
                 constraints: [{ kind: 'PRIMARY KEY', columns: ['id'] }],
             });
-            const t = tx.getTable({ namespace: 'public', name: 'ser_case' });
+            const t = tx.getRelation({ namespace: 'public', name: 'ser_case' });
             await t.insert({ id: 1, name: 'A' });
         });
         return storageEngine;
@@ -1438,8 +1744,8 @@ describe('StorageEngine - Serializable Strategy', () => {
         const storageEngine = await setup();
         const tx1 = storageEngine.begin({ strategySpec: 'serializable' });
         const tx2 = storageEngine.begin({ strategySpec: 'serializable' });
-        const t1 = tx1.getTable({ namespace: 'public', name: 'ser_case' });
-        const t2 = tx2.getTable({ namespace: 'public', name: 'ser_case' });
+        const t1 = tx1.getRelation({ namespace: 'public', name: 'ser_case' });
+        const t2 = tx2.getRelation({ namespace: 'public', name: 'ser_case' });
 
         await t1.update(1, { id: 1, name: 'X1' });
         await t2.update(1, { id: 1, name: 'X2' });
@@ -1452,8 +1758,8 @@ describe('StorageEngine - Serializable Strategy', () => {
         const storageEngine = await setup();
         const txReader = storageEngine.begin({ strategySpec: 'serializable' });
         const txWriter = storageEngine.begin({ strategySpec: 'serializable' });
-        const tr = txReader.getTable({ namespace: 'public', name: 'ser_case' });
-        const tw = txWriter.getTable({ namespace: 'public', name: 'ser_case' });
+        const tr = txReader.getRelation({ namespace: 'public', name: 'ser_case' });
+        const tw = txWriter.getRelation({ namespace: 'public', name: 'ser_case' });
 
         expect(tr.get(1).name).to.eq('A');
         await tw.update(1, { id: 1, name: 'B' });
@@ -1466,8 +1772,8 @@ describe('StorageEngine - Serializable Strategy', () => {
         const storageEngine = await setup();
         const txScan = storageEngine.begin({ strategySpec: 'serializable' });
         const txInsert = storageEngine.begin({ strategySpec: 'serializable' });
-        const ts = txScan.getTable({ namespace: 'public', name: 'ser_case' });
-        const ti = txInsert.getTable({ namespace: 'public', name: 'ser_case' });
+        const ts = txScan.getRelation({ namespace: 'public', name: 'ser_case' });
+        const ti = txInsert.getRelation({ namespace: 'public', name: 'ser_case' });
 
         const baseline = ts.getAll();
         expect(baseline).to.have.length(1);
@@ -1492,8 +1798,8 @@ describe('StorageEngine - Serializable Strategy', () => {
 
         const txScan = storageEngine.begin({ strategySpec: 'serializable' });
         const txOther = storageEngine.begin({ strategySpec: 'serializable' });
-        const ts = txScan.getTable({ namespace: 'public', name: 'ser_case' });
-        const to = txOther.getTable({ namespace: 'public', name: 'ser_other' });
+        const ts = txScan.getRelation({ namespace: 'public', name: 'ser_case' });
+        const to = txOther.getRelation({ namespace: 'public', name: 'ser_other' });
 
         ts.getAll();
         await to.insert({ id: 10 });

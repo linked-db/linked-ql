@@ -12,15 +12,15 @@ export const SYSTEM_BOOTSTRAP_DATA = {
     ],
 
     sys_relations: [
-        { id: 100, namespace_id: 1, name: 'sys_namespaces', kind: 'table', persistence: 'default', source_expr_ast: null, view_opts_replication_mode: null, view_opts_replication_origin: null, view_opts_replication_attrs: null, version_major: 1, version_minor: 0, version_patch: 0, engine_attrs: null },
-        { id: 101, namespace_id: 1, name: 'sys_relations', kind: 'table', persistence: 'default', source_expr_ast: null, view_opts_replication_mode: null, view_opts_replication_origin: null, view_opts_replication_attrs: null, version_major: 1, version_minor: 0, version_patch: 0, engine_attrs: null },
-        { id: 102, namespace_id: 1, name: 'sys_types', kind: 'table', persistence: 'default', source_expr_ast: null, view_opts_replication_mode: null, view_opts_replication_origin: null, view_opts_replication_attrs: null, version_major: 1, version_minor: 0, version_patch: 0, engine_attrs: null },
-        { id: 103, namespace_id: 1, name: 'sys_columns', kind: 'table', persistence: 'default', source_expr_ast: null, view_opts_replication_mode: null, view_opts_replication_origin: null, view_opts_replication_attrs: null, version_major: 1, version_minor: 0, version_patch: 0, engine_attrs: null },
-        { id: 104, namespace_id: 1, name: 'sys_constraints', kind: 'table', persistence: 'default', source_expr_ast: null, view_opts_replication_mode: null, view_opts_replication_origin: null, view_opts_replication_attrs: null, version_major: 1, version_minor: 0, version_patch: 0, engine_attrs: null },
-        { id: 105, namespace_id: 1, name: 'sys_indexes', kind: 'table', persistence: 'default', source_expr_ast: null, view_opts_replication_mode: null, view_opts_replication_origin: null, view_opts_replication_attrs: null, version_major: 1, version_minor: 0, version_patch: 0, engine_attrs: null },
-        { id: 106, namespace_id: 1, name: 'sys_dependencies', kind: 'table', persistence: 'default', source_expr_ast: null, view_opts_replication_mode: null, view_opts_replication_origin: null, view_opts_replication_attrs: null, version_major: 1, version_minor: 0, version_patch: 0, engine_attrs: null },
-        { id: 107, namespace_id: 1, name: 'sys_sync_jobs', kind: 'table', persistence: 'default', source_expr_ast: null, view_opts_replication_mode: null, view_opts_replication_origin: null, view_opts_replication_attrs: null, version_major: 1, version_minor: 0, version_patch: 0, engine_attrs: null },
-        { id: 108, namespace_id: 1, name: 'sys_outsync_queue', kind: 'table', persistence: 'default', source_expr_ast: null, view_opts_replication_mode: null, view_opts_replication_origin: null, view_opts_replication_attrs: null, version_major: 1, version_minor: 0, version_patch: 0, engine_attrs: null }
+        { id: 100, namespace_id: 1, name: 'sys_namespaces', kind: 'table', persistence: 'default', source_expr_ast: null, view_opts_replication_mode: null, view_opts_replication_origin: null, view_opts_replication_opts: null, view_mode_replication_attrs: null, version_major: 1, version_minor: 0, version_patch: 0, engine_attrs: null },
+        { id: 101, namespace_id: 1, name: 'sys_relations', kind: 'table', persistence: 'default', source_expr_ast: null, view_opts_replication_mode: null, view_opts_replication_origin: null, view_opts_replication_opts: null, view_mode_replication_attrs: null, version_major: 1, version_minor: 0, version_patch: 0, engine_attrs: null },
+        { id: 102, namespace_id: 1, name: 'sys_types', kind: 'table', persistence: 'default', source_expr_ast: null, view_opts_replication_mode: null, view_opts_replication_origin: null, view_opts_replication_opts: null, view_mode_replication_attrs: null, version_major: 1, version_minor: 0, version_patch: 0, engine_attrs: null },
+        { id: 103, namespace_id: 1, name: 'sys_columns', kind: 'table', persistence: 'default', source_expr_ast: null, view_opts_replication_mode: null, view_opts_replication_origin: null, view_opts_replication_opts: null, view_mode_replication_attrs: null, version_major: 1, version_minor: 0, version_patch: 0, engine_attrs: null },
+        { id: 104, namespace_id: 1, name: 'sys_constraints', kind: 'table', persistence: 'default', source_expr_ast: null, view_opts_replication_mode: null, view_opts_replication_origin: null, view_opts_replication_opts: null, view_mode_replication_attrs: null, version_major: 1, version_minor: 0, version_patch: 0, engine_attrs: null },
+        { id: 105, namespace_id: 1, name: 'sys_indexes', kind: 'table', persistence: 'default', source_expr_ast: null, view_opts_replication_mode: null, view_opts_replication_origin: null, view_opts_replication_opts: null, view_mode_replication_attrs: null, version_major: 1, version_minor: 0, version_patch: 0, engine_attrs: null },
+        { id: 106, namespace_id: 1, name: 'sys_dependencies', kind: 'table', persistence: 'default', source_expr_ast: null, view_opts_replication_mode: null, view_opts_replication_origin: null, view_opts_replication_opts: null, view_mode_replication_attrs: null, version_major: 1, version_minor: 0, version_patch: 0, engine_attrs: null },
+        { id: 107, namespace_id: 1, name: 'sys_insync_jobs', kind: 'table', persistence: 'default', source_expr_ast: null, view_opts_replication_mode: null, view_opts_replication_origin: null, view_opts_replication_opts: null, view_mode_replication_attrs: null, version_major: 1, version_minor: 0, version_patch: 0, engine_attrs: null },
+        { id: 108, namespace_id: 1, name: 'sys_outsync_queue', kind: 'table', persistence: 'default', source_expr_ast: null, view_opts_replication_mode: null, view_opts_replication_origin: null, view_opts_replication_opts: null, view_mode_replication_attrs: null, version_major: 1, version_minor: 0, version_patch: 0, engine_attrs: null }
     ],
 
     sys_types: [
@@ -69,11 +69,12 @@ export const SYSTEM_BOOTSTRAP_DATA = {
         { id: 1106, relation_id: 101, name: 'source_expr_ast', position: 6, type_id: 13, not_null: false, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
         { id: 1107, relation_id: 101, name: 'view_opts_replication_mode', position: 7, type_id: 12, not_null: false, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
         { id: 1108, relation_id: 101, name: 'view_opts_replication_origin', position: 8, type_id: 12, not_null: false, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
-        { id: 1109, relation_id: 101, name: 'view_opts_replication_attrs', position: 9, type_id: 13, not_null: false, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
-        { id: 1110, relation_id: 101, name: 'version_major', position: 10, type_id: 11, not_null: true, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: { is_system_column: true } },
-        { id: 1111, relation_id: 101, name: 'version_minor', position: 11, type_id: 11, not_null: true, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: { is_system_column: true } },
-        { id: 1112, relation_id: 101, name: 'version_patch', position: 12, type_id: 11, not_null: true, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: { is_system_column: true } },
-        { id: 1113, relation_id: 101, name: 'engine_attrs', position: 13, type_id: 13, not_null: false, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
+        { id: 1109, relation_id: 101, name: 'view_opts_replication_opts', position: 9, type_id: 13, not_null: false, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
+        { id: 1110, relation_id: 101, name: 'view_mode_replication_attrs', position: 10, type_id: 13, not_null: false, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
+        { id: 1111, relation_id: 101, name: 'version_major', position: 11, type_id: 11, not_null: true, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: { is_system_column: true } },
+        { id: 1112, relation_id: 101, name: 'version_minor', position: 12, type_id: 11, not_null: true, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: { is_system_column: true } },
+        { id: 1113, relation_id: 101, name: 'version_patch', position: 13, type_id: 11, not_null: true, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: { is_system_column: true } },
+        { id: 1114, relation_id: 101, name: 'engine_attrs', position: 14, type_id: 13, not_null: false, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
 
         // sys_types (102)
         { id: 1201, relation_id: 102, name: 'id', position: 1, type_id: 10, not_null: true, is_generated: true, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
@@ -129,7 +130,7 @@ export const SYSTEM_BOOTSTRAP_DATA = {
         { id: 1605, relation_id: 106, name: 'referenced_object_kind', position: 5, type_id: 12, not_null: true, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
         { id: 1606, relation_id: 106, name: 'dependency_tag', position: 6, type_id: 12, not_null: true, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
 
-        // sys_sync_jobs (107)
+        // sys_insync_jobs (107)
         { id: 1701, relation_id: 107, name: 'id', position: 1, type_id: 10, not_null: true, is_generated: true, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
         { id: 1702, relation_id: 107, name: 'relation_id', position: 2, type_id: 10, not_null: true, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
         { id: 1703, relation_id: 107, name: 'enabled', position: 3, type_id: 14, not_null: true, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
@@ -150,13 +151,14 @@ export const SYSTEM_BOOTSTRAP_DATA = {
         { id: 1801, relation_id: 108, name: 'id', position: 1, type_id: 10, not_null: true, is_generated: true, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
         { id: 1802, relation_id: 108, name: 'relation_id', position: 2, type_id: 10, not_null: true, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
         { id: 1803, relation_id: 108, name: 'origin', position: 3, type_id: 13, not_null: true, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
-        { id: 1804, relation_id: 108, name: 'query_spec', position: 4, type_id: 13, not_null: true, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
+        { id: 1804, relation_id: 108, name: 'query_spec', position: 4, type_id: 13, not_null: false, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
         { id: 1805, relation_id: 108, name: 'event_payload', position: 5, type_id: 13, not_null: true, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
         { id: 1806, relation_id: 108, name: 'status', position: 6, type_id: 12, not_null: true, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
         { id: 1807, relation_id: 108, name: 'retry_count', position: 7, type_id: 11, not_null: false, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
         { id: 1808, relation_id: 108, name: 'last_error', position: 8, type_id: 12, not_null: false, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
         { id: 1809, relation_id: 108, name: 'created_at', position: 9, type_id: 10, not_null: false, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
-        { id: 1810, relation_id: 108, name: 'updated_at', position: 10, type_id: 10, not_null: false, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null }
+        { id: 1810, relation_id: 108, name: 'updated_at', position: 10, type_id: 10, not_null: false, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null },
+        { id: 1811, relation_id: 108, name: 'next_retry_at', position: 11, type_id: 10, not_null: false, is_generated: false, generation_expr_ast: null, generation_rule: null, default_expr_ast: null, engine_attrs: null }
 
     ],
 
@@ -170,7 +172,7 @@ export const SYSTEM_BOOTSTRAP_DATA = {
         { id: 2005, relation_id: 104, name: 'sys_constraints__pk', kind: 'PRIMARY KEY', column_ids: [1401], ck_expression_ast: null, fk_target_relation_id: null, fk_target_column_ids: null, fk_match_rule: null, fk_update_rule: null, fk_delete_rule: null },
         { id: 2006, relation_id: 105, name: 'sys_indexes__pk', kind: 'PRIMARY KEY', column_ids: [1501], ck_expression_ast: null, fk_target_relation_id: null, fk_target_column_ids: null, fk_match_rule: null, fk_update_rule: null, fk_delete_rule: null },
         { id: 2007, relation_id: 106, name: 'sys_dependencies__pk', kind: 'PRIMARY KEY', column_ids: [1601], ck_expression_ast: null, fk_target_relation_id: null, fk_target_column_ids: null, fk_match_rule: null, fk_update_rule: null, fk_delete_rule: null },
-        { id: 2008, relation_id: 107, name: 'sys_sync_jobs__pk', kind: 'PRIMARY KEY', column_ids: [1701], ck_expression_ast: null, fk_target_relation_id: null, fk_target_column_ids: null, fk_match_rule: null, fk_update_rule: null, fk_delete_rule: null },
+        { id: 2008, relation_id: 107, name: 'sys_insync_jobs__pk', kind: 'PRIMARY KEY', column_ids: [1701], ck_expression_ast: null, fk_target_relation_id: null, fk_target_column_ids: null, fk_match_rule: null, fk_update_rule: null, fk_delete_rule: null },
         { id: 2009, relation_id: 108, name: 'sys_outsync_queue__pk', kind: 'PRIMARY KEY', column_ids: [1801], ck_expression_ast: null, fk_target_relation_id: null, fk_target_column_ids: null, fk_match_rule: null, fk_update_rule: null, fk_delete_rule: null },
 
         // UNIQUE
@@ -180,7 +182,7 @@ export const SYSTEM_BOOTSTRAP_DATA = {
         { id: 2104, relation_id: 103, name: 'sys_columns__relation_id_name_uk', kind: 'UNIQUE', column_ids: [1302, 1303], ck_expression_ast: null, fk_target_relation_id: null, fk_target_column_ids: null, fk_match_rule: null, fk_update_rule: null, fk_delete_rule: null },
         { id: 2105, relation_id: 104, name: 'sys_constraints__relation_id_name_uk', kind: 'UNIQUE', column_ids: [1402, 1403], ck_expression_ast: null, fk_target_relation_id: null, fk_target_column_ids: null, fk_match_rule: null, fk_update_rule: null, fk_delete_rule: null },
         { id: 2106, relation_id: 105, name: 'sys_indexes__relation_id_name_uk', kind: 'UNIQUE', column_ids: [1502, 1503], ck_expression_ast: null, fk_target_relation_id: null, fk_target_column_ids: null, fk_match_rule: null, fk_update_rule: null, fk_delete_rule: null },
-        { id: 2107, relation_id: 107, name: 'sys_sync_jobs__relation_id_uk', kind: 'UNIQUE', column_ids: [1702], ck_expression_ast: null, fk_target_relation_id: null, fk_target_column_ids: null, fk_match_rule: null, fk_update_rule: null, fk_delete_rule: null },
+        { id: 2107, relation_id: 107, name: 'sys_insync_jobs__relation_id_uk', kind: 'UNIQUE', column_ids: [1702], ck_expression_ast: null, fk_target_relation_id: null, fk_target_column_ids: null, fk_match_rule: null, fk_update_rule: null, fk_delete_rule: null },
 
         // FOREIGN KEYS
         { id: 2201, relation_id: 101, name: 'sys_relations__namespace_id_fk', kind: 'FOREIGN KEY', column_ids: [1102], ck_expression_ast: null, fk_target_relation_id: 100, fk_target_column_ids: [1001], fk_match_rule: 'FULL', fk_update_rule: 'CASCADE', fk_delete_rule: 'CASCADE' },
@@ -188,7 +190,7 @@ export const SYSTEM_BOOTSTRAP_DATA = {
         { id: 2203, relation_id: 104, name: 'sys_constraints__relation_id_fk', kind: 'FOREIGN KEY', column_ids: [1402], ck_expression_ast: null, fk_target_relation_id: 101, fk_target_column_ids: [1101], fk_match_rule: 'FULL', fk_update_rule: 'CASCADE', fk_delete_rule: 'CASCADE' },
         { id: 2204, relation_id: 104, name: 'sys_constraints__fk_target_relation_id_fk', kind: 'FOREIGN KEY', column_ids: [1407], ck_expression_ast: null, fk_target_relation_id: 101, fk_target_column_ids: [1101], fk_match_rule: 'FULL', fk_update_rule: 'CASCADE', fk_delete_rule: 'CASCADE' },
         { id: 2205, relation_id: 105, name: 'sys_indexes__relation_id_fk', kind: 'FOREIGN KEY', column_ids: [1502], ck_expression_ast: null, fk_target_relation_id: 101, fk_target_column_ids: [1101], fk_match_rule: 'FULL', fk_update_rule: 'CASCADE', fk_delete_rule: 'CASCADE' },
-        { id: 2206, relation_id: 107, name: 'sys_sync_jobs__relation_id_fk', kind: 'FOREIGN KEY', column_ids: [1702], ck_expression_ast: null, fk_target_relation_id: 101, fk_target_column_ids: [1101], fk_match_rule: 'FULL', fk_update_rule: 'CASCADE', fk_delete_rule: 'CASCADE' },
+        { id: 2206, relation_id: 107, name: 'sys_insync_jobs__relation_id_fk', kind: 'FOREIGN KEY', column_ids: [1702], ck_expression_ast: null, fk_target_relation_id: 101, fk_target_column_ids: [1101], fk_match_rule: 'FULL', fk_update_rule: 'CASCADE', fk_delete_rule: 'CASCADE' },
         { id: 2207, relation_id: 108, name: 'sys_outsync_queue__relation_id_fk', kind: 'FOREIGN KEY', column_ids: [1802], ck_expression_ast: null, fk_target_relation_id: 101, fk_target_column_ids: [1101], fk_match_rule: 'FULL', fk_update_rule: 'CASCADE', fk_delete_rule: 'CASCADE' },
 
     ],
@@ -202,7 +204,7 @@ export const SYSTEM_BOOTSTRAP_DATA = {
         { id: 2104, relation_id: 103, name: 'sys_columns__relation_id_name_idx', method: 'hash', is_unique: true, kind: 'column', column_ids: [1302, 1303], expression_ast: null, predicate_ast: null },
         { id: 2105, relation_id: 104, name: 'sys_constraints__relation_id_name_idx', method: 'hash', is_unique: true, kind: 'column', column_ids: [1402, 1403], expression_ast: null, predicate_ast: null },
         { id: 2106, relation_id: 105, name: 'sys_indexes__relation_id_name_idx', method: 'hash', is_unique: true, kind: 'column', column_ids: [1502, 1503], expression_ast: null, predicate_ast: null },
-        { id: 2107, relation_id: 107, name: 'sys_sync_jobs__relation_id_idx', method: 'hash', is_unique: true, kind: 'column', column_ids: [1702], expression_ast: null, predicate_ast: null },
+        { id: 2107, relation_id: 107, name: 'sys_insync_jobs__relation_id_idx', method: 'hash', is_unique: true, kind: 'column', column_ids: [1702], expression_ast: null, predicate_ast: null },
 
         // FOREIGN KEYS
         { id: 2201, relation_id: 101, name: 'sys_relations__namespace_id_idx', method: 'hash', is_unique: false, kind: 'column', column_ids: [1102], expression_ast: null, predicate_ast: null },
@@ -210,7 +212,7 @@ export const SYSTEM_BOOTSTRAP_DATA = {
         { id: 2203, relation_id: 104, name: 'sys_constraints__relation_id_idx', method: 'hash', is_unique: false, kind: 'column', column_ids: [1402], expression_ast: null, predicate_ast: null },
         { id: 2204, relation_id: 104, name: 'sys_constraints__fk_target_relation_id_idx', method: 'hash', is_unique: false, kind: 'column', column_ids: [1407], expression_ast: null, predicate_ast: null },
         { id: 2205, relation_id: 105, name: 'sys_indexes__relation_id_idx', method: 'hash', is_unique: false, kind: 'column', column_ids: [1502], expression_ast: null, predicate_ast: null },
-        { id: 2206, relation_id: 107, name: 'sys_sync_jobs__state_idx', method: 'hash', is_unique: false, kind: 'column', column_ids: [1705], expression_ast: null, predicate_ast: null },
+        { id: 2206, relation_id: 107, name: 'sys_insync_jobs__state_idx', method: 'hash', is_unique: false, kind: 'column', column_ids: [1705], expression_ast: null, predicate_ast: null },
         { id: 2207, relation_id: 108, name: 'sys_outsync_queue__relation_id_idx', method: 'hash', is_unique: false, kind: 'column', column_ids: [1802], expression_ast: null, predicate_ast: null },
         { id: 2208, relation_id: 108, name: 'sys_outsync_queue__status_idx', method: 'hash', is_unique: false, kind: 'column', column_ids: [1806], expression_ast: null, predicate_ast: null },
 

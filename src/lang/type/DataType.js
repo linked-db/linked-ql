@@ -22,6 +22,7 @@ export class DataType extends AbstractNode {
                         }
                     ],
                     { type: 'data_type', as: '.' },
+                    { type: 'keyword', as: '.', value: ['ARRAY'] },
                     { type: 'keyword', as: '.', value: ['SET'] },
                 ]
             },

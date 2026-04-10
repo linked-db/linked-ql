@@ -28,7 +28,7 @@ LinkedQL resolves the path from the schema catalog.
 
 ---
 
-## How to read this page
+## How to Read This Page
 
 This page covers three related ideas:
 
@@ -720,7 +720,7 @@ They let you express relationship-aware writes directly in SQL-shaped DML instea
 
 The key idea is that DeepRef syntax is not just for reading. It can also appear in write targets.
 
-#### The core idea
+#### The Core Idea
 
 A regular insert target looks like this:
 
@@ -749,7 +749,7 @@ The rough rule is:
 - DeepRefs in `SELECT` help you traverse and shape reads
 - DeepRefs in DML targets help you traverse and shape writes
 
-#### Why this exists
+#### Why This Exists
 
 Without structured writes, relationship-aware writes usually move into application code:
 
@@ -773,7 +773,7 @@ Structured writes let the query itself describe that intent.
 Foreign keys in LinkedQL's relational space retain their semantics across query scopes.<br>
 This means, foreign keys projected from an inner query or inherited from an outer query can be traversed seamlessly as *refs* across the query boundary.
 
-#### Foreign Key Projected from an Inner Query
+#### Foreign Key Projected From an Inner Query
 
 A foreign key projected from a derived query remains traversable in the outer scope:
 
@@ -788,7 +788,7 @@ FROM (
 Here, the inner query projects `post_fk` and `author_fk` as output columns.<br>
 Each crosses the query boundary as a foreign key and naturally supports traversal.
 
-#### Foreign Key Inherited from an Outer Query
+#### Foreign Key Inherited From an Outer Query
 
 A foreign key from an outer query can be referenced within an inner scope,
 allowing DeepRefs to resolve normally inside the subquery.

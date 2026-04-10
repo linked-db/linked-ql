@@ -87,9 +87,9 @@ export class SchemaInference {
         }, true);
 
         if (!hasSugars && options.ifHasSugars) return query;
-        if (anyFound) await this.preload(relationSelector, options);
 
-        // DeSugaring...
+        // Full DeSugaring...
+        if (anyFound) await this.preload(relationSelector, options);
         return query.deSugar(true, {}, null, this);
     }
 

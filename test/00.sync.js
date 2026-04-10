@@ -1,9 +1,9 @@
 import { EdgeClient } from '../src/clients/edge/EdgeClient.js';
-import { EdgeWorker } from '../src/clients/edge/EdgeWorker.js';
+import { EdgeWorker } from '../src/clients/edge/remote/EdgeWorker.js';
 import { InMemoryKV } from '@webqit/keyval/inmemory';
 import { FlashQL } from '../src/flashql/FlashQL.js';
 import Observer from '@webqit/observer';
-
+console.log(`\n\nStage 1:________________________________________\n\n`);
 /**
  * This is DB1 - the upstream DB.
  * Has a table called public.users
@@ -46,7 +46,7 @@ setTimeout(async () => {
 }, 800);
 
 const mc1 = new MessageChannel;
-EdgeWorker.webWorker({ db: db1, worker: mc1.port2 });
+EdgeWorker.webWorker({ db: db1 }).runIn(mc1.port2);
 
 
 
@@ -63,10 +63,15 @@ await db2.connect();
 
 await db2.query(`
   CREATE SCHEMA offline;
-  CREATE VIEW offline.users AS
+  CREATE REALTIME VIEW offline.users AS
+  -- SELECT *, xmin AS "XMIN" FROM public.users
+  -- SELECT id, name, xmin FROM public.users
   TABLE public.users
-  WITH(replication_origin = 'primary')
+  WITH(replication_origin = 'flashql:primary')
 `);
+db1.on('error', (e) => {
+  console.log('||||||||', e);
+});
 
 
 

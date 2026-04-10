@@ -195,6 +195,12 @@ export class WalEngine {
         return existed;
     }
 
+    // ----------- applying
+
+    async applyDownstreamCommit(commit, options = {}) {
+        throw new Error('WalEngine.applyDownstreamCommit() is not implemented by this adapter');
+    }
+
     // ----------- dispatcher
 
     async dispatch(commit) {

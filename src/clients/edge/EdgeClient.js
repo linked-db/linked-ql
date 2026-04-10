@@ -1,6 +1,7 @@
 import { BaseEdgeClient } from './BaseEdgeClient.js';
 import { MessagePortPlus } from '@webqit/port-plus';
 import { LiveResponse } from '@webqit/fetch-plus';
+import { ConflictError } from '../../flashql/errors/ConflictError.js';
 
 export class EdgeClient extends BaseEdgeClient {
 
@@ -10,7 +11,7 @@ export class EdgeClient extends BaseEdgeClient {
     #fetch;
     #worker;
 
-    #rowsStreaming;
+    #portBasedStreaming;
     #workerEventNamespace;
 
     static #resolveWorkerPort(worker, type) {
@@ -25,7 +26,7 @@ export class EdgeClient extends BaseEdgeClient {
         url,
         worker = null,
         type = 'http',
-        rowsStreaming = 'port',
+        portBasedStreaming = true,
         workerEventNamespace = 'lnkd_',
         fetchApi = null,
         ...options
@@ -40,7 +41,7 @@ export class EdgeClient extends BaseEdgeClient {
         this.#type = type;
 
         this.#workerEventNamespace = workerEventNamespace;
-        this.#rowsStreaming = rowsStreaming;
+        this.#portBasedStreaming = portBasedStreaming;
 
         if (this.#type === 'http') {
             this.#fetch = async (...args) => {
@@ -65,12 +66,12 @@ export class EdgeClient extends BaseEdgeClient {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                ...(streamMode && this.#rowsStreaming !== 'port'
+                ...(streamMode && !this.#portBasedStreaming
                     ? {} : { 'Accept': 'application/json' }),
             },
         }).then(async (res) => {
             if (streamMode) {
-                if (this.#rowsStreaming) {
+                if (this.#portBasedStreaming) {
                     const { port } = await LiveResponse.from(res).now();
                     return this.#portToAsyncIterable(port);
                 } else return this.#streamToAsyncIterable(
@@ -90,6 +91,14 @@ export class EdgeClient extends BaseEdgeClient {
             { op, args },
             { once: !liveMode && !streamMode }
         ).then((e) => {
+            if (e.data?.__error) {
+                const error = e.data.__error.name === 'ConflictError'
+                    ? new ConflictError(e.data.__error.message)
+                    : new Error(e.data.__error.message);
+                error.name = e.data.__error.name || error.name || 'Error';
+                if (e.data.__error.stack) error.stack = e.data.__error.stack;
+                throw error;
+            }
             if (streamMode) return this.#portToAsyncIterable(e.target);
             if (liveMode) return { data: e.data, port: e.target };
             return e.data;

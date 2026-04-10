@@ -1,8 +1,11 @@
 import { SimpleEmitter } from '../../clients/abstracts/SimpleEmitter.js';
 import { matchRelationSelector, normalizeRelationSelectorArg } from '../../clients/abstracts/util.js';
+import { ConflictError } from '../errors/ConflictError.js';
 import { SYSTEM_TAG } from '../storage/TableStorage.js';
 
 export class SyncManager extends SimpleEmitter {
+
+    static OUTSYNC_RETRY_BASE_MS = 1000;
 
     #storageEngine;
     #activeRealtimeJobs = new Map;
@@ -18,63 +21,15 @@ export class SyncManager extends SimpleEmitter {
         return await this.#storageEngine.transaction(cb, { ...txOpts, parentTx: inputTx });
     }
 
-    async sync(selector = '*', { forceSync = false, tx: inputTx = null } = {}) {
-        this.#queuedSyncSelector = this.#mergeSelectors(this.#queuedSyncSelector, selector);
-        if (!this.#syncDrainPromise) {
-            this.#syncDrainPromise = this.#drainSyncQueue({ forceSync, inputTx });
-        }
-        return await this.#syncDrainPromise;
+    #classifyError(error) {
+        return error instanceof ConflictError || error?.name === 'ConflictError' ? 'conflict' : 'error';
     }
 
-    async #drainSyncQueue({ forceSync = false, inputTx = null }) {
-        const summary = { materialized: [], realtime: [], failed: [] };
-        try {
-            while (this.#queuedSyncSelector !== null) {
-                const selector = this.#queuedSyncSelector;
-                this.#queuedSyncSelector = null;
-                this.#mergeSummary(summary, await this.#runSync(selector, { forceSync, inputTx }));
-            }
-            return summary;
-        } catch (e) {
-            this.emit('error', e);
-            throw e;
-        } finally {
-            this.#syncDrainPromise = null;
-            if (this.#queuedSyncSelector !== null) {
-                this.#syncDrainPromise = this.#drainSyncQueue({ inputTx });
-            }
-        }
-    }
-
-    async #runSync(selector = '*', { forceSync, inputTx }) {
-        const summary = { materialized: [], realtime: [], failed: [] };
-        const views = await this.#resolveViews(selector, { inputTx });
-
-        for (const view of views) {
-            try {
-                const job = await this.#ensureJob(view, { inputTx });
-                if (!job.enabled) continue;
-
-                if (view.view_opts_replication_mode === 'materialized') {
-                    // Materialized views are one-off jobs; rerun only when missing/failure state.
-                    if (job.state !== 'synced' || !job.last_success_at || forceSync) {
-                        await this.#materializeView(view, { inputTx });
-                        summary.materialized.push(view.id);
-                    }
-                }
-
-                if (view.view_opts_replication_mode === 'realtime') {
-                    await this.#startRealtimeView(view, { forceSync, inputTx });
-                    summary.realtime.push(view.id);
-                }
-            } catch (e) {
-                this.emit('error', e);
-                console.log('____', e);
-                summary.failed.push({ relation_id: view.id, error: String(e?.message || e) });
-            }
-        }
-
-        return summary;
+    #emitIssue(error, context = {}) {
+        const event = this.#classifyError(error);
+        const payload = { ...context, error };
+        this.emit(event, payload);
+        return payload;
     }
 
     #mergeSelectors(currentSelector, nextSelector) {
@@ -114,6 +69,16 @@ export class SyncManager extends SimpleEmitter {
         target.failed.push(...incoming.failed);
     }
 
+    // ------------
+
+    async sync(selector = '*', { forceSync = false, tx: inputTx = null } = {}) {
+        this.#queuedSyncSelector = this.#mergeSelectors(this.#queuedSyncSelector, selector);
+        if (!this.#syncDrainPromise) {
+            this.#syncDrainPromise = this.#drainSyncQueue({ forceSync, inputTx });
+        }
+        return await this.#syncDrainPromise;
+    }
+
     async start(selector = '*', { tx: inputTx = null } = {}) {
         const summary = { realtime: [], failed: [] };
         const views = await this.#resolveViews(selector, { inputTx });
@@ -127,9 +92,10 @@ export class SyncManager extends SimpleEmitter {
                     updated_at: Date.now(),
                 }, { inputTx, ensureWith: view });
 
-                await this.#startRealtimeView(view, { forceSync });
+                await this.#startRealtimeView(view, { forceSync: false, inputTx });
                 summary.realtime.push(view.id);
             } catch (e) {
+                this.#emitIssue(e, { phase: 'insync', relation_id: view.id });
                 summary.failed.push({ relation_id: view.id, error: String(e?.message || e) });
             }
         }
@@ -189,9 +155,9 @@ export class SyncManager extends SimpleEmitter {
         if (!views.length) return [];
 
         return await this.#transaction(async (tx) => {
-            const jobs = tx.getTable({ namespace: 'sys', name: 'sys_sync_jobs' });
+            const jobs = tx.getRelation({ namespace: 'sys', name: 'sys_insync_jobs' });
             return views.map((view) => {
-                const job = jobs.get({ relation_id: view.id }, { using: 'sys_sync_jobs__relation_id_idx' });
+                const job = jobs.get({ relation_id: view.id }, { using: 'sys_insync_jobs__relation_id_idx' });
                 return {
                     relation_id: view.id,
                     namespace: view.namespace,
@@ -223,19 +189,23 @@ export class SyncManager extends SimpleEmitter {
 
         // Execute forget first
         if (view.view_opts_replication_mode === 'realtime') {
-            const sourceClient = await this.#storageEngine.getSourceClient(view);
-            const pureRefDecode = this.#storageEngine._viewSourceExprIsPureRef(view);
+            const replicationAttrs = view.view_mode_replication_attrs;
+
+            const upstreamRelation = replicationAttrs.mapping_level === 'table'
+                ? replicationAttrs.upstream_relation
+                : null;
+            const sourceClient = await this.#storageEngine.getEffectiveClient(view);
 
             const slotId = `lq_sync_${view.id}`;
-            if (pureRefDecode) {
+            if (upstreamRelation) {
                 await sourceClient.wal.forget(slotId);
             } else await sourceClient.live.forget(slotId);
         }
 
         // Delete local job entry
         return await this.#transaction(async (tx) => {
-            const jobs = tx.getTable({ namespace: 'sys', name: 'sys_sync_jobs' });
-            return await jobs.delete({ relation_id: view.id }, { using: 'sys_sync_jobs__relation_id_idx' });
+            const jobs = tx.getRelation({ namespace: 'sys', name: 'sys_insync_jobs' });
+            return await jobs.delete({ relation_id: view.id }, { using: 'sys_insync_jobs__relation_id_idx', systemTag: SYSTEM_TAG });
         }, { inputTx });
     }
 
@@ -245,6 +215,177 @@ export class SyncManager extends SimpleEmitter {
             await abortLine();
         }
     }
+
+    // ------------
+
+    async #drainSyncQueue({ forceSync = false, inputTx = null }) {
+        const summary = { materialized: [], realtime: [], failed: [] };
+        try {
+            while (this.#queuedSyncSelector !== null) {
+                const selector = this.#queuedSyncSelector;
+                this.#queuedSyncSelector = null;
+                this.#mergeSummary(summary, await this.#runSyncCycle(selector, { forceSync, inputTx }));
+            }
+            return summary;
+        } catch (e) {
+            this.#emitIssue(e, { phase: 'sync' });
+            throw e;
+        } finally {
+            this.#syncDrainPromise = null;
+            if (this.#queuedSyncSelector !== null) {
+                this.#syncDrainPromise = this.#drainSyncQueue({ inputTx });
+            }
+        }
+    }
+
+    async #runSyncCycle(selector = '*', { forceSync, inputTx }) {
+        const summary = { materialized: [], realtime: [], failed: [] };
+        const views = await this.#resolveViews(selector, { inputTx });
+
+        await this.#runOutsyncCycle(views, { forceSync, inputTx, summary });
+
+        for (const view of views) {
+            await this.#runInsyncForView(view, { forceSync, inputTx, summary });
+        }
+
+        return summary;
+    }
+
+    // ------------ In-Sync
+
+    async #runInsyncForView(view, { forceSync = false, inputTx = null, summary = null } = {}) {
+        try {
+            const job = await this.#ensureJob(view, { inputTx });
+            if (!job.enabled) return;
+
+            if (view.view_opts_replication_mode === 'materialized') {
+                await this.#runMaterializedInsync(view, job, { forceSync, inputTx, summary });
+            }
+
+            if (view.view_opts_replication_mode === 'realtime') {
+                await this.#runRealtimeInsync(view, { forceSync, inputTx, summary });
+            }
+        } catch (e) {
+            this.#emitIssue(e, { phase: 'insync', relation_id: view.id });
+            summary?.failed.push({ relation_id: view.id, error: String(e?.message || e) });
+        }
+    }
+
+    async #runMaterializedInsync(view, job, { forceSync = false, inputTx = null, summary = null } = {}) {
+        // Materialized views are one-off jobs; rerun only when missing/failure state.
+        if (job.state === 'synced' && job.last_success_at && !forceSync) return;
+        await this.#materializeView(view, { inputTx });
+        summary?.materialized.push(view.id);
+    }
+
+    async #runRealtimeInsync(view, { forceSync = false, inputTx = null, summary = null } = {}) {
+        await this.#startRealtimeView(view, { forceSync, inputTx });
+        summary?.realtime.push(view.id);
+    }
+
+    // ------------ Out-Sync
+
+    async #runOutsyncCycle(views, { forceSync = false, inputTx = null, summary = null } = {}) {
+        if (!views.length) return [];
+
+        const eligibleRows = await this.#listEligibleOutsyncRows(views, { forceSync, inputTx });
+        for (const queueRow of eligibleRows) {
+            await this.#processOutsyncRow(queueRow, { inputTx, summary });
+        }
+        return eligibleRows;
+    }
+
+    async #listEligibleOutsyncRows(views, { forceSync = false, inputTx = null } = {}) {
+        const viewsById = new Map(views.map((view) => [view.id, view]));
+        const now = Date.now();
+
+        return await this.#transaction(async (tx) => {
+            const outsyncQueue = tx.getRelation({ namespace: 'sys', name: 'sys_outsync_queue' });
+            return outsyncQueue.getAll({ hiddenCols: true })
+                .filter((row) => viewsById.has(row.relation_id)
+                    && ['pending', 'failed'].includes(row.status)
+                    && (forceSync || !Number.isInteger(row.next_retry_at) || row.next_retry_at <= now))
+                .sort((a, b) => (a.created_at || 0) - (b.created_at || 0) || a.id - b.id);
+        }, { inputTx });
+    }
+
+    async #processOutsyncRow(queueRow, { inputTx = null, summary = null } = {}) {
+        const view = await this.#resolveOutsyncView(queueRow, { inputTx });
+        if (!view) return;
+
+        const commit = this.#buildOutsyncCommit(queueRow);
+
+        try {
+            await this.#dispatchOutsyncCommit(queueRow.origin, commit);
+            await this.#markOutsyncApplied(queueRow.id, { inputTx });
+        } catch (e) {
+            const queueStatus = e instanceof ConflictError || e?.name === 'ConflictError' ? 'conflicted' : 'failed';
+            await this.#markOutsyncFailure(queueRow.id, e, { queueStatus, inputTx });
+            summary?.failed.push({ relation_id: view.id, queue_id: queueRow.id, error: String(e?.message || e) });
+            this.#emitIssue(e, { phase: 'outsync', relation_id: view.id, queue_id: queueRow.id, queue_status: queueStatus });
+        }
+    }
+
+    async #resolveOutsyncView(queueRow, { inputTx = null } = {}) {
+        return await this.#transaction(async (tx) => {
+            return tx.getRelation({ id: queueRow.relation_id, assertIsView: true, ifExists: true });
+        }, { inputTx });
+    }
+
+    #buildOutsyncCommit(queueRow, timestamp = Date.now()) {
+        return {
+            txId: null,
+            commitTime: null,
+            entries: [queueRow.event_payload],
+            timestamp,
+        };
+    }
+
+    async #dispatchOutsyncCommit(origin, commit) {
+        if (origin) {
+            const upstreamClient = await this.#storageEngine.getUpstreamClient(origin);
+            await upstreamClient.wal.applyDownstreamCommit(commit);
+            return;
+        }
+        await this.#storageEngine.wal.applyDownstreamCommit(commit);
+    }
+
+    async #markOutsyncApplied(queueId, { inputTx = null } = {}) {
+        await this.#transaction(async (tx) => {
+            const outsyncQueue = tx.getRelation({ namespace: 'sys', name: 'sys_outsync_queue' });
+            const current = outsyncQueue.get(queueId, { hiddenCols: true });
+            if (!current) return;
+            await outsyncQueue.update(current, {
+                status: 'applied',
+                last_error: null,
+                updated_at: Date.now(),
+                next_retry_at: null,
+            }, { systemTag: SYSTEM_TAG });
+        }, { inputTx });
+    }
+
+    async #markOutsyncFailure(queueId, error, { queueStatus = 'failed', inputTx = null } = {}) {
+        await this.#transaction(async (tx) => {
+            const outsyncQueue = tx.getRelation({ namespace: 'sys', name: 'sys_outsync_queue' });
+            const current = outsyncQueue.get(queueId, { hiddenCols: true });
+            if (!current) return;
+            const retryCount = (current.retry_count || 0) + 1;
+            await outsyncQueue.update(current, {
+                status: queueStatus,
+                retry_count: retryCount,
+                last_error: String(error?.message || error),
+                updated_at: Date.now(),
+                next_retry_at: queueStatus === 'conflicted' ? null : this.#computeOutsyncNextRetryAt(retryCount, Date.now()),
+            }, { systemTag: SYSTEM_TAG });
+        }, { inputTx });
+    }
+
+    #computeOutsyncNextRetryAt(retryCount = 0, now = Date.now()) {
+        const delay = SyncManager.OUTSYNC_RETRY_BASE_MS * Math.max(1, retryCount + 1);
+        return now + delay;
+    }
+
+    // ------------
 
     async #resolveViews(selector = '*', { inputTx }) {
         const selectorFn = typeof selector === 'function' ? selector : null;
@@ -277,8 +418,8 @@ export class SyncManager extends SimpleEmitter {
         const now = Date.now();
 
         return await this.#transaction(async (tx) => {
-            const jobs = tx.getTable({ namespace: 'sys', name: 'sys_sync_jobs' });
-            const existing = jobs.get({ relation_id: view.id }, { using: 'sys_sync_jobs__relation_id_idx' });
+            const jobs = tx.getRelation({ namespace: 'sys', name: 'sys_insync_jobs' });
+            const existing = jobs.get({ relation_id: view.id }, { using: 'sys_insync_jobs__relation_id_idx' });
             if (existing) return existing;
 
             const mode = view.view_opts_replication_mode === 'realtime' ? 'realtime' : 'materialized';
@@ -297,7 +438,7 @@ export class SyncManager extends SimpleEmitter {
                 lease_expires_at: null,
                 updated_at: now,
                 engine_attrs: null,
-            });
+            }, { systemTag: SYSTEM_TAG });
         }, { inputTx });
     }
 
@@ -307,12 +448,36 @@ export class SyncManager extends SimpleEmitter {
         }
 
         await this.#transaction(async (tx) => {
-            const jobs = tx.getTable({ namespace: 'sys', name: 'sys_sync_jobs' });
-            const row = jobs.get({ relation_id: relationId }, { using: 'sys_sync_jobs__relation_id_idx' });
+            const jobs = tx.getRelation({ namespace: 'sys', name: 'sys_insync_jobs' });
+            const row = jobs.get({ relation_id: relationId }, { using: 'sys_insync_jobs__relation_id_idx' });
             if (row) {
-                await jobs.update(row, patch);
+                await jobs.update(row, patch, { systemTag: SYSTEM_TAG });
             }
         }, { inputTx });
+    }
+
+    async #handleRealtimeCommit(view, commit, { inputTx = null } = {}) {
+        try {
+            await this.#transaction(async (tx) => {
+                await tx.getRelation({ namespace: view.namespace, name: view.name }, { assertIsView: true }).applyUpstreamCommit(commit);
+            }, { inputTx });
+
+            await this.#updateJob(view.id, {
+                state: 'running',
+                last_seen_commit: commit.commitTime,
+                last_error: null,
+                updated_at: Date.now(),
+            }, { inputTx });
+        } catch (e) {
+            this.#emitIssue(e, { phase: 'realtime', relation_id: view.id });
+            try {
+                await this.#updateJob(view.id, {
+                    state: 'failed',
+                    last_error: String(e?.message || e),
+                    updated_at: Date.now(),
+                }, { inputTx });
+            } catch {}
+        }
     }
 
     async #materializeView(view, { inputTx } = {}) {
@@ -326,11 +491,13 @@ export class SyncManager extends SimpleEmitter {
         }, { inputTx });
 
         try {
-            const sourceClient = await this.#storageEngine.getSourceClient(view);
+            const sourceClient = await this.#storageEngine.getEffectiveClient(view);
             const result = await sourceClient.query(view.source_expr_ast, { tx: sourceClient.storageEngine === this.#storageEngine ? inputTx : null });
             const rows = result.rows;
 
-            await this.#replaceAllRows(view, rows, { inputTx });
+            await this.#transaction(async (tx) => {
+                await tx.getRelation({ namespace: view.namespace, name: view.name }, { assertIsView: true }).applyUpstreamCommit({ type: 'result', rows });
+            }, { inputTx });
 
             await this.#updateJob(view.id, {
                 state: 'synced',
@@ -374,39 +541,36 @@ export class SyncManager extends SimpleEmitter {
             updated_at: Date.now(),
         }, { inputTx });
 
-        const sourceClient = await this.#storageEngine.getSourceClient(view);
-        const pureRefDecode = this.#storageEngine._viewSourceExprIsPureRef(view);
+        const sourceClient = await this.#storageEngine.getEffectiveClient(view);
+        const replicationAttrs = view.view_mode_replication_attrs;
+
+        const upstreamRelation = replicationAttrs.mapping_level === 'table'
+            ? replicationAttrs.upstream_relation
+            : null;
+        const upstreamMvccKey = replicationAttrs.effective_upstream_mvcc_key;
+        const upstreamMvccKey_isXMIN = upstreamMvccKey?.toUpperCase() === 'XMIN';
+
         try {
             let abortLine;
-            if (pureRefDecode) {
+            if (upstreamRelation && (!upstreamMvccKey || upstreamMvccKey_isXMIN)) {
                 await this.#materializeView(view, { inputTx });
 
-                const selector = { [pureRefDecode.namespace]: [pureRefDecode.name] };
+                const selector = { [upstreamRelation.namespace]: [upstreamRelation.name] };
 
                 abortLine = await sourceClient.wal.subscribe(selector, async (commit) => {
-                    await this.#applyReferenceCommit(view, commit, { inputTx });
-                    await this.#updateJob(view.id, {
-                        state: 'running',
-                        last_seen_commit: commit.commitTime,
-                        last_error: null,
-                        updated_at: Date.now(),
-                    }, { inputTx });
+                    await this.#handleRealtimeCommit(view, commit, { inputTx });
                 }, { id: slotId });
 
                 this.#activeRealtimeJobs.set(view.id, abortLine);
             } else {
                 const rtResult = await sourceClient.query(view.source_expr_ast, async (commit) => {
-                    await this.#applyQueryBasedCommit(view, commit, { inputTx });
-                    await this.#updateJob(view.id, {
-                        state: 'running',
-                        last_seen_commit: commit.commitTime,
-                        last_error: null,
-                        updated_at: Date.now(),
-                    }, { inputTx });
+                    await this.#handleRealtimeCommit(view, commit, { inputTx });
                 }, { live: true, id: slotId });
 
                 if (rtResult.initial) {
-                    await this.#replaceAllRows(view, rtResult.rows.map((row, i) => ({ __id: rtResult.hashes[i], ...row })), { inputTx });
+                    await this.#transaction(async (tx) => {
+                        await tx.getRelation({ namespace: view.namespace, name: view.name }, { assertIsView: true }).applyUpstreamCommit({ type: 'result', rows: rtResult.rows, hashes: rtResult.hashes });
+                    }, { inputTx });
                 }
 
                 abortLine = async () => await rtResult.abort();
@@ -430,7 +594,6 @@ export class SyncManager extends SimpleEmitter {
                 updated_at: Date.now(),
             }, { inputTx });
         } catch (e) {
-            this.emit('error', e);
             await this.#updateJob(view.id, {
                 state: 'failed',
                 last_error: String(e?.message || e),
@@ -441,64 +604,4 @@ export class SyncManager extends SimpleEmitter {
         }
     }
 
-    async #replaceAllRows(view, rows, { inputTx = null } = {}) {
-        await this.#transaction(async (tx) => {
-            await tx.resetView({ namespace: view.namespace, name: view.name }, { syncForget: false });
-            const tableStorage = tx.getTable({ namespace: view.namespace, name: view.name }, { assertIsView: true });
-            for (const row of rows) {
-                await tableStorage.insert(row, { systemTag: SYSTEM_TAG });
-            }
-        }, { meta: { source: 'sync' }, inputTx });
-    }
-
-    async #applyQueryBasedCommit(view, commit, { inputTx }) {
-        if (!commit || !commit.type) return;
-
-        if (commit.type === 'result') {
-            const rows = (commit.rows || []).map((row, i) => ({ __id: commit.hashes[i], ...row }));
-            await this.#replaceAllRows(view, rows, { inputTx });
-            return;
-        }
-
-        if (commit.type !== 'diff' || !Array.isArray(commit.entries)) return;
-
-        await this.#transaction(async (tx) => {
-            const tableStorage = tx.getTable({ namespace: view.namespace, name: view.name }, { assertIsView: true });
-
-            for (const event of commit.entries) {
-                if (event.op === 'insert') {
-                    const row = { __id: event.newHash, ...event.new };
-                    await tableStorage.upsert(row, { systemTag: SYSTEM_TAG });
-                } else if (event.op === 'update') {
-                    const oldKey = { __id: event.oldHash };
-                    const newRow = { __id: event.newHash, ...event.new };
-                    const updated = await tableStorage.update(oldKey, newRow, { systemTag: SYSTEM_TAG });
-                    if (!updated) await tableStorage.insert(newRow, { systemTag: SYSTEM_TAG });
-                } else if (event.op === 'delete') {
-                    await tableStorage.delete({ __id: event.oldHash });
-                }
-            }
-        }, { meta: { source: 'sync' }, inputTx });
-    }
-
-    async #applyReferenceCommit(view, commit, { inputTx }) {
-        if (!commit || commit.computed || !Array.isArray(commit.entries)) return;
-
-        await this.#transaction(async (tx) => {
-            const tableStorage = tx.getTable({ namespace: view.namespace, name: view.name }, { assertIsView: true });
-
-            for (const event of commit.entries) {
-                if (event.op === 'insert') {
-                    await tableStorage.upsert(event.new);
-                } else if (event.op === 'update') {
-                    const oldRef = event.old || event.oldKey;
-                    const updated = await tableStorage.update(oldRef, event.new);
-                    if (!updated) await tableStorage.insert(event.new);
-                } else if (event.op === 'delete') {
-                    const oldRef = event.old || event.oldKey;
-                    await tableStorage.delete(oldRef);
-                }
-            }
-        }, { meta: { source: 'sync' }, inputTx });
-    }
 }

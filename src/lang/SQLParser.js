@@ -1029,7 +1029,7 @@ export class SQLParser {
     relationSourceExpr_to_relationSourceDef(sourceExpr) {
         return {
             source_expr_ast: sourceExpr.expr(),
-            columns: sourceExpr.columns()?.map((c) => ({ name: c.value() })) || []
+            column_aliases: sourceExpr.columns()?.map((c) => ({ name: c.value() })) || []
         };
     }
 

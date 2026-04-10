@@ -1,6 +1,6 @@
 # Streaming
 
-Streaming is LinkedQL's lazy, pull-based result consumption model.
+Streaming is LinkedQL's lazy, pull-based result consumption model. Here, rows are produced only as the consumer requests them (via `for await`), rather than being pushed all at once.
 
 Use it when you want:
 
@@ -18,7 +18,38 @@ for await (const row of asyncIterable) {
 }
 ```
 
-## What streaming is and is not
+## API
+
+The surface area is intentionally small:
+
+```js
+await db.stream(query, options?)
+```
+
+Supported parameters:
+
+- `query`: the query input accepted by the current client, most commonly a SQL string
+- `options.values`: positional bind values as with `db.query()`
+- `options.batchSize`: number of rows fetched into memory per batch (affects internal buffering, not the one-row-at-a-time iteration interface)
+
+Example:
+
+```js
+const q = 'SELECT id, email FROM public.users WHERE active = $1 ORDER BY id';
+const asyncIterable = await db.stream(q, {
+  values: [true],
+  batchSize: 500,
+});
+```
+
+What this does:
+
+- executes the query once
+- exposes the result as an async iterable, consumed incrementally
+
+Rows are yielded in the order defined by the query (e.g. `ORDER BY`).
+
+## What Streaming Is and Is Not
 
 Streaming is:
 
@@ -28,16 +59,16 @@ Streaming is:
 
 Streaming is not:
 
-- a live query
-- a table-level changefeed
-- "rows as they change over time"
+- a live query (results do not update after execution)
+- a changefeed (no new rows are observed after the query completes)
+- a continuous stream over time
 
 If you need those, see:
 
 - [Live Queries](/capabilities/live-queries)
 - [Changefeeds](/capabilities/changefeeds)
 
-## Why `stream()` exists
+## Why `stream()`
 
 Buffered queries are convenient:
 
@@ -46,7 +77,7 @@ const result = await db.query('SELECT * FROM public.huge_table');
 console.log(result.rows.length);
 ```
 
-But buffering every row before your code can start consuming them is not always what you want.
+But for large results, buffering every row before your code can start consuming them is not always what you want.
 
 Streaming gives you the right trade there:
 
@@ -54,73 +85,13 @@ Streaming gives you the right trade there:
 - earlier consumption
 - simpler handling of large result sets
 
-## Basic example
+Streaming does not change query semantics—it only changes how results are consumed.
 
-```js
-const rows = await db.stream(`
-  SELECT id, email
-  FROM public.users
-  ORDER BY id
-`);
+## Runtime Notes
 
-for await (const row of rows) {
-  console.log(row.id, row.email);
-}
-```
+### Mainstream DB Clients
 
-What this does:
-
-- runs the query once
-- returns an async iterable
-- yields one row at a time to your loop
-
-## Example: processing a large export
-
-```js
-const rows = await db.stream(`
-  SELECT id, created_at, total
-  FROM public.orders
-  ORDER BY id
-`);
-
-for await (const row of rows) {
-  await writeRowToExport(row);
-}
-```
-
-This is a better fit than `query()` when the output could be large and you want to process rows incrementally.
-
-## Streaming inside a transaction
-
-`stream()` can participate in explicit transactions.
-
-### Example with `EdgeClient`
-
-```js
-await edge.transaction(async (tx) => {
-  const rows = await edge.stream(`
-    SELECT id, name
-    FROM public.users
-    ORDER BY id
-  `, { tx });
-
-  for await (const row of rows) {
-    console.log(row);
-  }
-});
-```
-
-The same idea applies across runtimes:
-
-- open a transaction
-- pass `tx`
-- consume rows lazily
-
-## Runtime notes
-
-### Mainstream DB clients
-
-For `PGClient`, `MySQLClient`, and `MariaDBClient`, streaming maps to the underlying client/runtime's stream-capable path.
+For `PGClient`, `MySQLClient`, and `MariaDBClient`, `stream()` maps to the underlying client/runtime's streaming path.
 
 ### EdgeClient
 
@@ -129,16 +100,37 @@ For `PGClient`, `MySQLClient`, and `MariaDBClient`, streaming maps to the underl
 - HTTP
 - worker ports
 
-Depending on transport settings, rows may arrive:
+Depending on the `portBasedStreaming` setting, rows may arrive:
 
 - over a message port
-- as a streamed HTTP body such as NDJSON
+- as a streamed HTTP body parsed incrementally
 
-The application-facing shape is still the same async iterable.
+By default, `portBasedStreaming` is set to `true` – rows are streamed over port even on a HTTP transport. This requires the backend to expose a port-based channel (see [`event.client`](/docs/setup#event-client) in `EdgeWorker`).
+
+To stream over native HTTP responses, explicitly set `portBasedStreaming` to `false` on both `EdgeClient` and `EdgeWorker`:
+
+```js
+// On the client side
+const db = new EdgeClient({
+  type: 'http',
+  url: '/api/db',
+  portBasedStreaming: false
+});
+```
+
+```js
+// On the remote side
+const httpWorkerEdge = EdgeWorker.httpWorker({
+  db: new PGClient(),
+  portBasedStreaming: false
+});
+```
+
+Regardless of the `portBasedStreaming` setting, the application-facing shape remains the same async iterable.
 
 ### FlashQL
 
-In FlashQL, `stream()` gives you lazy iteration over the local engine's query result.
+In FlashQL, `stream()` gives you lazy iteration over the result of a local query execution.
 
 That makes it useful for:
 
@@ -146,7 +138,7 @@ That makes it useful for:
 - browser/worker exports
 - large local result sets where full buffering is unnecessary
 
-## Related docs
+## Related Docs
 
 - [Query Interface](/docs/query-api)
 - [Live Queries](/capabilities/live-queries)

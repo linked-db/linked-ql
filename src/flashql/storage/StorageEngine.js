@@ -1,11 +1,12 @@
 import '../../lang/index.js';
 import { registry } from '../../lang/registry.js';
-import { SchemaInference } from './SchemaInference.js';
 import { matchRelationSelector, normalizeRelationSelectorArg } from '../../clients/abstracts/util.js';
 import { DEFAULT_USERSPACE_DATA } from './bootstrap/catalog.bootstrap.js';
-import { MVCCEngine } from './MVCCEngine.js';
-import { WalEngine } from './WalEngine.js';
+import { FlashSchemaInference } from './FlashSchemaInference.js';
+import { FlashWalEngine } from './FlashWalEngine.js';
 import { SyncManager } from '../sync/SyncManager.js';
+import { MVCCEngine } from './MVCCEngine.js';
+import { SYSTEM_TAG } from './TableStorage.js';
 
 export class StorageEngine extends MVCCEngine {
 
@@ -60,7 +61,7 @@ export class StorageEngine extends MVCCEngine {
         this.#overwriteForward = false;
         this.#forwardHistoryTruncated = true;
 
-        this.#wal = new WalEngine({ storageEngine: this, keyval: keyval ?? undefined, drainMode: 'never' });
+        this.#wal = new FlashWalEngine({ storageEngine: this, keyval: keyval ?? undefined, drainMode: 'never' });
         this.#sync = new SyncManager(this);
     }
 
@@ -146,85 +147,10 @@ export class StorageEngine extends MVCCEngine {
     }
 
     getResolver() {
-        return new SchemaInference({ storageEngine: this });
+        return new FlashSchemaInference({ storageEngine: this });
     }
 
     // ----------
-
-    _viewIsPureFederation(tblDef) {
-        return tblDef?.view_opts_replication_mode === 'none';
-    }
-
-    _viewSourceExprIsPureRef(tblDef) {
-        const extractFromTableRef = (tblRef) => ({
-            namespace: tblRef.qualifier?.value,
-            name: tblRef.value,
-        });
-
-        if (tblDef?.source_expr_ast?.nodeName === registry.TableStmt.NODE_NAME)
-            return extractFromTableRef(tblDef.source_expr_ast.table_ref);
-
-        if (tblDef?.source_expr_ast?.nodeName !== registry.CompleteSelectStmt.NODE_NAME)
-            return null;
-
-        let fromItems;
-        if ((fromItems = tblDef.source_expr_ast.from_clause.entries).length > 1
-            || fromItems[0].expr.nodeName !== registry.TableRef1.NODE_NAME)
-            return null;
-
-        let selectList;
-        if ((selectList = tblDef.source_expr_ast.select_list.entries).length > 1
-            || selectList[0].expr.nodeName !== registry.ColumnRef0.NODE_NAME)
-            return null;
-
-        if (Object.entries(tblDef.source_expr_ast).filter(([k, v]) =>
-            k !== 'nodeName' && k !== 'from_clause' && k !== 'select_list' && [].concat(v || []).length).length)
-            return null;
-
-        return extractFromTableRef(fromItems[0].expr);
-    }
-
-    _viewSourceExprUpdateTransform(tblDef) {
-        const transforms = {};
-
-        if (tblDef.source_expr_ast?.nodeName === registry.TableStmt.NODE_NAME)
-            return transforms;
-
-        if (tblDef.source_expr_ast?.nodeName !== registry.CompleteSelectStmt.NODE_NAME)
-            return null;
-
-        let fromItems;
-        if ((fromItems = tblDef.source_expr_ast.from_clause.entries).length > 1
-            || fromItems[0].expr.nodeName !== registry.TableRef1.NODE_NAME)
-            return null;
-
-        if (Object.entries(tblDef.source_expr_ast).filter(([k, v]) =>
-            k !== 'nodeName' && k !== 'from_clause' && k !== 'select_list' && k !== 'where_clause' && k !== 'order_by_clause'
-            && [].concat(v || []).length).length)
-            return null;
-
-        for (const si of tblDef.source_expr_ast.select_list.entries) {
-            if (si.expr.nodeName === registry.ColumnRef0.NODE_NAME) continue;
-            if (si.expr.nodeName !== registry.ColumnRef1.NODE_NAME) return null;
-            if (si.alias && si.alias.value !== si.expr.value) {
-                transforms[si.expr.value] = si.alias.value;
-            }
-        }
-
-        return transforms;
-    }
-
-    _viewResolveOrigin(tblDef) {
-        if (!tblDef?.view_opts_replication_origin) return null;
-        if (tblDef.view_opts_replication_origin === 'inherit') {
-            if ((tblDef.namespace_id && typeof tblDef.namespace_id === 'object'))
-                throw new Error('Table def shape must have namespace def shape');
-            if (!tblDef.namespace_id.view_opts_default_replication_origin)
-                throw new Error('Table def has view_opts_replication_origin === inherit but namespace def has no view_opts_default_replication_origin');
-            return tblDef.namespace_id.view_opts_default_replication_origin;
-        }
-        return tblDef.view_opts_replication_origin;
-    }
 
     async getUpstreamClient(origin) {
         if (!this.#getUpstreamClient)
@@ -235,17 +161,18 @@ export class StorageEngine extends MVCCEngine {
         return this.#foreignClients.get(origin);
     }
 
-    async getSourceClient(tblDef, assert = true) {
-        const replicationOrigin = this._viewResolveOrigin(tblDef);
-        if (replicationOrigin)
-            return await this.getUpstreamClient(replicationOrigin);
+    async getEffectiveClient(tblDef, assert = true) {
+        const replicationAttrs = tblDef.view_mode_replication_attrs;
+        const effectiveReplicationOrigin = replicationAttrs.effective_replication_origin;
+        if (effectiveReplicationOrigin)
+            return await this.getUpstreamClient(effectiveReplicationOrigin);
         if (this.#client) return this.#client;
         if (assert) throw new Error('Operation requires a source client; configure StorageEngine with options.client or namespace replication origins');
     }
 
     async getSourceResolver(tblDef) {
-        const client = await this.getSourceClient(tblDef, false);
-        return client ? client.resolver : this.getResolver();
+        if (tblDef.kind !== 'view') return this.getResolver();
+        return (await this.getEffectiveClient(tblDef)).resolver;
     }
 
     // ----- bootloader/WAL
@@ -259,6 +186,7 @@ export class StorageEngine extends MVCCEngine {
         this.#isHydrating = true;
         let lastMatchedCommitTime = null;
         let lastReplayedCommitTime = null;
+        let pendingEntries = [];
 
         try {
             for await (const commit of this.#wal.streamCommits()) {
@@ -267,7 +195,18 @@ export class StorageEngine extends MVCCEngine {
                 }
 
                 await this.transaction(async (tx) => {
-                    await tx.replay(commit.entries);
+                    for (const event of commit.entries) {
+                        try {
+                            await tx.replay([event]);
+                        } catch (e) {
+                            if (!this.#canDeferHydrationEvent(event, e)) throw e;
+                            pendingEntries.push(event);
+                        }
+                    }
+
+                    if (pendingEntries.length) {
+                        pendingEntries = await this.#drainPendingHydrationEntries(tx, pendingEntries);
+                    }
 
                     if (findLastMatch && versionStop) {
                         const tblDef = tx.showTable(versionStop, { ifExists: true });
@@ -283,6 +222,12 @@ export class StorageEngine extends MVCCEngine {
                 }
                 lastReplayedCommitTime = commit.commitTime;
             }
+
+            if (pendingEntries.length) {
+                await this.transaction(async (tx) => {
+                    pendingEntries = await this.#drainPendingHydrationEntries(tx, pendingEntries, { assertFullyDrained: true });
+                });
+            }
         } finally {
             this.#isHydrating = false;
         }
@@ -290,21 +235,118 @@ export class StorageEngine extends MVCCEngine {
         return { lastMatchedCommitTime, lastReplayedCommitTime };
     }
 
-    async #persistCommit(tx) {
+    #canDeferHydrationEvent(event, error) {
+        if (!this.#isHydrating) return false;
+        const message = String(error?.message || error);
+        return /does not exist/.test(message)
+            && !!event?.relation?.namespace
+            && !!event?.relation?.name;
+    }
+
+    async #drainPendingHydrationEntries(tx, entries, { assertFullyDrained = false } = {}) {
+        let pending = [...entries];
+        let progressed = true;
+
+        while (pending.length && progressed) {
+            progressed = false;
+            const deferred = [];
+
+            for (const event of pending) {
+                try {
+                    await tx.replay([event]);
+                    progressed = true;
+                } catch (e) {
+                    if (!this.#canDeferHydrationEvent(event, e)) throw e;
+                    deferred.push(event);
+                }
+            }
+
+            pending = deferred;
+        }
+
+        if (assertFullyDrained && pending.length) {
+            const unresolved = pending[0];
+            throw new Error(`Hydration could not resolve persisted event for relation ${JSON.stringify(unresolved.relation.namespace)}.${JSON.stringify(unresolved.relation.name)}`);
+        }
+
+        return pending;
+    }
+
+    async #federateCommit(tx, timestamp) {
         const commitTime = this.txMeta(tx.id)?.commitTime;
 
+        const federateCommit = async (targetOrigin, entries, { queued = false } = {}) => {
+            if (queued) {
+                const outsyncQueue = tx.getRelation({ namespace: 'sys', name: 'sys_outsync_queue' });
+                for (const changePayload of entries) {
+                    await outsyncQueue.insert({
+                        relation_id: changePayload.relation_id,
+                        origin: changePayload.origin,
+                        event_payload: changePayload.event,
+                        status: 'pending',
+                        retry_count: 0,
+                        last_error: null,
+                        created_at: timestamp,
+                        updated_at: timestamp,
+                        next_retry_at: null,
+                    }, { systemTag: SYSTEM_TAG });
+                }
+                return;
+            }
+
+            const commit = {
+                txId: tx.id,
+                commitTime,
+                entries: entries.map((changePayload) => changePayload.event),
+                timestamp
+            };
+
+            return targetOrigin
+                ? (await this.getUpstreamClient(targetOrigin)).wal.applyDownstreamCommit(commit)
+                : await this.wal.applyDownstreamCommit(commit, { tx });
+        };
+
+        for (const [targetOrigin, entries] of tx._upstreamQueue) {
+            await federateCommit(targetOrigin, entries, { queued: true });
+        }
+
+        for (const [targetOrigin, entries] of tx._upstreamLog) {
+            await federateCommit(targetOrigin, entries);
+        }
+    }
+
+    #queuedSyncSelectorFor(tx) {
+        if (!tx._upstreamQueue.size) return null;
+
+        const selector = {};
+        for (const entries of tx._upstreamQueue.values()) {
+            for (const changePayload of entries) {
+                const relation = tx.getRelation({ id: changePayload.relation_id });
+                if (!relation?.namespace || !relation?.name) continue;
+                if (!selector[relation.namespace]) selector[relation.namespace] = [];
+                if (!selector[relation.namespace].includes(relation.name)) {
+                    selector[relation.namespace].push(relation.name);
+                }
+            }
+        }
+
+        return Object.keys(selector).length ? selector : null;
+    }
+
+    #scheduleAutoSync(selector) {
+        if (!selector) return;
+        void this.#sync.sync(selector).catch(() => {});
+    }
+
+    async #persistCommit(tx, timestamp) {
+        const commitTime = this.txMeta(tx.id)?.commitTime;
+
+        const entries = structuredClone(tx._changeLog);
         const sequenceHeads = Object.fromEntries([
             ...tx._affectedSequences
         ].map((seqId) => [seqId, this.#sequences.get(seqId)]));
 
-        const commit = {
-            txId: tx.id,
-            commitTime,
-            sequenceHeads,
-            entries: structuredClone(tx._changeLog),
-            timestamp: Date.now(),
-        };
-
+        const commit = { txId: tx.id, commitTime, entries, sequenceHeads, timestamp };
         await this.#wal.dispatch(commit);
     }
 
@@ -432,19 +474,30 @@ export class StorageEngine extends MVCCEngine {
     }
 
     async commit(tx) {
-        const returnValue = await super.commit(tx);
-
+        let timestamp;
+        let queuedSyncSelector = null;
         if (!this.#isHydrating) {
             if (this.#overwriteForward && !this.#forwardHistoryTruncated && tx._changeLog.length) {
                 await this.#wal.truncateForward(this.#openedCommitTime);
                 this.#forwardHistoryTruncated = true;
             }
-            await this.#persistCommit(tx);
+            timestamp = Date.now();
+            await this.#federateCommit(tx, timestamp);
+            if (this.#autoSync) {
+                queuedSyncSelector = this.#queuedSyncSelectorFor(tx);
+            }
+        }
+
+        const returnValue = await super.commit(tx);
+
+        if (!this.#isHydrating) {
+            await this.#persistCommit(tx, timestamp);
             // Keep the original versionStop anchor intact until first mutating commit
             // performs forward-history truncation.
             if (!(this.#overwriteForward && !this.#forwardHistoryTruncated && !tx._changeLog.length)) {
                 this.#openedCommitTime = this.txMeta(tx.id)?.commitTime;
             }
+            this.#scheduleAutoSync(queuedSyncSelector);
         }
 
         return returnValue;

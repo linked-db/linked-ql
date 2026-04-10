@@ -183,8 +183,8 @@ export class QueryEngine {
         return this.#storageEngine.defaultNamespace(queryCtx?.tx);
     }
 
-    #getTable(nsName, tblName, versionSpec, queryCtx) {
-        return queryCtx.tx.getTable({ namespace: nsName, name: tblName, versionSpec });
+    #getRelation(nsName, tblName, versionSpec, queryCtx) {
+        return queryCtx.tx.getRelation({ namespace: nsName, name: tblName, versionSpec });
     }
 
     #namespaceFromIdent(ident, queryCtx) {
@@ -231,6 +231,7 @@ export class QueryEngine {
             ...(stmtNode.pgAuthorization()?.value?.() ? { owner: stmtNode.pgAuthorization().value() } : {}),
             ...this.#parser.optionsASTS_to_optionsDef(stmtNode.optionsClause?.()?.entries?.() || []),
         };
+
         if (namespacePatch.default_replication_origin) {
             namespacePatch.view_opts_default_replication_origin = namespacePatch.default_replication_origin;
             delete namespacePatch.default_replication_origin;
@@ -343,18 +344,22 @@ export class QueryEngine {
 
         const viewDef = this.#parser.viewAST_to_viewDef(stmtNode.argument(), { namespace: nsName });
         if (stmtNode.temporaryKW()) viewDef.persistence = 'temporary';
-        if (stmtNode.replicationMode()) viewDef.view_opts_replication_mode = stmtNode.replicationMode().toLowerCase();
+        if (stmtNode.replicationMode()) viewDef.replication_mode = stmtNode.replicationMode().toLowerCase();
         if (stmtNode.optionsClause()) {
-            const viewOptions = this.#parser.optionsASTS_to_optionsDef(stmtNode.optionsClause().entries() || [], { prefix: 'view_opts_' });
-            if (viewDef.view_opts_replication_mode && viewOptions.view_opts_replication_mode && viewOptions.view_opts_replication_mode !== viewDef.view_opts_replication_mode)
-                throw new Error(`replication_mode=${viewOptions.view_opts_replication_mode} cannot be used with a ${viewDef.view_opts_replication_mode.toUpperCase()} view`);
-            Object.assign(viewDef, viewOptions);
+            const { replication_mode = viewDef.replication_mode, replication_origin, ...replication_opts } = this.#parser.optionsASTS_to_optionsDef(stmtNode.optionsClause().entries() || [], { prefix: '' });
+            if (viewDef.replication_mode && replication_mode !== undefined && replication_mode !== viewDef.replication_mode)
+                throw new Error(`replication_mode=${replication_mode} cannot be used with a ${viewDef.replication_mode.toUpperCase()} view`);
+            Object.assign(viewDef, {
+                replication_mode,
+                replication_origin,
+                replication_opts
+            });
         }
 
         if (stmtNode.orReplace()) {
             const existing = queryCtx.tx.showView(viewDef, { ifExists: true });
             if (existing) {
-                // Since source_expr will be present, resetView() will automatically be called
+                // Since source_expr will be present, the view storage will automatically be reset
                 return await queryCtx.tx.alterView(viewDef, viewDef, { isReplace: true });
             }
         }
@@ -366,7 +371,7 @@ export class QueryEngine {
     async #evaluateALTER_VIEW_STMT(stmtNode, queryCtx) {
         const viewRef = this.#tableRefFromIdent(stmtNode.subject(), queryCtx);
         const alterOpts = { ifExists: !!stmtNode.ifExists?.() };
-        const alterPayload = { actions: [] };
+        const alterPayload = {};
 
         for (const action of stmtNode.actions()) {
             if (action instanceof registry.RenameViewAction) alterPayload.name = action.name().value();
@@ -374,9 +379,19 @@ export class QueryEngine {
             else if (action instanceof registry.RelationSourceExpr) {
                 Object.assign(alterPayload, this.#parser.relationSourceExpr_to_relationSourceDef(action));
             } else if (action instanceof registry.OptionsSetClause) {
-                Object.assign(alterPayload, this.#parser.optionsASTS_to_optionsDef(action.entries(), { prefix: 'view_opts_' }));
+                const { replication_mode, replication_origin, ...replication_opts } = this.#parser.optionsASTS_to_optionsDef(action.entries(), { prefix: '' });
+                Object.assign(alterPayload, {
+                    replication_mode,
+                    replication_origin,
+                    replication_opts
+                });
             } else if (action instanceof registry.OptionsResetClause) {
-                Object.assign(alterPayload, this.#parser.optionsASTS_to_optionsDef(action.entries(), { prefix: 'view_opts_', reset: true }));
+                const { replication_mode, replication_origin, ...replication_opts } = this.#parser.optionsASTS_to_optionsDef(action.entries(), { prefix: '', reset: true });
+                Object.assign(alterPayload, {
+                    replication_mode,
+                    replication_origin,
+                    replication_opts
+                });
             } else {
                 throw new Error(`Unsupported ALTER VIEW action ${action.NODE_NAME}`);
             }
@@ -401,7 +416,7 @@ export class QueryEngine {
 
     async #evaluateREFRESH_VIEW_STMT(stmtNode, queryCtx) {
         const assertReplicationMode = stmtNode.replicationMode()?.toLowerCase();
-        await queryCtx.tx.refreshView(this.#tableRefFromIdent(stmtNode.name(), queryCtx), { assertReplicationMode });
+        await queryCtx.tx.getRelation(this.#tableRefFromIdent(stmtNode.name(), queryCtx), { assertIsView: true }).refresh({ assertReplicationMode });
         return true;
     }
 
@@ -487,7 +502,7 @@ export class QueryEngine {
         const tblName = stmtNode.tableRef().value();
         const versionSpec = stmtNode.tableRef().versionSpec()?.value();
         const tableAlias = stmtNode.pgTableAlias()?.value() || tblName;
-        const tableStorage = this.#getTable(nsName, tblName, versionSpec, queryCtx);
+        const tableStorage = this.#getRelation(nsName, tblName, versionSpec, queryCtx);
 
         // Resolve table schema
         const tableSchema = _.originSchemas[0];
@@ -495,12 +510,18 @@ export class QueryEngine {
         // Resolve column names
         const definedColumns = Object.fromEntries(tableSchema.columns().map((col) => [col.name().value(), col]));
         const columnNames = stmtNode.columnList()?.entries().map((col) => col.value())
-            || Object.keys(definedColumns);
+            || tableSchema.columns()
+                .map((col) => col.name().value())
+                .filter((colName) => {
+                    const colSchema = definedColumns[colName];
+                    return !colName.startsWith('__')
+                        && !colSchema.expressionConstraint?.();
+                });
 
         // Resolve defaults and constraints
         const defaultRecord = Object.create(null);
         for (const [colName, colSchema] of Object.entries(definedColumns)) {
-            if (colName.startsWith('__') && !columnNames.includes(colName)) continue;
+            if (!columnNames.includes(colName)) continue;
 
             defaultRecord[colName] = null;
             if (_.cons = colSchema.defaultConstraint()) {
@@ -671,7 +692,7 @@ export class QueryEngine {
             for (const [tableAlias, tblName, nsName, versionSpec] of updateTargets) {
                 if (newLogicalRecord[tableAlias] === logicalRecord[tableAlias]) continue;
 
-                const tableStorage = this.#getTable(nsName, tblName, versionSpec, queryCtx);
+                const tableStorage = this.#getRelation(nsName, tblName, versionSpec, queryCtx);
 
                 newLogicalRecord[tableAlias] = await tableStorage.update(logicalRecord[tableAlias], newLogicalRecord[tableAlias]);
             }
@@ -751,7 +772,7 @@ export class QueryEngine {
 
         for await (let logicalRecord of stream) {
             for (const [tableAlias, tblName, nsName, versionSpec] of deleteTargets) {
-                const tableStorage = this.#getTable(nsName, tblName, versionSpec, queryCtx);
+                const tableStorage = this.#getRelation(nsName, tblName, versionSpec, queryCtx);
 
                 logicalRecord[tableAlias] = await tableStorage.delete(logicalRecord[tableAlias]);
             }
@@ -844,7 +865,7 @@ export class QueryEngine {
         const tblName = tableRef.value();
 
         const versionSpec = tableRef.versionSpec()?.value();
-        const tableStorage = this.#getTable(nsName, tblName, versionSpec, queryCtx);
+        const tableStorage = this.#getRelation(nsName, tblName, versionSpec, queryCtx);
 
         // Execute table scan
         const allRows = tableStorage.getAll({ hiddenCols: false });
@@ -1011,8 +1032,9 @@ export class QueryEngine {
     async #deriveCreateForeignStream(leftStream, upstreamClient, tblDef, joinCondition, leftAlias, rightAlias, queryCtx) {
         let createForeignStream;
 
-        const joinMemoization = !!tblDef.view_opts_replication_attrs?.join_memoization;
-        const joinPushdownSize = Number(tblDef.view_opts_replication_attrs?.join_pushdown_size) || 0;
+        const replicationOpts = tblDef.view_opts_replication_opts;
+        const joinMemoization = !!replicationOpts.join_memoization;
+        const joinPushdownSize = Number(replicationOpts.join_pushdown_size) || 0;
 
         if (joinCondition && joinPushdownSize) {
             // Normalize to Expr
@@ -1113,9 +1135,9 @@ export class QueryEngine {
         const tblName = fromItemExpr.value();
 
         const tblDef = queryCtx.tx.showView({ namespace: nsName, name: tblName }, { ifExists: true });
-        if (!this.#storageEngine._viewIsPureFederation(tblDef)) return [];
+        if (tblDef?.view_opts_replication_mode !== 'none') return [];
 
-        const upstreamClient = await this.#storageEngine.getSourceClient(tblDef);
+        const upstreamClient = await this.#storageEngine.getEffectiveClient(tblDef);
 
         return [tblDef, upstreamClient];
     }
@@ -1164,7 +1186,7 @@ export class QueryEngine {
             const aliasName = tableAlias?.value() || tblName;
 
             const nsName = tableRef.qualifier()?.value() || this.#defaultNamespace(queryCtx);
-            const tableStorage = this.#getTable(nsName, tblName, versionSpec, queryCtx);
+            const tableStorage = this.#getRelation(nsName, tblName, versionSpec, queryCtx);
 
             for (let row of tableStorage.getAll({ hiddenCols: true })) {
                 yield { [aliasName]: row };
@@ -1358,26 +1380,14 @@ export class QueryEngine {
         } else {
             const nsName = fromItemExpr.qualifier()?.value() || this.#defaultNamespace(queryCtx);
             const versionSpec = fromItemExpr.versionSpec()?.value();
-            const tableStorage = this.#getTable(nsName, tblName, versionSpec, queryCtx);
+            const tableStorage = this.#getRelation(nsName, tblName, versionSpec, queryCtx);
             // Whole tableStorage is stream
             stream = (async function* () { yield* tableStorage.getAll({ hiddenCols: true }); })();
         }
 
         // Consume stream
         for await (const row of stream) {
-            const entries = Object.entries(row);
-            const actualColWidth = entries.length;
-
-            if (actualColWidth !== expectedColWidth && actualColWidth !== expectedColWidth_noSysID) {
-                throw new Error(`Expected number of columns from ${aliasName} to be ${expectedColWidth} but got ${actualColWidth}`);
-            }
-
-            const _row = Object.create(null);
-            for (const [key, value] of entries) {
-                this.#acquireValue(_row, originSchema._get('entries', key), value);
-            }
-
-            yield { ...(queryCtx.lateralCtx || {}), [aliasName]: _row };
+            yield { ...(queryCtx.lateralCtx || {}), [aliasName]: row };
         }
     }
 
@@ -2010,7 +2020,10 @@ export class QueryEngine {
         const count = (arr) => {
             const counts = new Map();
             for (const r of arr) {
-                const k = r[hashSymbol] ?? (r[hashSymbol] = rowHash(r));
+                if (!r[hashSymbol]) {
+                    Object.defineProperty(r, hashSymbol, { value: rowHash(r), configurable: true });
+                }
+                const k = r[hashSymbol];
                 counts.set(k, (counts.get(k) || 0) + 1);
             }
             return counts;

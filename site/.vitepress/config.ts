@@ -40,9 +40,10 @@ export default defineConfig({
                     text: 'Docs',
                     items: [
                         { text: 'Getting Started', link: '/docs' },
-                        { text: 'Dialects & Clients', link: '/docs/setup' },
+                        { text: 'Setup Guide', link: '/docs/setup' },
                         { text: 'Query Interface', link: '/docs/query-api' },
-                    ]
+                        { text: 'Integration Patterns', link: '/docs/integration-patterns' },
+                ]
                 },
                 {
                     text: 'Capabilities',
@@ -50,7 +51,7 @@ export default defineConfig({
                         { text: 'Capabilities Overview', link: '/capabilities' },
                         { text: 'Live Queries', link: '/capabilities/live-queries' },
                         { text: 'Streaming', link: '/capabilities/streaming' },
-                        { text: 'Changefeeds (WAL)', link: '/capabilities/changefeeds' },
+                        { text: 'Changefeeds', link: '/capabilities/changefeeds' },
                         { text: 'DeepRefs', link: '/capabilities/deeprefs' },
                         { text: 'JSON Literals', link: '/capabilities/json-literals' },
                         { text: 'UPSERT', link: '/capabilities/upsert' },
@@ -61,8 +62,9 @@ export default defineConfig({
                     text: 'FlashQL',
                     items: [
                         { text: 'FlashQL Overview', link: '/flashql' },
-                        { text: 'Federation & Sync', link: '/flashql/foreign-io' },
-                        { text: 'Sync', link: '/flashql/sync' },
+                        { text: 'Federation, Materialization, & Sync', link: '/flashql/federation-and-sync' },
+                        { text: 'Conflict Model', link: '/flashql/conflict-model' },
+                        { text: 'The Sync API', link: '/flashql/sync-api' },
                         { text: 'Language Reference', link: '/flashql/lang' },
                     ]
                 },
