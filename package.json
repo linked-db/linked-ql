@@ -30,7 +30,7 @@
     ".": "./src/flashql/FlashQL.js",
     "./flashql": "./src/flashql/FlashQL.js",
     "./edge": "./src/clients/edge/EdgeClient.js",
-    "./edge-worker": "./src/clients/edge/EdgeWorker.js",
+    "./edge-worker": "./src/clients/edge/remote/EdgeWorker.js",
     "./postgres": "./src/clients/postgres/PGClient.js",
     "./mysql": "./src/clients/mysql/MySQLClient.js",
     "./mariadb": "./src/clients/mariadb/MariaDBClient.js",

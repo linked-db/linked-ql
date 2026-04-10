@@ -1,5 +1,5 @@
 import { EdgeClient } from '../src/clients/edge/EdgeClient.js';
-import { EdgeWorker } from '../src/clients/edge/EdgeWorker.js';
+import { EdgeWorker } from '../src/clients/edge/remote/EdgeWorker.js';
 import { InMemoryKV } from '@webqit/keyval/inmemory';
 import { FlashQL } from '../src/flashql/FlashQL.js';
 import Observer from '@webqit/observer';
@@ -46,7 +46,7 @@ setTimeout(async () => {
 }, 800);
 
 const mc1 = new MessageChannel;
-EdgeWorker.webWorker({ db: db1, worker: mc1.port2 });
+EdgeWorker.webWorker({ db: db1 }).runIn(mc1.port2);
 
 
 

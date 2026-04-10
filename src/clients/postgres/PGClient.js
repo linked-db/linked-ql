@@ -184,7 +184,11 @@ export class PGClient extends MainstreamDBClient {
             switch (msg.tag) {
 
                 case 'begin':
-                    walCommits.set(msg.xid, { txId: msg.xid, entries: [] });
+                    walCommits.set(msg.xid, {
+                        txId: msg.xid,
+                        commitTime: pgTimestampToNowLike(msg.commitTime),
+                        entries: [],
+                    });
                     xidTrail.unshift(msg.xid);
                     break;
 
@@ -202,16 +206,23 @@ export class PGClient extends MainstreamDBClient {
                     };
                     if (msg.tag === 'insert') {
                         entry.new = msg.new;
-                        entry.newKey = msg.key || Object.fromEntries(rel.keyColumns.map((k) => [k, msg.new[k]]));
                     } else if (msg.tag === 'update') {
-                        entry.old = msg.old; // If REPLICA IDENTITY FULL
                         entry.new = msg.new;
-                        entry.oldKey = msg.key
-                            || Object.fromEntries(rel.keyColumns.map((k) => [k, (msg.old || msg.new)[k]]));
-                        entry.newKey = Object.fromEntries(rel.keyColumns.map((k) => [k, msg.new[k]]));
+                        if (msg.old) {
+                            // If REPLICA IDENTITY FULL
+                            entry.old = msg.old;
+                        } else {
+                            // If REPLICA IDENTITY DEFAULT
+                            entry.key = msg.key || Object.fromEntries(msg.relation.keyColumns.map((k) => [k, msg.new[k]]));
+                        }
                     } else if (msg.tag === 'delete') {
-                        entry.old = msg.old; // If REPLICA IDENTITY FULL
-                        entry.oldKey = msg.key || Object.fromEntries(rel.keyColumns.map((k) => [k, msg.old[k]]));
+                        if (msg.old) {
+                            // If REPLICA IDENTITY FULL
+                            entry.old = msg.old;
+                        } else {
+                            // If REPLICA IDENTITY DEFAULT
+                            entry.key = msg.key;
+                        }
                     }
                     walCommits.get(xidTrail[0])?.entries.push(entry);
                     break;
@@ -240,4 +251,13 @@ export class PGClient extends MainstreamDBClient {
         this.#walClient = null;
         this.#walInit = false;
     }
+}
+
+const POSTGRES_EPOCH_OFFSET_MS = 946684800 * 1000;
+
+function pgTimestampToNowLike(pgTimestamp) {
+  if (typeof pgTimestamp === 'bigint') {
+    return Number(pgTimestamp / 1000n) + POSTGRES_EPOCH_OFFSET_MS;
+  }
+  return pgTimestamp / 1000 + POSTGRES_EPOCH_OFFSET_MS;
 }

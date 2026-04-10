@@ -1,4 +1,4 @@
-import mariadb from 'mariadb';
+// TODO: import mariadb from 'mariadb';
 import { MainstreamDBClient } from '../abstracts/MainstreamDBClient.js';
 
 export class MariaDBClient extends MainstreamDBClient {

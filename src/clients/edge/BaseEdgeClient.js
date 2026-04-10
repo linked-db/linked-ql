@@ -3,9 +3,9 @@ import { LinkedQLClient } from '../abstracts/LinkedQLClient.js';
 import { AbstractNode } from '../../lang/abstracts/AbstractNode.js';
 import { RealtimeResult } from '../../proc/realtime/RealtimeResult.js';
 import { normalizeQueryArgs } from '../abstracts/util.js';
-import { EdgeSchemaInference } from './EdgeSchemaInference.js';
-import { EdgeWalEngine } from './EdgeWalEngine.js';
-import { SQLParser } from './SQLParser.js';
+import { EdgeSchemaInference } from './abstracts/EdgeSchemaInference.js';
+import { EdgeWalEngine } from './abstracts/EdgeWalEngine.js';
+import { SQLParser } from './abstracts/SQLParser.js';
 import { Result } from '../Result.js';
 
 export class BaseEdgeClient extends LinkedQLClient {

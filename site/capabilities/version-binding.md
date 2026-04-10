@@ -71,8 +71,6 @@ Version binding gives you a way to express:
 
 ## What Version Binding Is Not
 
-This point is critical.
-
 Version binding is **not** the same thing as historical row snapshotting.
 
 It does **not** mean:

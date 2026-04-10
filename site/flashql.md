@@ -409,7 +409,7 @@ FlashQL is designed as a drop-in primitive for the modern app.
 
 Take a deep dive in:
 
-- [Federation, Materialization, and Sync](/flashql/foreign-io)
+- [Federation, Materialization, and Sync](/flashql/federation-and-sync)
 - [The Sync API](/flashql/sync-api)
 
 ## Point-in-Time Boot
@@ -455,7 +455,7 @@ See also:
 
 ## Where to Go Next
 
-- [Federation, Materialization, and Sync](/flashql/foreign-io)
+- [Federation, Materialization, and Sync](/flashql/federation-and-sync)
 - [The Sync API](/flashql/sync-api)
 - [Query Interface](/docs/query-api)
 - [FlashQL Language Reference](/flashql/lang)

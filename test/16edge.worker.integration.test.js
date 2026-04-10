@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import '../src/lang/index.js';
 import { FlashQL } from '../src/flashql/FlashQL.js';
 import { EdgeClient } from '../src/clients/edge/EdgeClient.js';
-import { EdgeWorker } from '../src/clients/edge/EdgeWorker.js';
+import { EdgeWorker } from '../src/clients/edge/remote/EdgeWorker.js';
 
 const toNdjsonResponse = async (iterable) => {
     const encoder = new TextEncoder();
@@ -40,12 +40,12 @@ describe('EdgeClient <-> EdgeWorker integration (HTTP transport)', () => {
             INSERT INTO public.edge_users (id, name) VALUES (1, 'Ada'), (2, 'Linus');
         `);
 
-        worker = new EdgeWorker({ db, type: 'http', rowsStreaming: false });
+        worker = new EdgeWorker({ db, type: 'http', portBasedStreaming: false });
         handleCalls = [];
 
         edge = new EdgeClient({
             url: '/edge-http',
-            rowsStreaming: false,
+            portBasedStreaming: false,
             fetchApi: async (url, init) => {
                 const op = new URL(url, 'http://localhost').searchParams.get('op');
                 const args = JSON.parse(init.body);

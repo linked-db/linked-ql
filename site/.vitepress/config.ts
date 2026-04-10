@@ -40,9 +40,10 @@ export default defineConfig({
                     text: 'Docs',
                     items: [
                         { text: 'Getting Started', link: '/docs' },
-                        { text: 'Dialects & Clients', link: '/docs/setup' },
+                        { text: 'Setup Guide', link: '/docs/setup' },
                         { text: 'Query Interface', link: '/docs/query-api' },
-                    ]
+                        { text: 'Integration Patterns', link: '/docs/integration-patterns' },
+                ]
                 },
                 {
                     text: 'Capabilities',
@@ -61,10 +62,9 @@ export default defineConfig({
                     text: 'FlashQL',
                     items: [
                         { text: 'FlashQL Overview', link: '/flashql' },
-                        { text: 'Federation, Materialization, & Sync', link: '/flashql/foreign-io' },
+                        { text: 'Federation, Materialization, & Sync', link: '/flashql/federation-and-sync' },
+                        { text: 'Conflict Model', link: '/flashql/conflict-model' },
                         { text: 'The Sync API', link: '/flashql/sync-api' },
-                        { text: 'Conflict Handling', link: '/flashql/conflicts' },
-                        { text: 'Sync Integration Patterns', link: '/flashql/sync-patterns' },
                         { text: 'Language Reference', link: '/flashql/lang' },
                     ]
                 },

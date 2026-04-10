@@ -5,7 +5,7 @@ import { InMemoryKV } from '@webqit/keyval/inmemory';
 import '../src/lang/index.js';
 import { FlashQL } from '../src/flashql/FlashQL.js';
 import { EdgeClient } from '../src/clients/edge/EdgeClient.js';
-import { EdgeWorker } from '../src/clients/edge/EdgeWorker.js';
+import { EdgeWorker } from '../src/clients/edge/remote/EdgeWorker.js';
 import { PGClient } from '../src/clients/postgres/PGClient.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -57,7 +57,7 @@ const createWorkerEdgeClient = (db) => {
     const { port1, port2 } = new MessageChannel();
     MessagePortPlus.upgradeInPlace(port1);
     MessagePortPlus.upgradeInPlace(port2);
-    EdgeWorker.webWorker({ db, worker: port1 });
+    EdgeWorker.webWorker({ db }).runIn(port1);
     return new EdgeClient({ worker: port2, type: 'worker' });
 };
 
@@ -653,18 +653,6 @@ describe('Real-world sync integration stacks', () => {
                     write_policy = 'local_first'
                 )
             `);
-            /*
-            await localDb.storageEngine.transaction(async (tx) => {
-                await tx.createView({
-                    namespace: schemaName,
-                    name: 'users',
-                    source_expr: `TABLE public.${tableName}`,
-                    replication_mode: 'realtime',
-                    replication_origin: 'postgres:primary',
-                    replication_opts: { write_policy: 'local_first' },
-                });
-            });
-            */
 
             uiDb = createWorkerEdgeClient(localDb);
         });
@@ -683,6 +671,7 @@ describe('Real-world sync integration stacks', () => {
             let localRows = await uiDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`);
             expect(localRows.rows).to.deep.eq([{ id: 1, name: 'Ada' }]);
 
+            globalThis.__ = 2;
             await upstreamDb.query(`UPDATE public.${tableName} SET name = 'Ada Lovelace' WHERE id = 1`);
             await waitFor(async () => {
                 const rows = (await uiDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`)).rows;

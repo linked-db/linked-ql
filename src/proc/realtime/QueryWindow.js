@@ -813,16 +813,20 @@ export class QueryWindow extends SimpleEmitter {
             for (const alias of affectedAliases) allAffectedAliases.add(alias);
 
             const keyColumns = e.relation.keyColumns;
-            const oldKey = e.oldKey
-                ? Object.values(e.oldKey)
+            const oldKey = e.key
+                // update|delete with REPLICA IDENTITY DEFAULT
+                ? Object.values(e.key)
+                // (update|delete with REPLICA IDENTITY FULL) | insert
                 : keyColumns.map((k) => (e.old || e.new)[k]);
-            const newKey = e.newKey
-                ? Object.values(e.newKey)
-                : keyColumns.map((k) => (e.new || e.old)[k]);
+            const newKey = e.new || e.old
+                // (update|delete with REPLICA IDENTITY FULL) | insert
+                ? keyColumns.map((k) => (e.new || e.old)[k])
+                // update|delete with REPLICA IDENTITY DEFAULT
+                : Object.values(e.key);
 
             let eWithXMIN = e;
             if (this.#driver.dialect !== 'mysql' && e.new/* INSERT|UPDATE */ && !(e.new.xmin || e.new.XMIN)) {
-                eWithXMIN = { ...e, new: { ...e.new, XMIN: txId }};
+                eWithXMIN = { ...e, new: { ...e.new, XMIN: txId } };
             }
 
             const normalizedEvent = { ...eWithXMIN, keyColumns, oldKey, newKey, relationHash, affectedAliases };

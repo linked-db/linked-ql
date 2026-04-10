@@ -2,7 +2,7 @@
 
 FlashQL sync is the orchestration engine for materialized and realtime views.
 
-If you have already read [Federation, Materialization, and Sync](/flashql/foreign-io), this page is the operational companion:
+If you have already read [Federation, Materialization, and Sync](/flashql/federation-and-sync), this page is the operational companion:
 
 - that page explains the *model*
 - this page explains the *control surface*
@@ -206,5 +206,5 @@ console.log(resumed[0].state);
 
 ## Related Docs
 
-- [Federation, Materialization, and Sync](/flashql/foreign-io)
-- [Sync Integration Patterns](/flashql/sync-patterns)
+- [Federation, Materialization, and Sync](/flashql/federation-and-sync)
+- [Sync Integration Patterns](/docs/integration-patterns)

@@ -11,7 +11,7 @@ export class EdgeClient extends BaseEdgeClient {
     #fetch;
     #worker;
 
-    #rowsStreaming;
+    #portBasedStreaming;
     #workerEventNamespace;
 
     static #resolveWorkerPort(worker, type) {
@@ -26,7 +26,7 @@ export class EdgeClient extends BaseEdgeClient {
         url,
         worker = null,
         type = 'http',
-        rowsStreaming = 'port',
+        portBasedStreaming = true,
         workerEventNamespace = 'lnkd_',
         fetchApi = null,
         ...options
@@ -41,7 +41,7 @@ export class EdgeClient extends BaseEdgeClient {
         this.#type = type;
 
         this.#workerEventNamespace = workerEventNamespace;
-        this.#rowsStreaming = rowsStreaming;
+        this.#portBasedStreaming = portBasedStreaming;
 
         if (this.#type === 'http') {
             this.#fetch = async (...args) => {
@@ -66,12 +66,12 @@ export class EdgeClient extends BaseEdgeClient {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                ...(streamMode && this.#rowsStreaming !== 'port'
+                ...(streamMode && !this.#portBasedStreaming
                     ? {} : { 'Accept': 'application/json' }),
             },
         }).then(async (res) => {
             if (streamMode) {
-                if (this.#rowsStreaming) {
+                if (this.#portBasedStreaming) {
                     const { port } = await LiveResponse.from(res).now();
                     return this.#portToAsyncIterable(port);
                 } else return this.#streamToAsyncIterable(

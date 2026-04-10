@@ -24,11 +24,11 @@ export class ViewStorage extends TableStorage {
                 if (event.op === 'insert') {
                     await super.upsert(formatRow(event.new), { systemTag: SYSTEM_TAG });
                 } else if (event.op === 'update') {
-                    const oldRef = event.old || event.oldKey;
+                    const oldRef = event.old || event.key;
                     const updated = await super.update(oldRef, formatRow(event.new), { systemTag: SYSTEM_TAG });
                     if (!updated) await super.insert(formatRow(event.new), { systemTag: SYSTEM_TAG });
                 } else if (event.op === 'delete') {
-                    const oldRef = event.old || event.oldKey;
+                    const oldRef = event.old || event.key;
                     await super.delete(oldRef, { systemTag: SYSTEM_TAG });
                 }
             }

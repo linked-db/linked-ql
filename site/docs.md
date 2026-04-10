@@ -18,12 +18,12 @@ Import and use the Client for your database. LinkedQL works the same across all 
 
 | **Client**          | **Import Path**                | **Guide**                          |
 | :------------------ | :----------------------------- | :--------------------------------- |
-| PGClient            | `@linked-db/linked-ql/postgres`      | [PostgreSQL ↗](/docs/setup#postgresql) |
-| MySQLClient         | `@linked-db/linked-ql/mysql`   | [MySQL ↗](/docs/setup#mysql)           |
-| MariaDBClient       | `@linked-db/linked-ql/mariadb` | [MariaDB ↗](/docs/setup#mariadb)       |
-| FlashQL             | `@linked-db/linked-ql/flashql`   | [FlashQL ↗](/docs/setup#flashql)       |
-| EdgeClient          | `@linked-db/linked-ql/edge`    | [Edge / Browser ↗](/docs/setup#edgeclient)   |
-| EdgeWorker          | `@linked-db/linked-ql/edge-worker` | [Edge Worker ↗](/docs/setup#edgeworker) |
+| `PGClient`            | `@linked-db/linked-ql/postgres`      | [PostgreSQL ↗](/docs/setup#postgresql) |
+| `MySQLClient`         | `@linked-db/linked-ql/mysql`   | [MySQL ↗](/docs/setup#mysql)           |
+| `MariaDBClient`       | `@linked-db/linked-ql/mariadb` | [MariaDB ↗](/docs/setup#mariadb)       |
+| `FlashQL`             | `@linked-db/linked-ql/flashql`   | [FlashQL ↗](/docs/setup#flashql)       |
+| `EdgeClient`          | `@linked-db/linked-ql/edge`    | [Edge / Browser ↗](/docs/setup#edgeclient)   |
+| `EdgeWorker`          | `@linked-db/linked-ql/edge-worker` | [Edge Worker ↗](/docs/setup#edgeworker) |
 
 ## Your First Query: Direct Database Client
 
@@ -95,7 +95,7 @@ While deliberately simple, the same interface above quickly opens into deeper gr
 
 ## Where to Go Next
 
-- [Setup Guides](/docs/setup) for detailed setup by runtime
+- [Setup Guide](/docs/setup) for detailed setup by runtime
 - [Query Interface](/docs/query-api) for the common method contract
 - [Capabilities Overview](/capabilities) for language and runtime extensions
 - [FlashQL](/flashql) for the local runtime and sync model

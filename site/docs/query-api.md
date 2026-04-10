@@ -209,7 +209,7 @@ It extends the ordinary idea of a `Result` into a live, self-updating result.
 | `rows` | `any[]` | Result rows for the `RealtimeResult`; in non-callback live mode this is the self-updating live view, while in callback mode it carries the initial result set |
 | `hashes` | `string[]` | Internal row identifiers used for diff tracking |
 | `mode` | `string` | Delivery mode: `'live'` or `'callback'` – when a callback is passed |
-| `initial` | `boolean` | Indicates whether this query produced a fresh initial result or resumed from an existing subscription slot. Resumption happens when you re-issue a query with the same [`id`](#stable-subscription-slots). Explicitly passing `initial: false` with the query also results in no initial result. |
+| `initial` | `boolean` | Indicates whether this query produced a fresh initial result or [resumed from an existing subscription slot](/capabilities/live-queries#stable-subscription-slots). Explicitly passing `initial: false` with the query also results in no initial result. |
 
 > [!IMPORTANT]
 > Treat `rows` and `hashes` as read-only. Manual mutation can desynchronize the internal state that keeps the live result coherent.
@@ -224,7 +224,7 @@ Terminates the live query and stops further updates to the live view.
 await result.abort();
 ```
 
-If the live query was created with a stable `id`, pass `{ forget: true }` to also drop the internal slot bound to that `id`:
+If the live query was created with a [stable `id`](/capabilities/live-queries#stable-subscription-slots), pass `{ forget: true }` to also drop the internal slot bound to that `id`:
 
 ```js
 await result.abort({ forget: true });
@@ -234,14 +234,7 @@ That ends reactivity. The array stops updating.
 
 ### Behavior
 
-`RealtimeResult` is the result type for live queries.
-
-How you consume it depends on `mode`:
-
-- in live-view mode, `rows` is the self-updating query result
-- in callback mode, `rows` is the initial result and later updates arrive as commit events
-
-Once aborted, the live result stops advancing.
+- See the [Live Queries](/capabilities/live-queries) documentation.
 
 ### Example
 
@@ -259,26 +252,6 @@ console.log(result.mode);
 await result.abort();
 ```
 
-### Observing Mutations
-
-Because live rows are implemented through the [Observer](https://github.com/webqit/observer) protocol, they can be observed like any other objects:
-
-```js
-import { Observer } from '@webqit/observer';
-
-Observer.observe(result.rows, (mutations) => {
-  console.log(mutations);
-});
-
-Observer.observe(result.rows, Observer.subtree(), (mutations) => {
-  console.log(mutations);
-});
-```
-
-This exposes the mutations applied to the live result as it changes over time.
-
-At root level, you observe row additions and removals. With `Observer.subtree()`, you also observe field-level changes inside the view.
-
 ---
 
 ## `db.stream()`
@@ -292,6 +265,10 @@ Use it when:
 - you want `for await ... of` iteration
 
 This is not the same thing as a live query. A stream iterates over one query execution. A live query stays open and continuesly reacts to future changes.
+
+### Documentation
+
+- See [Streaming](/capabilities/streaming).
 
 ### Example
 
@@ -321,7 +298,16 @@ If the callback resolves, LinkedQL commits. If it throws, LinkedQL rolls back.
 
 The callback shape is stable across runtimes, but the transaction object `tx` itself is runtime-specific.
 
-### Mainstream Database Example
+### Transaction Rules Worth Knowing
+
+- if the callback resolves, LinkedQL commits
+- if the callback throws, LinkedQL rolls back and re-throws
+
+### Documentation
+
+*Coming soon*.
+
+### Example 1: Mainstream Databases
 
 ```js
 await db.transaction(async (tx) => {
@@ -337,7 +323,7 @@ await db.transaction(async (tx) => {
 });
 ```
 
-### FlashQL Example
+### Example 2: FlashQL
 
 FlashQL works the same as above. But it additionally exposes DDL and DML methods on `tx` object itself:
 
@@ -349,12 +335,6 @@ await flash.transaction(async (tx) => {
 ```
 
 This is the same transactional scope, but with FlashQL's lower-level transaction surface available directly on `tx`.
-
-### Transaction Rules Worth Knowing
-
-- if the callback resolves, LinkedQL commits
-- if the callback throws, LinkedQL rolls back and re-throws
-- live queries are not supported inside explicit transactions
 
 ---
 
@@ -389,7 +369,7 @@ This narrows the feed to the selected relations.
 
 ### Documentation
 
-See the [Changefeeds](/capabilities/changefeeds) document for details
+- See [Changefeeds](/capabilities/changefeeds).
 
 ---
 

@@ -2020,7 +2020,10 @@ export class QueryEngine {
         const count = (arr) => {
             const counts = new Map();
             for (const r of arr) {
-                const k = r[hashSymbol] ?? (r[hashSymbol] = rowHash(r));
+                if (!r[hashSymbol]) {
+                    Object.defineProperty(r, hashSymbol, { value: rowHash(r), configurable: true });
+                }
+                const k = r[hashSymbol];
                 counts.set(k, (counts.get(k) || 0) + 1);
             }
             return counts;

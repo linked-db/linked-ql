@@ -4,7 +4,7 @@ import { MessagePortPlus } from '@webqit/port-plus';
 import '../src/lang/index.js';
 import { FlashQL } from '../src/flashql/FlashQL.js';
 import { EdgeClient } from '../src/clients/edge/EdgeClient.js';
-import { EdgeWorker } from '../src/clients/edge/EdgeWorker.js';
+import { EdgeWorker } from '../src/clients/edge/remote/EdgeWorker.js';
 
 const waitForEvent = (target, type, { timeout = 1000 } = {}) => {
     return new Promise((resolve, reject) => {
@@ -38,7 +38,7 @@ describe('EdgeWorker integration (Port+ transport)', () => {
             INSERT INTO public.edge_port_users (id, name) VALUES (1, 'Ada'), (2, 'Linus');
         `);
 
-        worker = new EdgeWorker({ db, type: 'worker', rowsStreaming: 'port' });
+        worker = new EdgeWorker({ db, type: 'worker', portBasedStreaming: true });
     });
 
     afterEach(async () => {
@@ -133,7 +133,7 @@ describe('EdgeClient <-> EdgeWorker integration (SharedWorker transport)', () =>
         `);
 
         scope = new EventTarget();
-        EdgeWorker.sharedWorker({ worker: scope, db });
+        EdgeWorker.sharedWorker({ db }).runIn(scope);
     });
 
     afterEach(async () => {

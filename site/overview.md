@@ -62,7 +62,7 @@ These are about expressing richer intent in the query itself instead of pushing 
 LinkedQL also extends the runtime side of the database contract:
 
 - [Live Queries](/capabilities/live-queries)
-- [Federation, Materialization, and Sync](/flashql/foreign-io)
+- [Federation, Materialization, and Sync](/flashql/federation-and-sync)
 
 These collapse existing tall tooling stacks, capability layers, and large scale glue code into a single application-ready primitive.
 
@@ -79,8 +79,8 @@ It gives you:
 See:
 
 - [FlashQL](/flashql)
-- [Federation, Materialization, and Sync](/flashql/foreign-io)
-- [Sync Integration Patterns](/flashql/sync-patterns)
+- [Federation, Materialization, and Sync](/flashql/federation-and-sync)
+- [Sync Integration Patterns](/docs/integration-patterns)
 
 ## Where to Start
 

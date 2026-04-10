@@ -75,7 +75,7 @@ Runs across:
 
 > One SQL interface for local, remote, and live data
 
-The big picture? **[SQL, reimagined for modern apps ↗](https://linked-ql.netlify.app/overview)**.
+**[See here ↗](https://linked-ql.netlify.app/capabilities)** for the big picture.
 
 </div>
 
@@ -119,14 +119,14 @@ The package provides clients for all supported SQL dialects — including **Flas
 
 Import and use the Client for your database. LinkedQL works the same across all clients.
 
-| **Dialect**         | **Import Path**                | **Guide**                          |
+| **Client/Model**         | **Import Path**                | **Guide**                          |
 | :------------------ | :----------------------------- | :--------------------------------- |
-| PostgreSQL          | `@linked-db/linked-ql/postgres`      | [PostgreSQL ↗](https://linked-ql.netlify.app/docs/setup#postgresql) |
-| MySQL               | `@linked-db/linked-ql/mysql`   | [MySQL ↗](https://linked-ql.netlify.app/docs/setup#mysql)           |
-| MariaDB             | `@linked-db/linked-ql/mariadb` | [MariaDB ↗](https://linked-ql.netlify.app/docs/setup#mariadb)       |
-| FlashQL             | `@linked-db/linked-ql/flashql`   | [FlashQL ↗](https://linked-ql.netlify.app/docs/setup#flashql)       |
-| EdgeClient          | `@linked-db/linked-ql/edge`    | [Edge / Browser ↗](https://linked-ql.netlify.app/docs/setup#edge)   |
-| EdgeWorker          | `@linked-db/linked-ql/edge-worker` | [Edge Worker ↗](https://linked-ql.netlify.app/docs/setup#edge) |
+| `PGClient`          | `@linked-db/linked-ql/postgres`      | [PostgreSQL ↗](https://linked-ql.netlify.app/docs/setup#postgresql) |
+| `MySQLClient`               | `@linked-db/linked-ql/mysql`   | [MySQL ↗](https://linked-ql.netlify.app/docs/setup#mysql)           |
+| `MariaDBClient`             | `@linked-db/linked-ql/mariadb` | [MariaDB ↗](https://linked-ql.netlify.app/docs/setup#mariadb)       |
+| `FlashQL`             | `@linked-db/linked-ql/flashql`   | [FlashQL ↗](https://linked-ql.netlify.app/docs/setup#flashql)       |
+| `EdgeClient`          | `@linked-db/linked-ql/edge`    | [Edge / Browser ↗](https://linked-ql.netlify.app/docs/setup#edgeclient)   |
+| `EdgeWorker`          | `@linked-db/linked-ql/edge-worker` | [Edge Worker ↗](https://linked-ql.netlify.app/docs/setup#edgeworker) |
 
 See also:
 
@@ -375,8 +375,7 @@ See [Changefeeds (WAL) ↗](https://linked-ql.netlify.app/capabilities/changefee
 
 `db.sync.sync()` is the API for sync in FlashQL.
 
-You begin by creating views and pointing them to local or remote tables. FlashQL internally uses the sync API
-to fulfill the contracts.
+You begin by defining remote data as tables (views) in your local FlashQL database. FlashQL's internal Sync Engine fulfills the contracts.
 
 At the application level, `db.sync.sync()` is primarilly called on a network reconnect event:
 
@@ -392,7 +391,7 @@ window.addEventListener('online', async () => {
 * Coordinates background data movement and consistency
 * Designed for resilience and network instabilities
 
-This is covered in [FlashQL Sync ↗](https://linked-ql.netlify.app/flashql/sync).
+This is covered in [FlashQL Sync ↗](https://linked-ql.netlify.app/flashql/federation-and-sync).
 
 ---
 
@@ -702,24 +701,6 @@ const result = await db.query(`
 
 ---
 
-### The Big Picture: Better Mental Models
-
-Traditional SQL answers:
-
-> “What rows do I want?”
-
-LinkedQL **additionally** answers:
-
-> “What shape do I want?”
-> “How are entities connected?”
-> “What assumptions am I making?”
-
-—all in the same query.
-
-This allows SQL to operate directly on **application-shaped data**, not just tables.
-
----
-
 ## Section 3: Architecture & Orchestration
 
 This section is about deploying LinkedQL as a system, not just calling it as an API.
@@ -788,43 +769,14 @@ const upstream = new PGClient({
 await upstream.connect();
 
 // Adapter that exposes the LinkedQL protocol over HTTP
-const worker = new EdgeWorker({ db: upstream, type: 'http' });
+const httpWorkerEdge = EdgeWorker.httpWorker({ db: upstream });
 
 // Now the handler (at "/api/db") that exposes the worker:
 export async function POST(request) {
-
-  // EdgeClient encodes operations as (op, args)
-  const op = new URL(request.url).searchParams.get('op');
-  const args = await request.json();
-
-  // Delegate execution to the upstream client
-  const result = await worker.handle(op, args);
-
-  return Response.json(result ?? {});
+  const event = { request };
+  return await httpWorkerEdge.handle(event);
 }
 ```
-
-The above in a [Webflo](https://github.com/webqit/webflo) application would look like the following:
-
-<details>
-<summary>Show code</summary>
-
-```js
-export async function POST(event, next) {
-    //await event.user.signIn();
-    if (next.stepname) return await next();
-
-    const op = event.url.query.op;
-    const args = await event.request.json();
-
-
-    return await worker.handle(op, args, event.client, () => {
-        event.waitUntil(new Promise(() => { }));
-    }) || {}; // Always return something to prevent being a 404
-}
-```
-
-</details>
 
 ---
 
@@ -849,7 +801,7 @@ The difference is that execution happens across a transport boundary instead of 
 * Preserves the `db.query()` abstraction across runtime boundaries
 * Avoids leaking database credentials to untrusted environments
 
-For runtime setup details, see [Dialects & Clients ↗](https://linked-ql.netlify.app/docs/setup#edge).
+For runtime setup details, see the [Edge Setup Guide ↗](https://linked-ql.netlify.app/docs/setup#edgeclient).
 
 ---
 
@@ -1142,7 +1094,7 @@ const result = await db.query(`
 
 ---
 
-For full details, see [Federation & Sync ↗](https://linked-ql.netlify.app/flashql/foreign-io) and [FlashQL Sync ↗](https://linked-ql.netlify.app/flashql/sync).
+For full details, see [Federation & Sync ↗](https://linked-ql.netlify.app/flashql/federation-and-sync).
 
 ---
 
@@ -1156,7 +1108,7 @@ For full details, see [Federation & Sync ↗](https://linked-ql.netlify.app/flas
 | [Changefeeds (WAL) ↗](https://linked-ql.netlify.app/capabilities/changefeeds) | Read about table-level commit subscriptions. |
 | [Version Binding ↗](https://linked-ql.netlify.app/capabilities/version-binding) | Bind queries to explicit relation versions. |
 | [Meet FlashQL ↗](https://linked-ql.netlify.app/flashql) | Meet FlashQL — LinkedQL's embeddable SQL engine. |
-| [FlashQL Sync ↗](https://linked-ql.netlify.app/flashql/sync) | Explore the sync API and local-first orchestration path. |
+| [Federation & Sync ↗](https://linked-ql.netlify.app/flashql/federation-and-sync) | Explore the sync API and local-first orchestration path. |
 | [Engineering Deep Dive ↗](https://linked-ql.netlify.app/engineering/realtime-engine) | Dig into LinkedQL's engineering in the engineering section. |
 
 Visit the [LinkedQL documentation site ↗](https://linked-ql.netlify.app)

@@ -48,12 +48,15 @@ await result.abort();
 
 Above, `result` is a [`RealtimeResult`](/docs/query-api#realtimeresult).
 
-> [!IMPORTANT]
-> To run live queries on PostgreSQL, MySQL, or MariaDB, be sure to follow the [setup instructions](/docs/setup) for the database.
-
 ::: tip Deep Dive
 The mechanics of the engine are covered in the [LinkedQL Realtime Engineering Paper](/engineering/realtime-engine).
 :::
+
+## Enabling Realtime Capabilities
+
+LinkedQL’s realtime capabilities (live queries and WAL subscriptions) depend on the support mode of the underlying database. For FlashQL and the Edge runtime client, this is automatic. But for the mainstream database family, this works behind a configuration.
+
+See the [Enabling Realtime Capabilities](/docs/setup#enabling-realtime-capabilities) documentation for details.
 
 ## Live Queries in Practice
 
@@ -282,7 +285,7 @@ The observed effect becomes: the corresponding row remains in the view but loses
 
 Overall effect: identity persists. The view stays true to join semantics without leaking low-level mutation shape into the result model.
 
-### Frames and Ordinality
+## Frames and Ordinality
 
 Queries that have ordering, limits, or offsets applied materialize in the view with the semantics of each modifier fully maintained.
 
@@ -318,7 +321,7 @@ Then on "_`UPDATE`ing a post’s `created_at` field and promoting it one step hi
 
 Essentially, ordering and slicing remain stable relationships — they evolve as data changes, without recomputation.
 
-### Precision and Granularity
+## Precision and Granularity
 
 Live updates apply the smallest possible change needed to keep the view correct. This is a key design goal in LinkedQL.
 
@@ -358,7 +361,7 @@ Precision and granularity keeps the system – all the way to the consumers boun
 * Components keyed by row identity keep their state.
 * You don’t lose scroll position.
 
-### Observability and Atomicity
+## Observability and Atomicity
 
 Live views are not just auto-updating — they are also **observable**.
 
@@ -410,7 +413,7 @@ Observer.observe(result.rows, Observer.subtree(), (mutations) => {
 
 Essentially, transactions aren't torn across multiple emissions.
 
-### Live Bindings
+## Live Bindings
 
 LinkedQL’s live views are ordinary JavaScript objects and arrays. They simply happen to mutate over time as the database changes.
 
@@ -452,36 +455,152 @@ The UI in this example updates as posts are added or removed — with no glue co
 
 Essentially, with the Observer protocol as the shared vocabulary of change, continuity stays intact from database to DOM. Each layer in the chain — LinkedQL → Webflo → OOHTML — simply makes or reacts to mutations.
 
-## Event Callbacks
+## The Callback Mode
 
 In LinkedQL, live views (`result.rows`) are the high-level interface.
-Underneath it is a lower-level event stream.
+Underneath it is a lower-level commit stream.
 
-That event stream is made of three event types:
-
-| Event    | Meaning                                                            |
-| :------- | :----------------------------------------------------------------- |
-| `result` (`commit.type === 'result'`) | A full snapshot of the query result – for when diffrential updates aren't feasible for the qiven query – typically queries with aggregates.                               |
-| `diff` (`commit.type === 'diff'`)   | Incremental inserts, updates, and deletes.                         |
-| `swap` (`commit.type === 'swap'`)   | Positional swaps that satisfy an `ORDER BY` clause                 |
-
-You can subscribe to these events directly and maintain your own state store.
+You can subscribe to this stream directly and maintain your own state store.
 This is useful if you’re building a custom cache, or replication layer.
 
 ```js
-const commits = [];
-
-// Get a handle to the live query
-const liveHandle = await client.query(
-  `SELECT id, title
+const q = `
+SELECT id, title
   FROM posts
-  ORDER BY created_at DESC`,
-  (commit) => commits.push(commit),
-  { live: true }
-);
+  ORDER BY created_at DESC`;
+
+const liveHandle = await client.query(q, (commit) => {
+    console.log(commit);
+}, { live: true });
 ```
 
+In this mode:
+
++ all changes are observed from the callback alone as events
++ `result.rows` represents only the initial result of the query, and behaves as a static result set as against a live object
++ `result.mode` is set to `'callback'` – indicating the consumption mode
+
 Compared to the default live view concept, custom event handling sits closer to the wire.
+
+### The Event Stream
+
+The live query event stream is made of three event types:
+
+| Event    | Meaning                                                            |
+| :------- | :----------------------------------------------------------------- |
+| `diff` (`commit.type === 'diff'`)   | Incremental inserts, updates, and deletes                          |
+| `swap` (`commit.type === 'swap'`)   | Positional swaps that satisfy an `ORDER BY` clause                 |
+| `result` (`commit.type === 'result'`) | A new snapshot of the query result                               |
+
+```js
+const liveHandle = await client.query(q, (commit) => {
+    if (commit.type === 'diff') for (const e of commit.entries) mutationState(e);
+    if (commit.type === 'swap') applySwaps(commit.entries);
+    if (commit.type === 'result') replaceState(commit.rows, commit.hashes);
+}, { live: true });
+```
+
+### The `diff` Event
+
+A typical `diff` event contains one or more entries describing result-level changes.
+
+```js
+{
+  type: 'diff',
+  entries: [...],
+  ...commitMeta
+}
+```
+
+#### `insert` Descriptor
+
+```js
+{
+  op: 'insert',
+  new: { id: 1, name: 'Ada' },
+  newHash: '[[1]]',
+}
+```
+
+#### `update` Descriptor
+
+```js
+{
+  op: 'update',
+  old: { id: 1, name: 'Ada' },
+  new: { id: 1, name: 'Ada Lovelace' },
+  oldHash: '[[1]]',
+  newHash: '[[1]]',
+}
+```
+
+#### `delete` Descriptor
+
+```js
+{
+  op: 'delete',
+  old: { id: 1, name: 'Ada Lovelace' },
+  oldHash: '[[1]]',
+}
+```
+
+The hashes are the stable result-level row identifiers.
+
+### The `swap` Event
+
+This event contains positional swaps that satisfy an `ORDER BY` clause.
+
+```js
+{
+  type: 'swap',
+  entries: [...],
+  ...commitMeta
+}
+```
+
+Entries are pairs of positional swaps by ID (the hashes):
+
+```js
+[
+  ['[[3]]', '[[1]]'],
+  ['[[1]]', '[[3]]'],
+]
+```
+
+The above should have a re-ordering effect like:
+
+```text
+[row1, row2, row3] -> [row3, row2, row1]
+```
+
+### The `result` Event
+
+This event represents a new snapshot of the query result – for when diffrential updates aren't feasible for the query type. This typically happens with queries with aggregates.
+
+```js
+{
+  type: 'result',
+  rows: [{ id: 1, name: 'Ada' }, { id: 2, name: 'Jane' }],
+  hashes: ['[[1]]', '[[2]]']
+  ...commitMeta
+}
+```
+
+The `rows` and `hashes` array have the exact same meaning as the standard result's `rows` and `hashes`.
+
+The handler is expected to replace local state with the new result.
+
+## The Two-Mode Consumption Model
+
+The "callback" mode above and the default "live view" mode give you two ways to consume live queries.
+This is by design. And each caters to two very different needs:
+
+* **Live views**: state-based consumption
+* **The callback mode**: event-based consumption
+
+A live view literally translates the event stream into application-ready state.
+
+A callback opts out of that and in to the stream itself to manually interprete events.
 
 ## Stable Subscription Slots
 
@@ -494,15 +613,67 @@ const result = await db.query(
 );
 ```
 
-The id gives the live query a stable slot identity.
+That id is more than a label. It gives the query a durable slot identity, and LinkedQL binds that subscription to the same slot each time it is recreated with the same id.
 
-When the query is re-issued with the same id, LinkedQL binds it to that same slot and:
+### Behaviour
 
-- looks up the last commit successfuly consumed by the subscriber
-- catches the subscriber up on missed-but-cached commits
-- continue emitting to the subscriber from there
+With a durable slot identity, the runtime:
 
-With stable slot IDs, a live query stops being a disposable one-off subscription and becomes a resumable data channel with continuity across disconnects.
+- is able to resume from the same logical slot on requeries
+- catches the subscriber up on commits that were missed while away
+- continues emitting to the subscriber from that state
+
+State continuity also means:
+
+- previous initial snapshot isn't redelivered; consequently...
+- `result.rows` is empty
+- `result.initial` is `false`
+
+That matters when live queries back application caches, replicas, sync workers, or long-lived UI sessions that must continue from a known point rather than restarting blindly from "now."
+
+### Example
+
+```js
+const commits = [];
+
+const result = await db.query(
+  'SELECT * FROM posts ORDER BY id',
+  (commit) => commits.push(commit),
+  { live: true, id: 'posts_slot' }
+);
+
+await db.query(`
+  INSERT INTO public.posts (id, title) VALUES (1, 'Hello');
+  UPDATE public.posts SET title = 'Hello World' WHERE id = 1;
+`);
+
+await result.abort();
+
+await db.query(`DELETE FROM public.posts WHERE id = 1`);
+```
+
+What happens:
+
+- you get one commit event containing two diffs: `insert` and `update`
+- you called `result.abort()` and don't get the second commit
+
+```js
+
+const result = await db.query(
+  'SELECT * FROM posts ORDER BY id',
+  (commit) => events.push(commit),
+  { live: true, id: 'posts_slot' }
+);
+```
+
+What happens now:
+
+- you re-subscribed to the same subscription slot
+- you get the one commit event you missed: `delete`
+- `result.rows` is empty
+- `result.initial` is `false`
+
+## Dropping Slots
 
 To drop the slot itself, pass `{ forget: true }` to the `abort()` call:
 
@@ -510,7 +681,7 @@ To drop the slot itself, pass `{ forget: true }` to the `abort()` call:
 await result.abort({ forget: true });
 ```
 
-## Query Inheritance and Scaling
+## Appendix A – Query Inheritance and Scaling
 
 Live queries are efficient because LinkedQL does not have to treat each subscription as an isolated process.
 
@@ -536,6 +707,10 @@ The benefit is twofold:
 1. **Work is shared.** A row change from the database is processed once, then fanned out to all relevant derived views.
 2. **State stays consistent.** Every subscriber downstream sees the same truth, because they inherit from the same canonical source.
 
+::: tip Deep Dive
+The mechanics of the engine are covered in the [LinkedQL Realtime Engineering Paper](/engineering/realtime-engine).
+:::
+
 ### Scaling Behavior
 
 Traditional realtime systems (GraphQL subscriptions, ad-hoc changefeeds, client-side replicas) recompute each subscription independently.
@@ -552,7 +727,7 @@ Put differently:
 
 Essentially, thanks to query inheritance; the system does not explode as the audience grows. Reactivity over SQL remains, not just feasible, but efficient over traditional database connections.
 
-## Appendix A — Implied Schema and Dialect
+## Appendix B — Implied Schema and Dialect
 
 The examples in this document assume a simple illustrative schema and a specific SQL dialect.
 
