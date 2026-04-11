@@ -128,6 +128,37 @@ console.log(result.rows);
 await db.disconnect();
 ```
 
+#### Connection Mode
+
+By default, `PGClient` runs on a single PostgreSQL connection.
+
+You can opt into connection pooling by enabling `poolMode`:
+
+```js
+const db = new PGClient({
+  host: 'localhost',
+  port: 5432,
+  user: 'postgres',
+  password: 'password',
+  database: 'mydb',
+  poolMode: true,
+});
+```
+
+In `poolMode`, `PGClient` uses a connection pool (via `node-postgres`) to handle concurrent queries more efficiently.
+
+After initializing the instance via `db.connect()`, subsequent `db.connect()` calls simply return a checked-out client.
+
+This lets you explicitly check out a connection for session-sensitive work:
+
+```js
+const client = await db.connect(); // checks out a connection
+// ... run session-bound queries
+client.release(); // return it when done
+```
+
+This is useful for transactions or workflows that require a stable connection.
+
 #### Realtime Setup
 
 LinkedQL uses PostgreSQL’s logical replication to power live queries and commit stream subscriptions. This requires logical replication to be enabled on the PostgreSQL instance.
@@ -317,7 +348,7 @@ Once binary logging is available, LinkedQL can build on top of it for realtime f
 
 ---
 
-### `FlashQL`
+### FlashQL
 
 Unlike the other clients, FlashQL is not a connector to an external database. It is the database itself – a **full SQL runtime** that runs in the same process as your app.
 

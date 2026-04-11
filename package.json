@@ -26,6 +26,12 @@
   "type": "module",
   "sideEffects": true,
   "main": "./src/index.js",
+  "files": [
+    "dist",
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
   "exports": {
     ".": "./src/flashql/FlashQL.js",
     "./flashql": "./src/flashql/FlashQL.js",
