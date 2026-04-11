@@ -1,36 +1,40 @@
 # Capabilities
 
-LinkedQL is an advanced form of SQL that understands modern application paradigms, data models, real-time expectations, and architectural requirements.
+LinkedQL collapses the traditional data stack — database, API layer, and sync engine — into a single SQL primitive that drops directly into your application.
 
-It extends SQL on syntax and execution capabilities to directly carry application-level intents. Then it extends the SQL surface beyond a single runtime.
+This page breaks that system down into its core capabilities:
 
-This page is your map the new possibilities.
+* **At the language level**: LinkedQL's richer syntax for relationships, structure, and more
+* **At the system level**: live queries, streaming, changefeed, and more
+* **At the integration and architecture level**: cross-runtime, local-first, offline-first architectures
 
-## Quick Links
+## At a Glance
 
-Ahead of the introductory sections below, here are quick links to the capability pages.
+Ahead of the sections below, here's your map to the capability pages.
 
 For language-level capabilities:
 
-- [DeepRefs](/capabilities/deeprefs)
-- [JSON Literals](/capabilities/json-literals)
-- [UPSERT](/capabilities/upsert)
+* [DeepRefs](/capabilities/deeprefs)
+* [JSON Literals](/capabilities/json-literals)
+* [UPSERT](/capabilities/upsert)
 
 For runtime-level capabilities:
 
-- [Live Queries](/capabilities/live-queries)
-- [Streaming](/capabilities/streaming)
-- [Changefeeds](/capabilities/changefeeds)
+* [Live Queries](/capabilities/live-queries)
+* [Streaming](/capabilities/streaming)
+* [Changefeeds](/capabilities/changefeeds)
 
-For distribution, architecture, and sync:
+For runtime & distribution:
 
-- [FlashQL](/flashql)
-- [Federation, Materialization, and Sync](/flashql/federation-and-sync)
-- [LinkedQL Integration Patterns](/docs/integration-patterns)
+* [FlashQL](/flashql)
+* [Federation, Materialization, and Sync](/flashql/federation-and-sync)
+* [LinkedQL Integration Patterns](/docs/integration-patterns)
 
 ## Language Capabilities
 
-LinkedQL gives you an advanced form of SQL that directly understands relationships, and the application-level syntax for structure: JSON. This helps eliminate mapping layers and post-processing code.
+LinkedQL brings structure and relationships directly into SQL.
+
+Instead of flattening data and reshaping it in application code, you express the final structure directly in the query.
 
 ### Meet JSON Literals (Inline Structuring)
 
@@ -44,10 +48,11 @@ const result = await db.query(`
 `);
 ```
 
-No need for an extra mapping layer and post-processing code.
+No mapping layer. No post-processing.
 
-* the query is the structure
-* the mental models fall out effortlessly
+* the query returns exactly the shape your UI needs
+* no `map()` / `reduce()` / DTO transformation step
+* fewer mismatches between backend and frontend models
 
 ### Meet DeepRefs (Inline Relationships)
 
@@ -65,7 +70,9 @@ const posts = await db.query(`
 `);
 ```
 
-No need for an ORM. If you've defined foreign key relationships on your tables, you can traverse them directly.
+No need for an ORM or manual JOIN logic.
+
+If you've defined foreign key relationships in your tables, you can traverse them directly.
 
 The above expresses the data the way the application already understands it:
 
@@ -74,17 +81,19 @@ The above expresses the data the way the application already understands it:
 
 ### Documentation
 
-| Capability | What It Adds | Docs |
-| :-- | :-- | :-- |
-| **DeepRefs** | Direct relationship traversal in SQL | [DeepRefs](/capabilities/deeprefs) |
-| **JSON Literals** |Direct structuring in SQL | [JSON Literals](/capabilities/json-literals) |
-| **UPSERT** | A direct UPSERT statement in SQL | [UPSERT](/capabilities/upsert) |
+| Capability        | What It Adds                         | Docs                                         |
+| :---------------- | :----------------------------------- | :------------------------------------------- |
+| **DeepRefs**      | Direct relationship traversal in SQL | [DeepRefs](/capabilities/deeprefs)           |
+| **JSON Literals** | Direct structuring in SQL            | [JSON Literals](/capabilities/json-literals) |
+| **UPSERT**        | A direct UPSERT statement in SQL     | [UPSERT](/capabilities/upsert)               |
 
 ---
 
 ## Execution Capabilities
 
-LinkedQL is built to extend what the host database itself can do – without calling for a specific database extension. On any given database, LinkedQL lets you have live queries as a first-class database capability, and directly supports streaming and table-level subscriptions.
+LinkedQL is built to extend what the host database itself can do—without requiring database-specific extensions.
+
+On any given database, LinkedQL lets you have live queries as a first-class capability, and directly supports streaming and table-level subscriptions.
 
 ### Meet Live Queries
 
@@ -102,12 +111,14 @@ const result = await db.query(`
 
 No need for dedicated GraphQL servers in front of your database. Your query is the subscription.
 
-`result` is the same shape as a regular query result but self-updating as the database changes over time:
+`result` is the same shape as a regular query result but self-updating as the database changes over time.
+
+Updates are pushed from the database to the client—no polling, no manual subscriptions:
 
 * automatically stays current over time
 * directly powers reactivity across the app
 
-### Meet Direct Table-Level Subscriptions
+### Meet Changefeeds (Direct Table-Level Subscriptions)
 
 ```js
 const unsubscribe = await db.wal.subscribe({ public: ['users'] }, (commit) => {
@@ -115,7 +126,9 @@ const unsubscribe = await db.wal.subscribe({ public: ['users'] }, (commit) => {
 });
 ```
 
-Sometimes, table-level changes is the target. `db.wal.subscribe()` answers that directly from the underlying database's change stream:
+Sometimes, table-level changes are the target.
+
+`db.wal.subscribe()` exposes commit-level events from the underlying database change streams:
 
 * PostgreSQL's Write Ahead Log (WAL)
 * MySQL/MariaDB's Binary Log (Binlog)
@@ -125,23 +138,27 @@ It's especially useful for replication flows, synchronization logic, and downstr
 
 ### Documentation
 
-| Capability          | What It Adds                              | Docs                                             |
-| :------------------ | :---------------------------------------- | :----------------------------------------------- |
-| **Live Queries**    | Queries that stay current as data changes | [Live Queries](/capabilities/live-queries)       |
-| **Streaming**       | Incremental row delivery                  | [Streaming](/capabilities/streaming)             |
-| **Changefeeds**     | Commit-level event streams                | [Changefeeds](/capabilities/changefeeds)         |
+| Capability       | What It Adds                              | Docs                                       |
+| :--------------- | :---------------------------------------- | :----------------------------------------- |
+| **Live Queries** | Queries that stay current as data changes | [Live Queries](/capabilities/live-queries) |
+| **Streaming**    | Incremental row delivery                  | [Streaming](/capabilities/streaming)       |
+| **Changefeeds**  | Commit-level event streams                | [Changefeeds](/capabilities/changefeeds)   |
 
 ---
 
-## Distribution, Architecture, and Sync
+## Integration, Architecture, and Sync
 
-LinkedQL understands the distributed world and extends SQL beyond a single runtime. Applications that span network and protocol boundaries get a single interface to:
+LinkedQL extends SQL beyond a single runtime.
+
+Queries can run locally, remotely, or across both — while preserving the same interface.
+
+Applications that span network and protocol boundaries get a single interface to:
 
 * run a database locally (in the browser, worker, edge)
 * connect to upstream databases across boundaries
-* federate and synchronize state across the nodes
+* federate and synchronize state across nodes
 
-The application keeps the same `db.query()` contract in all – regardless of where it runs.
+The application keeps the same `db.query()` contract in all cases—regardless of where it runs.
 
 ### Meet FlashQL
 
@@ -173,14 +190,14 @@ console.log(result.rows);
 await db.disconnect();
 ```
 
-Spin up a FlashQL instance in any JavaScript runtime: the browser, the edge, or worker.
+Spin up a FlashQL instance in any JavaScript runtime: the browser, the edge, or a worker.
 
 `FlashQL` brings the full relational engine into the application runtime, powering:
 
-* local-first, and offline-first architectures
+* local-first and offline-first architectures
 * data federation and sync across local/remote boundaries
 
-FlashQL runs a transaction-first, Multi-Version Concurrency Control architecture (MVCC) – like PostgreSQL.
+FlashQL runs a transaction-first, Multi-Version Concurrency Control architecture (MVCC)—like PostgreSQL.
 
 ### Meet the EdgeClient
 
@@ -199,9 +216,9 @@ const result = await db.query(`
 `);
 ```
 
-`EdgeClient` is how the same LinkedQL contract crosses a runtime boundary.
+`EdgeClient` preserves the LinkedQL contract across runtime boundaries.
 
-The data lives in a remote runtime, but your application sees the same SQL interface, ready for:
+The data lives in a remote runtime, but your application sees the same SQL interface—no change in how queries are written or consumed:
 
 * live queries
 * inline relationships
@@ -226,16 +243,15 @@ await db.query(`
 `);
 ```
 
-```js
-window.addEventListener('online', async () => {
-  await db.sync.sync();
-});
-```
-
 FlashQL takes you beyond local storage to tie in any number of upstream data sources.
-The realtime view above behaves like a local table while FlashQL keeps it synchronized with the upstream in the background.
 
-You keep one SQL surface for reads and writes, but gain:
+The realtime view above behaves like a local table:
+
+* queries read from local state
+* updates are applied asynchronously from upstream
+* writes can be synchronized back upstream
+
+You keep one SQL surface for reads and writes, plus gain:
 
 * federation across runtime and network boundaries
 * local retention and offline reads
@@ -243,8 +259,8 @@ You keep one SQL surface for reads and writes, but gain:
 
 ### Documentation
 
-| Capability                   | What It Adds                           | Docs                                |
-| :--------------------------- | :------------------------------------- | :---------------------------------- |
-| **FlashQL**                  | Embedded SQL runtime                   | [FlashQL](/flashql)                 |
-| **Federation, Materialization, and Sync**               | Queries spanning local and remote data | [Federation, Materialization, and Sync](/flashql/federation-and-sync) |
-| **LinkedQL Integration Patterns**           | One database contract across boundaries | [LinkedQL Integration Patterns](/docs/integration-patterns) |
+| Capability                                | What It Adds                            | Docs                                                                  |
+| :---------------------------------------- | :-------------------------------------- | :-------------------------------------------------------------------- |
+| **FlashQL**                               | Embedded SQL runtime                    | [FlashQL](/flashql)                                                   |
+| **Federation, Materialization, and Sync** | Queries spanning local and remote data  | [Federation, Materialization, and Sync](/flashql/federation-and-sync) |
+| **LinkedQL Integration Patterns**         | One database contract across boundaries | [LinkedQL Integration Patterns](/docs/integration-patterns)           |

@@ -14,7 +14,7 @@
   ],
   "homepage": "https://linked-ql.netlify.app/",
   "icon": "https://webqit.io/icon.svg",
-  "version": "1.0.6-next.4",
+  "version": "1.0.6-next.5",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -26,6 +26,12 @@
   "type": "module",
   "sideEffects": true,
   "main": "./src/index.js",
+  "files": [
+    "dist",
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
   "exports": {
     ".": "./src/flashql/FlashQL.js",
     "./flashql": "./src/flashql/FlashQL.js",
