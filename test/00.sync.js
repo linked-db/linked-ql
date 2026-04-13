@@ -8,7 +8,9 @@ import { PGClient } from '../src/clients/postgres/PGClient.js';
 
 const pg = new PGClient;
 await pg.connect();
-
+pg.on('error', (e) => {
+  console.log('||||||||pg', e);
+});
 
 console.log((await pg.query(`SELECT *, $1 FROM public.rrr WHERE id = $2`, { values: [3, 74], live: false })).rows);
 
@@ -22,6 +24,9 @@ console.log(`\n\nStage 1:________________________________________\n\n`);
 const keyval = new InMemoryKV({ path: ['test'] });
 const db1 = new FlashQL({ keyval });
 await db1.connect();
+db1.on('error', (e) => {
+  console.log('||||||||db1', e);
+});
 
 await db1.query(`
   -- Define tables explicitly
@@ -70,6 +75,9 @@ EdgeWorker.webWorker({ db: db1 }).runIn(mc1.port2);
 
 const db2 = new FlashQL({ getUpstreamClient: () => new EdgeClient({ worker: mc1.port1, type: 'worker' }), });
 await db2.connect();
+db2.on('error', (e) => {
+  console.log('||||||||db2', e);
+});
 
 await db2.query(`
   CREATE SCHEMA offline;
@@ -79,18 +87,16 @@ await db2.query(`
   TABLE public.users
   WITH(replication_origin = 'flashql:primary')
 `);
-db1.on('error', (e) => {
-  console.log('||||||||', e);
-});
 
 
-
+const tx = await db2.begin();
 const result2 = await db2.query(`
   SELECT
     u.id,
     u.name
   FROM offline.users u
-`, { live: true, id: 'w' });
+  WHERE false != true
+`, { live: true, id: 'w', tx });
 
 console.log(`\n\nInitial: ${result2.mode}________________________________________\n\n`);
 console.log(result2.rows);
@@ -117,7 +123,8 @@ const result3 = await db2.query(`
     u.id,
     u.name
   FROM offline.users u
-`, { live: true, id: 'w' });
+  WHERE true != false
+`, { live: true, id: 'w', tx });
 
 console.log(`\n\nResumption: ${result3.mode}________________________________________\n\n`);
 console.log(result3.rows);

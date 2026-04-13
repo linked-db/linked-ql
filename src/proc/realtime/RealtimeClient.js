@@ -4,6 +4,7 @@ import { LinkedQLClient } from '../../clients/abstracts/LinkedQLClient.js';
 import { normalizeQueryArgs } from '../../clients/abstracts/util.js';
 import { RealtimeResult } from './RealtimeResult.js';
 import { QueryWindow } from './QueryWindow.js';
+import { _eq } from '../../lang/abstracts/util.js';
 
 export class RealtimeClient {
 
@@ -20,19 +21,28 @@ export class RealtimeClient {
     }
 
     async query(...args) {
-        const [query, { callback, signal, ...options }] = normalizeQueryArgs(...args);
+        const [query, { live: _, callback, signal, tx, id, initial, ...options }] = normalizeQueryArgs(...args);
 
         let queryWindow;
         let resultJson;
 
-        if (options.id && (queryWindow = await this.findWindow(async (w) => await w.wal.hasSlot(options.id)))) {
-            resultJson = { rows: [], hashes: [], initial: false, mode: callback ? 'callback' : 'live' };
-        } else {
-            queryWindow = await this.createWindow(query, options);
-            const initial = options.initial === false
+        if (id) {
+            queryWindow = await this.findWindow(async (w) => {
+                if (w.tx !== tx) return false;
+                if (!_eq(w.options, options)) return false;
+                if (!await w.wal.hasSlot(id)) return false;
+                if (QueryWindow.intersectQueries(w.query, query) === false) return false;
+                return true;
+            });
+            resultJson = queryWindow && { rows: [], hashes: [], initial: false, mode: callback ? 'callback' : 'live' };
+        }
+
+        if (!queryWindow) {
+            queryWindow = await this.createWindow(query, { tx, ...options });
+            const initialResult = initial === false
                 ? { initial: false }
                 : { ...await queryWindow.currentRendering(), initial: true };
-            resultJson = { ...initial, mode: callback ? 'callback' : 'live' };
+            resultJson = { ...initialResult, mode: callback ? 'callback' : 'live' };
         }
 
         const realtimeResult = new RealtimeResult(resultJson, async ({ forget = false } = {}) => {
@@ -40,7 +50,7 @@ export class RealtimeClient {
         }, signal);
 
         const changeHandler = callback || ((commit) => realtimeResult._apply(commit));
-        const abortLine = await queryWindow.wal.subscribe(changeHandler, { id: options.id });
+        const abortLine = await queryWindow.wal.subscribe(changeHandler, { id });
 
         return realtimeResult;
     }
@@ -63,7 +73,7 @@ export class RealtimeClient {
         if (!query.fromClause())
             throw new Error('Query has no FROM clause');
 
-        const newWindow = new QueryWindow(this.#linkedQlClient, query, options);
+        const newWindow = new QueryWindow(this.#linkedQlClient, query, { tx, ...options });
 
         const windows_depthFirst = [...this.#windows].filter((w) => w.tx === newWindow.tx)
             .sort((a, b) => a.inheritanceDepth > b.inheritanceDepth ? 1 : -1);

@@ -113,7 +113,7 @@ export class QueryWindow extends SimpleEmitter {
         return analysis;
     }
 
-    static intersectQueries(query1, query2, subwindowingRules) {
+    static intersectQueries(query1, query2, subwindowingRules = null) {
 
         const specialClauses = [
             // projection
@@ -135,7 +135,7 @@ export class QueryWindow extends SimpleEmitter {
         }
 
         const selectMapping = [];
-        if (subwindowingRules.projection === '=') {
+        if (!subwindowingRules || subwindowingRules.projection === '=') {
             const selectItems_a = query1.selectList().entries();
             const selectItems_b = query2.selectList().entries();
             for (const b of selectItems_b) {
@@ -149,7 +149,7 @@ export class QueryWindow extends SimpleEmitter {
         const aWhere = query1.whereClause()?.expr();
         const bWhere = query2.whereClause()?.expr();
         if (aWhere || bWhere) {
-            if (subwindowingRules.whereClause === '>=') {
+            if (subwindowingRules?.whereClause === '>=') {
                 if (!aWhere) {
                     effectiveWhere.push(bWhere);
                 } else {
@@ -162,10 +162,10 @@ export class QueryWindow extends SimpleEmitter {
 
         const aOrd = query1.orderByClause()?.entries() || [];
         const bOrd = query2.orderByClause()?.entries() || [];
-        if (subwindowingRules.ordinality === '=') {
+        if (!subwindowingRules || subwindowingRules.ordinality === '=') {
             if (aOrd.length !== bOrd.length) return false;
             if (!aOrd.every((a, i) => matchExpr(a.expr(), bOrd[i].expr()))) return false;
-            if (subwindowingRules.orderDirections === '=') {
+            if (!subwindowingRules || subwindowingRules.orderDirections === '=') {
                 if (!aOrd.every((a, i) => matchExpr(a.dir(), bOrd[i].dir()))) return false;
             }
         } else if (aOrd.length && !bOrd.length) return false;
@@ -173,7 +173,7 @@ export class QueryWindow extends SimpleEmitter {
         let effectiveOffset = 0;
         const aOffs = query1.offsetClause()?.expr();
         const bOffs = query2.offsetClause()?.expr();
-        if (subwindowingRules.offsetClause === '=') {
+        if (!subwindowingRules || subwindowingRules.offsetClause === '=') {
             if ((aOffs || bOffs) && !matchExpr(aOffs, bOffs)) return;
         } else if (aOffs || bOffs) {
             if (!(bOffs instanceof registry.NumberLiteral)) return false;
@@ -182,7 +182,7 @@ export class QueryWindow extends SimpleEmitter {
 
         const aLmt = query1.limitClause()?.expr();
         const bLmt = query2.limitClause()?.expr();
-        if (subwindowingRules.limitClause === '=') {
+        if (!subwindowingRules || subwindowingRules.limitClause === '=') {
             if ((aLmt || bLmt) && !matchExpr(aLmt, bLmt)) return;
         } else if (aLmt || bLmt) {
             if (!(bLmt instanceof registry.NumberLiteral)) return false;
@@ -251,6 +251,9 @@ export class QueryWindow extends SimpleEmitter {
     get linkedQlClient() { return this.#linkedQlClient; }
     get tx() { return this.#tx; }
     get dialect() { return this.#dialect; }
+    
+    get options() { return this.#options; }
+    get query() { return this.#query; }
 
     get analysis() { return this.#analysis; }
     get strategy() { return this.#strategy; }
@@ -416,9 +419,13 @@ export class QueryWindow extends SimpleEmitter {
         if (!(parentWindow instanceof QueryWindow)) {
             throw new Error(`Parent window must be instance of QueryWindow or null`);
         }
-        if (this.#tx !== parentWindow.#tx) return false; // Already have been filtered by RealtimeClient tho
-        if (!_eq(this.#subwindowingRules, parentWindow.#subwindowingRules)) return false;
+
+        // Already have been filtered by RealtimeClient tho
+        if (this.#tx !== parentWindow.#tx) return false;
+        // Comparison excludes tx, and id - as those are excluded from options
         if (!_eq(this.#options, parentWindow.#options)) return false;
+        
+        if (!_eq(this.#subwindowingRules, parentWindow.#subwindowingRules)) return false;
         const result = this.constructor.intersectQueries(
             parentWindow.#query,
             this.#query,
