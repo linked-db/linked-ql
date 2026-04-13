@@ -8,15 +8,15 @@ import { QueryWindow } from './QueryWindow.js';
 export class RealtimeClient {
 
     #windows = new Set;
-    #driver;
+    #linkedQlClient;
 
     get size() { return this.#windows.size; }
 
-    constructor(driver) {
-        if (!(driver instanceof LinkedQLClient)) {
-            throw new TypeError('driver must be an instance of LinkedQLClient');
+    constructor(linkedQlClient) {
+        if (!(linkedQlClient instanceof LinkedQLClient)) {
+            throw new TypeError('linkedQlClient must be an instance of LinkedQLClient');
         }
-        this.#driver = driver;
+        this.#linkedQlClient = linkedQlClient;
     }
 
     async query(...args) {
@@ -56,16 +56,16 @@ export class RealtimeClient {
         }
     }
 
-    async createWindow(query, options) {
+    async createWindow(query, { tx, ...options }) {
         if (!(query instanceof registry.BasicSelectStmt))
             throw new Error('Only SELECT statements are supported in live mode');
 
         if (!query.fromClause())
             throw new Error('Query has no FROM clause');
 
-        const newWindow = new QueryWindow(this.#driver, query, options);
+        const newWindow = new QueryWindow(this.#linkedQlClient, query, options);
 
-        const windows_depthFirst = [...this.#windows]
+        const windows_depthFirst = [...this.#windows].filter((w) => w.tx === newWindow.tx)
             .sort((a, b) => a.inheritanceDepth > b.inheritanceDepth ? 1 : -1);
         const potentialSubWindows = [];
 
@@ -85,7 +85,7 @@ export class RealtimeClient {
         }
 
         // Register
-        const abortWatch = newWindow.on('error', (e) => this.#driver.emit('error', e));
+        const abortWatch = newWindow.on('error', (e) => this.#linkedQlClient.emit('error', e));
         this.#windows.add(newWindow);
         newWindow.onClose(() => {
             this.#windows.delete(newWindow);

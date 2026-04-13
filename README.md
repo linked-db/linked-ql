@@ -361,7 +361,7 @@ It lets you declare remote data as local tables (views):
 await db.query(`
   CREATE VIEW users AS
   SELECT * FROM users
-  WITH (replication_origin = '/api/db');
+  WITH (replication_origin = 'postgres:/api/db');
 `);
 ```
 
@@ -383,7 +383,7 @@ With just an extra keyword, you get **automatic sync between local and remote st
 await db.query(`
   CREATE REALTIME VIEW users AS
   SELECT * FROM users
-  WITH (replication_origin = '/api/db');
+  WITH (replication_origin = 'postgres:/api/db');
 `);
 ```
 

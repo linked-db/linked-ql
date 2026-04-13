@@ -52,7 +52,7 @@ export class FirstCommitterWins extends ConcurrencyStrategy {
         for (const version of tx._readVersions) {
             if (version.XMAX !== 0) {
                 for (const xmax of [].concat(version.XMAX)) {
-                    const meta = this.engine.txMeta(xmax);
+                    const meta = this.storageEngine.txMeta(xmax);
                     if (
                         meta &&
                         meta.state === 'committed' &&

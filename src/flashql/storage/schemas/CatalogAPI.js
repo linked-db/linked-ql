@@ -11,7 +11,7 @@ import { RelationDDL } from './RelationDDL.js';
 
 export class CatalogAPI {
 
-    #engine;
+    #storageEngine;
     #tx;
 
     #parser;
@@ -20,19 +20,19 @@ export class CatalogAPI {
     #catalog;
     #sysCatalog;
 
-    get engine() { return this.#engine; }
+    get storageEngine() { return this.#storageEngine; }
     get _catalog() { return this.#catalog; }
 
-    constructor({ engine }) {
-        this.#engine = engine;
+    constructor({ storageEngine }) {
+        this.#storageEngine = storageEngine;
         this.#tx = this;
 
-        this.#catalog = new Map([...this.#engine._catalog].map(([relationId, tblGraphs]) => {
+        this.#catalog = new Map([...this.#storageEngine._catalog].map(([relationId, tblGraphs]) => {
             return [relationId, { ...tblGraphs }]
         }));
 
-        this.#parser = new SQLParser({ dialect: this.#engine.dialect });
-        this.#exprEngine = new ExprEngine(null, { dialect: this.#engine.dialect });
+        this.#parser = new SQLParser({ dialect: this.#storageEngine.dialect });
+        this.#exprEngine = new ExprEngine(null, { dialect: this.#storageEngine.dialect });
     }
 
     recordChange(change) {
@@ -72,7 +72,7 @@ export class CatalogAPI {
         return new TableClass(
             this.#tx,
             tblSchema,
-            { dialect: this.#engine.dialect }
+            { dialect: this.#storageEngine.dialect }
         );
     }
 
@@ -703,7 +703,7 @@ export class CatalogAPI {
         }, { ifNotExists });
 
         // Sync new instance
-        const syncResult = await this.#engine.sync.sync({ [namespace]: name }, { tx: this.#tx });
+        const syncResult = await this.#storageEngine.sync.sync({ [namespace]: name }, { tx: this.#tx });
         if (syncResult.failed?.length) throw new Error(`View was created but sync failed with error: ${syncResult.failed[0].error}`);
 
         return result;
@@ -730,7 +730,7 @@ export class CatalogAPI {
             throw new Error(`Unexpected inputs: ${unexpected.join(', ')}`);
 
         // Entirely forget instance
-        await this.#engine.sync.forget({ [namespace]: name }, { tx: this.#tx });
+        await this.#storageEngine.sync.forget({ [namespace]: name }, { tx: this.#tx });
 
         const result = await this.#alterRelation({
             namespace,
@@ -752,7 +752,7 @@ export class CatalogAPI {
 
         // Sync new instance
         if (result) {
-            const syncResult = await this.#engine.sync.sync({ [newNamespace || namespace]: newName || name }, { tx: this.#tx });
+            const syncResult = await this.#storageEngine.sync.sync({ [newNamespace || namespace]: newName || name }, { tx: this.#tx });
             if (syncResult.failed?.length) throw new Error(`View was altered but sync failed with error: ${syncResult.failed[0].error}`);
         }
 
@@ -762,7 +762,7 @@ export class CatalogAPI {
     async dropView({ namespace, name }, { ifExists = false, cascade = false, assertPersistence = null }) {
         const result = await this.#dropRelation({ namespace, name }, { ifExists, cascade, assertIsView: true, assertPersistence });
         // Entirely forget instance
-        if (result) await this.#engine.sync.forget({ [namespace]: name }, { tx: this.#tx });
+        if (result) await this.#storageEngine.sync.forget({ [namespace]: name }, { tx: this.#tx });
         return result;
     }
 
@@ -1346,7 +1346,7 @@ export class CatalogAPI {
                     if (!target.get(where)) throw new Error(`[${constraint.name || constraint.kind}] Existing rows violate foreign key`);
                 }
             } else if (constraint.kind === 'CHECK' && constraint.ck_expression_ast) {
-                const exprNode = registry.Expr.fromJSON(constraint.ck_expression_ast, { dialect: this.#engine.dialect, assert: true });
+                const exprNode = registry.Expr.fromJSON(constraint.ck_expression_ast, { dialect: this.#storageEngine.dialect, assert: true });
                 for (const row of rows) {
                     const result = await this.#exprEngine.evaluateToScalar(exprNode, { [tblDef.name]: row });
                     if (result === false) {

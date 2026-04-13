@@ -1,10 +1,10 @@
 export class ConcurrencyStrategy {
 
-    #engine;
-    get engine() { return this.#engine; }
+    #storageEngine;
+    get storageEngine() { return this.#storageEngine; }
 
-    constructor(engine) {
-        this.#engine = engine;
+    constructor(storageEngine) {
+        this.#storageEngine = storageEngine;
     }
 
     setXMIN(version, xmin) {
@@ -38,7 +38,7 @@ export class ConcurrencyStrategy {
             // if not 0, v.XMAX CAN BE an array
             // on transactions with strategy === FirstCommitterWins
             for (const xmax of [].concat(version.XMAX)) {
-                const meta = this.engine.txMeta(xmax);
+                const meta = this.storageEngine.txMeta(xmax);
                 if (meta && (meta.state === 'active' || meta.state === 'committed')) {
                     return meta;
                 }

@@ -1,7 +1,7 @@
-import { WalEngine as BaseWalEngine } from '../../proc/timeline/WalEngine.js';
+import { LinkedQlWal } from '../../proc/timeline/LinkedQlWal.js';
 import { ConflictError } from '../errors/ConflictError.js';
 
-export class FlashWalEngine extends BaseWalEngine {
+export class FlashQlWal extends LinkedQlWal {
 
     #storageEngine;
 
@@ -89,7 +89,8 @@ export class FlashWalEngine extends BaseWalEngine {
                             throw new SyntaxError(`[${relationPrettyName}] Downstream commit specifies a MVCC Key but member event omits the MVCC Tag`);
                         const currentRow = tableStorage.get(oldRef, { hiddenCols: true });
                         if (!currentRow) throwConflict();
-                        if (currentRow[relation.mvccKey] !== event.mvccTag) throwConflict(currentRow);
+                        // Casting both sides to text is important
+                        if (currentRow[relation.mvccKey]+'' !== event.mvccTag+'') throwConflict(currentRow);
                     }
 
                     let result;

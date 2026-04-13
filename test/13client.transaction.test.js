@@ -3,28 +3,31 @@ import chaiAsPromised from 'chai-as-promised';
 use(chaiAsPromised);
 
 import '../src/lang/index.js';
-import { MainstreamDBClient } from '../src/clients/abstracts/MainstreamDBClient.js';
+import { MainstreamClient } from '../src/clients/abstracts/MainstreamClient.js';
 import { ConflictError } from '../src/flashql/errors/ConflictError.js';
 import { BaseEdgeClient } from '../src/clients/edge/BaseEdgeClient.js';
 import { FlashQL } from '../src/flashql/FlashQL.js';
+import { MainstreamWal } from '../src/clients/abstracts/MainstreamWal.js';
 
-class MockMainstreamClient extends MainstreamDBClient {
+class MockMainstreamClient extends MainstreamClient {
     constructor() {
         super({ dialect: 'postgres' });
         this.calls = [];
+        this.wal = new MainstreamWal({ mainstreamClient: this });
     }
 
-    async _beginTransaction() {
+    async _begin() {
         this.calls.push('begin');
-        return { conn: { id: 1 } };
-    }
-
-    async _commitTransaction(tx) {
-        this.calls.push(['commit', tx.conn.id]);
-    }
-
-    async _rollbackTransaction(tx) {
-        this.calls.push(['rollback', tx.conn.id]);
+        const conn = { id: 1 };
+        return {
+            conn,
+            commit: async () => {
+                this.calls.push(['commit', conn.id]);
+            },
+            rollback: async () => {
+                this.calls.push(['rollback', conn.id]);
+            }
+        };
     }
 
     async _query(query, { tx = null } = {}) {
@@ -107,7 +110,7 @@ class MockEdgeWalClient extends BaseEdgeClient {
 }
 
 describe('Client.transaction(cb)', () => {
-    it('MainstreamDBClient: commits successful callback', async () => {
+    it('MainstreamClient: commits successful callback', async () => {
         const client = new MockMainstreamClient();
         const result = await client.transaction(async (tx) => {
             expect(tx.conn.id).to.eq(1);
@@ -118,7 +121,7 @@ describe('Client.transaction(cb)', () => {
         expect(client.calls).to.deep.eq(['begin', ['commit', 1]]);
     });
 
-    it('MainstreamDBClient: rolls back failing callback', async () => {
+    it('MainstreamClient: rolls back failing callback', async () => {
         const client = new MockMainstreamClient();
 
         await expect(client.transaction(async () => {
@@ -128,7 +131,7 @@ describe('Client.transaction(cb)', () => {
         expect(client.calls).to.deep.eq(['begin', ['rollback', 1]]);
     });
 
-    it('MainstreamDBClient: supports client.query(..., { tx }) inside transaction callback', async () => {
+    it('MainstreamClient: supports client.query(..., { tx }) inside transaction callback', async () => {
         const client = new MockMainstreamClient();
 
         const rows = await client.transaction(async (tx) => {
@@ -140,9 +143,9 @@ describe('Client.transaction(cb)', () => {
         expect(client.calls).to.deep.eq(['begin', ['commit', 1]]);
     });
 
-    it('MainstreamDBClient: surfaces begin failure and does not execute callback', async () => {
+    it('MainstreamClient: surfaces begin failure and does not execute callback', async () => {
         class BeginFailClient extends MockMainstreamClient {
-            async _beginTransaction() {
+            async _begin() {
                 this.calls.push('begin');
                 throw new Error('begin failed');
             }
@@ -158,7 +161,7 @@ describe('Client.transaction(cb)', () => {
         expect(client.calls).to.deep.eq(['begin']);
     });
 
-    it('MainstreamWalEngine: applies downstream commits inside a transaction', async () => {
+    it('MainstreamLinkedQlWal: applies downstream commits inside a transaction', async () => {
         class WalMockClient extends MockMainstreamClient {
             async _query(query, { tx = null } = {}) {
                 this.calls.push(['query', query + '', !!tx]);
@@ -191,11 +194,11 @@ describe('Client.transaction(cb)', () => {
         expect(client.calls[2][0]).to.eq('query');
         expect(client.calls[2][2]).to.eq(true);
         expect(client.calls[2][1]).to.contain('UPDATE "public"."users"');
-        expect(client.calls[2][1]).to.contain('CAST(CAST(xmin AS TEXT) AS BIGINT) = 7');
+        expect(client.calls[2][1]).to.contain('CAST(xmin AS TEXT) = 7');
         expect(client.calls[3]).to.deep.eq(['commit', 1]);
     });
 
-    it('MainstreamWalEngine: raises ConflictError when update/delete affects no rows', async () => {
+    it('MainstreamLinkedQlWal: raises ConflictError when update/delete affects no rows', async () => {
         class ConflictWalClient extends MockMainstreamClient {
             async _query(query, { tx = null } = {}) {
                 this.calls.push(['query', query + '', !!tx]);
@@ -222,11 +225,16 @@ describe('Client.transaction(cb)', () => {
         expect(client.calls[2]).to.deep.eq(['rollback', 1]);
     });
 
-    it('MainstreamDBClient: commit failure triggers rollback and surfaces commit error', async () => {
+    it('MainstreamClient: commit failure triggers rollback and surfaces commit error', async () => {
         class CommitFailClient extends MockMainstreamClient {
-            async _commitTransaction(tx) {
-                this.calls.push(['commit', tx.conn.id]);
-                throw new Error('commit failed');
+            async _begin() {
+                const tx = await super._begin();
+                const _commit = tx.commit;
+                tx.commit = async () => {
+                    await _commit();
+                    throw new Error('commit failed');
+                };
+                return tx;
             }
         }
         const client = new CommitFailClient();
@@ -235,11 +243,16 @@ describe('Client.transaction(cb)', () => {
         expect(client.calls).to.deep.eq(['begin', ['commit', 1], ['rollback', 1]]);
     });
 
-    it('MainstreamDBClient: rollback failure surfaces rollback error', async () => {
+    it('MainstreamClient: rollback failure surfaces rollback error', async () => {
         class RollbackFailClient extends MockMainstreamClient {
-            async _rollbackTransaction(tx) {
-                this.calls.push(['rollback', tx.conn.id]);
-                throw new Error('rollback failed');
+            async _begin() {
+                const tx = await super._begin();
+                const _rollback = tx.rollback;
+                tx.rollback = async () => {
+                    await _rollback();
+                    throw new Error('rollback failed');
+                };
+                return tx;
             }
         }
         const client = new RollbackFailClient();
@@ -295,7 +308,7 @@ describe('Client.transaction(cb)', () => {
 
         const result = await client.transaction(async (tx) => {
             const queryResult = await client.query('SELECT 1', { tx });
-            expect(queryResult.rows[0].tx).to.eq('tx_1');
+            expect(queryResult.rows[0].tx).to.deep.eq({id:'tx_1'});
             return 'ok';
         });
 
@@ -361,7 +374,7 @@ describe('Client.transaction(cb)', () => {
             return out;
         });
 
-        expect(rows).to.deep.eq([{ tx: 'tx_1', row: 1 }]);
+        expect(rows).to.deep.eq([{ tx: { id: 'tx_1' }, row: 1 }]);
         expect(client.calls.map((c) => c[0])).to.deep.eq(['transaction:begin', 'stream', 'transaction:commit']);
     });
 
@@ -377,7 +390,7 @@ describe('Client.transaction(cb)', () => {
         await expect(result.abort({ forget: true })).to.be.rejectedWith('Could not execute forget() on remote stream');
     });
 
-    it('EdgeWalEngine: preferRemote=true subscribes through remote edge transport', async () => {
+    it('EdgeWal: preferRemote=true subscribes through remote edge transport', async () => {
         const client = new MockEdgeWalClient();
 
         const gc = await client.wal.subscribe({ public: ['users'] }, async () => undefined, {
@@ -393,7 +406,7 @@ describe('Client.transaction(cb)', () => {
         await gc();
     });
 
-    it('EdgeWalEngine: preferRemote=false subscribes through local broker and still receives commits', async () => {
+    it('EdgeWal: preferRemote=false subscribes through local broker and still receives commits', async () => {
         const client = new MockEdgeWalClient();
         const commits = [];
 

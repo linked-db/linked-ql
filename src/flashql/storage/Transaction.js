@@ -2,7 +2,7 @@ import { CatalogAPI } from './schemas/CatalogAPI.js';
 
 export class Transaction extends CatalogAPI {
 
-    #engine;
+    #storageEngine;
     #parentTx;
     #id;
     #snapshot;
@@ -28,7 +28,7 @@ export class Transaction extends CatalogAPI {
     #targetState;
     #targetStateCaller;
 
-    get engine() { return this.#engine; }
+    get storageEngine() { return this.#storageEngine; }
     get parentTx() { return this.#parentTx; }
     get rootTx() { return this.#parentTx?.rootTx || this; }
     get id() { return this.#id; }
@@ -55,10 +55,10 @@ export class Transaction extends CatalogAPI {
 
     get _targetState() { return this.#targetState; }
 
-    constructor({ engine, id, snapshot, strategy, meta = null, parentTx = null }) {
-        super({ engine });
+    constructor({ storageEngine, id, snapshot, strategy, meta = null, parentTx = null }) {
+        super({ storageEngine });
 
-        this.#engine = engine;
+        this.#storageEngine = storageEngine;
         this.#id = id;
         this.#parentTx = parentTx;
         this.#snapshot = snapshot;
@@ -70,13 +70,13 @@ export class Transaction extends CatalogAPI {
                 // Parent was committed
                 if (this.#targetState === 'abort') return;
                 // Implicitly commit
-                await this.#engine.commit(this);
+                await this.#storageEngine.commit(this);
             });
             parentTx.addUndo(async () => {
                 // Parent was aborted
                 if (this.#targetState === 'abort') return;
                 // Implicitly abort
-                await this.#engine.abort(this);
+                await this.#storageEngine.rollback(this);
             });
         }
     }
@@ -128,7 +128,7 @@ export class Transaction extends CatalogAPI {
     // -------
 
     recordChange(change) {
-        if (this.#engine.readOnly && !this.#engine._isHydrating) {
+        if (this.#storageEngine.readOnly && !this.#storageEngine._isHydrating) {
             throw new Error('StorageEngine is read-only');
         }
         this.#changeLog.push(change);
@@ -137,7 +137,7 @@ export class Transaction extends CatalogAPI {
     }
 
     recordUpstreamChange(changePayload, { queued = true }) {
-        if (this.#engine.readOnly && !this.#engine._isHydrating) {
+        if (this.#storageEngine.readOnly && !this.#storageEngine._isHydrating) {
             throw new Error('StorageEngine is read-only');
         }
         const targetLog = queued
@@ -174,7 +174,7 @@ export class Transaction extends CatalogAPI {
         let parentMeta;
 
         // Wait for parent if still active
-        if (this.#parentTx && (parentMeta = this.#engine.txMeta(this.#parentTx.id))?.state === 'active') {
+        if (this.#parentTx && (parentMeta = this.#storageEngine.txMeta(this.#parentTx.id))?.state === 'active') {
             this.#targetState = 'commit';
             this.#targetStateCaller = captureStackTrace();
             return;
@@ -184,20 +184,20 @@ export class Transaction extends CatalogAPI {
         if (parentMeta?.state === 'aborted')
             throw new Error('Cannot commit as parent transaction is aborted');
 
-        await this.#engine.commit(this);
+        await this.#storageEngine.commit(this);
 
         this.#targetState = 'commit';
         this.#targetStateCaller = captureStackTrace();
     }
 
-    async abort() {
+    async rollback() {
         if (this.#targetState) {
             if (this.#targetState !== 'abort')
                 throw new Error(`Invalid transaction state; already committed \n${this.#targetStateCaller}`);
             return;
         }
 
-        await this.#engine.abort(this);
+        await this.#storageEngine.rollback(this);
 
         this.#targetState = 'abort';
         this.#targetStateCaller = captureStackTrace();
@@ -207,7 +207,7 @@ export class Transaction extends CatalogAPI {
 
     nextSequence(seqId) {
         this.#affectedSequences.add(seqId);
-        return this.#engine._nextSequence(seqId);
+        return this.#storageEngine._nextSequence(seqId);
     }
 }
 

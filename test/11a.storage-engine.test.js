@@ -151,7 +151,7 @@ describe('StorageEngine - Bootstrapping And Transactions', () => {
         const tx = storageEngine.begin();
         const table = tx.getRelation({ namespace: 'public', name: 'test' });
         const row = table.get(1, { hiddenCols: true });
-        await tx.abort();
+        await tx.rollback();
 
         // Omits the mvccTag
         await expect(storageEngine.wal.applyDownstreamCommit({
@@ -182,7 +182,7 @@ describe('StorageEngine - Bootstrapping And Transactions', () => {
         const verifyTx = storageEngine.begin();
         const verifyTable = verifyTx.getRelation({ namespace: 'public', name: 'test' });
         expect(verifyTable.get(1)).to.deep.include({ id: 1, name: 'John Doe' });
-        await verifyTx.abort();
+        await verifyTx.rollback();
     });
 });
 
@@ -739,7 +739,7 @@ describe('StorageEngine - TableStorage CRUD And Constraints', () => {
 
     it('rolls back uncommitted writes on abort', async () => {
         await users.insert({ fname: 'AbortMe' });
-        await tx.abort();
+        await tx.rollback();
 
         const verifyTx = storageEngine.begin();
         expect(verifyTx.listTables({ namespace: 'public' })).to.not.include('users');
@@ -1127,7 +1127,7 @@ describe('StorageEngine - Session Config', () => {
 
         const tx = storageEngine.begin();
         storageEngine.setSessionConfig('search_path', ['temp_schema'], tx);
-        await tx.abort();
+        await tx.rollback();
 
         expect(storageEngine.getSessionConfig('search_path')).to.deep.eq(['public']);
     });
@@ -1518,7 +1518,7 @@ describe('StorageEngine - MVCC And Transaction Metadata', () => {
     it('tracks tx meta as aborted', async () => {
         const storageEngine = await createEngine();
         const tx = storageEngine.begin();
-        await tx.abort();
+        await tx.rollback();
         expect(storageEngine.txMeta(tx.id).state).to.eq('aborted');
     });
 
@@ -1556,14 +1556,14 @@ describe('StorageEngine - MVCC And Transaction Metadata', () => {
         const storageEngine = await createEngine();
         const tx = storageEngine.begin();
         await tx.commit();
-        await expect(tx.abort()).to.be.rejectedWith(/Invalid transaction state/);
+        await expect(tx.rollback()).to.be.rejectedWith(/Invalid transaction state/);
     });
 
     it('commit/abort are idempotent for already committed/aborted tx', async () => {
         const storageEngine = await createEngine();
         const tx = storageEngine.begin();
-        await tx.abort();
-        await expect(tx.abort()).to.not.be.rejected;
+        await tx.rollback();
+        await expect(tx.rollback()).to.not.be.rejected;
     });
 });
 

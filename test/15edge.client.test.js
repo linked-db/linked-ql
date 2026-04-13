@@ -32,8 +32,8 @@ describe('EdgeClient - Exhaustive (HTTP)', () => {
         const OriginalWorker = globalThis.Worker;
         const OriginalSharedWorker = globalThis.SharedWorker;
         try {
-            globalThis.Worker = class extends EventTarget { postMessage() {} };
-            globalThis.SharedWorker = class { constructor() { return new (class extends EventTarget { postMessage() {} })(); } };
+            globalThis.Worker = class extends EventTarget { postMessage() { } };
+            globalThis.SharedWorker = class { constructor() { return new (class extends EventTarget { postMessage() { } })(); } };
 
             expect(() => new EdgeClient({ url: '/w.js', type: 'worker' })).to.not.throw();
             expect(() => new EdgeClient({ url: '/sw.js', type: 'shared_worker' })).to.not.throw();
@@ -86,11 +86,11 @@ describe('EdgeClient - Exhaustive (HTTP)', () => {
         });
 
         const txId = await client.transaction(async (tx) => {
-            const res = await tx.query('SELECT 1');
+            const res = await client.query('SELECT 1', { tx });
             return res.rows[0].tx;
         });
 
-        expect(txId).to.eq('tx-http-1');
+        expect(txId).to.deep.eq({ id: 'tx-http-1' });
         expect(committed).to.eq(true);
         expect(rolledBack).to.eq(false);
     });

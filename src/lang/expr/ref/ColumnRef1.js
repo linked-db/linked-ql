@@ -75,7 +75,7 @@ export class ColumnRef1 extends PathMixin(AbstractClassicRef) {
         if (systemColumns.includes(name?.toUpperCase())) {
             const columnSchema = registry.ColumnSchema.fromJSON({
                 name: { nodeName: registry.Identifier.NODE_NAME, value: name },
-                data_type: { nodeName: registry.DataType.NODE_NAME, value: 'INT' },
+                data_type: { nodeName: registry.DataType.NODE_NAME, value: 'TEXT' },
             }, { assert: true });
             return [].concat(resolve(columnSchema, undefined, 'system') || []);
         }

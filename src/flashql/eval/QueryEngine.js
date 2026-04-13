@@ -54,10 +54,10 @@ export class QueryEngine {
 
     // -------- ENTRY
 
-    async query(scriptNode, options = {}) {
+    async query(scriptNode, { tx: inputTx, ...options } = {}) {
         const queryCtx = {
             options: { ...this.#options, ...options },
-            tx: this.#storageEngine.begin({ parentTx: options.tx }),
+            tx: this.#storageEngine.begin({ parentTx: inputTx }),
             lateralCtx: null,
             cteRegistry: new Map,
             depth: 0,
@@ -68,7 +68,7 @@ export class QueryEngine {
             returnValue = await this.#evaluateSTMT(scriptNode, queryCtx, true);
             await queryCtx.tx.commit();
         } catch (e) {
-            await queryCtx.tx.abort();
+            await queryCtx.tx.rollback();
             throw e;
         }
 
@@ -851,13 +851,20 @@ export class QueryEngine {
 
     // -------- DQL
 
+    async #upstreamExecuteStream(upstreamClient, query, inputTx) {
+        if (upstreamClient.storageEngine === this.#storageEngine) {
+            return await upstreamClient.stream(query, { tx: inputTx });
+        }
+        return await upstreamClient.stream(query);
+    }
+
     async * #evaluateTABLE_STMT(stmtNode, queryCtx) {
         // Resolve namespace/table spec
         const tableRef = stmtNode.tableRef();
 
-        const [tblDef, upstreamClient] = await this.#resolveIfPureFederation(tableRef, queryCtx.options, queryCtx);
+        const [tblDef, upstreamClient] = await this.#resolveIfPureFederation(tableRef, queryCtx);
         if (upstreamClient) {
-            yield* await upstreamClient.stream(tblDef.source_expr_ast);
+            yield* await this.#upstreamExecuteStream(upstreamClient, tblDef.source_expr_ast, queryCtx.tx);
             return;
         }
 
@@ -952,10 +959,10 @@ export class QueryEngine {
         const firstItemAlias = firstItem.alias?.()?.value();
 
         // Pre-resolve foreign calls
-        const [tblDef, upstreamClient] = await this.#resolveIfPureFederation(firstItem.expr?.(), queryCtx.options, queryCtx);
+        const [tblDef, upstreamClient] = await this.#resolveIfPureFederation(firstItem.expr?.(), queryCtx);
         let foreignStream;
         if (upstreamClient) {
-            foreignStream = await upstreamClient.stream(tblDef.source_expr_ast);
+            foreignStream = await this.#upstreamExecuteStream(upstreamClient, tblDef.source_expr_ast, queryCtx.tx);
         }
 
         let leftStream = this.evaluateFromItem(firstItem, _originSchema(firstItemAlias), { ...queryCtx, foreignStream });
@@ -1095,7 +1102,7 @@ export class QueryEngine {
                     if (i === 0 || i > $i) {
                         if (i > $i) foreignQuery = await concatWhere(); // lazily
                         if (foreignQuery) {
-                            foreignStream = await upstreamClient.stream(foreignQuery);
+                            foreignStream = await this.#upstreamExecuteStream(upstreamClient, foreignQuery, queryCtx.tx);
                         } else foreignStream = (async function* () { })();
                     }
                     return foreignStream;
@@ -1106,7 +1113,7 @@ export class QueryEngine {
                     let pushDownLogic = await this.#exprEngine.evaluate(conditionExpr, { ...lateralCtx, [rightAlias]: TBL_PLACEHOLDER }, queryCtx);
                     if (pushDownLogic instanceof AbstractNode || (pushDownLogic = Boolean(pushDownLogic))) {
                         const foreignQuery = foreignQuery_Where(pushDownLogic);
-                        return await upstreamClient.stream(foreignQuery);
+                        return await this.#upstreamExecuteStream(upstreamClient, foreignQuery, queryCtx.tx);
                     }
                     return (async function* () { })();
                 };
@@ -1116,10 +1123,10 @@ export class QueryEngine {
         } else {
             // No WHERE at all
             if (joinMemoization) {
-                const foreignStream = await upstreamClient.stream(tblDef.source_expr_ast);
+                const foreignStream = await this.#upstreamExecuteStream(upstreamClient, tblDef.source_expr_ast, queryCtx.tx);
                 createForeignStream = this.#memoizeStream(foreignStream);
             } else {
-                createForeignStream = async () => await upstreamClient.stream(tblDef.source_expr_ast);
+                createForeignStream = async () => await this.#upstreamExecuteStream(upstreamClient, tblDef.source_expr_ast, queryCtx.tx);
             }
         }
 

@@ -1,27 +1,18 @@
 import mysql from 'mysql2/promise';
-import { MainstreamDBClient } from '../abstracts/MainstreamDBClient.js';
+import { MainstreamClient } from '../abstracts/MainstreamClient.js';
 
-export class MySQLClient extends MainstreamDBClient {
+export class MySQLClient extends MainstreamClient {
 
     #driver;
     #adminDriver;
     #poolMode;
     #connectionParams;
 
-    #walSlotName;
-    #walSlotPersistence = 0;
-
-    #walClient;
-    #walInit = false;
-
     get driver() { return this.#driver; }
     get poolMode() { return this.#poolMode; }
-    get walSlotName() { return this.#walSlotName; }
 
     constructor({
         poolMode = false,
-        walSlotName = 'linkedql_default_slot',
-        walSlotPersistence = 1, // 2 for wholly externally-managed slot
         capability = {},
         nonDDLMode = false,
         ...connectionParams
@@ -29,9 +20,10 @@ export class MySQLClient extends MainstreamDBClient {
         super({ dialect: 'mysql', capability, nonDDLMode });
 
         this.#poolMode = poolMode;
-        this.#connectionParams = connectionParams;
-        this.#walSlotName = walSlotName;
-        this.#walSlotPersistence = walSlotPersistence;
+        this.#connectionParams = {
+            ...connectionParams,
+            multipleStatements: true,
+        };
     }
 
     async connect() {
@@ -60,18 +52,30 @@ export class MySQLClient extends MainstreamDBClient {
         await super.disconnect();
     }
 
-    async _beginTransaction() {
+    async _begin(options) {
         const conn = await this.connect();
-        await conn.query('BEGIN TRANSACTION');
-        return { conn };
-    }
 
-    async _commitTransaction(tx) {
-        await tx.conn.query('COMMIT');
-    }
+        const [results] = await conn.query(`
+            BEGIN TRANSACTION;
+            SET @__current_tx_uuid__ = UUID_SHORT();
+            SELECT @__current_tx_uuid__ AS txid;
+        `);
+        // results[0] is the result of 'BEGIN'
+        // results[1] is the result of 'SET'
+        // results[2] is the result of 'SELECT'
+        const txid = results[2][0].txid;
 
-    async _rollbackTransaction(tx) {
-        await tx.conn.query('ROLLBACK');
+        const complete = async (cmd) => {
+            await conn.query(cmd);
+            if (this.#poolMode) await conn.release();
+        };
+
+        return {
+            conn,
+            txid: BigInt(txid),
+            async commit() { await complete('COMMIT'); },
+            async rollback() { await complete('ROLLBACK'); },
+        };
     }
 
     async _query(query, { values = [], name = null, tx = null }) {

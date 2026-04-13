@@ -1,8 +1,8 @@
 import { registry } from '../../lang/registry.js';
-import { SchemaInference as BaseSchemaInference } from '../../lang/SchemaInference.js';
+import { SchemaInference } from '../../lang/SchemaInference.js';
 import { SQLParser } from '../../lang/SQLParser.js';
 
-export class FlashSchemaInference extends BaseSchemaInference {
+export class FlashQLSchemaInference extends SchemaInference {
 
     #storageEngine;
     #parser;

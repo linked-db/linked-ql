@@ -2,15 +2,15 @@ import '../../lang/index.js';
 import { registry } from '../../lang/registry.js';
 import { matchRelationSelector, normalizeRelationSelectorArg } from '../../clients/abstracts/util.js';
 import { DEFAULT_USERSPACE_DATA } from './bootstrap/catalog.bootstrap.js';
-import { FlashSchemaInference } from './FlashSchemaInference.js';
-import { FlashWalEngine } from './FlashWalEngine.js';
+import { FlashQLSchemaInference } from './FlashQLSchemaInference.js';
+import { FlashQlWal } from './FlashQlWal.js';
 import { SyncManager } from '../sync/SyncManager.js';
 import { MVCCEngine } from './MVCCEngine.js';
 import { SYSTEM_TAG } from './TableStorage.js';
 
 export class StorageEngine extends MVCCEngine {
 
-    #client;
+    #flashQlClient;
     #dialect;
     #keyval;
     #options;
@@ -32,7 +32,7 @@ export class StorageEngine extends MVCCEngine {
     #isHydrating;
     #initCalled;
 
-    get client() { return this.#client; }
+    get flashQlClient() { return this.#flashQlClient; }
     get dialect() { return this.#dialect; }
     get keyval() { return this.#keyval; }
     get options() { return { ...this.#options }; }
@@ -45,10 +45,10 @@ export class StorageEngine extends MVCCEngine {
     get _isHydrating() { return this.#isHydrating; }
     get _catalog() { return this.#catalog; }
 
-    constructor({ client = null, dialect = 'postgres', keyval = null, autoSync = true, getUpstreamClient = null, readOnly = false, ...options } = {}) {
+    constructor({ flashQlClient = null, dialect = 'postgres', keyval = null, autoSync = true, getUpstreamClient = null, readOnly = false, ...options } = {}) {
         super();
 
-        this.#client = client;
+        this.#flashQlClient = flashQlClient;
         this.#dialect = dialect;
         this.#keyval = keyval;
         this.#options = options;
@@ -61,7 +61,7 @@ export class StorageEngine extends MVCCEngine {
         this.#overwriteForward = false;
         this.#forwardHistoryTruncated = true;
 
-        this.#wal = new FlashWalEngine({ storageEngine: this, keyval: keyval ?? undefined, drainMode: 'never' });
+        this.#wal = new FlashQlWal({ storageEngine: this, keyval: keyval ?? undefined, drainMode: 'never' });
         this.#sync = new SyncManager(this);
     }
 
@@ -147,7 +147,7 @@ export class StorageEngine extends MVCCEngine {
     }
 
     getResolver() {
-        return new FlashSchemaInference({ storageEngine: this });
+        return new FlashQLSchemaInference({ storageEngine: this });
     }
 
     // ----------
@@ -166,8 +166,8 @@ export class StorageEngine extends MVCCEngine {
         const effectiveReplicationOrigin = replicationAttrs.effective_replication_origin;
         if (effectiveReplicationOrigin)
             return await this.getUpstreamClient(effectiveReplicationOrigin);
-        if (this.#client) return this.#client;
-        if (assert) throw new Error('Operation requires a source client; configure StorageEngine with options.client or namespace replication origins');
+        if (this.#flashQlClient) return this.#flashQlClient;
+        if (assert) throw new Error('Operation requires a source flashQlClient; configure StorageEngine with options.flashQlClient or namespace replication origins');
     }
 
     async getSourceResolver(tblDef) {
@@ -451,7 +451,7 @@ export class StorageEngine extends MVCCEngine {
 
             await tx.commit();
         } catch (e) {
-            await tx.abort();
+            await tx.rollback();
             throw e;
         }
     }
@@ -459,6 +459,10 @@ export class StorageEngine extends MVCCEngine {
     // ----- transactions
 
     async transaction(cb, options = {}) {
+        if (typeof cb !== 'function') {
+            throw new TypeError('transaction(cb): cb must be a function');
+        }
+
         const tx = this.begin(options);
         let returnValue;
 
@@ -466,7 +470,7 @@ export class StorageEngine extends MVCCEngine {
             returnValue = await cb(tx);
             await tx.commit();
         } catch (e) {
-            await tx.abort();
+            await tx.rollback();
             throw e;
         }
 

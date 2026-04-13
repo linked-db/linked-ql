@@ -3,7 +3,7 @@ import { normalizeRelationSelectorArg } from '../../clients/abstracts/util.js';
 const E_PATTERNS = Symbol('patterns');
 const ALL_MATCH = '["*","*"]';
 
-export class WalEngine {
+export class LinkedQlWal {
 
     #keyval;
     #drainMode;
@@ -173,10 +173,7 @@ export class WalEngine {
             this.#subscribers.delete(sub.id);
 
             if (forget) existed = await this.forget(sub.id);
-
-            if (!this.#subscribers.size && this.#lifecycleHook) {
-                await this.#lifecycleHook(0);
-            }
+            else await this.#callLifecycleHookIf();
 
             return existed;
         };
@@ -192,13 +189,30 @@ export class WalEngine {
             this.#scheduleDrain();
         }
 
+        await this.#callLifecycleHookIf();
+
         return existed;
+    }
+
+    async #callLifecycleHookIf() {
+        if (!this.#lifecycleHook) return;
+        if (this.#subscribers.size) return;
+
+        const cantTerminate = this.#drainMode === 'never'
+            || this.#drainMode === 'drain' && (
+                this.#slotsKV instanceof Map
+                    ? this.#slotsKV.size
+                    : await this.#slotsKV.count()
+            );
+        if (cantTerminate) return;
+
+        await this.#lifecycleHook(0);
     }
 
     // ----------- applying
 
     async applyDownstreamCommit(commit, options = {}) {
-        throw new Error('WalEngine.applyDownstreamCommit() is not implemented by this adapter');
+        throw new Error('LinkedQlWal.applyDownstreamCommit() is not implemented by this adapter');
     }
 
     // ----------- dispatcher

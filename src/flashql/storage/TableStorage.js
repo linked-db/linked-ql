@@ -59,11 +59,11 @@ export class TableStorage {
         this.#namespace = schema.namespace_id.name;
         this.#prettyName = `${JSON.stringify(this.#namespace)}.${JSON.stringify(this.#name)}`
 
-        let { rows, indexes } = this.#tx.engine._catalog.get(schema.id) || {};
+        let { rows, indexes } = this.#tx.storageEngine._catalog.get(schema.id) || {};
         if (!rows) {
             rows = new Map;
             indexes = new Map;
-            this.#tx.engine._catalog.set(schema.id, { rows, indexes });
+            this.#tx.storageEngine._catalog.set(schema.id, { rows, indexes });
         }
 
         this.#rows = rows;
@@ -159,7 +159,7 @@ export class TableStorage {
         // Dropped by some other tx in unrelated subtree?
         for (const xmax of [].concat(version.XMAX)) {
             if (xmax === 0) continue; // Consider visible
-            const xmaxMeta = this.#tx.engine.txMeta(xmax);
+            const xmaxMeta = this.#tx.storageEngine.txMeta(xmax);
             // Not found? Aborted? Ignore as not (yet) dropped; thus, visible
             if (!xmaxMeta || xmaxMeta.state === 'aborted') continue;
 
@@ -181,7 +181,7 @@ export class TableStorage {
         // -----------
 
         // Created by some other tx in unrelated subtree?
-        const xminMeta = this.#tx.engine.txMeta(version.XMIN);
+        const xminMeta = this.#tx.storageEngine.txMeta(version.XMIN);
         // Not found? Aborted? Ignore as not (yet) dropped; thus, not visible
         if (!xminMeta || xminMeta.state === 'aborted') return false;
 
@@ -294,7 +294,7 @@ export class TableStorage {
             this.#schema.id,
             colName
         ].join('|');
-        this.#tx.engine._ensureSequenceAtLeast(seqId, nextValue);
+        this.#tx.storageEngine._ensureSequenceAtLeast(seqId, nextValue);
     }
 
     #applyAutoIncr(input) {
@@ -472,7 +472,7 @@ export class TableStorage {
     }
 
     #runFKChecks(input) {
-        if (this.#tx.engine._isHydrating
+        if (this.#tx.storageEngine._isHydrating
             && this.#schema.namespace_id?.name === 'sys'
             && ['sys_insync_jobs', 'sys_outsync_queue'].includes(this.#schema.name)) {
             return;
@@ -1137,7 +1137,7 @@ export class TableStorage {
     // TODO:
     // vacuum() hasn't been wired
     vacuum() {
-        const oldest = this.#tx.engine.getOldestActiveSnapshot();
+        const oldest = this.#tx.storageEngine.getOldestActiveSnapshot();
 
         for (const [pk, chain] of this.#rows) {
             chainIteration: for (let i = chain.length - 1; i >= 0; i--) {
@@ -1147,7 +1147,7 @@ export class TableStorage {
                 // if not 0, v.XMAX CAN BE an array
                 // on transactions with strategy === FirstCommitterWins
                 for (const xmax of [].concat(v.XMAX)) {
-                    const meta = this.#tx.engine.txMeta(xmax);
+                    const meta = this.#tx.storageEngine.txMeta(xmax);
 
                     if (!meta || meta.state !== 'committed') continue chainIteration;
 

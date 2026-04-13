@@ -3,6 +3,16 @@ import { EdgeWorker } from '../src/clients/edge/remote/EdgeWorker.js';
 import { InMemoryKV } from '@webqit/keyval/inmemory';
 import { FlashQL } from '../src/flashql/FlashQL.js';
 import Observer from '@webqit/observer';
+import { PGClient } from '../src/clients/postgres/PGClient.js';
+
+
+const pg = new PGClient;
+await pg.connect();
+
+
+console.log((await pg.query(`SELECT *, $1 FROM public.rrr WHERE id = $2`, { values: [3, 74], live: false })).rows);
+
+
 console.log(`\n\nStage 1:________________________________________\n\n`);
 /**
  * This is DB1 - the upstream DB.

@@ -1,7 +1,8 @@
 import { SimpleEmitter } from '../../clients/abstracts/SimpleEmitter.js';
 import { matchExpr } from '../../clients/abstracts/util.js';
 import { ExprEngine } from '../../flashql/eval/ExprEngine.js';
-import { WalEngine } from '../timeline/WalEngine.js';
+import { Transformer } from '../../lang/Transformer.js';
+import { LinkedQlWal } from '../timeline/LinkedQlWal.js';
 import { registry } from "../../lang/registry.js";
 import { _eq } from "../../lang/abstracts/util.js";
 
@@ -193,7 +194,10 @@ export class QueryWindow extends SimpleEmitter {
 
     // -----------------
 
-    #driver;
+    #linkedQlClient;
+    #tx;
+    #dialect;
+
     #options;
 
     #status = 0;
@@ -223,6 +227,7 @@ export class QueryWindow extends SimpleEmitter {
 
     #logicalQuery;
     #logicalQueryJson;
+    #logicalQueryParams;
 
     #originAliases = [];
     #originSchemas = new Map;
@@ -243,7 +248,9 @@ export class QueryWindow extends SimpleEmitter {
 
     #wal;
 
-    get driver() { return this.#driver; }
+    get linkedQlClient() { return this.#linkedQlClient; }
+    get tx() { return this.#tx; }
+    get dialect() { return this.#dialect; }
 
     get analysis() { return this.#analysis; }
     get strategy() { return this.#strategy; }
@@ -256,10 +263,9 @@ export class QueryWindow extends SimpleEmitter {
 
     get wal() { return this.#wal; }
 
-    constructor(driver, query, options = {}) {
+    constructor(linkedQlClient, query, { tx, ...options } = {}) {
         super();
 
-        this.#driver = driver;
         if (!(query instanceof registry.BasicSelectStmt)) {
             throw new Error('Only SELECT statements are supported in live mode');
         }
@@ -269,13 +275,19 @@ export class QueryWindow extends SimpleEmitter {
         if (!Array.isArray(query.originSchemas())) {
             throw new Error('Expected a pre-resolved query object with originSchemas() returning an array');
         }
+
+        this.#linkedQlClient = linkedQlClient;
+        this.#tx = tx;
+        this.#dialect = this.#linkedQlClient.dialect;
+
         this.#query = query;
         this.#queryJson = this.#query.jsonfy({ resultSchemas: false, originSchemas: false });
         this.#options = options; // { noOffsetRevalidate, forceDiffing }
+        this.#queryCtx = { options: { values: options.values || [] } };
 
-        this.#wal = new WalEngine({ drainMode: 'drain' });
+        this.#wal = new LinkedQlWal({ drainMode: 'drain' });
 
-        this.#fromJsonOpts = { dialect: this.#driver.dialect, assert: true };;
+        this.#fromJsonOpts = { dialect: this.#dialect, assert: true };;
 
         const self = this;
         this.#exprEngine = new ExprEngine(
@@ -404,7 +416,9 @@ export class QueryWindow extends SimpleEmitter {
         if (!(parentWindow instanceof QueryWindow)) {
             throw new Error(`Parent window must be instance of QueryWindow or null`);
         }
+        if (this.#tx !== parentWindow.#tx) return false; // Already have been filtered by RealtimeClient tho
         if (!_eq(this.#subwindowingRules, parentWindow.#subwindowingRules)) return false;
+        if (!_eq(this.#options, parentWindow.#options)) return false;
         const result = this.constructor.intersectQueries(
             parentWindow.#query,
             this.#query,
@@ -495,38 +509,28 @@ export class QueryWindow extends SimpleEmitter {
         const newOrderElementsJson = this.#resolvedOrderElements.map((oi) => oi.jsonfy());
         let newQueryHead = this.#originAliases.reduce((acc, aliasJson) => {
             const originSchema = this.#originSchemas.get(aliasJson.value);
-            const XMIN_autoInjection = this.#driver.dialect !== 'mysql' && !originSchema.$columns.find((c) => c.value.toUpperCase() === 'XMIN');
+            const XMIN_autoInjection = this.#dialect !== 'mysql' && !originSchema.$columns.find((c) => c.value.toUpperCase() === 'XMIN');
 
             // Column key/value construction
             const createColKeyValJson = (colJson) => {
                 const keyJson = { nodeName: 'STRING_LITERAL', ...colJson };
                 let colRefJson = { nodeName: 'COLUMN_REF1', ...colJson, qualifier: { nodeName: 'TABLE_REF1', ...aliasJson } };
                 if (colJson.value === 'XMIN' && XMIN_autoInjection) {
-                    colRefJson = this.#driver.dialect === 'postgres'
-                        ? {
-                            nodeName: 'CAST_EXPR',
-                            expr: {
-                                nodeName: 'CAST_EXPR',
-                                expr: colRefJson,
-                                data_type: { nodeName: 'DATA_TYPE', value: 'TEXT' }
-                            },
-                            data_type: { nodeName: 'DATA_TYPE', value: 'INT' }
-                        }
-                        : { nodeName: 'CAST_EXPR', expr: colRefJson, data_type: { nodeName: 'DATA_TYPE', value: 'INT' } };
+                    colRefJson = { nodeName: 'CAST_EXPR', expr: colRefJson, data_type: { nodeName: 'DATA_TYPE', value: 'TEXT' } };
                 }
                 // Format for strategy.aggrMode === 2?
                 if (analysis.hasAggrFunctions) {
-                    const fnName = this.#driver.dialect === 'mysql' ? 'JSON_STRINGAGG' : 'JSON_AGG';
+                    const fnName = this.#dialect === 'mysql' ? 'JSON_STRINGAGG' : 'JSON_AGG';
                     colRefJson = { nodeName: 'CALL_EXPR', name: fnName, arguments: [colRefJson] };
                 }
                 return [keyJson, colRefJson];
             };
             // Compose the cols JSON
-            const fnName = this.#driver.dialect === 'mysql' ? 'JSON_OBJECT' : 'JSON_BUILD_OBJECT';
+            const fnName = this.#dialect === 'mysql' ? 'JSON_OBJECT' : 'JSON_BUILD_OBJECT';
             const fnArgs = (
                 strategy.ssr
                     ? originSchema.$keyColumns
-                    : originSchema.$columns.concat(XMIN_autoInjection ? { value: 'XMIN', delim: '"' } : [])
+                    : originSchema.$columns.concat(XMIN_autoInjection ? { value: 'XMIN' } : [])
             ).reduce((colKeyValJsons, colJson) => ([...colKeyValJsons, ...createColKeyValJson(colJson)]), []);
             const aliasColsExpr = { nodeName: 'CALL_EXPR', name: fnName, arguments: fnArgs };
 
@@ -550,7 +554,7 @@ export class QueryWindow extends SimpleEmitter {
         // Format for strategy.ssr?
         // SELECT: { ssr: {...}, key: {...}[, ord] }
         if (strategy.ssr) {
-            const fnName = this.#driver.dialect === 'mysql' ? 'JSON_OBJECT' : 'JSON_BUILD_OBJECT';
+            const fnName = this.#dialect === 'mysql' ? 'JSON_OBJECT' : 'JSON_BUILD_OBJECT';
             // 1. Whole original query head as a select item
             const originalsArgs = this.#queryJson.select_list.entries.reduce((acc, si) => {
                 return acc.concat({ nodeName: 'STRING_LITERAL', value: si.alias.value }, si.expr);
@@ -564,7 +568,7 @@ export class QueryWindow extends SimpleEmitter {
                 newQueryHead.push({ nodeName: 'SELECT_ITEM', alias: { nodeName: 'SELECT_ITEM_ALIAS', value: 'key' }, expr: keysJson });
                 // Oh ... with ordinality?
                 if (analysis.hasOrderByClause) {
-                    const fnName = this.#driver.dialect === 'mysql' ? 'JSON_ARRAY' : 'JSON_BUILD_ARRAY';
+                    const fnName = this.#dialect === 'mysql' ? 'JSON_ARRAY' : 'JSON_BUILD_ARRAY';
                     const ordsJson = { nodeName: 'CALL_EXPR', name: fnName, entries: newOrderElementsJson.map((oi) => oi.expr) };
                     newQueryHead.push({ nodeName: 'SELECT_ITEM', alias: { nodeName: 'SELECT_ITEM_ALIAS', value: 'ord' }, expr: ordsJson });
                 }
@@ -578,11 +582,39 @@ export class QueryWindow extends SimpleEmitter {
         this.#logicalQueryJson = { ...this.#queryJson, select_list, order_by_clause };
         this.#logicalQuery = this.#query.constructor.fromJSON(this.#logicalQueryJson, this.#fromJsonOpts);
 
+        // Normalize query params
+        this.#logicalQueryParams = this.#queryCtx.options.values.slice(0);
+
+        if (!strategy.ssr) {
+            this.#logicalQueryParams = [];
+
+            const inputQueryParams = this.#queryCtx.options.values;
+            const expectedLength = inputQueryParams.length;
+
+            let bindingIndex = 1;
+
+            const transformer = new Transformer((node, defaultTransform) => {
+                if (node instanceof registry.BindVar) {
+                    const i = node.value();
+                    if (i > expectedLength) {
+                        throw new SyntaxError(`Could not determine data type of parameter ${node}`);
+                    }
+                    this.#logicalQueryParams.push(
+                        inputQueryParams[i - 1]
+                    );
+                    return { ...node.jsonfy(), value: bindingIndex++ };
+                }
+                // For all other things...
+                return defaultTransform();
+            });
+            this.#logicalQuery = this.#logicalQuery.clone({}, transformer);
+        }
+
         // ----------- connect
 
         // Connect to WAL events or equivalent
         // Drivers must implement the interface
-        this.#abortLine = await this.#driver.wal.subscribe(analysis.fromItemsBySchema, (commit) => {
+        this.#abortLine = await this.#linkedQlClient.wal.subscribe(analysis.fromItemsBySchema, (commit) => {
             this.#handleCommit(commit).catch((e) => {
                 this.emit('error', e);
             });
@@ -713,7 +745,7 @@ export class QueryWindow extends SimpleEmitter {
             logicalQuery = this.#query.constructor.fromJSON(logicalQueryJson, this.#fromJsonOpts);
         }
 
-        const result = await this.#driver.query(logicalQuery);
+        const result = await this.#linkedQlClient.query(logicalQuery, { tx: this.#tx, values: this.#logicalQueryParams });
 
         const resultEntries = [];
         for (const [i, logicalRecord] of result.rows.entries()) {
@@ -825,7 +857,7 @@ export class QueryWindow extends SimpleEmitter {
                 : Object.values(e.key);
 
             let eWithXMIN = e;
-            if (this.#driver.dialect !== 'mysql' && e.new/* INSERT|UPDATE */ && !(e.new.xmin || e.new.XMIN)) {
+            if (this.#dialect !== 'mysql' && e.new/* INSERT|UPDATE */ && !(e.new.xmin || e.new.XMIN)) {
                 eWithXMIN = { ...e, new: { ...e.new, XMIN: txId } };
             }
 

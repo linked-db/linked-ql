@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
 import '../src/lang/index.js';
-import { WalEngine } from '../src/proc/timeline/WalEngine.js';
+import { LinkedQlWal } from '../src/proc/timeline/LinkedQlWal.js';
 import { RealtimeResult } from '../src/proc/realtime/RealtimeResult.js';
 import { FlashQL } from '../src/flashql/FlashQL.js';
 
@@ -14,7 +14,7 @@ const makeEntry = (namespace, name, op = 'insert', id = 1) => ({
 });
 
 describe('Realtime - Stress', () => {
-    describe('WalEngine selector matrix', () => {
+    describe('LinkedQlWal selector matrix', () => {
         const selectors = [
             '*',
             { public: ['users'] },
@@ -35,7 +35,7 @@ describe('Realtime - Stress', () => {
             for (const [ns, table] of relations) {
                 idx += 1;
                 it(`selector case #${idx}`, async () => {
-                    const wal = new WalEngine({ drainMode: 'never' });
+                    const wal = new LinkedQlWal({ drainMode: 'never' });
                     const seen = [];
                     await wal.subscribe(selector, (commit) => seen.push(commit));
 
@@ -262,9 +262,9 @@ describe('Realtime - Stress', () => {
         });
     });
 
-    describe('WalEngine persistence and catch-up', () => {
+    describe('LinkedQlWal persistence and catch-up', () => {
         it('truncateForward validates commitTime argument', async () => {
-            const wal = new WalEngine({ keyval: new Map(), drainMode: 'never' });
+            const wal = new LinkedQlWal({ keyval: new Map(), drainMode: 'never' });
             let err;
             try {
                 await wal.truncateForward(-1);
@@ -284,7 +284,7 @@ describe('Realtime - Stress', () => {
 
         it('truncateForward drops future commits and rewinds slot checkpoints', async () => {
             const keyval = new Map();
-            const wal = new WalEngine({ keyval, drainMode: 'never' });
+            const wal = new LinkedQlWal({ keyval, drainMode: 'never' });
 
             const off = await wal.subscribe('*', async () => undefined, { id: 'slot_t' });
             await wal.dispatch({ commitTime: 1, entries: [makeEntry('public', 'users', 'insert', 1)] });
@@ -301,7 +301,7 @@ describe('Realtime - Stress', () => {
 
         it('resumes from last seen commit using persistent slot id', async () => {
             const keyval = new Map();
-            const wal = new WalEngine({ keyval, drainMode: 'never' });
+            const wal = new LinkedQlWal({ keyval, drainMode: 'never' });
 
             const seenA = [];
             const offA = await wal.subscribe('*', (commit) => seenA.push(commit), { id: 'slot_a' });
@@ -321,7 +321,7 @@ describe('Realtime - Stress', () => {
 
         it('flushes queued commits that arrive while subscriber is catching up', async () => {
             const keyval = new Map();
-            const wal = new WalEngine({ keyval, drainMode: 'never' });
+            const wal = new LinkedQlWal({ keyval, drainMode: 'never' });
 
             const off1 = await wal.subscribe('*', async () => undefined, { id: 'slot_q' });
             await wal.dispatch({ commitTime: 1, entries: [makeEntry('public', 'users', 'insert', 1)] });

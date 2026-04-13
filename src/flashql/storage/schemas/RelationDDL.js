@@ -95,7 +95,7 @@ export class RelationDDL {
             throw new Error(`Unexpected inputs: ${unexpected.join(', ')}`);
 
         this.#tx = tx;
-        this.#parser = new SQLParser({ dialect: this.#tx.engine.dialect });
+        this.#parser = new SQLParser({ dialect: this.#tx.storageEngine.dialect });
         this.#isCreate = !id;
 
         this.#id = id;
@@ -352,7 +352,7 @@ export class RelationDDL {
         } else {
             if (!['string', 'object'].includes(typeof value))
                 throw new Error(`"source_expr" must be a string or an object spec or AST`);
-            sourceExprNode = await this.#parser.parse(value, { dialect: this.#tx.engine.dialect });
+            sourceExprNode = await this.#parser.parse(value, { dialect: this.#tx.storageEngine.dialect });
         }
 
         // ----- Resolution
@@ -363,8 +363,8 @@ export class RelationDDL {
                 ? this.#namespace_id.view_opts_default_replication_origin
                 : this.#view_opts_replication_origin;
             const view_mode_replication_attrs = { effective_replication_origin };
-            const schemaInference = await this.#tx.engine.getSourceResolver({ kind: 'view', view_mode_replication_attrs });
-            const resolvedQuery = await schemaInference.resolveQuery(sourceExprNode, { tx: schemaInference.storageEngine === this.#tx.engine ? this.#tx : null });
+            const schemaInference = await this.#tx.storageEngine.getSourceResolver({ kind: 'view', view_mode_replication_attrs });
+            const resolvedQuery = await schemaInference.resolveQuery(sourceExprNode, { tx: schemaInference.storageEngine === this.#tx.storageEngine ? this.#tx : null });
             const originSchemas = resolvedQuery.originSchemas();
 
             // Analyze AST
@@ -409,29 +409,14 @@ export class RelationDDL {
                         this.#source_expr_ast = sourceExprNode.jsonfy({ toSelect: true });
                     }
 
-                    const isPostgresXmin = this.#view_mode_replication_attrs.effective_replication_origin?.startsWith('postgres:')
-                        && this.#view_mode_replication_attrs.effective_upstream_mvcc_key?.toUpperCase() === 'XMIN';
-                    const upstreamMvccExpr = isPostgresXmin
-                        ? {
-                            nodeName: 'CAST_EXPR',
-                            expr: {
-                                nodeName: 'CAST_EXPR',
-                                expr: {
-                                    nodeName: registry.ColumnRef1.NODE_NAME,
-                                    value: this.#view_mode_replication_attrs.effective_upstream_mvcc_key
-                                },
-                                data_type: { nodeName: 'DATA_TYPE', value: 'TEXT' }
-                            },
-                            data_type: { nodeName: 'DATA_TYPE', value: 'INT' }
-                        }
-                        : {
-                            nodeName: 'CAST_EXPR',
-                            expr: {
-                                nodeName: registry.ColumnRef1.NODE_NAME,
-                                value: this.#view_mode_replication_attrs.effective_upstream_mvcc_key
-                            },
-                            data_type: { nodeName: 'DATA_TYPE', value: 'INT' }
-                        };
+                    const upstreamMvccExpr = {
+                        nodeName: 'CAST_EXPR',
+                        expr: {
+                            nodeName: registry.ColumnRef1.NODE_NAME,
+                            value: this.#view_mode_replication_attrs.effective_upstream_mvcc_key
+                        },
+                        data_type: { nodeName: 'DATA_TYPE', value: 'TEXT' }
+                    };
 
                     // Add a __upstream_mvcc_tag field
                     this.#source_expr_ast.select_list.entries.push({
@@ -443,7 +428,7 @@ export class RelationDDL {
                     // Add a __upstream_mvcc_tag column
                     this.#columns = [{
                         name: '__upstream_mvcc_tag',
-                        type: 'INT',
+                        type: 'TEXT',
                         not_null: false,
                         engine_attrs: { is_system_column: true }
                     }].concat(this.#columns);

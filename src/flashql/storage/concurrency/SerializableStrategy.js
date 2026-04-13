@@ -15,7 +15,7 @@ export class SerializableStrategy extends FirstCommitterWins {
     validate(tx) {
         super.validate(tx);
 
-        for (const otherMeta of this.engine.txRegistry?.values?.() || []) {
+        for (const otherMeta of this.storageEngine.txRegistry?.values?.() || []) {
             if (!otherMeta || otherMeta.state !== 'committed') continue;
             if (otherMeta.commitTime <= tx.snapshot) continue;
 

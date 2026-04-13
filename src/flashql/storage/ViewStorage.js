@@ -15,7 +15,7 @@ export class ViewStorage extends TableStorage {
 
             const formatRow = (row) => ({
                 ...(upstreamMvccKey_isXMIN
-                    ? { ...row, __upstream_mvcc_tag: commit.txId }
+                    ? { ...row, __upstream_mvcc_tag: `${commit.txId}` }
                     : row),
                 __staged: false,
             });
@@ -241,12 +241,12 @@ export class ViewStorage extends TableStorage {
         }
 
         await this.truncate({ systemTag: SYSTEM_TAG });
-        if (syncForget) await this.tx.engine.sync.forget({ [this.namespace]: this.name }, { tx: this.tx });
+        if (syncForget) await this.tx.storageEngine.sync.forget({ [this.namespace]: this.name }, { tx: this.tx });
     }
 
     async refresh({ assertReplicationMode = null } = {}) {
         const result = await this.reset({ assertReplicationMode });
-        await this.tx.engine.sync.sync({ [this.namespace]: this.name }, { forceSync: true, tx: this.tx });
+        await this.tx.storageEngine.sync.sync({ [this.namespace]: this.name }, { forceSync: true, tx: this.tx });
         return result;
     }
 }

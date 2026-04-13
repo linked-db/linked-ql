@@ -463,9 +463,8 @@ describe('FlashQL - Basic DDL', () => {
             const mvccCol = [...view.columns.values()].find((col) => col.name === '__upstream_mvcc_tag');
             const mvccSelectItem = view.source_expr_ast.select_list.entries.find((si) => si.alias?.value === '__upstream_mvcc_tag');
 
-            expect(mvccCol.type_id.name).to.eq('INT');
-            expect(mvccSelectItem.expr.data_type.value).to.eq('INT');
-            expect(mvccSelectItem.expr.expr.data_type.value).to.eq('TEXT');
+            expect(mvccCol.type_id.name).to.eq('TEXT');
+            expect(mvccSelectItem.expr.data_type.value).to.eq('TEXT');
         });
 
         it('should create a view from a CTE source expression', async () => {

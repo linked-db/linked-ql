@@ -25,7 +25,7 @@ export class MVCCEngine {
                         : null));
         if (!strategy) throw new Error(`Invalid strategy specifier ${strategySpec}`);
 
-        const tx = new Transaction({ engine: this, id, snapshot, strategy, meta, parentTx });
+        const tx = new Transaction({ storageEngine: this, id, snapshot, strategy, meta, parentTx });
 
         this.#txRegistry.set(id, {
             strategy: strategySpec,
@@ -54,7 +54,7 @@ export class MVCCEngine {
         meta.commitTime = this.#commitCounter;
     }
 
-    async abort(tx) {
+    async rollback(tx) {
         const meta = this.#txRegistry.get(tx.id);
         if (!meta || meta.state !== 'active') return;
 

@@ -31,9 +31,7 @@ export class EdgeWorker extends SimpleEmitter {
     #portBasedStreaming;
     #workerEventNamespace;
 
-
     #transactions = new Map;
-    #transactionCounter = 0;
 
     constructor({
         db,
@@ -71,63 +69,42 @@ export class EdgeWorker extends SimpleEmitter {
     }
 
     async exec(op, args, port, liveModeCallback = null) {
-        const resolveTx = (options = {}) => {
-            if (!options || !options.tx) return options;
+        const resolveTx = (options = {}, isParentTx = false) => {
+            const key = isParentTx ? 'parentTx' : 'tx';
+            if (!options || !options[key]) return options;
 
-            const tx = this.#transactions.get(options.tx);
-            if (!tx) {
-                throw new Error(`Unknown transaction id: ${options.tx}`);
-            }
+            const tx = this.#transactions.get(options[key].id);
+            if (!tx) throw new Error(`Unknown transaction id: ${options[key].id}`);
 
-            return { ...options, tx };
-        };
-
-        const beginTransaction = async (options = {}) => {
-            const db = this.#db;
-            if (typeof db._beginTransaction !== 'function') {
-                throw new Error('Client does not support explicit transactions');
-            }
-
-            const tx = await db._beginTransaction(options);
-            const id = tx.id || `tx_${++this.#transactionCounter}`;
-            this.#transactions.set(id, tx);
-            return { id };
-        };
-
-        const commitTransaction = async (id) => {
-            const db = this.#db;
-            const tx = this.#transactions.get(id);
-            if (!tx) throw new Error(`Unknown transaction id: ${id}`);
-            if (typeof db._commitTransaction !== 'function') {
-                throw new Error('Client does not support explicit transactions');
-            }
-            this.#transactions.delete(id);
-            await db._commitTransaction(tx);
-            return true;
-        };
-
-        const rollbackTransaction = async (id) => {
-            const db = this.#db;
-            const tx = this.#transactions.get(id);
-            if (!tx) throw new Error(`Unknown transaction id: ${id}`);
-            if (typeof db._rollbackTransaction !== 'function') {
-                throw new Error('Client does not support explicit transactions');
-            }
-            this.#transactions.delete(id);
-            await db._rollbackTransaction(tx);
-            return true;
+            return { ...options, [key]: tx };
         };
 
         if (op === 'transaction:begin') {
-            return await beginTransaction(args.options || {});
+            const db = this.#db;
+            const tx = await db.begin(resolveTx(args.options || {}, true));
+
+            this.#transactions.set(tx.id, tx);
+            return { id: tx.id };
         }
 
         if (op === 'transaction:commit') {
-            return await commitTransaction(args.id);
+            const tx = this.#transactions.get(args.id);
+            if (!tx) throw new Error(`Unknown transaction id: ${args.id}`);
+
+            this.#transactions.delete(args.id);
+            await tx.commit();
+
+            return true;
         }
 
         if (op === 'transaction:rollback') {
-            return await rollbackTransaction(args.id);
+            const tx = this.#transactions.get(args.id);
+            if (!tx) throw new Error(`Unknown transaction id: ${args.id}`);
+            
+            this.#transactions.delete(args.id);
+            await tx.rollback();
+
+            return true;
         }
 
         if (op === 'query') {
@@ -170,7 +147,7 @@ export class EdgeWorker extends SimpleEmitter {
         // -----------
 
         if (op === 'resolver:show_create') {
-            return (await this.#db.resolver.showCreate(args.selector, args.options)).map((sch) => sch.jsonfy());
+            return (await this.#db.resolver.showCreate(args.selector, resolveTx(args.options))).map((sch) => sch.jsonfy());
         }
 
         if (op === 'parser:parse') {

@@ -1,14 +1,23 @@
-import { WalEngine as BaseWalEngine } from '../../proc/timeline/WalEngine.js';
+import { LinkedQlWal } from '../../proc/timeline/LinkedQlWal.js';
 import { ConflictError } from '../../flashql/errors/ConflictError.js';
 
-export class MainstreamWalEngine extends BaseWalEngine {
+export class MainstreamWal extends LinkedQlWal {
 
-    #client;
-    get client() { return this.#client; }
+    #mainstreamClient;
 
-    constructor({ client, ...options }) {
-        super(options);
-        this.#client = client;
+    constructor({ mainstreamClient, ...options }) {
+        super({
+            ...options,
+            drainMode: 'drain',
+            lifecycleHook: async (status) => {
+                if (status) {
+                    await this._setupRealtime();
+                } else {
+                    await this._teardownRealtime();
+                }
+            }
+        });
+        this.#mainstreamClient = mainstreamClient;
     }
 
     _quoteIdent(name) {
@@ -42,8 +51,8 @@ export class MainstreamWalEngine extends BaseWalEngine {
         if (mvccKey) {
             if (!event.mvccTag)
                 throw new TypeError(`Missing event.mvccTag for the specified mvccKey ${mvccKey}`);
-            const mvccExpr = this.#client.dialect === 'postgres' && mvccKey.toUpperCase() === 'XMIN'
-                ? 'CAST(CAST(xmin AS TEXT) AS BIGINT)'
+            const mvccExpr = this.#mainstreamClient.dialect === 'postgres' && mvccKey.toUpperCase() === 'XMIN'
+                ? 'CAST(xmin AS TEXT)'
                 : this._quoteIdent(mvccKey);
             sql += ` AND ${mvccExpr} = ${this._serializeValue(event.mvccTag)}`;
         }
@@ -82,15 +91,15 @@ export class MainstreamWalEngine extends BaseWalEngine {
 
                 if (!sql) continue;
 
-                const result = await this.#client._query(sql, { tx });
+                const result = await this.#mainstreamClient._query(sql, { tx });
                 if ((op === 'update' || op === 'delete') && result?.rowCount === 0) {
                     throw new ConflictError(`[${this._quoteQualifiedRelation(relation)}] Origin row version no longer matches the expected version`);
                 }
             }
         };
 
-        if (typeof this.#client.transaction === 'function') {
-            return await this.#client.transaction(async (tx) => {
+        if (typeof this.#mainstreamClient.transaction === 'function') {
+            return await this.#mainstreamClient.transaction(async (tx) => {
                 await applyCommit(tx);
             });
         }

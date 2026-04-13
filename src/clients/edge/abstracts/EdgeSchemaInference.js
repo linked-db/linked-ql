@@ -1,16 +1,15 @@
-import { SchemaInference as BaseSchemaInference } from '../../../lang/SchemaInference.js';
+import { SchemaInference } from '../../../lang/SchemaInference.js';
 
-export class EdgeSchemaInference extends BaseSchemaInference {
+export class EdgeSchemaInference extends SchemaInference {
 
-    #client;
-    get client() { return this.#client; }
+    #edgeClient;
 
-    constructor({ client, ...options }) {
+    constructor({ edgeClient, ...options }) {
         super(options);
-        this.#client = client;
+        this.#edgeClient = edgeClient;
     }
 
     async showCreate(selector, options = {}) {
-        return await this.#client._showCreate(selector, options);
+        return await this.#edgeClient._showCreate(selector, options);
     }
 }

@@ -1,26 +1,23 @@
 import { LinkedQLClient } from './LinkedQLClient.js';
 import { RealtimeClient } from '../../proc/realtime/RealtimeClient.js';
 import { MainstreamSchemaInference } from './MainstreamSchemaInference.js';
-import { MainstreamWalEngine } from './MainstreamWalEngine.js';
 import { SQLParser } from '../../lang/SQLParser.js';
 import { registry } from '../../lang/registry.js';
 import { normalizeQueryArgs } from './util.js';
 import { Result } from '../Result.js';
 
-export class MainstreamDBClient extends LinkedQLClient {
+export class MainstreamClient extends LinkedQLClient {
 
-    // Standard getters: parsers, resolver, wal
+    // Standard getters: parsers, resolver
 
     #parser;
-    #wal;
     #live;
 
     get parser() { return this.#parser; }
     get resolver() {
         return super.resolveGetResolver(() =>
-            new MainstreamSchemaInference({ client: this, dialect: this.dialect }));
+            new MainstreamSchemaInference({ mainstreamClient: this, dialect: this.dialect }));
     }
-    get wal() { return this.#wal; }
     get live() { return this.#live; }
 
     // Internal
@@ -33,13 +30,6 @@ export class MainstreamDBClient extends LinkedQLClient {
         super(options);
 
         this.#parser = new SQLParser({ dialect: this.dialect });
-        this.#wal = new MainstreamWalEngine({
-            client: this,
-            drainMode: 'drain',
-            lifecycleHook: async (status) => {
-                await this.setCapability({ realtime: !!status });
-            }
-        });
 
         this.#realtimeClient = new RealtimeClient(this);
         this.#live = {
@@ -47,31 +37,28 @@ export class MainstreamDBClient extends LinkedQLClient {
         };
     }
 
-    async disconnect() {
-        await this.#wal.close({ destroy: true });
-        await super.disconnect();
-    }
-
     // ------------
 
-    async transaction(cb) {
+    async begin(options = {}) {
+        if (options.parentTx) {
+            throw new Error(`Nested transactions are not supported on mainstream databasew for now`);
+        }
+        return await this._begin(options);
+    }
+
+    async transaction(cb, options = {}) {
         if (typeof cb !== 'function') {
             throw new TypeError('transaction(cb): cb must be a function');
         }
-        if (typeof this._beginTransaction !== 'function'
-            || typeof this._commitTransaction !== 'function'
-            || typeof this._rollbackTransaction !== 'function') {
-            throw new Error('Transaction not supported by this client implementation');
-        }
-
-        const tx = await this._beginTransaction();
+        
+        const tx = await this.begin(options);
 
         try {
             const result = await cb(tx);
-            await this._commitTransaction(tx);
+            await tx.commit();
             return result;
         } catch (e) {
-            await this._rollbackTransaction(tx);
+            await tx.rollback();
             throw e;
         }
     }
@@ -79,18 +66,18 @@ export class MainstreamDBClient extends LinkedQLClient {
     // ------------
 
     async query(...args) {
-        const [_query, options] = normalizeQueryArgs(...args);
+        const [_query, { tx: inputTx, ...options }] = normalizeQueryArgs(...args);
         const query = await this.#parser.parse(_query, options);
 
-        const resolveQuery = async (query, tx = null, ifHasSugars = false) => {
+        const resolveQuery = async (query, tx, ifHasSugars = false) => {
             const schemaInference = this.resolver;
             return await schemaInference.resolveQuery(query, { tx, ifHasSugars });
         };
 
         // Realtime query?
         if (options.live) {
-            const resolvedQuery = await resolveQuery(query);
-            return await this.#realtimeClient.query(resolvedQuery, options);
+            const resolvedQuery = await resolveQuery(query, inputTx);
+            return await this.#realtimeClient.query(resolvedQuery, { ...options, tx: inputTx });
         }
 
         let result;
@@ -108,9 +95,12 @@ export class MainstreamDBClient extends LinkedQLClient {
                         { ...options, tx }
                     );
                 }
-            });
+            }, { parentTx: inputTx });
         } else {
-            result = await this._query(await resolveQuery(query, null, true), options);
+            result = await this._query(
+                await resolveQuery(query, inputTx, true),
+                { ...options, tx: inputTx }
+            );
         }
 
         // The result instance
@@ -118,12 +108,12 @@ export class MainstreamDBClient extends LinkedQLClient {
     }
 
     async stream(...args) {
-        const [_query, options] = normalizeQueryArgs(...args);
+        const [_query, { tx: inputTx, ...options }] = normalizeQueryArgs(...args);
         const query = await this.#parser.parse(_query, options);
 
         const schemaInference = this.resolver;
-        const resolvedQuery = await schemaInference.resolveQuery(query, { ...options, ifHasSugars: true });
+        const resolvedQuery = await schemaInference.resolveQuery(query, { ...options, tx: inputTx, ifHasSugars: true });
 
-        return await this._stream(resolvedQuery, options);
+        return await this._stream(resolvedQuery, { ...options, tx: inputTx });
     }
 }

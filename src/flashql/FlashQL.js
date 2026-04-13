@@ -65,7 +65,7 @@ export class FlashQL extends LinkedQLClient {
         this.#keyval = keyval;
         this.#versionStop = versionStop;
         this.#overwriteForward = overwriteForward;
-        this.#storageEngine = storageEngine || new StorageEngine({ client: this, dialect: this.dialect, keyval, ...options });
+        this.#storageEngine = storageEngine || new StorageEngine({ flashQlClient: this, dialect: this.dialect, keyval, ...options });
         this.#queryEngine = queryEngine || new QueryEngine(this.#storageEngine, { dialect: this.dialect, ...options });
 
         this.#parser = new SQLParser({ dialect: this.dialect });
@@ -91,48 +91,25 @@ export class FlashQL extends LinkedQLClient {
 
     // ------------
 
-    async _beginTransaction(options = {}) {
+    async begin(options = {}) {
         return this.#storageEngine.begin(options);
     }
 
-    async _commitTransaction(tx) {
-        await tx.commit();
-    }
-
-    async _rollbackTransaction(tx) {
-        await tx.abort();
-    }
-
     async transaction(cb, options = {}) {
-        if (typeof cb !== 'function') {
-            throw new TypeError('transaction(cb): cb must be a function');
-        }
-
-        const tx = await this._beginTransaction(options);
-        try {
-            const result = await cb(tx);
-            await this._commitTransaction(tx);
-            return result;
-        } catch (e) {
-            await this._rollbackTransaction(tx);
-            throw e;
-        }
+        return await this.#storageEngine.transaction(cb, options);
     }
 
     async query(...args) {
-        const [_query, options] = normalizeQueryArgs(...args);
+        const [_query, { tx: inputTx, ...options }] = normalizeQueryArgs(...args);
         const query = await this.#parser.parse(_query, options);
 
         if (options.live) {
-            if (options.tx) {
-                throw new Error('Live queries are not supported inside explicit transactions');
-            }
             const schemaInference = this.resolver;
-            const resolvedQuery = await schemaInference.resolveQuery(query, options);
-            return await this.#realtimeClient.query(resolvedQuery, options);
+            const resolvedQuery = await schemaInference.resolveQuery(query, { ...options, tx: inputTx });
+            return await this.#realtimeClient.query(resolvedQuery, { ...options, tx: inputTx });
         }
 
-        const tx = this.#storageEngine.begin({ parentTx: options.tx });
+        const tx = this.#storageEngine.begin({ parentTx: inputTx });
         let canDirectlyForwardTo = undefined;
 
         try {
@@ -166,9 +143,16 @@ export class FlashQL extends LinkedQLClient {
             }, true);
 
             if (canDirectlyForwardTo) {
-                await tx.abort(); // Abandon tx
                 const upstreamClient = await this.#storageEngine.getUpstreamClient(canDirectlyForwardTo);
-                return await upstreamClient.query(query, options);
+
+                try {
+                    const result = await upstreamClient.query(query, options);
+                    await tx.commit();
+                    return result;
+                } catch (e) {
+                    await tx.rollback();
+                    throw e;
+                }
             }
 
             const result = await this.#queryEngine.query(query, { ...options, tx });
@@ -177,19 +161,19 @@ export class FlashQL extends LinkedQLClient {
             if (options.bufferResultRows === false) return result;
             return new Result({ rows: result.rows, rowCount: result.rowCount });
         } catch (e) {
-            await tx.abort();
+            await tx.rollback();
             throw e;
         }
     }
 
     async stream(...args) {
-        const [_query, options] = normalizeQueryArgs(...args);
+        const [_query, { tx: inputTx, ...options }] = normalizeQueryArgs(...args);
         const _this = this;
         return {
             async *[Symbol.asyncIterator]() {
                 let stream;
                 try {
-                    (stream = await _this.query(_query, { ...options, live: false, bufferResultRows: false }));
+                    (stream = await _this.query(_query, { ...options, tx: inputTx, live: false, bufferResultRows: false }));
                     for await (const row of stream) {
                         yield row;
                     }

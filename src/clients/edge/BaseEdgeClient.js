@@ -4,8 +4,8 @@ import { AbstractNode } from '../../lang/abstracts/AbstractNode.js';
 import { RealtimeResult } from '../../proc/realtime/RealtimeResult.js';
 import { normalizeQueryArgs } from '../abstracts/util.js';
 import { EdgeSchemaInference } from './abstracts/EdgeSchemaInference.js';
-import { EdgeWalEngine } from './abstracts/EdgeWalEngine.js';
-import { SQLParser } from './abstracts/SQLParser.js';
+import { EdgeSQLParser } from './abstracts/EdgeSQLParser.js';
+import { EdgeWal } from './abstracts/EdgeWal.js';
 import { Result } from '../Result.js';
 
 export class BaseEdgeClient extends LinkedQLClient {
@@ -20,7 +20,7 @@ export class BaseEdgeClient extends LinkedQLClient {
     get parser() { return this.#parser; }
     get resolver() {
         return super.resolveGetResolver(() =>
-            new EdgeSchemaInference({ client: this }));
+            new EdgeSchemaInference({ edgeClient: this }));
     }
     get wal() { return this.#wal; }
     get live() { return this.#live; }
@@ -30,7 +30,6 @@ export class BaseEdgeClient extends LinkedQLClient {
 
     #workerEventNamespace;
 
-    #realtimeGc;
     #gcArray = [];
 
     // ------------
@@ -40,13 +39,10 @@ export class BaseEdgeClient extends LinkedQLClient {
 
         this.#workerEventNamespace = workerEventNamespace;
 
-        this.#parser = new SQLParser({ dialect: this.dialect });
-        this.#wal = new EdgeWalEngine({
-            client: this,
-            drainMode: 'drain',
-            lifecycleHook: async (status) => {
-                await this.setCapability({ realtime: !!status });
-            }
+        this.#parser = new EdgeSQLParser({ dialect: this.dialect });
+        this.#wal = new EdgeWal({
+            edgeClient: this,
+            drainMode: 'drain'
         });
         this.#live = {
             forget: async (id) => await this._exec('live:forget', { id }),
@@ -61,40 +57,29 @@ export class BaseEdgeClient extends LinkedQLClient {
         await super.disconnect();
     }
 
+    async begin(options = {}) {
+        const tx = await this._exec('transaction:begin', { options });
+        const txApi = {
+            ...tx,
+            commit: async () => await this._exec('transaction:commit', tx),
+            rollback: async () => await this._exec('transaction:rollback', tx),
+        };
+        return txApi;
+    }
+
     async transaction(cb, options = {}) {
         if (typeof cb !== 'function') {
             throw new TypeError('transaction(cb): cb must be a function');
         }
 
-        const tx = await this._exec('transaction:begin', { options });
-        let completed = false;
-        const txId = tx?.id || tx;
-        const txToken = {
-            id: txId,
-            query: async (query, queryOptions = {}) => {
-                return await this.query(query, { ...queryOptions, tx: txId });
-            },
-            stream: async (query, streamOptions = {}) => {
-                return await this.stream(query, { ...streamOptions, tx: txId });
-            },
-            commit: async () => {
-                if (completed) return;
-                await this._exec('transaction:commit', { id: txId });
-                completed = true;
-            },
-            rollback: async () => {
-                if (completed) return;
-                await this._exec('transaction:rollback', { id: txId });
-                completed = true;
-            },
-        };
+        const txApi = await this.begin(options);
 
         try {
-            const result = await cb(txToken);
-            await txToken.commit();
+            const result = await cb(txApi);
+            await txApi.commit();
             return result;
         } catch (e) {
-            await txToken.rollback();
+            await txApi.rollback();
             throw e;
         }
     }
@@ -102,14 +87,11 @@ export class BaseEdgeClient extends LinkedQLClient {
     // ------------
 
     async query(...args) {
-        let [query, { callback, signal, ...options }] = normalizeQueryArgs(...args);
+        let [query, { callback, signal, tx: inputTx, ...options }] = normalizeQueryArgs(...args);
+        const tx = inputTx ? { id: inputTx.id } : null;
+        
         if (query instanceof AbstractNode) query = query.jsonfy();
 
-        const tx = options.tx && typeof options.tx === 'object' ? options.tx.id : options.tx;
-
-        if (options.live && tx) {
-            throw new Error('Live queries are not supported inside explicit transactions');
-        }
         const responseJson = await this._exec(
             'query',
             { query, options: { callback: !!callback, ...options, tx } },
@@ -155,9 +137,12 @@ export class BaseEdgeClient extends LinkedQLClient {
         return result;
     }
 
-    async stream(query, options) {
+    async stream(...args) {
+        let [query, { tx: inputTx, ...options }] = normalizeQueryArgs(...args);
+        const tx = inputTx ? { id: inputTx.id } : null;
+
         if (query instanceof AbstractNode) query = query.jsonfy();
-        const tx = options?.tx && typeof options.tx === 'object' ? options.tx.id : options?.tx;
+
         return await this._exec(
             'stream',
             { query, options: { ...options, tx } },
@@ -168,9 +153,12 @@ export class BaseEdgeClient extends LinkedQLClient {
     // ------------
 
     // Called by this.resolver.showCreate() for yet-to-be-cached schemas
-    async _showCreate(selector, options = {}) {
-        const responseJson = await this._exec('resolver:show_create', { selector, options });
+    async _showCreate(selector, { tx: inputTx, ...options } = {}) {
+        const tx = inputTx ? { id: inputTx.id } : null;
+
+        const responseJson = await this._exec('resolver:show_create', { selector, options: { ...options, tx } });
         if (!responseJson) return;
+
         return registry.JSONSchema.fromJSON(
             { entries: responseJson },
             { assert: true }
@@ -180,6 +168,7 @@ export class BaseEdgeClient extends LinkedQLClient {
     // Called by this.#parser.parse() if options.preferRemote
     async _parse(query, { preferRemote = false, alias = null, dynamicWhereMode = false, ...options } = {}) {
         if (query instanceof AbstractNode) query = query.jsonfy();
+
         const parseWith = async (options) => await this._exec('parser:parse', { query, options });
 
         if (dynamicWhereMode) {
@@ -196,19 +185,6 @@ export class BaseEdgeClient extends LinkedQLClient {
     // Called by this.#wal.subscribe() if options.preferRemote
     async _subscribe(...args) {
         return await this.#subscribe(...args);
-    }
-
-    // ------------
-
-    async _setupRealtime() {
-        if (this.#realtimeGc) return;
-        this.#realtimeGc = await this.#subscribe(async (commit) => this.#wal.dispatch(commit));
-    }
-
-    async _teardownRealtime() {
-        if (!this.#realtimeGc) return;
-        await this.#realtimeGc();
-        this.#realtimeGc = null;
     }
 
     // ------------

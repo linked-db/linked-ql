@@ -1,21 +1,20 @@
-import { SchemaInference as BaseSchemaInference } from '../../lang/SchemaInference.js';
+import { SchemaInference } from '../../lang/SchemaInference.js';
 import { normalizeRelationSelectorArg, parseRelationSelectors } from './util.js';
 import { registry } from '../../lang/registry.js';
 
-export class MainstreamSchemaInference extends BaseSchemaInference {
+export class MainstreamSchemaInference extends SchemaInference {
 
-    #client;
-    get client() { return this.#client; }
+    #mainstreamClient;
 
-    constructor({ client, ...options }) {
+    constructor({ mainstreamClient, ...options }) {
         super(options);
-        this.#client = client;
+        this.#mainstreamClient = mainstreamClient;
     }
 
     async showCreate(selector, { structured = false, tx = null } = {}) {
         selector = normalizeRelationSelectorArg(selector);
         const sql = this.#composeShowCreateSQL(selector);
-        const result = await this.#client._query(sql, { tx }); // Must be _query() not query()
+        const result = await this.#mainstreamClient._query(sql, { tx }); // Must be _query() not query()
         return await this.#formatShowCreateResult(result.rows, structured);
     }
 
