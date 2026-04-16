@@ -488,4 +488,4 @@ That is why this page focuses on the features that are clearly alive in the curr
 | If you want to learn about... | Go to... |
 | :-- | :-- |
 | the broader LinkedQL language additions surface | [Language Additions](/lang) |
-| the application-facing API | [API](/api/) |
+| the application-facing API | [API](/api) |

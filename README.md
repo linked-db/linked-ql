@@ -414,7 +414,7 @@ This is fully covered in:
 If you want to explore the full LinkedQL model, see:
 
 - **Capabilities overview** → an easy map of LinkedQL  
-  + [Overview ↗](https://linked-ql.netlify.app/realtime)
+  + [Overview ↗](https://linked-ql.netlify.app/overview)
 
 - **FlashQL and local-first architectures** → embedded engine, federation, and sync  
   + [FlashQL ↗](https://linked-ql.netlify.app/flashql)

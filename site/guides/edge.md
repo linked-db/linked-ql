@@ -324,5 +324,5 @@ const toStandardRequest = (request) => {
 
 | If you want to learn about... | Go to... |
 | :-- | :-- |
-| the common application-facing methods | [API](/api/) |
+| the common application-facing methods | [API](/api) |
 | how Edge composes into full application architectures | [Integration Patterns](/guides/integration-patterns) |

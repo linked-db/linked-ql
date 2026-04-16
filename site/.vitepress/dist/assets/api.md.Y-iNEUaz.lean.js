@@ -1,0 +1,1 @@
+import{_ as a,o as i,c as t,ag as r}from"./chunks/framework.DXGyWiRo.js";const _=JSON.parse('{"title":"API","description":"","frontmatter":{},"headers":[],"relativePath":"api.md","filePath":"api.md"}'),o={name:"api.md"};function s(l,e,c,n,p,d){return i(),t("div",null,[...e[0]||(e[0]=[r("",7)])])}const f=a(o,[["render",s]]);export{_ as __pageData,f as default};

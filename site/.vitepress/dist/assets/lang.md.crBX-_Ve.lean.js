@@ -1,0 +1,1 @@
+import{_ as a,o as t,c as s,ag as n}from"./chunks/framework.DXGyWiRo.js";const u=JSON.parse('{"title":"Language Additions","description":"","frontmatter":{},"headers":[],"relativePath":"lang.md","filePath":"lang.md"}'),l={name:"lang.md"};function i(o,e,r,p,c,d){return t(),s("div",null,[...e[0]||(e[0]=[n("",23)])])}const y=a(l,[["render",i]]);export{u as __pageData,y as default};

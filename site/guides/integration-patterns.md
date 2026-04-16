@@ -90,7 +90,7 @@ All patterns are composed from these two primitives:
 - **`FlashQL`**  
   The embedded database that enables local-first storage, sync, and federation when the database itself needs to live inside the application runtime. (Full details in [FlashQL](/flashql), [Federation, Materialization, and Sync](/flashql/federation-and-sync)).
 
-Should you be new to the overall system, it helps to read this page alongside [What Is LinkedQL](/overview), [Guides](/guides/), [Language](/lang/), and [Realtime](/realtime/).
+Should you be new to the overall system, it helps to read this page alongside [What Is LinkedQL](/overview), [Guides](/guides), [Language](/lang), and [Realtime](/realtime).
 
 ---
 
@@ -391,5 +391,5 @@ All patterns preserve the same database interface, so your application code rema
 
 | If you want to learn about... | Go to... |
 | :-- | :-- |
-| the common application-facing methods across these patterns | [API](/api/) |
+| the common application-facing methods across these patterns | [API](/api) |
 | the broader LinkedQL set of guides | [LinkedQL Guides](/guides) |

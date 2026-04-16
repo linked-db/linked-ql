@@ -78,5 +78,5 @@ Realtime queries, WAL subscriptions, and sync are built into the runtime. No dat
 
 | If you want to learn about... | Go to... |
 | :-- | :-- |
-| the common application-facing methods | [API](/api/) |
+| the common application-facing methods | [API](/api) |
 | the broader FlashQL architecture | [FlashQL Overview](/flashql) |

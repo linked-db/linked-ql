@@ -60,7 +60,7 @@ The mechanics of the engine are covered in the [LinkedQL Realtime Engineering Pa
 
 LinkedQL’s realtime capabilities (live queries and WAL subscriptions) depend on the support mode of the underlying database. For FlashQL and the Edge runtime client, this is automatic. But for the mainstream database family, this works behind a configuration.
 
-See the [Guides](/guides/#enabling-realtime) section for setup details by runtime.
+See the [Guides](/guides#enabling-realtime) section for setup details by runtime.
 
 ---
 
