@@ -2,6 +2,7 @@ import { LinkedQLClient } from './LinkedQLClient.js';
 import { RealtimeClient } from '../../proc/realtime/RealtimeClient.js';
 import { MainstreamSchemaInference } from './MainstreamSchemaInference.js';
 import { SQLParser } from '../../lang/SQLParser.js';
+import { SYSTEM_TAG } from '../../proc/SYSTEM.js';
 import { registry } from '../../lang/registry.js';
 import { normalizeQueryArgs } from './util.js';
 import { Result } from '../Result.js';
@@ -66,8 +67,9 @@ export class MainstreamClient extends LinkedQLClient {
     // ------------
 
     async query(...args) {
-        const [_query, { tx: inputTx, ...options }] = normalizeQueryArgs(...args);
+        const [_query, { tx: inputTx, liveQueryOriginated = null, ...options }] = normalizeQueryArgs(...args);
         const query = await this.#parser.parse(_query, options);
+        const inLiveQueryContext = liveQueryOriginated === SYSTEM_TAG;
 
         const resolveQuery = async (query, tx, ifHasSugars = false) => {
             const schemaInference = this.resolver;
@@ -92,14 +94,14 @@ export class MainstreamClient extends LinkedQLClient {
                 for (const query of stmtGroups) {
                     result = await this._query(
                         await resolveQuery(query, tx, true),
-                        { ...options, tx }
+                        { ...options, tx, inLiveQueryContext }
                     );
                 }
             }, { parentTx: inputTx });
         } else {
             result = await this._query(
                 await resolveQuery(query, inputTx, true),
-                { ...options, tx: inputTx }
+                { ...options, tx: inputTx, inLiveQueryContext }
             );
         }
 

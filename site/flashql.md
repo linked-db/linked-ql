@@ -2,6 +2,11 @@
 
 *A full SQL runtime for the local process, the browser, the edge, and the offline world.*
 
+```js
+const db = new FlashQL();
+await db.query(`SELECT $1::TEXT`, [20]);
+```
+
 FlashQL is LinkedQL's embeddable database engine: a complete in-process SQL runtime that runs anywhere JavaScript does, including Node.js, the browser, workers, and edge runtimes.
 
 FlashQL brings together:
@@ -12,6 +17,8 @@ FlashQL brings together:
 - observable commit stream via a Write-Ahead Log (WAL)
 - transactional local storage, with MVCC-based architecture
 - point-in-time boot through version-aware replay
+
+---
 
 ## Why FlashQL
 
@@ -49,6 +56,8 @@ This is the smallest useful FlashQL shape:
 
 The goal is application-level SQL power in places where an embeddable runtime is the right tool.
 
+---
+
 ## Persistence
 
 FlashQL is ephemeral by default, but it becomes a persistent local runtime when you attach a `keyval` backend.
@@ -73,6 +82,8 @@ With a `keyval` backend:
 
 Without a persistence backend, the engine is still useful for tests, ephemeral sessions, and in-process computation, but the state disappears when the process ends.
 
+---
+
 ## Dialects
 
 FlashQL supports both PostgreSQL-flavored and MySQL-flavored SQL.
@@ -91,6 +102,8 @@ await db.query('SELECT `name` FROM `users`', { dialect: 'mysql' });
 
 Where not specified, FlashQL defaults to `postgres`.
 
+---
+
 ## Compatibility in Practice
 
 FlashQL speaks real SQL, but it is not trying to be a byte-for-byte clone of PostgreSQL or MySQL.
@@ -108,8 +121,6 @@ It also adds LinkedQL-specific capabilities such as DeepRefs, version binding, a
 See the [FlashQL Language Reference](/flashql/lang) for the current documented surface.
 
 Two advanced PostgreSQL-flavored examples give a sense of scope:
-
----
 
 <details><summary>Query 1: writable CTEs, LATERAL joins, aggregates, and windows</summary>
 
@@ -180,8 +191,6 @@ Cause and effect in this query:
 - a writable CTE mutates and returns rows
 - a lateral join derives per-row metrics from that result
 - the final query computes aggregate and ranking outputs from the transformed relation
-
----
 
 <details><summary>Query 2: VALUES, ROWS FROM, grouping sets, and set operations</summary>
 
@@ -276,6 +285,8 @@ Capabilities demonstrated:
 
 These examples show the shape of SQL FlashQL can execute.
 
+---
+
 ## The Common Query Surface
 
 FlashQL supports the same top-level application contract as the other LinkedQL clients:
@@ -289,6 +300,8 @@ FlashQL supports the same top-level application contract as the other LinkedQL c
 And then extends that with:
 
 - `db.sync.sync()`
+
+---
 
 ## Live Queries, Streams, and the Commit Stream (WAL)
 
@@ -312,7 +325,7 @@ Use live queries when the application wants the query result itself to remain cu
 
 Take a deep dive in:
 
-* [Live Queries](/capabilities/live-queries)
+* [Live Queries](/realtime/live-queries)
 
 ### Streaming
 
@@ -324,7 +337,7 @@ for await (const row of await db.stream('SELECT * FROM public.big_table ORDER BY
 
 This lets you consume large results lazily instead of buffering the full result in memory first.
 
-See more in [Streaming](/capabilities/streaming)
+See more in [db.stream()](/api/stream)
 
 ### The Commit Stream (WAL)
 
@@ -341,7 +354,9 @@ This observes table commits directly instead of maintaining a query-shaped live 
 
 Use WAL subscriptions when you care about table-level commit events directly.
 
-See: [Changefeeds](/capabilities/changefeeds)
+See: [Changefeeds](/realtime/changefeeds)
+
+---
 
 ## Transactions and the Multi-Version Concurrency Control (MVCC) Architecture
 
@@ -377,6 +392,8 @@ Because everything is versioned, FlashQL can layer on:
 
 —all without introducing a separate model for reactivity or sync.
 
+---
+
 ## Federation, Materialization, and Sync
 
 FlashQL can compute both local and remote data in **the same query**.
@@ -411,6 +428,8 @@ Take a deep dive in:
 
 - [Federation, Materialization, and Sync](/flashql/federation-and-sync)
 - [The Sync API](/flashql/sync-api)
+
+---
 
 ## Point-in-Time Boot
 
@@ -449,13 +468,11 @@ With `overwriteForward: true`, FlashQL keeps the history intact until the first 
 
 That turns the historical boot into a branch point: read-only until the first write, then writable from that point forward.
 
-See also:
+---
 
-- [Version Binding](/capabilities/version-binding)
+## Additional Reading
 
-## Where to Go Next
-
-- [Federation, Materialization, and Sync](/flashql/federation-and-sync)
-- [The Sync API](/flashql/sync-api)
-- [Query Interface](/docs/query-api)
-- [FlashQL Language Reference](/flashql/lang)
+| If you want to learn about... | Go to... |
+| :-- | :-- |
+| the FlashQL sync story in detail | [Federation, Materialization, and Sync](/flashql/federation-and-sync) |
+| the FlashQL language surface | [FlashQL Language Reference](/flashql/lang) |

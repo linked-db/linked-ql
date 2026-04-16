@@ -12,7 +12,7 @@ pg.on('error', (e) => {
   console.log('||||||||pg', e);
 });
 
-console.log((await pg.query(`SELECT *, $1 FROM public.rrr WHERE id = $2`, { values: [3, 74], live: false })).rows);
+console.log((await pg.parser.parse(`SELECT set_config('claims.user_id', 'user_abc_123', true);`)));
 
 
 console.log(`\n\nStage 1:________________________________________\n\n`);
@@ -96,7 +96,7 @@ const result2 = await db2.query(`
     u.name
   FROM offline.users u
   WHERE false != true
-`, { live: true, id: 'w', tx });
+`, { live: true, id: 'w', tx, values: [] });
 
 console.log(`\n\nInitial: ${result2.mode}________________________________________\n\n`);
 console.log(result2.rows);

@@ -4,6 +4,7 @@ import { RealtimeClient } from '../proc/realtime/RealtimeClient.js';
 import { StorageEngine } from './storage/StorageEngine.js';
 import { QueryEngine } from './eval/QueryEngine.js';
 import { SQLParser } from '../lang/SQLParser.js';
+import { SYSTEM_TAG } from '../proc/SYSTEM.js';
 import { registry } from '../lang/registry.js';
 import { Result } from '../clients/Result.js';
 
@@ -100,9 +101,10 @@ export class FlashQL extends LinkedQLClient {
     }
 
     async query(...args) {
-        const [_query, { tx: inputTx, ...options }] = normalizeQueryArgs(...args);
+        const [_query, { tx: inputTx, liveQueryOriginated = null, ...options }] = normalizeQueryArgs(...args);
         const query = await this.#parser.parse(_query, options);
-
+        const inLiveQueryContext = liveQueryOriginated === SYSTEM_TAG;
+ 
         if (options.live) {
             const schemaInference = this.resolver;
             const resolvedQuery = await schemaInference.resolveQuery(query, { ...options, tx: inputTx });

@@ -104,6 +104,103 @@ describe('Realtime - Basics', () => {
         await offB();
     });
 
+    it('supports subscribing to table-mapped non-replication views through wal.subscribe()', async () => {
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS public.rt_view_src (
+                id INT PRIMARY KEY,
+                name TEXT
+            )
+        `);
+        await client.query(`
+            CREATE VIEW public.rt_view_plain AS
+            TABLE public.rt_view_src
+        `);
+
+        const commits = [];
+        const unsubscribe = await client.wal.subscribe({ public: ['rt_view_plain'] }, (commit) => commits.push(commit));
+
+        await client.query(`INSERT INTO public.rt_view_src (id, name) VALUES (1, 'Ada')`);
+        await waitFor(() => commits.length > 0);
+
+        expect(commits[0].entries).to.have.length(1);
+        expect(commits[0].entries[0]).to.deep.include({
+            op: 'insert',
+            relation: { namespace: 'public', name: 'rt_view_plain', keyColumns: ['id'] },
+        });
+        expect(commits[0].entries[0].new).to.deep.eq({ id: 1, name: 'Ada' });
+
+        await unsubscribe();
+    });
+
+    it('rewrites diffable live-query view commits as wal commits', async () => {
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS public.rt_view_derived_src (
+                id INT PRIMARY KEY,
+                name TEXT
+            )
+        `);
+        await client.query(`
+            CREATE VIEW public.rt_view_derived AS
+            SELECT id AS id_derived, name AS name_derived
+            FROM public.rt_view_derived_src
+            WHERE id > 0
+        `);
+
+        const commits = [];
+        const unsubscribe = await client.wal.subscribe({ public: ['rt_view_derived'] }, (commit) => commits.push(commit));
+
+        await client.query(`INSERT INTO public.rt_view_derived_src (id, name) VALUES (1, 'Ada')`);
+        await waitFor(() => commits.length > 0);
+
+        expect(commits[0].type).to.eq(undefined);
+        expect(commits[0].entries).to.have.length(1);
+        expect(commits[0].entries[0]).to.deep.eq({
+            op: 'insert',
+            old: null,
+            new: { id_derived: 1, name_derived: 'Ada' },
+            relation: { namespace: 'public', name: 'rt_view_derived', keyColumns: ['id_derived'] },
+        });
+
+        await client.query(`UPDATE public.rt_view_derived_src SET name = 'Grace' WHERE id = 1`);
+        await waitFor(() => commits.length > 1);
+
+        expect(commits[1].type).to.eq(undefined);
+        expect(commits[1].entries[0]).to.deep.eq({
+            op: 'update',
+            old: null,
+            new: { id_derived: 1, name_derived: 'Grace' },
+            relation: { namespace: 'public', name: 'rt_view_derived', keyColumns: ['id_derived'] },
+        });
+
+        await unsubscribe();
+    });
+
+    it('passes through non-diffable live-query view commits as-is', async () => {
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS public.rt_view_aggregate_src (
+                id INT PRIMARY KEY,
+                name TEXT
+            )
+        `);
+        await client.query(`
+            CREATE VIEW public.rt_view_aggregate AS
+            SELECT COUNT(*) AS total_rows
+            FROM public.rt_view_aggregate_src
+        `);
+
+        const commits = [];
+        const unsubscribe = await client.wal.subscribe({ public: ['rt_view_aggregate'] }, (commit) => commits.push(commit));
+
+        await client.query(`INSERT INTO public.rt_view_aggregate_src (id, name) VALUES (1, 'Ada')`);
+        await waitFor(() => commits.some((commit) => commit.type === 'result'));
+
+        const resultCommit = commits.find((commit) => commit.type === 'result');
+        expect(resultCommit.rows).to.deep.eq([{ total_rows: 1 }]);
+        expect(resultCommit.hashes).to.have.length(1);
+
+        await unsubscribe();
+    });
+
     it('streams query diffs in live mode', async () => {
         await client.query(`
             CREATE TABLE IF NOT EXISTS public.rt_live (

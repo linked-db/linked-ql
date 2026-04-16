@@ -7,7 +7,9 @@
   <b>Oxford Harrison</b> — <span>November 2025</span>
 </div>
 
-The Realtime Engine is the core of LinkedQL’s [live queries](/capabilities/live-queries). It is **an *in-memory* compute + cache layer** that sits between storage and application code, responsible for converting storage-level mutations — WAL, binlog, or in-memory emitters — into logical change streams that materialize as live result sets.
+The Realtime Engine is the core of LinkedQL’s [live queries](/realtime/live-queries). It is **an *in-memory* compute + cache layer** that sits between storage and application code, responsible for converting storage-level mutations — WAL, binlog, or in-memory emitters — into logical change streams that materialize as live result sets.
+
+---
 
 ## Reader's Note
 
@@ -16,12 +18,12 @@ This page is an engineering paper, not the shortest path into the feature.
 Read it when you want to understand:
 
 - why live queries are tractable over mainstream databases at all
-- how LinkedQL thinks about query inheritance and window reuse
+- LinkedQL's scaling model based on query inheritance
 - why query-level reactivity is different from table-level subscriptions
 
 If you want the application-facing surface first, start here:
 
-- [Live Queries](/capabilities/live-queries)
+- [Live Queries](/realtime/live-queries)
 
 ---
 
@@ -33,15 +35,13 @@ LinkedQL’s goal is to make reactivity a universal concept across SQL databases
 
 This paper examines the engineering behind this design — from cost-profile analysis and execution strategies, to event-stream processing and the resulting live result sets.
 
----
-
 **Table of Contents**
 
 [[toc]]
 
-## _Part I · Query Inheritance and Execution Strategies_
-
 ---
+
+## _Part I · Query Inheritance and Execution Strategies_
 
 ### Introduction
 
@@ -119,8 +119,6 @@ Step-by-step:
 
 So a modest branching factor of 3 over 3 rounds produces 40 events; with 1,000 subscriptions that’s 400 seconds of server CPU-equivalent work — a catastrophic load.
 
----
-
 ### The LinkedQL Model
 
 The scaling failures outlined above are not quirks of implementation; they stem from a deeper property of reactive computation. Whenever two observers independently compute overlapping functions of the same source, their work diverges exponentially with the number of shared dependencies. 
@@ -179,8 +177,6 @@ If inheritance also reduces the branching factor $b$ in cascades (because shared
 
 For LinkedQL’s goal — SQL-level reactivity over Postgres/MySQL — inheritance is not a micro-optimization: it’s the primary mechanism that makes reactivity over the classic client-server model tractable at scale.
 
----
-
 ### Query Windows and Canonical Frames
 
 Every live `SELECT` statement forms a **query window**, representing a continuously maintained view of a query. A canonical or *least-constrained* window is one whose frame, filter, and ordinality clauses are least constraining relative to other windows.
@@ -215,8 +211,6 @@ SELECT id, name FROM users WHERE active AND country='US' ORDER BY created_at DES
 ```
 
 Each subwindow inherits its data stream from its parent window and locally applies any extra filtering, projection, ordering, or slicing.
-
----
 
 ### Detecting Inheritance
 
@@ -341,8 +335,6 @@ SELECT user_id, MAX(amount) AS max FROM orders GROUP BY user_id;
 
 Different aggregate → new canonical window.
 
----
-
 ### Expression Canonicalization
 
 To detect semantically identical queries even when written differently, the engine smartly applies canonicalization when comparing expressions. This happens in a `matchExpr` function, which:
@@ -365,8 +357,6 @@ WHERE (id <> 0) AND id IS NOT NULL
 ```
 
 The result is an inheritance system that is resilient to minor syntactic differences.
-
----
 
 ### Strategy Selection
 
@@ -400,8 +390,6 @@ The planner chooses the lightest viable strategy during query analysis, then esc
 └─────────────────────────────────────────────────────────────┘
 ```
 
----
-
 ### SSR Mode and Inline Evaluation
 
 A window enters **SSR mode** (Server-Side Re-evaluation) when query contains expressions that cannot be evaluated inline — such as aggregates, grouping, window functions, or subselects within the projection or ordering clauses.
@@ -414,8 +402,6 @@ Inheritance under SSR mode is more restrictive:
 * ORDER BY keys must match; directions may differ when no `LIMIT`/`OFFSET` is present.
 
 This ensures deterministic recomputation and allows consistent incremental updates even when complex SQL constructs are involved.
-
----
 
 ### Retrospective Inheritance
 
@@ -444,8 +430,6 @@ This happens as a "hot" swap of dependency, preserving continuity of data flow. 
 
 This retroactive parenting means the system always converges toward minimal redundant work in whatever order queries arrive. In a live environment with hundreds of concurrent listeners, it means the query graph continuously **self-optimizes** as users explore overlapping data views.
 
----
-
 ### Efficiency and Granularity
 
 Inheritance minimizes redundant computation at both server and client levels:
@@ -473,8 +457,6 @@ Client applications typically receive **row-level diffs**, **ordering swaps**, o
 
 The result is *fine-grained reactivity* that begins at the database and propagates through intermediate engine layers to the final consumption/presentation point — typically the UI — without redundant computation.
 
----
-
 ### Scaling Behavior
 
 The profound advantage of the query inheritance model is that computational cost scales *only* with **query diversity**, rather than linearly with subscription count.
@@ -494,8 +476,6 @@ An internal query planner also means that at the window level, cost remains prop
 
 The result is: you don't pay for features you don't use.
 
----
-
 ### Key Takeaways
 
 Rather than isolating each query as an independent subscription, LinkedQL's Realtime engine organizes them into a hierarchy of shared computation.
@@ -505,8 +485,6 @@ Combined with the strategy system — local, selective, wholistic, and SSR — t
 
 The result is a system that behaves like SQL itself but reactive — notably fine-grained, logically consistent, and cost-proportional — without any intermediary servers, GraphQL layers, or local database replicas.
 
----
-
 Now, while query inheritance solves *how* concurrent observers share computation, the next question is *how* they share **causality** — the propagation of change itself.
 
 Part II turns to the kinetics of reactivity: the motion of events, the preservation of transactional identity, and the semantics of continuity across joins and projections.  
@@ -515,16 +493,12 @@ Part II turns to the kinetics of reactivity: the motion of events, the preservat
 
 ## _Part II · The Event Pipeline_
 
----
-
 ### _Section A · Formal Semantics — From Storage to Events_
 
 This section defines the invariants that make realtime SQL reliable. We formalize how physical mutations from the storage engine become logical changes in query space — preserving transactional boundaries, identity, and order. These guarantees are the bedrock on which downstream processing (Section B) builds.
 
 Each mutation begins as a physical change in a storage engine and travels—without loss of transactional identity—through the realtime runtime, through query windows, into observers and synchronizers, and finally into UI or replication systems.
 This section formalizes that movement.
-
----
 
 ### Transactional Continuity
 
@@ -544,8 +518,6 @@ $$
 
 No downstream stage may emit partial visibility of a transaction.
 
----
-
 ### Level-1 Event Shape
 
 The driver (PostgreSQL WAL, MySQL binlog, or in-memory emitter) produces structured event batches of the form:
@@ -562,8 +534,6 @@ The driver (PostgreSQL WAL, MySQL binlog, or in-memory emitter) produces structu
 
 Batches are delivered to the engine per `txId`.
 This is the raw input consumed by `QueryWindow.#handleEvents()`.
-
----
 
 ### Event Normalization and Row Tracking
 
@@ -598,8 +568,6 @@ Normalization applies a fixed rule set that merges redundant sequences while pre
 Even when a row’s physical key changes between updates, continuity via $h_{\text{track}}$ causes the system to coalesce rather than emit disjoint events.
 Thus a flurry of internal row rewrites appears downstream as one clean, semantic `update`.
 
----
-
 ### Logical Diff Construction
 
 The next phase constructs *logical diffs*: mutations expressed in the vocabulary of the query window.
@@ -626,8 +594,6 @@ The transformation occurs in the diff-generation routines:
 `#diffWithLocal()` for locally evaluable clauses,
 `#diffWithOrigin_Selective()` for selective re-queries,
 and `#diffWithOrigin_Wholistic()` for complete re-queries.
-
----
 
 ### Join-Key Transition Semantics
 
@@ -657,8 +623,6 @@ $$
 maps pairs of join states $s = (L,R)$ to the minimal event preserving semantic continuity.
 This mechanism is what allows a UI or replica to treat a changing join as a smooth in-place update rather than a flicker of destruction and creation.
 
----
-
 ### Transaction-Through Invariant
 
 Once logical diffs are built, the engine enforces a strict *transaction-through* rule:
@@ -674,8 +638,6 @@ $$
 
 No fragmentation, no interleaving between transactions.
 
----
-
 ### Formal Properties Summary
 
 | Property                  | Guarantee                                                | Enforcement Site                                             |
@@ -689,8 +651,6 @@ No fragmentation, no interleaving between transactions.
 These formal guarantees lay the foundation for robust downstream processing, shaping how subsequent layers handle and propagate change.
 
 These invariants complete the engine’s contract at the event level. What follows traces how these atomic changes become live, convergent state.
-
----
 
 ### _Section B · Downstream Processing — From Events to State_
 
@@ -712,8 +672,6 @@ This section explains how upstream guarantees (atomicity, identity, and order) m
 └─────────────────────────────────────────────────────────────┘
 ```
 
----
-
 ### Subscription Interfaces and Mutation Handling
 
 At the outer edge of the realtime runtime, change is communicated as a sequence of discrete **event emissions**. Each emission corresponds to a single stage in a query’s evolution — sometimes a full result, sometimes a diff, sometimes a reorder — but always a coherent statement of truth.
@@ -723,8 +681,6 @@ These emissions are shaped by the upstream guarantees of:
 - atomicity — what the engine receives as an atomic DB transaction is processed and delivered atomically;
 - identity — stable hashes universally identify records across updates;
 - order — events are delivered in the order they were received.
-
----
 
 #### Event Vocabulary and the Logic of Identity
 
@@ -755,8 +711,6 @@ These hashes remain stable across updates, anchoring diffs and swaps so that con
                                    └─────────────────┘
 ```
 
----
-
 #### The Callback Model
 
 LinkedQL clients offer a **callback model** for live queries, delivering emissions directly to your handler. When a query is issued with `{ live: true }`, the client invokes the callback for each event type (`diff`, `swap`, `result`) as changes occur.
@@ -771,8 +725,6 @@ await client.query(query, (commit) => {
 ```
 
 This interface is consistent across LinkedQL drivers and enables fine-grained, atomic state updates with minimal ceremony.
-
----
 
 #### Live Objects
 
@@ -818,8 +770,6 @@ Events → RealtimeResult._apply(...) → result.rows (observable)
 ```
 
 For a quick note on terminology: “event”, as used here, denotes the runtime concept; “message” denotes a transport vehicle (e.g., over a wire).
-
----
 
 #### Observability and Its Universal Protocol
 
@@ -867,8 +817,6 @@ Properties induced by the protocol (as used here):
 
 Because the protocol is universal, the same live object can cross process boundaries and network layers untouched: renderers animate mutations; replicators persist them; frameworks like *[Webflo](https://github.com/webqit/webflo)* can transport them directly as messages. This object-first model replaces message-handling scaffolding: you do not reconstruct state from events; the state reconstructs itself.
 
----
-
 #### Incremental State Change
 
 Formally, the evolution of any observable state $S_t$ under incoming emissions is:
@@ -892,8 +840,6 @@ S_{t+n}^{(a)} = S_{t+n}^{(b)} \quad \text{for all observers } a,b
 $$
 
 This is the quiet mathematics behind the system’s “live” illusion.
-
----
 
 #### Live Objects Contract (API and Invariants)
 
@@ -924,8 +870,6 @@ Core invariants (summary):
   $$
   S_{t+n}^{(a)} = S_{t+n}^{(b)} \quad \text{for all observers } a,b
   $$
-
----
 
 ### Summary and Key Takeaways
 
@@ -960,9 +904,9 @@ The Realtime Engine defines a complete operational model for reactive query exec
    ```
    This design allows any renderer, replicator, or transport layer to integrate seamlessly with LinkedQL’s live objects, eliminating glue code and external state management.
 
-## *Part III · Key Contributions and Conclusion*
-
 ---
+
+## *Part III · Key Contributions and Conclusion*
 
 ### Key Contributions
 

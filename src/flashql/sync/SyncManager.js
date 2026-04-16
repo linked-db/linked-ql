@@ -1,7 +1,7 @@
 import { SimpleEmitter } from '../../clients/abstracts/SimpleEmitter.js';
 import { matchRelationSelector, normalizeRelationSelectorArg } from '../../clients/abstracts/util.js';
 import { ConflictError } from '../errors/ConflictError.js';
-import { SYSTEM_TAG } from '../storage/TableStorage.js';
+import { SYSTEM_TAG } from '../../proc/SYSTEM.js';
 
 export class SyncManager extends SimpleEmitter {
 

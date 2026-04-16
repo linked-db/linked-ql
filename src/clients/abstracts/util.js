@@ -55,12 +55,10 @@ export function matchRelationSelector(ident, enums) {
 
 export function normalizeQueryArgs(...args) {
     let query, options = {};
-    if (typeof args[0] === 'object' && args[0] && typeof args[0].query === 'string') {
+    if (typeof args[0] === 'object' && args[0] && (typeof args[0].query === 'string' || typeof args[0].query === 'object' && args[0].query)) {
         ({ query: query, ...options } = args[0]);
     } else if (typeof args[0] === 'object' && args[0] && typeof args[0].text/* node_postgres compat */ === 'string') {
         ({ text: query, ...options } = args[0]);
-    } else if (typeof args[0] === 'object' && args[0] && typeof args[0].url/* AbstractFetchClient compat */ === 'string') {
-        ({ url: query, ...options } = args[0]);
     } else {
         query = args.shift();
         if (Array.isArray(args[0])) {
@@ -73,7 +71,7 @@ export function normalizeQueryArgs(...args) {
             options = { ...options, ...args.shift() };
         }
     }
-    return [query, options];
+    return [query, { values: [], ...options }];
 }
 
 // ------------------------

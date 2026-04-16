@@ -1,9 +1,9 @@
 import { ConflictError } from '../errors/ConflictError.js';
 import { ExprEngine } from '../eval/ExprEngine.js';
 import { registry } from '../../lang/registry.js';
+import { SYSTEM_TAG } from '../../proc/SYSTEM.js';
 
 const INDEX_KEY_CACHE = Symbol.for('flashql:index_key_cache');
-export const SYSTEM_TAG = Symbol.for('system_tag');
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;

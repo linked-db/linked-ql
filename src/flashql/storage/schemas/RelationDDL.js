@@ -356,17 +356,63 @@ export class RelationDDL {
         }
 
         // ----- Resolution
-        this.#source_expr_ast = sourceExprNode.jsonfy();
+        let schemaInference;
+        let resolvedQuery;
 
         if (this.#kind === 'view') {
             const effective_replication_origin = this.#view_opts_replication_origin === 'inherit'
                 ? this.#namespace_id.view_opts_default_replication_origin
                 : this.#view_opts_replication_origin;
             const view_mode_replication_attrs = { effective_replication_origin };
-            const schemaInference = await this.#tx.storageEngine.getSourceResolver({ kind: 'view', view_mode_replication_attrs });
-            const resolvedQuery = await schemaInference.resolveQuery(sourceExprNode, { tx: schemaInference.storageEngine === this.#tx.storageEngine ? this.#tx : null });
-            const originSchemas = resolvedQuery.originSchemas();
+            schemaInference = await this.#tx.storageEngine.getSourceResolver({ kind: 'view', view_mode_replication_attrs });
+        } else {
+            schemaInference = this.#tx.storageEngine.getResolver();
+        }
 
+        const upstream_tx = schemaInference.storageEngine === this.#tx.storageEngine ? this.#tx : null;
+        resolvedQuery = await schemaInference.resolveQuery(sourceExprNode, { tx: upstream_tx });
+
+        const selectNode = resolvedQuery instanceof registry.CTE
+            ? resolvedQuery.body()
+            : resolvedQuery;
+        if (!(selectNode instanceof registry.TableStmt) && !(selectNode instanceof registry.SelectStmt))
+            throw new SyntaxError(`source_expr must be a valid SELECT statement, TABLE statement, or a CTE of such`);
+
+        const originSchemas = resolvedQuery.originSchemas();
+
+        if (columnAliases.length) {
+            let queryJson;
+
+            if (resolvedQuery instanceof registry.TableStmt) {
+                queryJson = resolvedQuery.jsonfy({ toSelect: true, resultSchemas: false, });
+            } else {
+                queryJson = resolvedQuery.jsonfy({ resultSchemas: false, });
+            }
+
+            if (columnAliases.length !== queryJson.select_list.entries.length) {
+                throw new Error(`View column aliases has ${columnAliases.length} column(s), but query returns ${queryJson.select_list.entries.length}`);
+            }
+
+            const newQueryJson = {
+                ...queryJson,
+                select_list: {
+                    ...queryJson.select_list,
+                    entries: queryJson.select_list.entries.map((siJson, i) => {
+                        if (typeof columnAliases[i].name !== 'string')
+                            throw new TypeError(`Input column #${i} is missing a name property or property is invalid`);
+                        return {
+                            ...siJson,
+                            alias: { ...siJson.alias, value: columnAliases[i].name }
+                        };
+                    }),
+                }
+            };
+            resolvedQuery = await this.#parser.parse(newQueryJson, { dialect: this.#tx.storageEngine.dialect });
+        }
+
+        this.#source_expr_ast = resolvedQuery.jsonfy({ resultSchemas: false, originSchemas: false });
+
+        if (this.#kind === 'view') {
             // Analyze AST
             // ------------------
             this.#view_mode_replication_attrs = this.#deriveReplicationAttrs(resolvedQuery);
@@ -378,25 +424,16 @@ export class RelationDDL {
             if (['table', 'schema'].includes(this.#view_mode_replication_attrs.mapping_level)) {
                 ({ columns: derivedColumns, constraints: derivedConstraints } = this.#parser.tableAST_to_tableDef(originSchemas[0]));
             } else {
-                const selectNode = sourceExprNode instanceof registry.CTE
-                    ? sourceExprNode.body()
-                    : sourceExprNode;
-                if (!(selectNode instanceof registry.SelectStmt))
-                    throw new SyntaxError(`source_expr must be a valid SELECT statement or a CTE of such`);
+                if (columnAliases.length) {
+                    resolvedQuery = await schemaInference.resolveQuery(resolvedQuery, { tx: upstream_tx });
+                }
                 derivedColumns = resolvedQuery.resultSchema().entries().map((col) => this.#parser.columnAST_to_columnDef(col));
+                if (this.#view_mode_replication_attrs.key_columns?.length) {
+                    derivedConstraints = [{ kind: 'PRIMARY KEY', columns: this.#view_mode_replication_attrs.key_columns }];
+                }
             }
 
-            if (columnAliases.length) {
-                if (columnAliases.length !== derivedColumns.length)
-                    throw new Error(`View column aliases has ${columnAliases.length} column(s), but query returns ${derivedColumns.length}`);
-                this.#setColumns(derivedColumns.map((col, i) => {
-                    if (typeof columnAliases[i].name !== 'string') throw new TypeError(`Input column #${i} is missing a name property or property is invalid`);
-                    return { ...col, name: columnAliases[i].name };
-                }));
-            } else {
-                this.#setColumns(derivedColumns);
-            }
-
+            this.#setColumns(derivedColumns);
             this.#setConstraints(derivedConstraints);
 
             // Derive reconcilliation parameters for updatable views

@@ -8,6 +8,7 @@ export class EdgeWal extends LinkedQlWal {
     constructor({ edgeClient, ...options }) {
         super({
             ...options,
+            linkedQlClient: edgeClient,
             lifecycleHook: async (status) => {
                 if (status) {
                     this.#realtimeGc = await this.#edgeClient._subscribe(async (commit) => this.dispatch(commit));
@@ -20,10 +21,7 @@ export class EdgeWal extends LinkedQlWal {
     }
 
     async subscribe(...args) {
-        const options = typeof args[args.length - 1] === 'object'
-            && args[args.length - 1]
-            ? args[args.length - 1]
-            : {};
+        const options = args[args.findIndex((e) => typeof e === 'function') + 1] || {};
 
         if (options.preferRemote) {
             return await this.#edgeClient._subscribe(...args);

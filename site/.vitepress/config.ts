@@ -17,8 +17,10 @@ export default defineConfig({
         // Top nav
         nav: [
             { text: 'What is LinkedQL', link: '/overview', activeMatch: '/overview' },
-            { text: 'Capabilities', link: '/capabilities', activeMatch: '/capabilities' },
-            { text: 'Docs', link: '/docs', activeMatch: '/docs' },
+            { text: 'Language Additions', link: '/lang/', activeMatch: '/lang' },
+            { text: 'Realtime', link: '/realtime/', activeMatch: '/realtime' },
+            { text: 'Guides', link: '/guides/', activeMatch: '/guides' },
+            { text: 'API', link: '/api/', activeMatch: '/api' },
             { text: 'FlashQL', link: '/flashql', activeMatch: '/flashql' },
             { text: 'Engineering', link: '/engineering/realtime-engine', activeMatch: '/engineering' },
             {
@@ -37,25 +39,43 @@ export default defineConfig({
                     ]
                 },
                 {
-                    text: 'Docs',
+                    text: 'Guides',
                     items: [
-                        { text: 'Getting Started', link: '/docs' },
-                        { text: 'Setup Guide', link: '/docs/setup' },
-                        { text: 'Query Interface', link: '/docs/query-api' },
-                        { text: 'Integration Patterns', link: '/docs/integration-patterns' },
-                ]
+                        { text: 'Getting Started', link: '/guides/' },
+                        { text: 'PostgreSQL', link: '/guides/postgresql' },
+                        { text: 'MySQL', link: '/guides/mysql' },
+                        { text: 'MariaDB', link: '/guides/mariadb' },
+                        { text: 'FlashQL', link: '/guides/flashql' },
+                        { text: 'Edge', link: '/guides/edge' },
+                        { text: 'Integration Patterns', link: '/guides/integration-patterns' },
+                    ]
                 },
                 {
-                    text: 'Capabilities',
+                    text: 'API',
                     items: [
-                        { text: 'Capabilities Overview', link: '/capabilities' },
-                        { text: 'Live Queries', link: '/capabilities/live-queries' },
-                        { text: 'Streaming', link: '/capabilities/streaming' },
-                        { text: 'Changefeeds', link: '/capabilities/changefeeds' },
-                        { text: 'DeepRefs', link: '/capabilities/deeprefs' },
-                        { text: 'JSON Literals', link: '/capabilities/json-literals' },
-                        { text: 'UPSERT', link: '/capabilities/upsert' },
-                        { text: 'Version Binding', link: '/capabilities/version-binding' },
+                        { text: 'API Overview', link: '/api/' },
+                        { text: 'db.query()', link: '/api/query' },
+                        { text: 'db.stream()', link: '/api/stream' },
+                        { text: 'db.transaction()', link: '/api/transaction' },
+                        { text: 'db.wal.subscribe()', link: '/api/wal-subscribe' },
+                    ]
+                },
+                {
+                    text: 'Language Additions',
+                    items: [
+                        { text: 'Language Overview', link: '/lang/' },
+                        { text: 'DeepRefs', link: '/lang/deeprefs' },
+                        { text: 'JSON Literals', link: '/lang/json-literals' },
+                        { text: 'UPSERT', link: '/lang/upsert' },
+                        { text: 'Version Binding', link: '/lang/version-binding' },
+                    ]
+                },
+                {
+                    text: 'Realtime',
+                    items: [
+                        { text: 'Realtime Overview', link: '/realtime/' },
+                        { text: 'Live Queries', link: '/realtime/live-queries' },
+                        { text: 'Changefeeds', link: '/realtime/changefeeds' },
                     ]
                 },
                 {

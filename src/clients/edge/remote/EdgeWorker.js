@@ -81,7 +81,8 @@ export class EdgeWorker extends SimpleEmitter {
 
         if (op === 'transaction:begin') {
             const db = this.#db;
-            const tx = await db.begin(resolveTx(args.options || {}, true));
+            const options = resolveTx(args.options || {}, true);
+            const tx = await db.begin(options);
 
             this.#transactions.set(tx.id, tx);
             return { id: tx.id };
@@ -127,12 +128,14 @@ export class EdgeWorker extends SimpleEmitter {
                 port.readyStateChange('close').then(gc);
             }
 
-            result = await this.#db.query(args.query, resolveTx(args.options));
+            const options = resolveTx(args.options);
+            result = await this.#db.query(args.query, options);
             return result;
         }
 
         if (op === 'stream') {
-            const asyncIterable = await this.#db.stream(args.query, resolveTx(args.options));
+            const options = resolveTx(args.options);
+            const asyncIterable = await this.#db.stream(args.query, options);
 
             if (this.#type === 'http' && !this.#portBasedStreaming) {
                 return asyncIterable;
@@ -147,7 +150,8 @@ export class EdgeWorker extends SimpleEmitter {
         // -----------
 
         if (op === 'resolver:show_create') {
-            return (await this.#db.resolver.showCreate(args.selector, resolveTx(args.options))).map((sch) => sch.jsonfy());
+            const options = resolveTx(args.options);
+            return (await this.#db.resolver.showCreate(args.selector, options)).map((sch) => sch.jsonfy());
         }
 
         if (op === 'parser:parse') {
@@ -161,9 +165,10 @@ export class EdgeWorker extends SimpleEmitter {
             args.callback = (commit) =>
                 port.postMessage({ commit }, { type: `${this.#workerEventNamespace}commit` });
 
+            const options = resolveTx(args.options);
             const gc = args.selector
-                ? await this.#db.wal.subscribe(args.selector, args.callback, args.options)
-                : await this.#db.wal.subscribe(args.callback, args.options);
+                ? await this.#db.wal.subscribe(args.selector, args.callback, options)
+                : await this.#db.wal.subscribe(args.callback, options);
             port.readyStateChange('close').then(gc);
             return;
         }

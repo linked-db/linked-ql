@@ -3,27 +3,32 @@ layout: home
 title: LinkedQL
 hero:
   name: LinkedQL
-  text: SQL that reaches all the way into runtime, sync, and local-first apps.
-  tagline: >
-    Query local and remote data as one graph, ship a database to the client, and keep it live with reactivity, federation, and sync built into the same SQL surface.
+  text: The database primitive for modern apps and agents.
+  tagline:
+    Replace the traditional database stack with an application-flavoured SQL. LinkedQL is built to directly power realtime, local-first, and offline-first applications through a small set of additions to SQL.
   actions:
     - theme: brand
       text: Get Started
-      link: /docs/
+      link: /guides/
+    - theme: alt
+      text: What Is LinkedQL
+      link: /overview
     - theme: alt
       text: Star on GitHub
       link: https://github.com/linked-db/linked-ql
 features:
   - title: Relationships Solved
-    details: Traverse relationships directly in your queries — without writing a JOIN. Meet DeepRefs, the syntax shorthand that lets you follow relationships using simple arrow notation <span class="nowrap">— <code>SELECT a ~> b</code></span>
+    details: Traverse declared relationships directly in SQL without hand-writing every join. DeepRefs turns schema relationships into first-class query syntax <span class="nowrap">— <code>SELECT author ~> name</code></span>
   - title: JSON Solved
-    details: Bring JSON-like clearity to your queries. LinkedQL's first-class support for JSON notation saves you the wrangling with SQL's low-level JSON functions <span class="nowrap">— <code>SELECT { a, b }</code></span>
+    details: Shape the result the way the application actually wants to consume it. JSON literals pull object and array construction back into the query <span class="nowrap">— <code>SELECT { a, b }</code></span>
   - title: Schemas Solved
-    details: Define and evolve schemas with a dialect-aware parser, automatic schema inference, and a real embedded engine behind the same SQL surface.
+    details: Work against a SQL surface that understands schema, relationships, and versioned structure as part of the language and runtime model.
   - title: Reactivity Solved
-    details: Turn on reactivity over arbitrary SQL with <span class="nowrap"><code>{ live∶ true }</code></span>. You get back a live view of your query. Live Queries in LinkedQL works directly on your database without a middleware or GraphQL servers.
+    details: Turn on reactivity over arbitrary SQL with <span class="nowrap"><code>{ live: true }</code></span>. You get back a live view of the query itself, without bolting on a separate subscription stack.
   - title: Versioning Solved
-    details: Get automatic database versioning as you iterate and evolve your schemas. LinkedQL makes that a reality right on your database. And that means, no more manual migration practices. 
+    details: Make schema/version assumptions explicit in the query contract and carry version-aware workflows into the embedded runtime story.
   - title: Embedding, Federation & Sync Solved
-    details: Run SQL anywhere with <b>FlashQL</b>, declare foreign views in SQL, materialize them locally, and keep them in sync without bolting on a separate replication stack.
+    details: Run SQL in-process with <b>FlashQL</b>, declare foreign views in SQL, materialize them locally, and keep them in sync without first inventing a separate local-first stack.
+  - title: Sync, Realtime & Local-first Solved
+    details: Support realtime, local-first, and offline-first directly from SQL. Federate and sync data between local/remote databases without introducing a separate sync or realtime layer.
 ---

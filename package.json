@@ -3,14 +3,18 @@
   "publishConfig": {
     "access": "public"
   },
-  "title": "Linked QL",
-  "description": "A query client that extends standard SQL with new syntax sugars and enables auto-versioning capabilities on any database",
+  "title": "LinkedQL",
+  "description": "The application-flavoured SQL that runs anywhere, with pluggable, composable backends, with an offline- and sync-ready model",
   "keywords": [
-    "Linked DB",
+    "LinkedDB",
     "Arrow Joins",
     "IndexedDB",
     "MySQL",
-    "PostgreSQL"
+    "PostgreSQL",
+    "offline-first",
+    "local-first",
+    "sync",
+    "FlashQL"
   ],
   "homepage": "https://linked-ql.netlify.app/",
   "icon": "https://webqit.io/icon.svg",

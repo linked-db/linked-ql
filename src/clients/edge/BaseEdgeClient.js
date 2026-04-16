@@ -89,7 +89,7 @@ export class BaseEdgeClient extends LinkedQLClient {
     async query(...args) {
         let [query, { callback, signal, tx: inputTx, ...options }] = normalizeQueryArgs(...args);
         const tx = inputTx ? { id: inputTx.id } : null;
-        
+
         if (query instanceof AbstractNode) query = query.jsonfy();
 
         const responseJson = await this._exec(
@@ -195,11 +195,13 @@ export class BaseEdgeClient extends LinkedQLClient {
         if (typeof callback !== 'function') {
             throw new Error(`Callback must be a function`);
         }
-        const options = args.shift() || {};
+        const _options = args.shift() || {};
+        const { tx: inputTx, ...options } = _options;
+        const tx = inputTx ? { id: inputTx.id } : null;
 
         const gcArray = [];
 
-        const responseJson = await this._exec('wal:subscribe', { selector, options }, { liveMode: true });
+        const responseJson = await this._exec('wal:subscribe', { selector, options: { ...options, tx } }, { liveMode: true });
         if (!responseJson?.port) throw new Error('Could not obtain upstream port');
 
         responseJson.port.readyStateChange('close').then(async () => {

@@ -2,7 +2,9 @@
 
 FlashQL sync is designed around predictable conflict behavior.
 
-It means the system has a clear model for when a local write can still be applied and when it has lost the race to newer authoritative state. What FlashQL doesn't do is automatic merge. That would be bad "magic". 
+It means the system has a clear model for when a local write can still be applied and when it has lost the race to newer authoritative state. What FlashQL doesn't do is automatic merge. That would be bad "magic".
+
+---
 
 ## What a Conflict Usually Means
 
@@ -36,6 +38,8 @@ These are the typical cases to keep in mind.
 - one client updates while offline
 - the other deletes the same row and reconnects first
 - the earlier update later tries to apply
+
+---
 
 ## Conflict Handling
 
@@ -125,6 +129,8 @@ On version equality pass:
 * origin table dispatches a commit event that may echo back to the view, in the case of realtime views
 * the view catches up via that event (inbound sync), or via an explicit refresh
 
+---
+
 ## How This Relates to Write Policies
 
 Conflict detection works with both write policies, but the user experience differs.
@@ -147,6 +153,8 @@ In a conflict scenario, the view self-normalizes on an explicit refresh or via i
 
 The difference between the policies is really **the view's immediate state until normalization**.
 
+---
+
 ## Observable Conflict Behavior
 
 `db.sync` emits a dedicated `conflict` event for these cases.
@@ -154,6 +162,8 @@ The difference between the policies is really **the view's immediate state until
 That lets applications observe conflict as its own operational category instead of as generic errors. (See [Observable Sync Events](/flashql/sync-api#observable-sync-events))
 
 This can be useful for inspection and debugging.
+
+---
 
 ## What Conflict Handling Is Not
 
@@ -166,8 +176,12 @@ What it does is narrower and more useful:
 
 - when a replicated writable view has a usable origin version token, FlashQL can detect and classify write races predictably
 
-## Related Docs
+---
 
-- [Federation, Materialization, and Sync](/flashql/federation-and-sync)
-- [The Sync API](/flashql/sync-api)
-- [Sync Integration Patterns](/docs/integration-patterns)
+## Additional Reading
+
+| If you want to learn about... | Go to... |
+| :-- | :-- |
+| the broader sync story | [Federation, Materialization, and Sync](/flashql/federation-and-sync) |
+| the runtime sync API | [The Sync API](/flashql/sync-api) |
+| where sync fits into larger application shapes | [Integration Patterns](/guides/integration-patterns) |

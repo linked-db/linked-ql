@@ -1,1 +1,0 @@
-import{_ as a,o as n,c as l,ag as e}from"./chunks/framework.DXGyWiRo.js";const d=JSON.parse('{"title":"FlashQL","description":"","frontmatter":{},"headers":[],"relativePath":"flashql.md","filePath":"flashql.md"}'),o={name:"flashql.md"};function p(t,s,r,c,i,y){return n(),l("div",null,[...s[0]||(s[0]=[e("",105)])])}const F=a(o,[["render",p]]);export{d as __pageData,F as default};

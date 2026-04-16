@@ -1,11 +1,12 @@
 import { normalizeRelationSelectorArg } from '../../clients/abstracts/util.js';
+import { SYSTEM_TAG } from '../SYSTEM.js';
 
 const E_PATTERNS = Symbol('patterns');
 const ALL_MATCH = '["*","*"]';
 
 export class LinkedQlWal {
 
-    #keyval;
+    #linkedQlClient;
     #drainMode;
     #lifecycleHook;
 
@@ -18,9 +19,11 @@ export class LinkedQlWal {
     #drainScheduled = false;
     #draining = false;
 
-    constructor({ keyval = new Map, drainMode = 'drain', lifecycleHook = null } = {}) {
+    get linkedQlClient() { return this.#linkedQlClient; }
+
+    constructor({ linkedQlClient, keyval = new Map, drainMode = 'drain', lifecycleHook = null } = {}) {
         this.#drainMode = drainMode;
-        this.#keyval = keyval;
+        this.#linkedQlClient = linkedQlClient;
         this.#lifecycleHook = lifecycleHook;
 
         if (typeof keyval?.enter === 'function') {
@@ -118,12 +121,11 @@ export class LinkedQlWal {
 
     // ----------- subscription
 
-    async subscribe(selector = '*', cb, options = {}) {
+    async subscribe(selector = '*', cb, _options = {}) {
         if (typeof selector === 'function') {
-            options = cb || {};
-            cb = selector;
-            selector = '*';
+            [_options, cb, selector] = [cb || {}, selector, '*'];
         }
+        const { tx = null, liveQueryOriginated, isSingleTableLiveQuery, ...options } = _options;
 
         const selectorSet = normalizeRelationSelectorArg(selector, true);
         const { id: slotName = null } = options;
@@ -133,6 +135,9 @@ export class LinkedQlWal {
             selector,
             selectorSet,
             cb,
+            tx,
+            liveQueryOriginated: liveQueryOriginated === SYSTEM_TAG,
+            isSingleTableLiveQuery: liveQueryOriginated === SYSTEM_TAG && isSingleTableLiveQuery,
             lastSeenCommit: null,
             catchingUp: !!slotName,
             queue: []
@@ -283,7 +288,8 @@ export class LinkedQlWal {
         // No more online?
         if (!this.#subscribers.has(sub.id)) return false;
 
-        const matchedCommit = this.#filterEvents(commit, sub.selectorSet);
+        const _matchedCommit = this.#filterEvents(commit, sub);
+        const matchedCommit = await this.#filterEvents2(_matchedCommit, sub);
         if (!matchedCommit) return true;
 
         await sub.cb(matchedCommit);
@@ -296,8 +302,8 @@ export class LinkedQlWal {
         return true;
     }
 
-    #filterEvents(commit, selectorSet) {
-        if (selectorSet.has(ALL_MATCH)) {
+    #filterEvents(commit, sub) {
+        if (sub.selectorSet.has(ALL_MATCH)) {
             return structuredClone(commit);
         }
 
@@ -312,7 +318,7 @@ export class LinkedQlWal {
                 ALL_MATCH,
             ];
             for (const p of patterns) {
-                if (selectorSet.has(p)) return true;
+                if (sub.selectorSet.has(p)) return true;
             }
             return false;
         }).map((e) => structuredClone(e));
@@ -320,6 +326,42 @@ export class LinkedQlWal {
         if (!entries.length) return null;
 
         return { ...commit, entries };
+    }
+
+    async #filterEvents2(commit, sub) {
+        if (!commit) return null;
+
+        if (sub.liveQueryOriginated && !this.#linkedQlClient?.options.centralizeCommitVisibility) {
+            // The live query has an operational model that when combined wuth transactions
+            // automatically addresses visibility and security.
+            // centralizeCommitVisibility says to at least sill intercept those
+             return commit;
+        }
+
+        const resolveCommitVisibility = this.#linkedQlClient?.options.resolveCommitVisibility;
+        if (!resolveCommitVisibility) {
+            if (!sub.tx || sub.liveQueryOriginated) return commit;
+            throw new Error(`Transaction-scoped subscriptions must be resolved within a linkedQlClient context with an options.resolveCommitVisibility() callback`);
+        }
+
+        const entries = commit.entries.map((entry) => Object.freeze({ ...entry }));
+        const visibleEntries = await resolveCommitVisibility(
+            Object.freeze(entries),
+            { tx: sub.tx, liveQueryOriginated: sub.liveQueryOriginated }
+        );
+
+        if (!(visibleEntries === null || Array.isArray(visibleEntries)))
+            throw new Error(`resolveCommitVisibility() callback must return either an array of entries or null for subscriptions`);
+
+        if (sub.liveQueryOriginated) {
+            // Null forces a requery within the live query engine
+            if (visibleEntries === null) return { ...commit, isVisible: null };
+            if (!visibleEntries.length) return null;
+            return { ...commit, entries: visibleEntries, isVisible: SYSTEM_TAG };
+        }
+
+        if (!visibleEntries?.length) return null;
+        return { ...commit, entries: visibleEntries };
     }
 
     // ----------- catch up

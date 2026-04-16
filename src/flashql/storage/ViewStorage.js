@@ -1,5 +1,5 @@
+import { SYSTEM_TAG } from '../../proc/SYSTEM.js';
 import { TableStorage } from './TableStorage.js';
-import { SYSTEM_TAG } from './TableStorage.js';
 
 export class ViewStorage extends TableStorage {
 

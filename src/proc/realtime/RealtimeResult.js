@@ -8,17 +8,20 @@ export class RealtimeResult extends Result {
     #abortLine;
     #initial;
     #mode;
+    #strategy;
 
     get hashes() { return this.#hashes; }
     get initial() { return this.#initial; }
     get mode() { return this.#mode; }
+    get strategy() { return this.#strategy; }
     
-    constructor({ rows = [], hashes = [], initial = true, mode = 'live' } = {}, abortLine = (() => undefined), signal = undefined) {
+    constructor({ rows = [], hashes = [], initial = true, mode = 'live', strategy = {} } = {}, abortLine = (() => undefined), signal = undefined) {
         super({ rows });
 
         this.#hashes = hashes;
         this.#initial = initial;
         this.#mode = mode;
+        this.#strategy = strategy;
 
         this.#abortLine = abortLine;
         if (signal) signal.addEventListener('abort', () => this.abort());

@@ -32,6 +32,8 @@ await db.query(`
 
 **Result**: your code sees normal tables as in the query above, FlashQL computes the local + remote data as one relational graph behind the scenes.
 
+---
+
 ## Background
 
 Modern applications almost always need some combination of:
@@ -53,6 +55,8 @@ To support all of the above in a typical stack, you end up with:
 
 The complexity tends to trump that of the product itself.
 
+---
+
 ## The FlashQL Approach
 
 FlashQL takes a very specific approach:
@@ -69,6 +73,8 @@ The same relational surface your app already uses becomes:
 Instead of inventing new APIs, FlashQL extends something SQL already has:
 
 > **database views**
+
+---
 
 ## Extending What a View Can Represent
 
@@ -89,6 +95,8 @@ This single extension is what enables:
 - sync
 
 The idea is presented below in conceptual levels.
+
+---
 
 ## Level 1: What a View Is By Itself
 
@@ -133,6 +141,8 @@ but with one obvious limitation:
 > views only have the concept of *local* tables – the data from within the database itself
 
 That single limitation is what FlashQL lifts to unlock federation and sync.
+
+---
 
 ## Level 2: Extending Views to Foreign Origins
 
@@ -208,6 +218,8 @@ With the above, the local FlashQL instance is now foreign-origin-enabled.
 That hook is all the bootstrapping.
 
 Now, when a query touches a foreign-backed view, FlashQL uses the `replication_origin` value to resolve an upstream client via `getUpstreamClient(originId)`.
+
+---
 
 ## Level 3: From Access to Control (View Modes)
 
@@ -348,6 +360,8 @@ It is coordinating how data moves between local state and upstream systems.
 | **materialized** | local  | remote (async) | snapshot            | yes     |
 | **realtime**     | local  | remote (async) | continuously synced | yes     |
 
+---
+
 ## Level 4: Views as Write Surfaces
 
 Views are not just read surfaces.
@@ -393,6 +407,8 @@ For materialized and realtime views, a write lands first in a queue, and applies
 For foreign-backed views, the local write operation returns with success – whether the app is currently online or not. The upstream database is written to in the background when online.
 
 Foreign-backed materialized and realtime views thus retain their offline-first behaviour.
+
+---
 
 ## Level 5: Write Policies and Optimistic Writes
 
@@ -455,6 +471,8 @@ These two policies represent a tradeoff:
 + consistency-first (`origin_first`)
 + latency-first (`local_first`)
 
+---
+
 ## Level 6: Conflict Awareness
 
 Once writes can happen offline or concurrently, conflicts are inevitable – especially when there are multiple write sources.
@@ -462,6 +480,8 @@ Once writes can happen offline or concurrently, conflicts are inevitable – esp
 FlashQL as the coordination system makes conflicts a **predictable and observable** phenomena.
 
 This is covered in [Conflicts](/flashql/conflict-model).
+
+---
 
 ## The Idea at a Glance
 
@@ -477,11 +497,14 @@ You get an upgrade path from the basic database view to the application-ready da
 * **write policy** → origin-first or local-first
 * **conflict detection** → MVCC-tags
 
-## Further Reading
+---
 
-* [The Sync API](/flashql/sync-api)
-* [Conflict handling](/flashql/conflict-model)
-* [Integration patterns](/docs/integration-patterns)
+## Additional Reading
+
+| If you want to learn about... | Go to... |
+| :-- | :-- |
+| the runtime sync API | [The Sync API](/flashql/sync-api) |
+| how this fit into larger app architectures | [Integration Patterns](/guides/integration-patterns) |
 
 ---
 
@@ -597,6 +620,7 @@ GROUP BY country;
 
 Updatability + replication origin together determine **whether a view can act as a write surface for federation and sync**.
 
+---
 
 ## Appendix C: Replication Options
 

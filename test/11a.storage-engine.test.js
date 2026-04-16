@@ -207,6 +207,25 @@ describe('StorageEngine - DDL', () => {
         expect([...users.schema.constraints.keys()]).to.include('FOREIGN KEY');
     });
 
+    it('returns referenced column names from showKeyColumns()', async () => {
+        const tx = storageEngine.begin();
+        await tx.createTable({
+            namespace: 'public',
+            name: 'composite_keys',
+            columns: [
+                { name: 'tenant_id', type: 'INT', not_null: true },
+                { name: 'user_id', type: 'INT', not_null: true },
+                { name: 'name', type: 'TEXT' },
+            ],
+            constraints: [
+                { kind: 'PRIMARY KEY', columns: ['tenant_id', 'user_id'] },
+            ],
+        });
+
+        const tableDef = tx.showTable({ namespace: 'public', name: 'composite_keys' });
+        expect(tx.showKeyColumns({ relation_id: tableDef.id })).to.deep.eq(['tenant_id', 'user_id']);
+    });
+
     it('exposes a canonical write spec for updateable remote-backed views', async () => {
         const tx = storageEngine.begin();
         await tx.createNamespace({

@@ -8,6 +8,7 @@ export class MainstreamWal extends LinkedQlWal {
     constructor({ mainstreamClient, ...options }) {
         super({
             ...options,
+            linkedQlClient: mainstreamClient,
             drainMode: 'drain',
             lifecycleHook: async (status) => {
                 if (status) {

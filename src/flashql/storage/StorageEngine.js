@@ -6,7 +6,7 @@ import { FlashQLSchemaInference } from './FlashQLSchemaInference.js';
 import { FlashQlWal } from './FlashQlWal.js';
 import { SyncManager } from '../sync/SyncManager.js';
 import { MVCCEngine } from './MVCCEngine.js';
-import { SYSTEM_TAG } from './TableStorage.js';
+import { SYSTEM_TAG } from '../../proc/SYSTEM.js';
 
 export class StorageEngine extends MVCCEngine {
 

@@ -6,15 +6,18 @@ export class FlashQlWal extends LinkedQlWal {
     #storageEngine;
 
     constructor({ storageEngine, ...options }) {
-        super(options);
+        super({
+            ...options,
+            linkedQlClient: storageEngine.flashQlClient,
+        });
         this.#storageEngine = storageEngine;
     }
 
-    async subscribe(selector, callback, _options = {}) {
+    async subscribe(selector, cb, _options = {}) {
         if (typeof selector === 'function') {
-            [_options, callback, selector] = [callback || {}, selector, '*'];
+            [_options, cb, selector] = [cb || {}, selector, '*'];
         }
-        const { tx = null, ...options } = _options;
+        const { tx = null, liveQueryOriginated, isSingleTableLiveQuery, ...options } = _options;
 
         const localTableSubs = {};
         const viewSubsMap = {};
@@ -23,8 +26,9 @@ export class FlashQlWal extends LinkedQlWal {
             const tblDef = tx.showView({ namespace: nsName, name: tblName }, { ifExists: true });
 
             if (tblDef?.view_opts_replication_mode === 'none') {
+                const viewDef = { ...tblDef, keyColumns: tx.showKeyColumns({ relation_id: tblDef.id }) };
                 if (!viewSubsMap[nsName]) viewSubsMap[nsName] = {};
-                viewSubsMap[nsName][tblName] = tblDef;
+                viewSubsMap[nsName][tblName] = viewDef;
             } else {
                 if (!localTableSubs[nsName]) localTableSubs[nsName] = [];
                 localTableSubs[nsName].push(tblName);
@@ -41,25 +45,41 @@ export class FlashQlWal extends LinkedQlWal {
                     ? replicationAttrs.upstream_relation
                     : null;
                 const upstreamClient = await this.#storageEngine.getEffectiveClient(tblDef);
+                const upstream_tx = upstreamClient.storageEngine === this.#storageEngine ? tx : null;
+                const upstream_liveQueryOriginated = upstreamClient.storageEngine === this.#storageEngine ? liveQueryOriginated : null;
+                const upstream_isSingleTableLiveQuery = upstream_liveQueryOriginated && isSingleTableLiveQuery;
 
                 if (upstreamRelation) {
                     gcArray.push(upstreamClient.wal.subscribe({ [upstreamRelation.namespace]: upstreamRelation.name }, async (commit) => {
                         if (!commit.computed) {
-                            const remappedEntries = commit.entries.map((e) => ({ ...e, relation: { ...e.relation, namespace: nsName, name: tblName } }));
-                            await callback({ ...commit, entries: remappedEntries });
+                            const remappedEntries = commit.entries.map((e) => ({ ...e, relation: { ...e.relation, namespace: nsName, name: tblName, keyColumns: tblDef.keyColumns } }));
+                            await cb({ ...commit, entries: remappedEntries });
                         } else {
-                            await callback(commit);
+                            await cb(commit);
                         }
-                    }, { tx, ...options }));
+                    }, { tx: upstream_tx, liveQueryOriginated: upstream_liveQueryOriginated, isSingleTableLiveQuery: upstream_isSingleTableLiveQuery, ...options }));
                 } else {
-                    const rtResult = await upstreamClient.query(tblDef.source_expr_ast, callback, { tx, ...options, live: true, initial: false });
+                    const rtResult = await upstreamClient.query(tblDef.source_expr_ast, async (commit) => {
+                        if (rtResult.strategy.diffing && commit.type === 'diff') {
+                            const remappedEntries = commit.entries.map((e) => ({
+                                op: e.op,
+                                old: e.old || null,
+                                new: e.new || null,
+                                relation: { namespace: nsName, name: tblName, keyColumns: tblDef.keyColumns },
+                            }));
+                            const { type, computed, ...commitMeta } = commit;
+                            await cb({ ...commitMeta, entries: remappedEntries });
+                        } else {
+                            await cb(commit);
+                        }
+                    }, { ...options, tx: upstream_tx, live: true, initial: false });
                     gcArray.push(() => rtResult.abort());
                 }
             }
         }
 
         if (Object.keys(localTableSubs).length) {
-            gcArray.push(super.subscribe(localTableSubs, callback, options));
+            gcArray.push(super.subscribe(localTableSubs, cb, { ...options, tx, liveQueryOriginated, isSingleTableLiveQuery }));
         }
 
         const _gcArray = await Promise.all(gcArray);
@@ -90,7 +110,7 @@ export class FlashQlWal extends LinkedQlWal {
                         const currentRow = tableStorage.get(oldRef, { hiddenCols: true });
                         if (!currentRow) throwConflict();
                         // Casting both sides to text is important
-                        if (currentRow[relation.mvccKey]+'' !== event.mvccTag+'') throwConflict(currentRow);
+                        if (currentRow[relation.mvccKey] + '' !== event.mvccTag + '') throwConflict(currentRow);
                     }
 
                     let result;

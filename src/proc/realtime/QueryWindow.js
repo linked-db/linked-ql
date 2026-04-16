@@ -5,6 +5,7 @@ import { Transformer } from '../../lang/Transformer.js';
 import { LinkedQlWal } from '../timeline/LinkedQlWal.js';
 import { registry } from "../../lang/registry.js";
 import { _eq } from "../../lang/abstracts/util.js";
+import { SYSTEM_TAG } from '../SYSTEM.js';
 
 export class QueryWindow extends SimpleEmitter {
 
@@ -155,7 +156,8 @@ export class QueryWindow extends SimpleEmitter {
                 } else {
                     const _effectiveWhere = matchExpr(aWhere, bWhere, 'AND~');
                     if (_effectiveWhere === false) return false;
-                    effectiveWhere.push(..._effectiveWhere);
+                    if (_effectiveWhere === true) effectiveWhere.push(bWhere);
+                    else effectiveWhere.push(..._effectiveWhere);
                 }
             } else if (!matchExpr(aWhere, bWhere)) return false;
         }
@@ -227,7 +229,7 @@ export class QueryWindow extends SimpleEmitter {
 
     #logicalQuery;
     #logicalQueryJson;
-    #logicalQueryParams;
+    #logicalQueryOptions;
 
     #originAliases = [];
     #originSchemas = new Map;
@@ -251,7 +253,7 @@ export class QueryWindow extends SimpleEmitter {
     get linkedQlClient() { return this.#linkedQlClient; }
     get tx() { return this.#tx; }
     get dialect() { return this.#dialect; }
-    
+
     get options() { return this.#options; }
     get query() { return this.#query; }
 
@@ -266,7 +268,7 @@ export class QueryWindow extends SimpleEmitter {
 
     get wal() { return this.#wal; }
 
-    constructor(linkedQlClient, query, { tx, ...options } = {}) {
+    constructor(linkedQlClient, query, { tx, noOffsetRevalidate, forceDiffing, ...options } = {}) {
         super();
 
         if (!(query instanceof registry.BasicSelectStmt)) {
@@ -285,10 +287,14 @@ export class QueryWindow extends SimpleEmitter {
 
         this.#query = query;
         this.#queryJson = this.#query.jsonfy({ resultSchemas: false, originSchemas: false });
-        this.#options = options; // { noOffsetRevalidate, forceDiffing }
-        this.#queryCtx = { options: { values: options.values || [] } };
 
-        this.#wal = new LinkedQlWal({ drainMode: 'drain' });
+        // Excluding tx; IMPORTANT
+        this.#options = { noOffsetRevalidate, forceDiffing, ...options };
+        // Also excluding noOffsetRevalidate, forceDiffing
+        this.#logicalQueryOptions = structuredClone(options);
+        this.#queryCtx = { options: structuredClone(options) };
+
+        this.#wal = new LinkedQlWal({ drainMode: 'drain', linkedQlClient });
 
         this.#fromJsonOpts = { dialect: this.#dialect, assert: true };;
 
@@ -590,13 +596,11 @@ export class QueryWindow extends SimpleEmitter {
         this.#logicalQuery = this.#query.constructor.fromJSON(this.#logicalQueryJson, this.#fromJsonOpts);
 
         // Normalize query params
-        this.#logicalQueryParams = this.#queryCtx.options.values.slice(0);
-
         if (!strategy.ssr) {
-            this.#logicalQueryParams = [];
+            this.#logicalQueryOptions.values = [];
 
-            const inputQueryParams = this.#queryCtx.options.values;
-            const expectedLength = inputQueryParams.length;
+            const inputQueryParams = this.#options.values;
+            const expectedLength = inputQueryParams?.length || 0;
 
             let bindingIndex = 1;
 
@@ -606,7 +610,7 @@ export class QueryWindow extends SimpleEmitter {
                     if (i > expectedLength) {
                         throw new SyntaxError(`Could not determine data type of parameter ${node}`);
                     }
-                    this.#logicalQueryParams.push(
+                    this.#logicalQueryOptions.values.push(
                         inputQueryParams[i - 1]
                     );
                     return { ...node.jsonfy(), value: bindingIndex++ };
@@ -625,7 +629,7 @@ export class QueryWindow extends SimpleEmitter {
             this.#handleCommit(commit).catch((e) => {
                 this.emit('error', e);
             });
-        });
+        }, { tx: this.#tx, liveQueryOriginated: SYSTEM_TAG, isSingleTableLiveQuery: analysis.isSingleTable });
     }
 
     async #initializeAsSub() {
@@ -752,7 +756,8 @@ export class QueryWindow extends SimpleEmitter {
             logicalQuery = this.#query.constructor.fromJSON(logicalQueryJson, this.#fromJsonOpts);
         }
 
-        const result = await this.#linkedQlClient.query(logicalQuery, { tx: this.#tx, values: this.#logicalQueryParams });
+        // With tx; IMPORTANT
+        const result = await this.#linkedQlClient.query(logicalQuery, { tx: this.#tx, ...this.#logicalQueryOptions, liveQueryOriginated: SYSTEM_TAG });
 
         const resultEntries = [];
         for (const [i, logicalRecord] of result.rows.entries()) {
@@ -943,7 +948,7 @@ export class QueryWindow extends SimpleEmitter {
         if (normalizeEvents === true) {
             return await this.#diffWithOrigin_Wholistic(commitMeta);
         }
-        if (analysis.isSingleTable) {
+        if (analysis.isSingleTable && (!this.#tx || commit.isVisible === SYSTEM_TAG)) {
             const [normalizedEventsMap] = normalizeEvents;
             return await this.#diffWithLocal(commitMeta, normalizedEventsMap);
         }
@@ -997,6 +1002,7 @@ export class QueryWindow extends SimpleEmitter {
 
     async #diffWithOrigin_Selective(commitMeta, normalizedEventsMap, keyHistoryMap, allAffectedAliases) {
         const strategy = this.#strategy;
+        const analysis = this.#analysis;
 
         const composeSelectionLogic = (alias, keyColumns, keyValues, nullTest = 0) => {
             if (keyColumns.length > 1) {
@@ -1033,6 +1039,9 @@ export class QueryWindow extends SimpleEmitter {
                 operator: '=',
                 right: valueLiteral
             }, this.#fromJsonOpts);
+            if (analysis.isSingleTable) {
+                return eqExpr;
+            }
             // Compose?: (<keyColumn> IS NULL OR <keyColumn> = <keyValue>)
             if (nullTest === 2) {
                 const orExpr = {

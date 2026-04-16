@@ -3,9 +3,9 @@ import { SQLParser } from '../../../lang/SQLParser.js';
 import { ExprEngine } from '../../eval/ExprEngine.js';
 import { bootstrapCatalog } from '../bootstrap/catalog.bootstrap.js';
 import { satisfiesVersionSpec, formatVersion } from './versionSpec.js';
+import { SYSTEM_TAG } from '../../../proc/SYSTEM.js';
 import { TableStorage } from '../TableStorage.js';
 import { ViewStorage } from '../ViewStorage.js';
-import { SYSTEM_TAG } from '../TableStorage.js';
 import { NamespaceDDL } from './NamespaceDDL.js';
 import { RelationDDL } from './RelationDDL.js';
 
@@ -605,6 +605,21 @@ export class CatalogAPI {
 
         if (tblDef) await this.#dropRelations([tblDef], cascade);
         return tblDef;
+    }
+
+    showKeyColumns({ relation_id } = {}) {
+        const sysCatalog = this.#getSysCatalog();
+        const constraints = sysCatalog.get('sys_constraints')
+            .get({ relation_id }, { using: 'sys_constraints__relation_id_idx', multiple: true })
+            .filter((con) => con.kind === 'PRIMARY KEY');
+
+        const sysColumns = sysCatalog.get('sys_columns');
+        return constraints.flatMap((con) => (con.column_ids || []).map((columnId) => {
+            const column = sysColumns.get(columnId);
+            if (!column || column.relation_id !== relation_id)
+                throw new ReferenceError(`The column_id reference (${columnId}) could not be resolved at relation ${relation_id}`);
+            return column.name;
+        }));
     }
 
     // ----------

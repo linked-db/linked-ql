@@ -7,6 +7,8 @@ If you have already read [Federation, Materialization, and Sync](/flashql/federa
 - that page explains the *model*
 - this page explains the *control surface*
 
+---
+
 ## What the Sync Manager Manages
 
 `db.sync` works over FlashQL views whose replication mode is one of:
@@ -25,6 +27,8 @@ Sync is a self-driven process in FlashQL. The public Sync API, however, makes it
 
 Being self-driven helps eliminate application-side bookkeeping.
 
+---
+
 ## The Main Application-Level Entry Point: `sync.sync()`
 
 The central design decision in FlashQL sync is that there is one idempotent application-level entry point:
@@ -41,6 +45,8 @@ You should be able to call it:
 - when your app is unsure whether sync is currently active
 
 and get the correct reconciliation behavior without having to memorize a dozen separate lifecycle APIs.
+
+---
 
 ## Practical Startup and Reconnect Flow
 
@@ -63,6 +69,8 @@ And just as importantly, this is meant to be the only thing the app really needs
 - on reconnect, call `db.sync.sync()`
 - everything else should already be automatic
 
+---
+
 ## What `sync.sync()` Does
 
 For the given selector, `sync.sync(selector?)` will discover candidate views and:
@@ -72,6 +80,8 @@ For the given selector, `sync.sync(selector?)` will discover candidate views and
   - start realtime jobs, if not already started – in the case of "realtime" views
 - for outbound sync
   - retry queued writes to origin tables
+
+---
 
 ## Selector Support
 
@@ -107,6 +117,8 @@ Status records includes fields such as:
 - `running`: a realtime job is active
 - `failed`: the last attempt failed
 
+---
+
 ## `sync.stop()`
 
 Use `sync.stop()` to halt selected realtime jobs.
@@ -117,6 +129,8 @@ await db.sync.stop({ public: ['posts_live'] });
 
 For realtime views, `sync.stop()` doesn't just stop a job but disables it until explicitly resumed.
 
+---
+
 ## `sync.resume()`
 
 Use `sync.resume()` to re-enable previously stopped jobs.
@@ -126,6 +140,8 @@ await db.sync.resume({ public: ['posts_live'] });
 ```
 
 `sync.resume()` re-enables the job and then routes back through the normal sync logic.
+
+---
 
 ## Materialized vs Realtime Behavior
 
@@ -144,6 +160,8 @@ For a `realtime` view, sync typically:
 - ensures a usable local copy exists
 - starts the upstream subscription
 - updates the local mirror as upstream commits arrive
+
+---
 
 ## Outbound Write Behavior
 
@@ -167,6 +185,8 @@ Practical meaning:
 
 Queue state is about the outbound attempt. Row state is still authoritatively driven by inbound origin commits or explicit refreshes.
 
+---
+
 ## Observable Sync Events
 
 `db.sync` emits operational events such as:
@@ -181,6 +201,8 @@ db.sync.on('error', (e) => {
   console.log(e);
 });
 ```
+
+---
 
 ## Example: Inspect, Stop, Resume
 
@@ -204,7 +226,11 @@ console.log(resumed[0].state);
 // 'running'
 ```
 
-## Related Docs
+---
 
-- [Federation, Materialization, and Sync](/flashql/federation-and-sync)
-- [Sync Integration Patterns](/docs/integration-patterns)
+## Additional Reading
+
+| If you want to learn about... | Go to... |
+| :-- | :-- |
+| the boreader sync story | [Federation, Materialization, and Sync](/flashql/federation-and-sync) |
+| how sync fits into larger application architectures | [Integration Patterns](/guides/integration-patterns) |

@@ -2,7 +2,7 @@
 
 # LinkedQL  
 
-One SQL interface for local, remote, and live queries
+The application-flavoured SQL that runs anywhere, with pluggable backends
 
 [![npm version][npm-version-src]][npm-version-href]<!-- [![npm downloads][npm-downloads-src]][npm-downloads-href] -->
 [![coverage][coverage-src]][coverage-href]
@@ -72,16 +72,16 @@ Runs across:
 → All in under `80 KiB` (min+zip)  
 → A single interface that drops into any application  
 
-> One SQL interface for local, remote, and live queries
+> The application-flavoured SQL that runs anywhere, with pluggable backends
 
-**[See capabilities ↗](https://linked-ql.netlify.app/capabilities)** for the full picture.
+**[See the overview ↗](https://linked-ql.netlify.app/overview)** for the full picture.
 
 </div>
 
 ---
 
 > [!IMPORTANT]
-> LinkedQL is backed by **1,000+ tests and growing**.<br>
+> LinkedQL is backed by **1,200+ tests today and growing**.<br>
 > Feedback, issues, and PRs help drive the next 1,000.<br>
 > See [Contributing](#-contributing)
 
@@ -103,16 +103,16 @@ Import and use the client for your database.
 
 | **Client/Model** | **Import Path**                    | **Guide**                                                               |
 | :--------------- | :--------------------------------- | :---------------------------------------------------------------------- |
-| `PGClient`       | `@linked-db/linked-ql/postgres`    | [PostgreSQL ↗](https://linked-ql.netlify.app/docs/setup#postgresql)     |
-| `MySQLClient`    | `@linked-db/linked-ql/mysql`       | [MySQL ↗](https://linked-ql.netlify.app/docs/setup#mysql)               |
-| `MariaDBClient`  | `@linked-db/linked-ql/mariadb`     | [MariaDB ↗](https://linked-ql.netlify.app/docs/setup#mariadb)           |
-| `FlashQL`        | `@linked-db/linked-ql/flashql`     | [FlashQL ↗](https://linked-ql.netlify.app/docs/setup#flashql)           |
-| `EdgeClient`     | `@linked-db/linked-ql/edge`        | [Edge / Browser ↗](https://linked-ql.netlify.app/docs/setup#edgeclient) |
-| `EdgeWorker`     | `@linked-db/linked-ql/edge-worker` | [Edge Worker ↗](https://linked-ql.netlify.app/docs/setup#edgeworker)    |
+| `PGClient`       | `@linked-db/linked-ql/postgres`    | [PostgreSQL ↗](https://linked-ql.netlify.app/guides/postgresql)     |
+| `MySQLClient`    | `@linked-db/linked-ql/mysql`       | [MySQL ↗](https://linked-ql.netlify.app/guides/mysql)               |
+| `MariaDBClient`  | `@linked-db/linked-ql/mariadb`     | [MariaDB ↗](https://linked-ql.netlify.app/guides/mariadb)           |
+| `FlashQL`        | `@linked-db/linked-ql/flashql`     | [FlashQL ↗](https://linked-ql.netlify.app/guides/flashql)           |
+| `EdgeClient`     | `@linked-db/linked-ql/edge`        | [Edge / Browser ↗](https://linked-ql.netlify.app/guides/edge#edgeclient) |
+| `EdgeWorker`     | `@linked-db/linked-ql/edge-worker` | [Edge Worker ↗](https://linked-ql.netlify.app/guides/edge#edgeclient)    |
 
 See:
 
-* [Setup Guide ↗](https://linked-ql.netlify.app/docs/setup)
+* [LinkedQL Guides ↗](https://linked-ql.netlify.app/guides)
 
 ---
 
@@ -133,7 +133,7 @@ The same surface applies whether `db` is a direct PostgreSQL client, a local Fla
 
 See:
 
-+ [Core Query API](https://linked-ql.netlify.app/docs/query-api)
++ [The Core API](https://linked-ql.netlify.app/api)
 
 ---
 
@@ -141,7 +141,7 @@ See:
 
 LinkedQL collapses the traditional data stack — database, API layer, and sync engine — into a single SQL primitive that drops directly into your application.
 
-The [Capabilities](https://linked-ql.netlify.app/capabilities) page is your map to what LinkedQL enables.
+The [overview](https://linked-ql.netlify.app/overview) page is your map to what LinkedQL enables.
 
 Below are a few examples that build up that model step by step.
 
@@ -165,14 +165,14 @@ const result = await db.query(`
 
 No remapping step or post-processing code. The query itself defines the shape.
 
-This is fully covered in [JSON Literals ↗](https://linked-ql.netlify.app/capabilities/json-literals)
+This is fully covered in [JSON Literals ↗](https://linked-ql.netlify.app/lang/json-literals)
 
 ### 2. Traverse relationships directly
 
 **DeepRefs** let you follow relationships directly in SQL using simple arrow notations.
 
 | Notation | Meaning                                |
-| -------- | -------------------------------------- |
+| :------- | :------------------------------------- |
 | `~>`     | forward traversal (follow a reference) |
 | `<~`     | reverse traversal (find dependents)    |
 
@@ -245,13 +245,13 @@ No need for an ORM or manual JOIN logic.
 
 If you've defined foreign key relationships in your tables, you can traverse them directly in the query.
 
-Deeper syntax and traversal patterns are fully covered in [DeepRefs ↗](https://linked-ql.netlify.app/capabilities/deeprefs).
+Deeper syntax and traversal patterns are fully covered in [DeepRefs ↗](https://linked-ql.netlify.app/lang/deeprefs).
 
 ### 3. Run Live Queries
 
 LinkedQL brings live queries to your database: **PostgreSQL**, **FlashQL**, **MySQL/MariaDB\***.
 
-With just a mode switch `{ live: true }`, you get back a live, self-updating result set.
+With just a mode switch `{ live: true }`, you can get back a live, self-updating result set.
 
 ```js
 const result = await db.query(`
@@ -293,7 +293,7 @@ const result = await db.query(`
 
 #### Backed by a robust live query engine
 
-See the full story in [Live Queries ↗](https://linked-ql.netlify.app/capabilities/live-queries).  
+See the full story in [Live Queries ↗](https://linked-ql.netlify.app/realtime/live-queries).  
 See the [Realtime Engine ↗](https://linked-ql.netlify.app/engineering/realtime-engine) paper for a deeper dive.
 
 > [!NOTE]
@@ -405,7 +405,7 @@ What typically takes a database, API layer, cache, and sync engine is reduced to
 This is fully covered in:
 
 * [Federation, Materialization, and Sync ↗](https://linked-ql.netlify.app/flashql/federation-and-sync)
-* [LinkedQL Integration Patterns ↗](https://linked-ql.netlify.app/docs/integration-patterns)
+* [LinkedQL Integration Patterns ↗](https://linked-ql.netlify.app/guides/integration-patterns)
 
 ---
 
@@ -414,20 +414,20 @@ This is fully covered in:
 If you want to explore the full LinkedQL model, see:
 
 - **Capabilities overview** → an easy map of LinkedQL  
-  + [Capabilities ↗](https://linked-ql.netlify.app/capabilities)
+  + [Overview ↗](https://linked-ql.netlify.app/realtime)
 
-- **FlashQL and local-first architecture** → embedded engine, federation, and sync  
+- **FlashQL and local-first architectures** → embedded engine, federation, and sync  
   + [FlashQL ↗](https://linked-ql.netlify.app/flashql)
 
 - **Integration patterns** → how this fits into real applications  
-  + [Integration Patterns ↗](https://linked-ql.netlify.app/docs/integration-patterns)
+  + [Integration Patterns ↗](https://linked-ql.netlify.app/guides/integration-patterns)
 
 - **Core API** → the full interface surface  
-  + [Query API ↗](https://linked-ql.netlify.app/docs/query-api)
+  + [The Core API ↗](https://linked-ql.netlify.app/api)
 
 * Or go from the start:
 
-  - **[The LinkedQL Docs ↗](https://linked-ql.netlify.app/docs)**
+  - **[The LinkedQL Docs ↗](https://linked-ql.netlify.app/overview)**
 
 ---
 
@@ -458,6 +458,8 @@ npm test
 - Consider creating your feature branch from `next` before making changes (e.g. `git checkout -b feature/my-idea`).
 - Remember to `npm test` before submitting a PR.
 - Check the [Progress](#-our-progress-on-this-iteration-of-linkedql) section above to see where help is most needed.
+
+---
 
 ## 🔑 License
 

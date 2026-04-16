@@ -15,6 +15,8 @@ Just as important is what this page is *not* saying:
 - it does not treat every parsed construct as fully supported at runtime
 - it does not treat storage-transaction APIs as identical to SQL DDL support
 
+---
+
 ## Reading This Page
 
 Use this page in three ways:
@@ -25,10 +27,12 @@ Use this page in three ways:
 
 For more focused guides, also see:
 
-- [DeepRefs](/capabilities/deeprefs)
-- [JSON Literals](/capabilities/json-literals)
-- [UPSERT](/capabilities/upsert)
-- [Version Binding](/capabilities/version-binding)
+- [DeepRefs](/lang/deeprefs)
+- [JSON Literals](/lang/json-literals)
+- [UPSERT](/lang/upsert)
+- [Version Binding](/lang/version-binding)
+
+---
 
 ## Query Language at a Glance
 
@@ -47,6 +51,8 @@ FlashQL is strongest today in the application-facing query layer:
 - window-function expressions used in tested execution paths
 
 These are not just parser-level claims. They are exercised across the parser, desugaring layer, and engine tests.
+
+---
 
 ## DQL: Querying Data
 
@@ -167,6 +173,8 @@ const result = await db.query(`
 
 Writable CTE pipelines are also part of the tested surface when combined with `RETURNING`.
 
+---
+
 ## DML: Writing Data
 
 ### `INSERT`
@@ -252,7 +260,9 @@ const result = await db.query(`
 `);
 ```
 
-See also: [UPSERT](/capabilities/upsert)
+See also: [UPSERT](/lang/upsert)
+
+---
 
 ## Window Functions
 
@@ -279,6 +289,8 @@ const result = await db.query(`
 ```
 
 This is one of the areas where the older docs were badly behind the code. Window-function support is not merely "planned."
+
+---
 
 ## DDL and Schema Operations
 
@@ -326,6 +338,8 @@ The SQL surface is intentionally selective rather than claiming full PostgreSQL 
 
 If your application depends on rarely used server-specific DDL clauses, validate those paths explicitly.
 
+---
+
 ## Transactions
 
 FlashQL supports transactions at the client API level:
@@ -347,15 +361,19 @@ This does **not** mean the SQL command family:
 
 should be read as the primary way to control transactions in FlashQL. The JS transaction API is the intended surface.
 
+---
+
 ## JSON Literals and Structured Data
 
 FlashQL extends SQL with native JSON-style literals.
 
 See:
 
-- [JSON Literals](/capabilities/json-literals)
+- [JSON Literals](/lang/json-literals)
 
 This matters especially when you want application-shaped SQL without constantly escaping back into imperative JavaScript.
+
+---
 
 ## DeepRefs
 
@@ -375,7 +393,9 @@ FROM public.posts
 
 DeepRefs also show up in write syntax and desugaring workflows.
 
-See: [DeepRefs](/capabilities/deeprefs)
+See: [DeepRefs](/lang/deeprefs)
+
+---
 
 ## Version Binding
 
@@ -405,7 +425,9 @@ What it does **not** mean:
 
 For point-in-time replay, use FlashQL boot options such as `versionStop`.
 
-See: [Version Binding](/capabilities/version-binding)
+See: [Version Binding](/lang/version-binding)
+
+---
 
 ## Point-in-Time Replay
 
@@ -423,6 +445,8 @@ await historical.connect();
 This replays persisted history to a chosen relation-version boundary and boots the engine there.
 
 That is separate from version binding inside a query.
+
+---
 
 ## Dialect Notes
 
@@ -445,6 +469,8 @@ MySQL-flavored parsing is supported, and FlashQL can switch dialect per client o
 
 That does not make MySQL support fake. It just means readers should calibrate expectations correctly.
 
+---
+
 ## Practical Reading of "Support"
 
 When evaluating whether FlashQL supports a given language feature, use this order of confidence:
@@ -455,9 +481,11 @@ When evaluating whether FlashQL supports a given language feature, use this orde
 
 That is why this page focuses on the features that are clearly alive in the current codebase rather than pretending every parsed form has equal runtime maturity.
 
-## Where to Go Next
+---
 
-- [Query Interface](/docs/query-api)
-- [DeepRefs](/capabilities/deeprefs)
-- [JSON Literals](/capabilities/json-literals)
-- [Version Binding](/capabilities/version-binding)
+## Additional Reading
+
+| If you want to learn about... | Go to... |
+| :-- | :-- |
+| the broader LinkedQL language additions surface | [Language Additions](/lang) |
+| the application-facing API | [API](/api/) |

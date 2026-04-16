@@ -1,0 +1,1 @@
+export const SYSTEM_TAG = Symbol.for('system_tag');

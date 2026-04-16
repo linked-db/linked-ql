@@ -420,7 +420,7 @@ describe('Client.transaction(cb)', () => {
         const walSubscribeCalls = client.calls.filter(([op]) => op === 'wal:subscribe');
         expect(walSubscribeCalls).to.have.length(1);
         expect(walSubscribeCalls[0][1].selector).to.eq(undefined);
-        expect(walSubscribeCalls[0][1].options).to.deep.eq({});
+        expect(walSubscribeCalls[0][1].options).to.deep.eq({ tx: null });
 
         await client.wal.dispatch({
             txId: 1,

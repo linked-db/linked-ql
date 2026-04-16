@@ -21,7 +21,13 @@ export class RealtimeClient {
     }
 
     async query(...args) {
-        const [query, { live: _, callback, signal, tx, id, initial, ...options }] = normalizeQueryArgs(...args);
+        const [query, { live: _, callback, signal, tx, id, initial, ..._options }] = normalizeQueryArgs(...args);
+        // Normalze options of indefined
+        const options = {
+            forceDiffing: undefined,
+            noOffsetRevalidate: undefined,
+            ...Object.fromEntries(Object.entries(_options).filter(([, v]) => v !== undefined)),
+        };
 
         let queryWindow;
         let resultJson;
@@ -34,7 +40,7 @@ export class RealtimeClient {
                 if (QueryWindow.intersectQueries(w.query, query) === false) return false;
                 return true;
             });
-            resultJson = queryWindow && { rows: [], hashes: [], initial: false, mode: callback ? 'callback' : 'live' };
+            resultJson = queryWindow && { rows: [], hashes: [], initial: false, mode: callback ? 'callback' : 'live', strategy: { ...queryWindow.strategy } };
         }
 
         if (!queryWindow) {
@@ -42,7 +48,7 @@ export class RealtimeClient {
             const initialResult = initial === false
                 ? { initial: false }
                 : { ...await queryWindow.currentRendering(), initial: true };
-            resultJson = { ...initialResult, mode: callback ? 'callback' : 'live' };
+            resultJson = { ...initialResult, mode: callback ? 'callback' : 'live', strategy: { ...queryWindow.strategy } };
         }
 
         const realtimeResult = new RealtimeResult(resultJson, async ({ forget = false } = {}) => {

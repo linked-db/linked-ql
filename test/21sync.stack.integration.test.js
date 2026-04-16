@@ -671,7 +671,6 @@ describe('Real-world sync integration stacks', () => {
             let localRows = await uiDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`);
             expect(localRows.rows).to.deep.eq([{ id: 1, name: 'Ada' }]);
 
-            globalThis.__ = 2;
             await upstreamDb.query(`UPDATE public.${tableName} SET name = 'Ada Lovelace' WHERE id = 1`);
             await waitFor(async () => {
                 const rows = (await uiDb.query(`SELECT id, name FROM ${schemaName}.users ORDER BY id`)).rows;
