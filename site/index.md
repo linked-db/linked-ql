@@ -5,7 +5,7 @@ hero:
   name: LinkedQL
   text: Portable Query Engine For the New Chapter
   tagline:
-    LinkedQL moves applications from ad-hoc data stacks and scaffold layers to full SQL power.
+    LinkedQL moves applications from manual capability scaffolding to full SQL power.
   actions:
     - theme: brand
       text: Get Started

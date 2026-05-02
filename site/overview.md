@@ -1,4 +1,4 @@
-# LinkedQL <br>— The Database Primitive For Applications And Agents
+# LinkedQL <br>— Portable Query Engine for Applications and Agents
 
 **Welcome to the docs.** This page gives you the core thinking around LinkedQL and helps you map the system at a glance.
 
@@ -12,7 +12,7 @@ It extends SQL with a small set of composable capabilities for relationships, re
 
 ### What It Replaces
 
-LinkedQL composes capabilities traditionally handled by separate systems — ORMs (e.g. Prisma), API/query layers (e.g. GraphQL), and sync engines (e.g. ElectricSQL) — directly into SQL.
+LinkedQL composes capabilities traditionally handled by separate systems directly into SQL — ORMs (e.g. Prisma), API/query layers (e.g. GraphQL), and sync engines (e.g. ElectricSQL).
 
 This shifts applications from manual capability scaffolding to a unified, composable, SQL-based model for application logic and state.
 
@@ -42,10 +42,10 @@ The core insight behind LinkedQL is *how those dots connect together at the SQL 
 
 ## Your Map to the Docs
 
-| Area            | What it covers                                                             | Go to...                                                                   |
-| :-------------- | :------------------------------------------------------------------------- | :------------------------------------------------------------------------- |
-| Core Guides     | From basic setup to first queries, to more comprehensive guides            | [LinkedQL Guides](/guides)                                                 |
-| API             | Core API contract — the interface and query model                          | [LinkedQL API](/api)                                                       |
-| Language        | The LinkedQL language surface (JSON Literals, DeepRefs, etc.)              | [Language Surface](/lang)                                                |
-| Realtime        | Live queries and subscription model                                        | [Realtime Capabilities](/realtime)                                         |
-| FlashQL         | LinkedQL's embeddable SQL engine for local execution, federation, and sync    | [FlashQL](/flashql)                                                        |
+| Area               | What it covers                                                             | Go to...                                                                   |
+| :----------------- | :------------------------------------------------------------------------- | :------------------------------------------------------------------------- |
+| Core Guides        | From basic setup to first queries, to more comprehensive guides            | [Core Guides](/guides)                                                     |
+| Core API           | Core API contract — the interface and query model                          | [Core API](/core)                                                          |
+| Language Surface   | The LinkedQL language surface (JSON Literals, DeepRefs, etc.)              | [Language Surface](/lang)                                                  |
+| Realtime Capabilities | Live queries and subscription model                                        | [Realtime Capabilities](/realtime)                                         |
+| FlashQL            | LinkedQL's embeddable SQL engine for local execution, federation, and sync | [FlashQL](/flashql)                                                        |
