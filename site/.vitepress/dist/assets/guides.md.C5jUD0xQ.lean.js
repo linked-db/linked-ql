@@ -1,1 +1,0 @@
-import{_ as t,o as a,c as s,ag as l}from"./chunks/framework.DXGyWiRo.js";const h=JSON.parse('{"title":"Core Guides","description":"","frontmatter":{},"headers":[],"relativePath":"guides.md","filePath":"guides.md"}'),n={name:"guides.md"};function o(i,e,r,p,d,c){return a(),s("div",null,[...e[0]||(e[0]=[l("",50)])])}const g=t(n,[["render",o]]);export{h as __pageData,g as default};

@@ -4,6 +4,9 @@ This section helps you plug LinkedQL into a real application — whether your da
 
 Your final setup remains: one query interface, regardless of where your data lives.
 
+> [!TIP]
+> If you are new to LinkedQL, you may want to start with the high-level [overview](/overview).
+
 ---
 
 ## Installation
