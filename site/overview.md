@@ -45,7 +45,7 @@ The core insight behind LinkedQL is *how those dots connect together at the SQL 
 | Area               | What it covers                                                             | Go to...                                                                   |
 | :----------------- | :------------------------------------------------------------------------- | :------------------------------------------------------------------------- |
 | Core Guides        | From basic setup to first queries, to more comprehensive guides            | [Core Guides](/guides)                                                     |
-| Core API           | Core API contract — the interface and query model                          | [Core API](/core)                                                          |
+| Core API           | Core API contract — the interface and query model                          | [Core API](/api)                                                          |
 | Language Surface   | The LinkedQL language surface (JSON Literals, DeepRefs, etc.)              | [Language Surface](/lang)                                                  |
 | Realtime Capabilities | Live queries and subscription model                                        | [Realtime Capabilities](/realtime)                                         |
 | FlashQL            | LinkedQL's embeddable SQL engine for local execution, federation, and sync | [FlashQL](/flashql)                                                        |
