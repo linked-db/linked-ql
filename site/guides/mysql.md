@@ -62,7 +62,7 @@ const client = await db.connect();
 client.release();
 ```
 
-This is useful for transactions or workflows that require a stable connection.
+This is useful for transactions or workflows that require a dedicated connection.
 
 ---
 
@@ -98,4 +98,4 @@ Once binary logging is available, LinkedQL can build on top of it for realtime f
 | If you want to learn about... | Go to... |
 | :-- | :-- |
 | how this fits into larger app architectures | [Integration Patterns](/guides/integration-patterns) |
-| the common API contract | [API](/api) |
+| the common API contract | [Core API](/api) |

@@ -49,7 +49,7 @@ export default defineConfig({
                     ]
                 },
                 {
-                    text: 'API',
+                    text: 'Core API',
                     items: [
                         { text: 'API Overview', link: '/api' },
                         { text: 'db.query()', link: '/api/query' },

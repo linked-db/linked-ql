@@ -1,6 +1,6 @@
 # Edge Guide
 
-The LinkedQL Edge protocol lets you run LinkedQL as if the database were local, even when it lives across a network boundary, server, worker, or edge runtime.
+The LinkedQL Edge protocol lets you run LinkedQL as if the database were local, even when it lives across a network boundary – server, worker, or edge runtime.
 
 Instead of building APIs around your database, you expose the database contract itself remotely.
 
@@ -327,4 +327,4 @@ const toStandardRequest = (request) => {
 | If you want to learn about... | Go to... |
 | :-- | :-- |
 | how Edge composes into full application architectures | [Integration Patterns](/guides/integration-patterns) |
-| the common API contract | [API](/api) |
+| the common API contract | [Core API](/api) |

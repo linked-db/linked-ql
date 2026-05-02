@@ -89,7 +89,7 @@ Because they can appear anywhere a column reference do, they can be used in filt
 
 Another general rule is that DeepRefs are both *navigation operators* (traversing structure) and *composition operators* (building new structures).
 
-This is the biggest part of the rest of the document.
+This is the biggest part of the rest of this document.
 
 ### Nesting
 
@@ -214,7 +214,7 @@ BackRefs support a dot (`.`) syntax on the first outer hop:
 | `(author <~ posts) ~> title`            | `(author <~ posts).title`            |
 | `(author <~ comments) ~> post ~> title` | `(author <~ comments).post ~> title` |
 
-Dot syntax only applies after the base BackRef resolution.
+Dot syntax only applies to the outer hop of a BackRef expression.
 
 ### BackRef: Optional Left Binding
 

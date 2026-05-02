@@ -6,19 +6,6 @@ Your final setup remains: one query interface, regardless of where your data liv
 
 ---
 
-## Choose Your Guide
-
-The following is a map of the LinkedQL guide that fits a specific scenario or application shape.
-
-| Shape                    | Scenario                                                                                         | Start here                                                                           |
-| :----------------------- | :----------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------- |
-| Direct database querying | your app can connect to the database directly                                                    | [PostgreSQL](/guides/postgresql), [MySQL](/guides/mysql), [MariaDB](/guides/mariadb) |
-| Cross-runtime querying   | your app runs in the browser, edge, or another boundary and needs remote DB access               | [Edge](/guides/edge)                                                                 |
-| Local-first querying     | you want the database inside the app, with optional upstream sync                                | [FlashQL](/guides/flashql)                                                           |
-| Hybrid architectures     | your app spans multiple runtimes (client, edge, server) and needs to compose queries across them | [Integration Patterns](/guides/integration-patterns)                                 |
-
----
-
 ## Installation
 
 Install the package from npm:
@@ -54,7 +41,20 @@ await db.wal.subscribe(selector, handler);
 
 This means you keep the same mental model and API contract across client-side and server-side codebases, for example.
 
-See the [API](/api) section for details.
+See the [Core API](/api) section for details.
+
+---
+
+## Choose Your Guide
+
+The following is a map of the LinkedQL guide that fits a specific scenario or application shape.
+
+| Shape                    | Scenario                                                                                         | Start here                                                                           |
+| :----------------------- | :----------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------- |
+| Direct database querying | your app can connect to the database directly                                                    | [PostgreSQL](/guides/postgresql), [MySQL](/guides/mysql), [MariaDB](/guides/mariadb) |
+| Cross-runtime querying   | your app runs in the browser, edge, or another boundary and needs remote DB access               | [Edge](/guides/edge)                                                                 |
+| Local-first querying     | you want the database inside the app, with optional upstream sync                                | [FlashQL](/guides/flashql)                                                           |
+| Hybrid architectures     | your app spans multiple runtimes (client, edge, server) and needs to compose queries across them | [Integration Patterns](/guides/integration-patterns)                                 |
 
 ---
 
@@ -149,4 +149,4 @@ Security and Access Control concepts are documented alongside relevant LinkedQL 
 | :------------------------------------------------------------ | :------------------------------------------------------- |
 | the LinkedQL language surface                                 | [Language Surface](/lang)                                |
 | LinkedQL's realtime capabilities                              | [Realtime Capabilities](/realtime)                       |
-| the API contract                                              | [API](/api)                                              |
+| the API contract                                              | [Core API](/api)                                              |

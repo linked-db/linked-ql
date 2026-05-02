@@ -115,7 +115,7 @@ This ensures deterministic, schema-aware conflict resolution for PostgreSQL.
 
 | If you want to learn about... | Go to... |
 | :-- | :-- |
-| the application-facing API contract | [API](/api) |
+| the application-facing API contract | [Core API](/api) |
 | the broader LinkedQL language surface | [Language Surface](/lang) |
 
 ---

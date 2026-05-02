@@ -38,7 +38,19 @@ await db.disconnect();
 
 That means the MariaDB guide differs slightly from PostgreSQL and MySQL: there is no `poolMode` switch here because pooling is the default operating model of the client.
 
-In every other way, however, `MariaDBClient` follows the same common contract as the other clients. For example, calling `db.connect()` returns a checked-out client for use.
+In every other way, however, `MariaDBClient` follows the same common contract as the other clients.
+
+After initializing the instance via `db.connect()`, subsequent `db.connect()` calls simply return a checked-out client.
+
+This lets you explicitly check out a connection for session-sensitive work:
+
+```js
+const client = await db.connect();
+// ... run session-bound queries
+client.release();
+```
+
+This is useful for transactions or workflows that require a dedicated connection.
 
 ---
 
@@ -74,4 +86,4 @@ Once binary logging is available, LinkedQL can build on top of it for realtime f
 | If you want to learn about... | Go to... |
 | :-- | :-- |
 | how this fits into larger app architectures | [Integration Patterns](/guides/integration-patterns) |
-| the common API contract | [API](/api) |
+| the common API contract | [Core API](/api) |

@@ -401,4 +401,4 @@ That is separate from version binding inside a query.
 | If you want to learn about... | Go to... |
 | :-- | :-- |
 | the broader LinkedQL language surface | [Language Surface](/lang) |
-| the common API contract | [API](/api) |
+| the common API contract | [Core API](/api) |

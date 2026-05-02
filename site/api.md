@@ -1,10 +1,10 @@
-# API
+# Core API
 
 LinkedQL exposes a small, stable application-facing API across its runtimes.
 
 ---
 
-## Core Methods
+## Methods
 
 | Method                   | Description                                      | Docs                                     |
 | :----------------------- | :----------------------------------------------- | :--------------------------------------- |
@@ -15,10 +15,10 @@ LinkedQL exposes a small, stable application-facing API across its runtimes.
 
 ---
 
-## The Concepts
+## Concepts
 
 | Area         | Description                             | Docs                   |
 | :----------- | :-------------------------------------- | :--------------------- |
 | **Language** | LinkedQL syntax and query capabilities  | [Language Surface](/lang)         |
 | **Realtime** | Streaming and live data behavior        | [Realtime Capabilities](/realtime) |
-| **Guides**   | Usage patterns and integration examples | [Guides](/guides)     |
+| **Guides**   | Usage patterns and integration examples | [Core Guides](/guides)     |

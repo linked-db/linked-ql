@@ -1,6 +1,6 @@
 # Realtime Capabilities
 
-LinkedQL brings reactivity to the database layer, letting queries directly drive application state.
+LinkedQL brings reactivity to the database layer, letting the database directly drive application state.
 
 ---
 

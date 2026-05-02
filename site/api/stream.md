@@ -103,9 +103,9 @@ Depending on the `portBasedStreaming` setting, rows may arrive:
 - over a message port
 - as a streamed HTTP body parsed incrementally
 
-By default, `EdgeClient`'s and `EdgeWorker`'s `options.portBasedStreaming` is set to `true`, so rows are streamed over a port even on an HTTP transport. This requires the backend to expose a port-based channel. See the [Edge guide](/guides/edge).
+By default, `EdgeClient`'s `options.portBasedStreaming` is set to `true`, so rows are streamed over a port even on an HTTP transport. This requires the backend to expose a port-based channel. See the [Edge guide](/guides/edge).
 
-To stream over native HTTP responses, explicitly set `options.portBasedStreaming` to `false` on both `EdgeClient` and `EdgeWorker`:
+To stream over native HTTP responses, explicitly set `options.portBasedStreaming` to `false` on `EdgeClient`:
 
 ```js
 const db = new EdgeClient({
@@ -115,14 +115,7 @@ const db = new EdgeClient({
 });
 ```
 
-```js
-const httpWorkerEdge = EdgeWorker.httpWorker({
-  db: new PGClient(),
-  portBasedStreaming: false,
-});
-```
-
-Regardless of the `options.portBasedStreaming` setting, the application-facing shape remains the same async iterable.
+Regardless of the `options.portBasedStreaming` setting, the application-facing shape remains the same: async iterable.
 
 ### FlashQL
 
