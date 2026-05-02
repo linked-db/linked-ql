@@ -80,7 +80,7 @@ Runs across:
 
 > [!IMPORTANT]
 > LinkedQL is shaping up fast, and currently backed by over 1,200 tests.<br>
-> Feedback, issues, and PRs help drive us towards the next thousand and beyond.<br>
+> Feedback, issues, and PRs help drive us towards the next thousand tests and beyond.<br>
 > See [Contributing](#-contributing)
 
 ---
@@ -137,7 +137,7 @@ See:
 
 ## What can you do with LinkedQL
 
-LinkedQL collapses the traditional data stack — database, API layer, and sync engine — into a single SQL primitive that drops directly into your application.
+LinkedQL collapses the traditional data stack — database, API layer, and sync engine — into a single model.
 
 The [overview](https://linked-ql.netlify.app/overview) page is your map to what LinkedQL enables.
 

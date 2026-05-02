@@ -387,9 +387,23 @@ All patterns preserve the same database interface, so your application code rema
 
 ---
 
+## Pattern Playground
+
+A visual, interactive playground that lets you experiment with these integration patterns is coming soon.
+
+But here are real samples you can play with now:
+
+<div align="center">
+
+**[Try the Pattern Playground →](https://github.com/webqit/node-live-response/tree/main/playground)**
+
+</div>
+
+---
+
 ## Additional Reading
 
 | If you want to learn about... | Go to... |
 | :-- | :-- |
-| the common LinkedQL guide | [Guides](/guides) |
+| the base LinkedQL guide | [Guides](/guides) |
 | the common API contract | [API](/api) |
