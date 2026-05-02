@@ -11,12 +11,19 @@ FlashQL is LinkedQL's embeddable database engine: a complete in-process SQL runt
 
 FlashQL brings together:
 
+**Core engine**
 - a full relational SQL engine
+- transactional local storage with MVCC
+
+**Reactive and realtime**
 - live queries
+- observable commit stream (WAL)
+
+**Distributed data**
 - federation, materialization, and sync
-- observable commit stream via a Write-Ahead Log (WAL)
-- transactional local storage, with MVCC-based architecture
-- point-in-time boot through version-aware replay
+
+**Time and history**
+- point-in-time boot via version-aware replay
 
 ---
 
@@ -24,15 +31,7 @@ FlashQL brings together:
 
 Modern applications increasingly need database power in places where a traditional database server is inconvenient, expensive, unavailable, or simply the wrong abstraction.
 
-Sometimes you want:
-
-- a real query engine inside the app itself
-- a local store that survives network loss
-- one relational graph that spans local and remote data
-- reactivity over query results, not just table events
-- the ability to materialize or keep remote relations hot locally
-
-Just spin up a FlashQL instance and run SQL:
+FlashQL directly maps to those use cases. Where the database is traditionally a remote dependency, FlashQL brings it into the application runtime.
 
 ```js
 import { FlashQL } from '@linked-db/linked-ql/flashql';
@@ -46,15 +45,6 @@ console.log(result.rows);
 
 await db.disconnect();
 ```
-
-This is the smallest useful FlashQL shape:
-
-- create the client
-- connect it
-- run SQL
-- disconnect it
-
-The goal is application-level SQL power in places where an embeddable runtime is the right tool.
 
 ---
 
@@ -80,7 +70,7 @@ With a `keyval` backend:
 - sync state is persisted
 - FlashQL becomes appropriate for browser PWAs and local-first applications
 
-Without a persistence backend, the engine is still useful for tests, ephemeral sessions, and in-process computation, but the state disappears when the process ends.
+But a persistence backend is not always necessary when used for tests, ephemeral sessions, and in-process computation.
 
 ---
 
@@ -101,189 +91,6 @@ await db.query('SELECT `name` FROM `users`', { dialect: 'mysql' });
 ```
 
 Where not specified, FlashQL defaults to `postgres`.
-
----
-
-## Compatibility in Practice
-
-FlashQL speaks real SQL, but it is not trying to be a byte-for-byte clone of PostgreSQL or MySQL.
-
-The goal is to cover the application-facing surface of SQL that actually matters in code:
-
-- queries
-- mutations
-- schema operations
-- expressions
-- relational composition
-
-It also adds LinkedQL-specific capabilities such as DeepRefs, version binding, and structured JSON-style language features.
-
-See the [FlashQL Language Reference](/flashql/lang) for the current documented surface.
-
-Two advanced PostgreSQL-flavored examples give a sense of scope:
-
-<details><summary>Query 1: writable CTEs, LATERAL joins, aggregates, and windows</summary>
-
-```js
-const { rows } = await db.query(
-  `WITH
-
-      updated AS (
-        UPDATE users
-        SET status = 'inactive'
-        WHERE last_login < NOW() - INTERVAL '90 days'
-        RETURNING id, name, department, last_login
-      ),
-
-      metrics AS (
-        SELECT
-          u.id,
-          u.name,
-          u.department,
-          m.avg_total,
-          m.order_rank
-        FROM updated u
-        LEFT JOIN LATERAL (
-          SELECT
-            AVG(total) AS avg_total,
-            RANK() OVER (ORDER BY SUM(total) DESC) AS order_rank
-          FROM orders o
-          WHERE o.user_id = u.id
-          GROUP BY o.user_id
-        ) m ON TRUE
-      ),
-
-      aggregates AS (
-        SELECT
-          department,
-          COUNT(*) AS user_count,
-          ROUND(AVG(avg_total), 2) AS avg_order_total,
-          GROUPING(department) AS dept_grouped
-        FROM metrics
-        GROUP BY CUBE (department)
-      )
-
-    SELECT
-      a.department,
-      a.user_count,
-      a.avg_order_total,
-      SUM(a.user_count) OVER () AS total_users,
-      RANK() OVER (ORDER BY a.avg_order_total DESC NULLS LAST) AS perf_rank
-    FROM aggregates a
-    ORDER BY a.department NULLS LAST`
-);
-
-console.log(rows);
-```
-
-</details>
-
-Capabilities demonstrated:
-
-- `WITH` and writable CTEs
-- `UPDATE ... RETURNING`
-- `JOIN LATERAL`
-- aggregate and window functions
-- analytic grouping such as `CUBE` and `GROUPING()`
-
-Cause and effect in this query:
-
-- a writable CTE mutates and returns rows
-- a lateral join derives per-row metrics from that result
-- the final query computes aggregate and ranking outputs from the transformed relation
-
-<details><summary>Query 2: VALUES, ROWS FROM, grouping sets, and set operations</summary>
-
-```js
-const { rows } = await db.query(
-  `WITH
-      recent_logins AS (
-        SELECT *
-        FROM (VALUES
-          (1, '2025-10-01'::date),
-          (2, '2025-10-15'::date),
-          (3, '2025-10-20'::date)
-        ) AS t(user_id, last_login)
-      ),
-
-      generated AS (
-        SELECT *
-        FROM ROWS FROM (
-          generate_series(1, 3) AS gen_id,
-          unnest(ARRAY['A', 'B', 'C']) AS label
-        )
-      ),
-
-      enriched AS (
-        SELECT
-          u.id,
-          u.name,
-          r.last_login,
-          g.label,
-          COALESCE(o.total, 0) AS total_spent
-        FROM users u
-        JOIN recent_logins r ON r.user_id = u.id
-        JOIN generated g ON g.gen_id = u.id
-        LEFT JOIN (VALUES
-          (1, 1200),
-          (2, 500),
-          (3, 900)
-        ) AS o(user_id, total) ON o.user_id = u.id
-      ),
-
-      grouped AS (
-        SELECT
-          label,
-          DATE_TRUNC('month', last_login) AS login_month,
-          COUNT(*) AS active_users,
-          SUM(total_spent) AS revenue
-        FROM enriched
-        GROUP BY GROUPING SETS (
-          (label, login_month),
-          (label),
-          ()
-        )
-      )
-
-    SELECT * FROM grouped
-    UNION ALL
-    SELECT
-      label,
-      NULL AS login_month,
-      0 AS active_users,
-      0 AS revenue
-    FROM generated
-    EXCEPT
-    SELECT
-      label,
-      NULL,
-      0,
-      0
-    FROM grouped
-    INTERSECT
-    SELECT
-      label,
-      NULL,
-      0,
-      0
-    FROM grouped
-    ORDER BY label NULLS LAST`
-);
-
-console.log(rows);
-```
-
-</details>
-
-Capabilities demonstrated:
-
-- inline `VALUES` tables
-- `ROWS FROM` and set-returning functions
-- grouping sets
-- combined set operations
-- ordering with `NULLS LAST`
-
-These examples show the shape of SQL FlashQL can execute.
 
 ---
 
@@ -342,17 +149,15 @@ See more in [db.stream()](/api/stream)
 ### The Commit Stream (WAL)
 
 ```js
-const unsubscribe = await db.wal.subscribe(
+const sub = await db.wal.subscribe(
   { public: ['users'] },
   (commit) => console.log(commit)
 );
 
-await unsubscribe();
+await sub.abort();
 ```
 
-This observes table commits directly instead of maintaining a query-shaped live view.
-
-Use WAL subscriptions when you care about table-level commit events directly.
+This lets you subscribe to table-level commits directly.
 
 See: [Changefeeds](/realtime/changefeeds)
 
@@ -398,11 +203,7 @@ Because everything is versioned, FlashQL can layer on:
 
 FlashQL can compute both local and remote data in **the same query**.
 
-You simply define a table locally (a database view precisely) to mirror remote data; you decide how it behaves locally in one of three modes:
-
-* **federated** — querying the table queries the source directly
-* **materialized** — the table is a materialized copy of the source data
-* **realtime** — the table materializes and stays in sync with source data
+You simply define remote data locally; you decide how it behaves.
 
 Your code sees normal tables:
 
@@ -413,16 +214,6 @@ JOIN public.remote_orders o ON o.user_id = u.id;
 ```
 
 FlashQL computes the local + remote data as one relational graph.
-
-What changes is what you don't get to build:
-
-* dedicated REST APIs for reads
-* caching layers for performance
-* subscription systems (e.g. GraphQL) for updates
-* a dedicated sync engine to synchronize local and remote states
-* the orchestration layer for the whole system
-
-FlashQL is designed as a drop-in primitive for the modern app.
 
 Take a deep dive in:
 
@@ -475,4 +266,4 @@ That turns the historical boot into a branch point: read-only until the first wr
 | If you want to learn about... | Go to... |
 | :-- | :-- |
 | the FlashQL sync story in detail | [Federation, Materialization, and Sync](/flashql/federation-and-sync) |
-| the FlashQL language surface | [FlashQL Language Reference](/flashql/lang) |
+| FlashQL language surface | [FlashQL Language Surface](/flashql/lang) |

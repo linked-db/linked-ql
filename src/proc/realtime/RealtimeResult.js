@@ -1,33 +1,41 @@
 import { Observer } from '@webqit/observer';
+import { SimpleEmitter } from '../../clients/abstracts/SimpleEmitter.js';
 import { Result } from '../../clients/Result.js';
 import { _eq } from '../../lang/abstracts/util.js';
 
-export class RealtimeResult extends Result {
+export class RealtimeResult extends SimpleEmitter {
 
+    #rows
     #hashes;
-    #abortLine;
+    #receiver;
     #initial;
     #mode;
     #strategy;
 
+    #aborted = false;
+    #abortCalled = false;
+
+    get rows() { return this.#rows; }
     get hashes() { return this.#hashes; }
     get initial() { return this.#initial; }
     get mode() { return this.#mode; }
     get strategy() { return this.#strategy; }
-    
-    constructor({ rows = [], hashes = [], initial = true, mode = 'live', strategy = {} } = {}, abortLine = (() => undefined), signal = undefined) {
-        super({ rows });
 
+    get aborted() { return this.#aborted; }
+    get _abortCalled() { return this.#abortCalled; }
+    
+    constructor({ rows = [], hashes = [], initial = true, mode = 'live', strategy = {} } = {}, receiver = (() => undefined), signal = undefined) {
+        super();
+
+        this.#rows = rows;
         this.#hashes = hashes;
         this.#initial = initial;
         this.#mode = mode;
         this.#strategy = strategy;
 
-        this.#abortLine = abortLine;
+        this.#receiver = receiver;
         if (signal) signal.addEventListener('abort', () => this.abort());
     }
-
-    async abort({ forget = false } = {}) { return this.#abortLine({ forget }); }
 
     async _apply(commit) {
         const Obs = Observer;
@@ -92,6 +100,15 @@ export class RealtimeResult extends Result {
             });
         }
     }
+
+    async abort({ forget = false } = {}) {
+        this.#abortCalled = true;
+        const returnValue = await this.#receiver({ forget });
+        this.#aborted = true;
+        return returnValue;
+    }
+
+    jsonfy() { return this.toJSON(); }
 
     toJSON() {
         return {

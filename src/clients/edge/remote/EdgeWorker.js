@@ -28,7 +28,6 @@ export class EdgeWorker extends SimpleEmitter {
     #type;
     get type() { return this.#type; }
 
-    #portBasedStreaming;
     #workerEventNamespace;
 
     #transactions = new Map;
@@ -36,7 +35,6 @@ export class EdgeWorker extends SimpleEmitter {
     constructor({
         db,
         type = 'http',
-        portBasedStreaming = true,
         workerEventNamespace = 'lnkd_',
     }) {
         super();
@@ -48,7 +46,6 @@ export class EdgeWorker extends SimpleEmitter {
         this.#db = db;
         this.#type = type;
 
-        this.#portBasedStreaming = portBasedStreaming;
         this.#workerEventNamespace = workerEventNamespace;
     }
 
@@ -101,7 +98,7 @@ export class EdgeWorker extends SimpleEmitter {
         if (op === 'transaction:rollback') {
             const tx = this.#transactions.get(args.id);
             if (!tx) throw new Error(`Unknown transaction id: ${args.id}`);
-            
+
             this.#transactions.delete(args.id);
             await tx.rollback();
 
@@ -113,7 +110,7 @@ export class EdgeWorker extends SimpleEmitter {
 
             if (args.options?.live) {
                 if (!port) throw new Error('Port required for live query requests');
-                liveModeCallback?.();
+                liveModeCallback?.(new Promise(() => { }));
 
                 if (args.options.callback === true) {
                     args.options.callback = (commit) =>
@@ -137,14 +134,15 @@ export class EdgeWorker extends SimpleEmitter {
             const options = resolveTx(args.options);
             const asyncIterable = await this.#db.stream(args.query, options);
 
-            if (this.#type === 'http' && !this.#portBasedStreaming) {
+            if (this.#type === 'http' && !args.options?.portBasedStreaming) {
                 return asyncIterable;
             }
 
             if (!port) throw new Error('Port required');
 
-            liveModeCallback?.();
-            return await this.#streamCursorOverPort(asyncIterable, port, args.options?.batchSize);
+            const streamingPromise = this.#streamCursorOverPort(asyncIterable, port, args.options?.batchSize);
+            liveModeCallback?.(streamingPromise);
+            return;
         }
 
         // -----------
@@ -160,16 +158,25 @@ export class EdgeWorker extends SimpleEmitter {
 
         if (op === 'wal:subscribe') {
             if (!port) throw new Error('Port required');
-            liveModeCallback?.();
+            liveModeCallback?.(new Promise(() => { }));
 
             args.callback = (commit) =>
                 port.postMessage({ commit }, { type: `${this.#workerEventNamespace}commit` });
 
             const options = resolveTx(args.options);
-            const gc = args.selector
+
+            const walSub = args.selector
                 ? await this.#db.wal.subscribe(args.selector, args.callback, options)
                 : await this.#db.wal.subscribe(args.callback, options);
-            port.readyStateChange('close').then(gc);
+
+            port.readyStateChange('close').then(() => walSub.abort());
+
+            walSub.on('error', (e) => {
+                if (port.readyState !== 'closed') {
+                    port.postMessage({ message: e.message }, { type: `${this.#workerEventNamespace}error` });
+                }
+            });
+            
             return;
         }
 
@@ -195,8 +202,12 @@ export class EdgeWorker extends SimpleEmitter {
             iterator = await iterator[Symbol.asyncIterator]();
         }
 
-        const gc = () => iterator.return?.();
-        port.readyStateChange('close').then(gc).catch(() => { });
+        const gc = async () => {
+            try {
+                await iterator.return?.();
+            } catch (e) { }
+        };
+        port.readyStateChange('close').then(gc);
 
         const _signal = (sig) => {
             return new Promise((res) => {
@@ -222,14 +233,12 @@ export class EdgeWorker extends SimpleEmitter {
             return !done;
         };
 
-        (async () => {
-            try {
-                do await _sendN(batchSize); while (await _signal('next'));
-            } catch (err) {
-                port.postMessage({ message: err.message }, { type: `${this.#workerEventNamespace}error` });
-            } finally {
-                port.close();
-            }
-        })();
+        try {
+            do await _sendN(batchSize); while (await _signal('next'));
+        } catch (err) {
+            port.postMessage({ message: err.message }, { type: `${this.#workerEventNamespace}error` });
+        } finally {
+            await gc();
+        }
     }
 }

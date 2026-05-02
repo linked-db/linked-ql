@@ -282,7 +282,7 @@ describe('Commit visibility and transaction-scoped realtime', () => {
             expect(visibilityCalls).to.have.length(1);
             expect(visibilityCalls[0].sub.tx).to.eq(tx);
 
-            await unsubscribe();
+            await unsubscribe.abort();
         });
 
         it('filters mixed-visibility entries within a single wal commit', async () => {
@@ -302,7 +302,7 @@ describe('Commit visibility and transaction-scoped realtime', () => {
             expect(visibilityCalls).to.have.length(1);
             expect(visibilityCalls[0].entries).to.have.length(2);
 
-            await unsubscribe();
+            await unsubscribe.abort();
         });
 
         it('suppresses transaction-scoped wal commits when the lookup says the row is not visible', async () => {
@@ -316,7 +316,7 @@ describe('Commit visibility and transaction-scoped realtime', () => {
             expect(commits).to.have.length(0);
             expect(visibilityCalls).to.have.length(1);
 
-            await unsubscribe();
+            await unsubscribe.abort();
         });
 
         it('lets a transaction-scoped wal subscription validate deletes by confirming the row is gone in sub.tx', async () => {
@@ -339,7 +339,7 @@ describe('Commit visibility and transaction-scoped realtime', () => {
             expect(commits[0].entries[0].op).to.eq('delete');
             expect(commits[0].entries[0].old.id).to.eq(3);
 
-            await unsubscribe();
+            await unsubscribe.abort();
         });
 
         it('uses tx-scoped visibility for the initial render of transaction-scoped live queries without touching resolveCommitVisibility', async () => {

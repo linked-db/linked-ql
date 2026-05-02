@@ -141,4 +141,4 @@ That makes it useful for:
 | If you want to learn about... | Go to... |
 | :-- | :-- |
 | the related `query()` API | [Query API](/api/query) |
-| querying within a transaction | [Transaction API](/api/transaction) |
+| streaming within a transaction | [Transaction API](/api/transaction) |

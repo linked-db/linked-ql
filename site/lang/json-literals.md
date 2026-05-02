@@ -6,36 +6,23 @@
 SELECT { email, mobile: phone } AS contact FROM users;
 ```
 
-LinkedQL translates that to its dialect-native JSON function.
+LinkedQL translates that to the dialect-native JSON function.
 
 ---
 
 ## Overview
 
-SQL’s deep JSON integration has long come through **functions**.
+SQL expresses shapes via **JSON functions**. Their imperative nature often complicates that very use case: **expressing shapes**.
 
-The problem is: their imperative nature often complicates their core use case — **modeling structure**.
-Instead of enabling a mental model of shape, they force you to think procedurally — diverging from how we actually reason about structure and how we already represent it across languages.
+LinkedQL restores the conventional object thinking with first-class support for **JSON literals**. These let you express structure the way you’d write JSON itself — each *being* the structure itself rather than an instruction for *how* to construct it.
 
-LinkedQL addresses this with first-class support for **JSON literals**.<br>
-These let you express structure the way you’d write JSON itself — each *being* the structure itself rather than an instruction for how to construct it.
-
-The result is SQL that’s *actually* understood.
-
-JSON literals are purely syntactic conveniences for their function counterparts:
+JSON literals are purely syntactic convenience over the function paradigm:
 
 | Literal      | PostgreSQL Function   | MySQL Function    |
 | :----------- | :-------------------- | :---------------- |
 | `{ ... }`    | `JSON_BUILD_OBJECT()` | `JSON_OBJECT()`   |
 | `[ ... ]`    | `JSON_BUILD_ARRAY()`  | `JSON_ARRAY()`    |
 | `AS alias[]` | `JSON_AGG()`          | `JSON_ARRAYAGG()` |
-
-They’re much like what `->` and `->>` are to their own functional equivalents:
-
-| Operator | PostgreSQL Function        | MySQL Function                 |
-| :------- | :------------------------- | :----------------------------- |
-| `->`     | `json_extract_path()`      | `JSON_EXTRACT()`               |
-| `->>`    | `json_extract_path_text()` | `JSON_UNQUOTE(JSON_EXTRACT())` |
 
 ---
 
@@ -45,8 +32,7 @@ In place of long function calls, object and array literals make modeling structu
 
 ### Object Literals (`{ ... }`)
 
-The object notation `{ ... }` is an expression that resolves to exactly what it looks like —
-a JSON object of the same form. Under the hood, it expands to `JSON_BUILD_OBJECT()` in PostgreSQL, and `JSON_OBJECT()` in MySQL.
+The object notation `{ ... }` is an expression that resolves to `JSON_BUILD_OBJECT()` in PostgreSQL, and `JSON_OBJECT()` in MySQL.
 
 ```sql
 SELECT { name: full_name, email: email } AS user
@@ -69,7 +55,7 @@ Object literals can appear in projections, expressions, or subqueries — anywhe
 
 ### Array Literals (`[ ... ]`)
 
-The array notation `[ ... ]` is an expression that resolves to a JSON array — an ordered list of values. Under the hood, it expands to `JSON_BUILD_ARRAY()` in PostgreSQL, and `JSON_ARRAY()` in MySQL.
+The array notation `[ ... ]` is an expression that resolves to `JSON_BUILD_ARRAY()` in PostgreSQL, and `JSON_ARRAY()` in MySQL.
 
 ```sql
 SELECT [ full_name, email ] AS contact_list
@@ -182,5 +168,5 @@ FROM posts AS p;
 
 | If you want to learn about... | Go to... |
 | :-- | :-- |
-| the broader LinkedQL language additions surface | [Language Additions](/lang) |
-| relationship traversal syntax that composes with JSON literals | [DeepRefs](/lang/deeprefs) |
+| the related relationship traversal syntax | [DeepRefs](/lang/deeprefs) |
+| the broader LinkedQL language surface | [Language Surface](/lang) |

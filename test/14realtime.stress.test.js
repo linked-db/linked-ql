@@ -290,7 +290,7 @@ describe('Realtime - Stress', () => {
             await wal.dispatch({ commitTime: 1, entries: [makeEntry('public', 'users', 'insert', 1)] });
             await wal.dispatch({ commitTime: 2, entries: [makeEntry('public', 'users', 'insert', 2)] });
             await wal.dispatch({ commitTime: 3, entries: [makeEntry('public', 'users', 'insert', 3)] });
-            await off();
+            await off.abort();
 
             const result = await wal.truncateForward(1);
             expect(result).to.deep.eq({ deleted: 2, latestCommit: 1 });
@@ -306,14 +306,14 @@ describe('Realtime - Stress', () => {
             const seenA = [];
             const offA = await wal.subscribe('*', (commit) => seenA.push(commit), { id: 'slot_a' });
             await wal.dispatch({ commitTime: 1, entries: [makeEntry('public', 'users', 'insert', 1)] });
-            await offA();
+            await offA.abort();
 
             await wal.dispatch({ commitTime: 2, entries: [makeEntry('public', 'users', 'insert', 2)] });
             await wal.dispatch({ commitTime: 3, entries: [makeEntry('public', 'users', 'insert', 3)] });
 
             const seenB = [];
             const offB = await wal.subscribe('*', (commit) => seenB.push(commit), { id: 'slot_a' });
-            await offB();
+            await offB.abort();
 
             expect(seenA).to.have.length(1);
             expect(seenB.map((c) => c.commitTime)).to.deep.eq([2, 3]);
@@ -325,7 +325,7 @@ describe('Realtime - Stress', () => {
 
             const off1 = await wal.subscribe('*', async () => undefined, { id: 'slot_q' });
             await wal.dispatch({ commitTime: 1, entries: [makeEntry('public', 'users', 'insert', 1)] });
-            await off1();
+            await off1.abort();
 
             await wal.dispatch({ commitTime: 2, entries: [makeEntry('public', 'users', 'insert', 2)] });
 
@@ -343,7 +343,7 @@ describe('Realtime - Stress', () => {
 
             const off2 = await subscribePromise;
             await new Promise((r) => setTimeout(r, 40));
-            await off2();
+            await off2.abort();
 
             expect(seen).to.include(2);
             expect(seen).to.include(3);

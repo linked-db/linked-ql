@@ -22,10 +22,24 @@ export class EdgeHttpHandler {
         const op = new URL(event.request.url).searchParams.get('op');
         const args = await event.request.json();
 
-
-        const result = await this.#edgeWorker.handle(op, args, event.client, () => {
-            event.waitUntil?.(new Promise(() => { }));
-        }) || {}; // Always return something to prevent being a 404
+        let result;
+        try {
+            result = await this.#edgeWorker.handle(op, args, event.client, (promise) => {
+                if (event.waitUntil) {
+                    event.waitUntil(promise);
+                } else {
+                    promise.then(() => event.client.close());
+                }
+            }) || {}; // Always return something to prevent being a 404
+        } catch (error) {
+            result = {
+                __error: {
+                    name: error?.name || 'Error',
+                    message: error?.message || String(error),
+                    stack: error?.stack || null,
+                }
+            };
+        }
 
         if (event.respondWith) {
             await event.respondWith(result);

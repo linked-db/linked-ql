@@ -2,6 +2,7 @@ import { registry } from '../../lang/registry.js';
 import { LinkedQLClient } from '../abstracts/LinkedQLClient.js';
 import { AbstractNode } from '../../lang/abstracts/AbstractNode.js';
 import { RealtimeResult } from '../../proc/realtime/RealtimeResult.js';
+import { LinkedQlWalSub } from '../../proc/timeline/LinkedQlWalSub.js';
 import { normalizeQueryArgs } from '../abstracts/util.js';
 import { EdgeSchemaInference } from './abstracts/EdgeSchemaInference.js';
 import { EdgeSQLParser } from './abstracts/EdgeSQLParser.js';
@@ -53,7 +54,7 @@ export class BaseEdgeClient extends LinkedQLClient {
     }
 
     async disconnect() {
-        await Promise.all(this.#gcArray.splice(0).map((c) => c()));
+        await Promise.all(this.#gcArray.splice(0).map((s) => s.abort ? s.abort() : s()));
         await super.disconnect();
     }
 
@@ -104,7 +105,7 @@ export class BaseEdgeClient extends LinkedQLClient {
         if (options.live) {
             if (!responseJson?.port) throw new Error('Could not obtain upstream port');
 
-            const gcArray = [];
+            const listenersArr = [];
 
             result = new RealtimeResult(responseJson.data, async ({ forget = false }) => {
                 if (forget && options.id) {
@@ -116,7 +117,7 @@ export class BaseEdgeClient extends LinkedQLClient {
                 }
 
                 // When RealtimeResult.abort() is called or signal aborts
-                gcArray.splice(0).forEach((c) => c());
+                listenersArr.splice(0).forEach((s) => s());
                 responseJson.port.close();
             }, signal);
 
@@ -124,12 +125,18 @@ export class BaseEdgeClient extends LinkedQLClient {
                 // Server knows to send events instead of mutate result rows
                 const handleCommit = (e) => callback(e.data.commit);
                 responseJson.port.addEventListener(`${this.#workerEventNamespace}commit`, handleCommit);
-                gcArray.push(() => responseJson.port.removeEventListener(`${this.#workerEventNamespace}commit`, handleCommit));
+                listenersArr.push(() => responseJson.port.removeEventListener(`${this.#workerEventNamespace}commit`, handleCommit));
             }
 
-            const gc = () => result.abort();
-            responseJson.port?.readyStateChange('close').then(gc);
-            this.#gcArray.push(gc);
+            responseJson.port?.readyStateChange('close').then(async () => {
+                if (result._abortCalled) return;
+
+                // If the port closes unexpectedly, emit an error
+                result.emit('error', { message: 'Connection closed unexpectedly' });
+                await result.abort();
+            });
+
+            this.#gcArray.push(result);
         } else {
             result = new Result(responseJson);
         }
@@ -145,7 +152,7 @@ export class BaseEdgeClient extends LinkedQLClient {
 
         return await this._exec(
             'stream',
-            { query, options: { ...options, tx } },
+            { query, options: { portBasedStreaming: this.options.portBasedStreaming ?? true, ...options, tx } },
             { streamMode: true }
         );
     }
@@ -199,29 +206,45 @@ export class BaseEdgeClient extends LinkedQLClient {
         const { tx: inputTx, ...options } = _options;
         const tx = inputTx ? { id: inputTx.id } : null;
 
-        const gcArray = [];
+        const listenersArr = [];
 
         const responseJson = await this._exec('wal:subscribe', { selector, options: { ...options, tx } }, { liveMode: true });
         if (!responseJson?.port) throw new Error('Could not obtain upstream port');
 
-        responseJson.port.readyStateChange('close').then(async () => {
-            await Promise.all(gcArray.splice(0).map((c) => c()));
+        responseJson.port.readyStateChange('close').then(() => {
+            listenersArr.splice(0).forEach((s) => s());
+
+            // If the port closes unexpectedly, emit an error
+            if (walSub?._abortCalled) return;
+            walSub?.emit('error', { message: 'Connection closed unexpectedly' });
         });
 
-        const handleCommit = (e) => callback(e.data.commit);
-        responseJson.port.addEventListener(`${this.#workerEventNamespace}commit`, handleCommit);
-        gcArray.push(() => responseJson.port.removeEventListener(`${this.#workerEventNamespace}commit`, handleCommit));
-
-        const gc = async ({ forget = false } = {}) => {
-            responseJson.port?.close();
-
-            if (forget && options.id) {
-                return await this._exec('wal:forget', { id: options.id });
-            }
+        // Handle commits
+        const handleCommit = (e) => {
+            callback(e.data.commit);
         };
-        this.#gcArray.push(gc);
+        responseJson.port.addEventListener(`${this.#workerEventNamespace}commit`, handleCommit);
+        listenersArr.push(() => responseJson.port.removeEventListener(`${this.#workerEventNamespace}commit`, handleCommit));
 
-        return gc;
+        // Handle remote errors
+        const handleError = (e) => {
+            if (!walSub?._abortCalled) walSub?.emit('error', e.data);
+        };
+        responseJson.port.addEventListener(`${this.#workerEventNamespace}error`, handleError);
+        listenersArr.push(() => responseJson.port.removeEventListener(`${this.#workerEventNamespace}error`, handleError));
+
+        const walSub = new LinkedQlWalSub(
+            async ({ forget = false } = {}) => {
+                responseJson.port?.close();
+
+                if (forget && options.id) {
+                    return await this._exec('wal:forget', { id: options.id });
+                }
+            }
+        );
+
+        this.#gcArray.push(walSub);
+        return walSub;
     }
 
     #loadAST(responseJson, options) {

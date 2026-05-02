@@ -110,10 +110,10 @@ export class SyncManager extends SimpleEmitter {
         for (const view of views) {
             if (view.view_opts_replication_mode !== 'realtime') continue;
 
-            const abortLine = this.#activeRealtimeJobs.get(view.id);
-            if (abortLine) {
+            const sub = this.#activeRealtimeJobs.get(view.id);
+            if (sub) {
                 this.#activeRealtimeJobs.delete(view.id);
-                await abortLine();
+                await sub.abort();
             }
 
             await this.#updateJob(view.id, {
@@ -181,10 +181,10 @@ export class SyncManager extends SimpleEmitter {
         if (!view) return null;
 
         // Drop any active realtime session
-        const abortLine = this.#activeRealtimeJobs.get(view.id);
-        if (abortLine) {
+        const sub = this.#activeRealtimeJobs.get(view.id);
+        if (sub) {
             this.#activeRealtimeJobs.delete(view.id);
-            await abortLine();
+            await sub.abort();
         }
 
         // Execute forget first
@@ -210,9 +210,9 @@ export class SyncManager extends SimpleEmitter {
     }
 
     async shutdown() {
-        for (const [relationId, abortLine] of this.#activeRealtimeJobs.entries()) {
+        for (const [relationId, sub] of this.#activeRealtimeJobs.entries()) {
             this.#activeRealtimeJobs.delete(relationId);
-            await abortLine();
+            await sub.abort();
         }
     }
 
@@ -476,7 +476,7 @@ export class SyncManager extends SimpleEmitter {
                     last_error: String(e?.message || e),
                     updated_at: Date.now(),
                 }, { inputTx });
-            } catch {}
+            } catch { }
         }
     }
 
@@ -524,9 +524,9 @@ export class SyncManager extends SimpleEmitter {
             if (!forceSync) return;
 
             wasSyncingWithTx = inputTx;
-            const abortLine = this.#activeRealtimeJobs.get(view.id);
+            const sub = this.#activeRealtimeJobs.get(view.id);
             this.#activeRealtimeJobs.delete(view.id);
-            await abortLine();
+            await sub.abort();
         }
 
         const baseJob = await this.#ensureJob(view, { inputTx });
@@ -551,17 +551,17 @@ export class SyncManager extends SimpleEmitter {
         const upstreamMvccKey_isXMIN = upstreamMvccKey?.toUpperCase() === 'XMIN';
 
         try {
-            let abortLine;
+            let upstreamSub;
             if (upstreamRelation && (!upstreamMvccKey || upstreamMvccKey_isXMIN)) {
                 await this.#materializeView(view, { inputTx });
 
                 const selector = { [upstreamRelation.namespace]: [upstreamRelation.name] };
 
-                abortLine = await sourceClient.wal.subscribe(selector, async (commit) => {
+                upstreamSub = await sourceClient.wal.subscribe(selector, async (commit) => {
                     await this.#handleRealtimeCommit(view, commit, { inputTx });
                 }, { id: slotId });
 
-                this.#activeRealtimeJobs.set(view.id, abortLine);
+                this.#activeRealtimeJobs.set(view.id, upstreamSub);
             } else {
                 const rtResult = await sourceClient.query(view.source_expr_ast, async (commit) => {
                     await this.#handleRealtimeCommit(view, commit, { inputTx });
@@ -569,17 +569,28 @@ export class SyncManager extends SimpleEmitter {
 
                 if (rtResult.initial) {
                     await this.#transaction(async (tx) => {
-                        await tx.getRelation({ namespace: view.namespace, name: view.name }, { assertIsView: true }).applyUpstreamCommit({ type: 'result', rows: rtResult.rows, hashes: rtResult.hashes });
+                        await tx.getRelation({ namespace: view.namespace, name: view.name }, { assertIsView: true })
+                            .applyUpstreamCommit({ type: 'result', rows: rtResult.rows, hashes: rtResult.hashes });
                     }, { inputTx });
                 }
 
-                abortLine = async () => await rtResult.abort();
-                this.#activeRealtimeJobs.set(view.id, abortLine);
+                upstreamSub = rtResult;
+                this.#activeRealtimeJobs.set(view.id, upstreamSub);
             }
+
+            upstreamSub.on('error', async (error) => {
+                this.#activeRealtimeJobs.delete(view.id);
+                await this.#updateJob(view.id, {
+                    state: 'idle',
+                    last_error: error?.message || String(error),
+                    updated_at: Date.now(),
+                }, { inputTx });
+                this.#emitIssue(new Error('Upstream replication connection lost'), { phase: 'realtime', relation_id: view.id });
+            });
 
             if (inputTx) {
                 inputTx.addUndo(async () => {
-                    await abortLine();
+                    await upstreamSub.abort();
                     this.#activeRealtimeJobs.delete(view.id);
                     if (wasSyncingWithTx !== false) {
                         await this.#startRealtimeView(view, { inputTx: wasSyncingWithTx });

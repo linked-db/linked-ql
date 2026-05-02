@@ -2,11 +2,13 @@
 
 LinkedQL brings reactivity to the database layer, letting queries directly drive application state.
 
-On any given database, LinkedQL lets you have live queries as a first-class capability, and directly supports table-level subscriptions.
-
 ---
 
 ## Meet Live Queries
+
+LinkedQL brings live queries to your database: PostgreSQL, FlashQL, MySQL/MariaDB*.
+
+With just a mode switch `{ live: true }`, you get back a live, self-updating result set.
 
 ```js
 const result = await db.query(`
@@ -20,34 +22,25 @@ const result = await db.query(`
 `, { live: true });
 ```
 
-No need for a separate subscription layer (like a GraphQL server) in front of your database. **Your query is the subscription.**
-
 `result` is the same shape as a regular query result but self-updating as the database changes over time.
 
-Updates are pushed from the database to the client—no polling, no manual subscriptions:
-
-* automatically stays current over time
-* directly powers reactivity across the app
+No need for a separate subscription layer (like a GraphQL server) in front of your database. **The query is the subscription.**
 
 ---
 
-## Meet Changefeeds (Direct Table-Level Subscriptions)
+## Meet Changefeeds
+
+Subscribe directly to table-level changes – `INSERT`, `UPDATE`, `DELETE`.
 
 ```js
-const unsubscribe = await db.wal.subscribe({ public: ['users'] }, (commit) => {
+const sub = await db.wal.subscribe({ public: ['users'] }, (commit) => {
   console.log(commit);
 });
 ```
 
-Sometimes you need changes at the table or commit level, not a query result.
+`db.wal.subscribe()` exposes commit-level events from the database’s change stream.
 
-`db.wal.subscribe()` exposes commit-level events from the database’s change stream::
-
-* PostgreSQL's Write Ahead Log (WAL)
-* MySQL/MariaDB's Binary Log (Binlog)
-* FlashQL's Write Ahead Log (WAL)
-
-It's especially useful for replication flows, synchronization logic, and downstream processors.
+It's especially useful for replication flows, synchronization logic, and application level reactivity.
 
 ---
 
@@ -69,4 +62,4 @@ LinkedQL pushes the behaviour itself into where the data already lives: the data
 | Capability        | What It Adds                                                | Docs                                         |
 | :---------------- | :---------------------------------------------------------- | :------------------------------------------- |
 | **Live Queries**  | Queries that work in live mode and return real-time results | [Live Queries](/realtime/live-queries)           |
-| **Changefeeds**   | Direct table-level commit stream                            | [JSON Literals](/realtime/changefeeds) |
+| **Changefeeds**   | Direct table-level commit stream                            | [Changefeeds](/realtime/changefeeds) |

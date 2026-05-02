@@ -1,4 +1,5 @@
 import { LinkedQlWal } from '../../proc/timeline/LinkedQlWal.js';
+import { LinkedQlWalSub } from '../../proc/timeline/LinkedQlWalSub.js';
 import { ConflictError } from '../errors/ConflictError.js';
 
 export class FlashQlWal extends LinkedQlWal {
@@ -35,7 +36,7 @@ export class FlashQlWal extends LinkedQlWal {
             }
         }, { tx });
 
-        const gcArray = [];
+        const walSubs = [];
 
         for (const [nsName, subs] of Object.entries(viewSubsMap)) {
             for (const [tblName, tblDef] of Object.entries(subs)) {
@@ -50,14 +51,15 @@ export class FlashQlWal extends LinkedQlWal {
                 const upstream_isSingleTableLiveQuery = upstream_liveQueryOriginated && isSingleTableLiveQuery;
 
                 if (upstreamRelation) {
-                    gcArray.push(upstreamClient.wal.subscribe({ [upstreamRelation.namespace]: upstreamRelation.name }, async (commit) => {
+                    const walSub = upstreamClient.wal.subscribe({ [upstreamRelation.namespace]: upstreamRelation.name }, async (commit) => {
                         if (!commit.computed) {
                             const remappedEntries = commit.entries.map((e) => ({ ...e, relation: { ...e.relation, namespace: nsName, name: tblName, keyColumns: tblDef.keyColumns } }));
                             await cb({ ...commit, entries: remappedEntries });
                         } else {
                             await cb(commit);
                         }
-                    }, { tx: upstream_tx, liveQueryOriginated: upstream_liveQueryOriginated, isSingleTableLiveQuery: upstream_isSingleTableLiveQuery, ...options }));
+                    }, { tx: upstream_tx, liveQueryOriginated: upstream_liveQueryOriginated, isSingleTableLiveQuery: upstream_isSingleTableLiveQuery, ...options });
+                    walSubs.push(walSub);
                 } else {
                     const rtResult = await upstreamClient.query(tblDef.source_expr_ast, async (commit) => {
                         if (rtResult.strategy.diffing && commit.type === 'diff') {
@@ -73,17 +75,28 @@ export class FlashQlWal extends LinkedQlWal {
                             await cb(commit);
                         }
                     }, { ...options, tx: upstream_tx, live: true, initial: false });
-                    gcArray.push(() => rtResult.abort());
+                    walSubs.push(rtResult);
                 }
             }
         }
 
         if (Object.keys(localTableSubs).length) {
-            gcArray.push(super.subscribe(localTableSubs, cb, { ...options, tx, liveQueryOriginated, isSingleTableLiveQuery }));
+            walSubs.push(super.subscribe(localTableSubs, cb, { ...options, tx, liveQueryOriginated, isSingleTableLiveQuery }));
         }
 
-        const _gcArray = await Promise.all(gcArray);
-        return async () => await Promise.all(_gcArray.map((c) => c()));
+        const _walSubs = await Promise.all(walSubs);
+        
+        const masterSub = new LinkedQlWalSub(
+            async () => await Promise.all(_walSubs.map((s) => s.abort())
+        ));
+
+        for (const walSub of _walSubs) {
+            walSub.on('error', (e) => {
+                if (!masterSub.aborted) masterSub.emit('error', e);
+            });
+        }
+
+        return masterSub;
     }
 
     async applyDownstreamCommit(commit, { tx: inputTx = null } = {}) {

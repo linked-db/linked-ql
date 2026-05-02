@@ -135,5 +135,5 @@ This is useful when:
 
 | If you want to learn about... | Go to... |
 | :-- | :-- |
-| the common application-facing methods | [API](/api) |
 | how this fits into larger app architectures | [Integration Patterns](/guides/integration-patterns) |
+| the common API contract | [API](/api) |

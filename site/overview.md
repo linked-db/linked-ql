@@ -6,53 +6,46 @@
 
 ## What is LinkedQL?
 
-LinkedQL is an **application-flavoured SQL** that **runs anywhere**, with **pluggable backends**, and **an offline- and sync-ready model**. 
+LinkedQL is a portable query engine that runs in any JavaScript application and directly powers application state.
 
-That progression reflects how LinkedQL connects and composes modern application concerns.
+It extends SQL with a small set of composable capabilities for relationships, reactivity, and cross-runtime state — directly enabling real-time, local-first, and offline-first application architectures.
 
----
+### What It Replaces
 
-## How That Expands
+LinkedQL composes capabilities traditionally handled by separate systems — ORMs (e.g. Prisma), API/query layers (e.g. GraphQL), and sync engines (e.g. ElectricSQL) — directly into SQL.
 
-At the application-logic layer, LinkedQL gives you an upgrade path from SQL to **a superset of SQL** that:
+This shifts applications from manual capability scaffolding to a unified, composable, SQL-based model for application logic and state.
 
-- natively understands application-level paradigms – through a small set of additions to SQL ([the LinkedQL language additions](/lang))
-- can directly drive application state in real time – through database-native reactivity ([LinkedQL Realtime](/realtime))
+### Where It Runs
 
-While its application-level surface is the invariant, LinkedQL can run wherever your app runs: on the **client**, the **server**, and the **edge**, as architecture demands.
+LinkedQL is not tied to a single execution environment or architectural pattern.
 
-Durable storage (**PostgreSQL**, **MySQL/MariaDB**, or **client-side storage**, depending on runtime environment) participates in the model as pluggable backends.
+It can be used as a query client over existing PostgreSQL and MySQL/MariaDB databases, embedded directly into JavaScript runtimes (browser, server, workers, edge), or used as a cross-runtime query layer – as architecture demands.
 
-With modern applications spanning runtimes and crossing network boundaries, LinkedQL composes federation and sync into the storage layer as part of the model itself.
-
-From the top-level SQL with capabilities to the pluggable storage layer with sync, LinkedQL forms a unified model that connects and composes modern application concerns.
-
-That single model — replacing the traditional database stack of APIs, ORMs, realtime systems, and sync layers — is the design.
-<!--
----
+The same application-facing contract applies across all environments.
 
 ## Why LinkedQL?
 
-The traditional database stack encodes a split between storage, application logic, transport, and synchronization. Data is modelled and propagated across these layers in storage and network/transport terms, then remapped back into application state and reshaped into application-defined contracts.
+LinkedQL is the destination you arrive at when you solve the application data layer as one domain problem.
 
-The LinkedQL core insight is to not treat the database as a low level storage system but to model it as application state itself – the canonical, durable form of state, typically separated from execution by network and protocol boundaries.
+Most current efforts—from ORMs to API/query layers to sync systems—either solve only a slice of that problem or do so in ways that don’t compose.
 
-That insight is the core of the LinkedQL model:
+Each sees the dots in isolation and tries to solve them individually.
 
-application-flavoured query language  
-→ application-defined output shapes  
-→ reactive by default via mode switch  
-→ crosses network and protocol boundaries with application semantics preserved  
-→ directly drives application state  
+The core insight behind LinkedQL is *how those dots connect together at the SQL level*.
+
+<!--
+> Building from where the problem space converges is the LinkedQL core differentiator
 -->
+
 ---
 
 ## Your Map to the Docs
 
-| Area            | What it covers                                                   | Go to...                                                         |
-| :-------------- | :--------------------------------------------------------------- | :--------------------------------------------------------------- |
-| Getting Started | Basic setup and first queries                                    | [LinkedQL Guides](/guides)                                       |
-| API             | Core execution model (query, stream, transactions, live queries) | [LinkedQL API](/api)                                             |
-| Language        | SQL extensions and composable primitives                         | [Language Additions](/lang)                                      |
-| Realtime        | Live queries and change propagation                              | [LinkedQL Realtime](/realtime)                                   |
-| FlashQL         | Local execution, federation, and sync                            | [FlashQL](/flashql)                                              |
+| Area            | What it covers                                                             | Go to...                                                                   |
+| :-------------- | :------------------------------------------------------------------------- | :------------------------------------------------------------------------- |
+| Core Guides     | From basic setup to first queries, to more comprehensive guides            | [LinkedQL Guides](/guides)                                                 |
+| API             | Core API contract — the interface and query model                          | [LinkedQL API](/api)                                                       |
+| Language        | The LinkedQL language surface (JSON Literals, DeepRefs, etc.)              | [Language Surface](/lang)                                                |
+| Realtime        | Live queries and subscription model                                        | [Realtime Capabilities](/realtime)                                         |
+| FlashQL         | LinkedQL's embeddable SQL engine for local execution, federation, and sync    | [FlashQL](/flashql)                                                        |

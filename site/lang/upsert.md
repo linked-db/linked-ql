@@ -1,13 +1,13 @@
 # UPSERT
 
-*Do upserts with a literal `UPSERT` statement.*
+*Do upserts with a direct `UPSERT` statement.*
 
 ```sql
 UPSERT INTO users (name, email)
 VALUES ('Jane', 'jane@example.com');
 ```
 
-It’s identical in form to `INSERT`, but performs **update-on-conflict** automatically using your schema’s defined unique or primary keys.
+It’s identical in form to `INSERT`, but performs **update-on-conflict** automatically using the relation's keys.
 
 ---
 
@@ -115,8 +115,8 @@ This ensures deterministic, schema-aware conflict resolution for PostgreSQL.
 
 | If you want to learn about... | Go to... |
 | :-- | :-- |
-| the broader LinkedQL language additions surface | [Language Additions](/lang) |
-| the application-facing execution methods | [API](/api) |
+| the application-facing API contract | [API](/api) |
+| the broader LinkedQL language surface | [Language Surface](/lang) |
 
 ---
 

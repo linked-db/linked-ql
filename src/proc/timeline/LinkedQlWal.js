@@ -1,4 +1,5 @@
 import { normalizeRelationSelectorArg } from '../../clients/abstracts/util.js';
+import { LinkedQlWalSub } from './LinkedQlWalSub.js';
 import { SYSTEM_TAG } from '../SYSTEM.js';
 
 const E_PATTERNS = Symbol('patterns');
@@ -173,15 +174,17 @@ export class LinkedQlWal {
             }
         }
 
-        return async ({ forget = false } = {}) => {
-            let existed = this.#subscribers.has(sub.id);
-            this.#subscribers.delete(sub.id);
+        return new LinkedQlWalSub(
+            async ({ forget = false } = {}) => {
+                let existed = this.#subscribers.has(sub.id);
+                this.#subscribers.delete(sub.id);
 
-            if (forget) existed = await this.forget(sub.id);
-            else await this.#callLifecycleHookIf();
+                if (forget) existed = await this.forget(sub.id);
+                else await this.#callLifecycleHookIf();
 
-            return existed;
-        };
+                return existed;
+            }
+        );
     }
 
     async forget(id) {
@@ -335,7 +338,7 @@ export class LinkedQlWal {
             // The live query has an operational model that when combined wuth transactions
             // automatically addresses visibility and security.
             // centralizeCommitVisibility says to at least sill intercept those
-             return commit;
+            return commit;
         }
 
         const resolveCommitVisibility = this.#linkedQlClient?.options.resolveCommitVisibility;

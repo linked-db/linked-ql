@@ -59,7 +59,7 @@ describe('Realtime - Basics', () => {
         expect(events[events.length - 2].entries[0]).to.deep.include({ op: 'update' });
         expect(events[events.length - 1].entries[0]).to.deep.include({ op: 'delete' });
 
-        await unsubscribe();
+        await unsubscribe.abort();
     });
 
     it('filters wal subscriptions by selector', async () => {
@@ -99,9 +99,9 @@ describe('Realtime - Basics', () => {
         expect(onlyA[0].entries[0].relation.name).to.eq('rt_a');
         expect(onlyB[0].entries[0].relation.name).to.eq('rt_b');
 
-        await offAll();
-        await offA();
-        await offB();
+        await offAll.abort();
+        await offA.abort();
+        await offB.abort();
     });
 
     it('supports subscribing to table-mapped non-replication views through wal.subscribe()', async () => {
@@ -129,7 +129,7 @@ describe('Realtime - Basics', () => {
         });
         expect(commits[0].entries[0].new).to.deep.eq({ id: 1, name: 'Ada' });
 
-        await unsubscribe();
+        await unsubscribe.abort();
     });
 
     it('rewrites diffable live-query view commits as wal commits', async () => {
@@ -172,7 +172,7 @@ describe('Realtime - Basics', () => {
             relation: { namespace: 'public', name: 'rt_view_derived', keyColumns: ['id_derived'] },
         });
 
-        await unsubscribe();
+        await unsubscribe.abort();
     });
 
     it('passes through non-diffable live-query view commits as-is', async () => {
@@ -198,7 +198,7 @@ describe('Realtime - Basics', () => {
         expect(resultCommit.rows).to.deep.eq([{ total_rows: 1 }]);
         expect(resultCommit.hashes).to.have.length(1);
 
-        await unsubscribe();
+        await unsubscribe.abort();
     });
 
     it('streams query diffs in live mode', async () => {

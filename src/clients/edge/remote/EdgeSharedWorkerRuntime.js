@@ -22,7 +22,9 @@ export class EdgeSharededgeWorkerRuntime {
             port.addRequestListener('message', async (evt) => {
                 const { data: { op, args }, ports: [replyPort] } = evt;
                 try {
-                    await this.#edgeWorker.handle(op, args, replyPort);
+                    await this.#edgeWorker.handle(op, args, replyPort, (promise) => {
+                        promise.then(() => replyPort.close());
+                    });
                 } catch (error) {
                     replyPort?.postMessage({
                         __error: {

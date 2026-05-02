@@ -1,8 +1,8 @@
 # Conflict Handling
 
-FlashQL sync is designed around predictable conflict behavior.
+FlashQL [sync](/flashql/federation-and-sync) is designed around predictable conflict behavior.
 
-It means the system has a clear model for when a local write can still be applied and when it has lost the race to newer authoritative state. What FlashQL doesn't do is automatic merge. That would be bad "magic".
+The system has a clear model for when a local write can still be applied and when it has lost the race to newer authoritative state. What FlashQL doesn't do is automatic merge. That would be bad "magic".
 
 ---
 

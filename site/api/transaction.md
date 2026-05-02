@@ -84,5 +84,5 @@ This is useful when:
 
 | If you want to learn about... | Go to... |
 | :-- | :-- |
-| querying within a transaction | [Transaction API](/api/transaction) |
 | the base `query()` API | [Query API](/api/query) |
+| the base `stream()` API | [Stream API](/api/stream) |

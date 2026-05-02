@@ -3,9 +3,9 @@ layout: home
 title: LinkedQL
 hero:
   name: LinkedQL
-  text: The database primitive for modern apps and agents.
+  text: Universal Query Engine For the New Chapter
   tagline:
-    Replace the traditional database stack with an application-flavoured SQL. LinkedQL is built to directly power realtime, local-first, and offline-first applications through a small set of additions to SQL.
+    LinkedQL moves applications from ad-hoc data stacks and scaffold layers to full SQL power.
   actions:
     - theme: brand
       text: Get Started
@@ -17,24 +17,21 @@ hero:
       text: Star on GitHub
       link: https://github.com/linked-db/linked-ql
 features:
-  - title: Relationships Solved
-    details: "Traverse declared relationships directly in SQL without hand-writing every join. DeepRefs turns schema relationships into first-class query syntax <span class=\"nowrap\">— <code>SELECT author ~> name</code></span>"
+  - title: Relationships, Solved
+    details: "Query data as objects with direct relationship traversal. LinkedQL removes the need for post-processing and object-relational mapping."
 
-  - title: JSON Solved
-    details: "Shape the result the way the application actually wants to consume it. JSON literals pull object and array construction back into the query <span class=\"nowrap\">— <code>SELECT { a, b }</code></span>"
+  - title: Realtime, Solved
+    details: "Drive application state directly with live queries – without touching a subscription server or wiring reactivity. The query is the subscription."
 
-  - title: Schemas Solved
-    details: "Work against a SQL surface that understands schema, relationships, and versioned structure as part of the language and runtime model."
+  - title: Sync, Solved
+    details: "Sync data between local and remote databases in standard SQL vocabulary. With LinkedQL, the database itself is the sync engine."
 
-  - title: Reactivity Solved
-    details: "Turn on reactivity over arbitrary SQL with <span class=\"nowrap\"><code>{ live: true }</code></span>. You get back a live view of the query itself, without bolting on a separate subscription stack."
+  - title: Runs on Your Database
+    details: "Run on your own PostgreSQL or MySQL/MariaDB instance. LinkedQL integrates with your database as a query client (db.query())."
 
-  - title: Versioning Solved
-    details: "Make schema/version assumptions explicit in the query contract and carry version-aware workflows into the embedded runtime story."
+  - title: Runs Locally
+    details: "Embed LinkedQL as a full SQL engine locally, via FlashQL. FlashQL runs anywhere JavaScript does: server, browser, worker, edge."
 
-  - title: Embedding, Federation & Sync Solved
-    details: "Run SQL in-process with <b>FlashQL</b>, declare foreign views in SQL, materialize them locally, and keep them in sync without first inventing a separate local-first stack."
-
-  - title: Sync, Realtime & Local-first Solved
-    details: "Support realtime, local-first, and offline-first directly from SQL. Federate and sync data between local/remote databases without introducing a separate sync or realtime layer."
+  - title: Runs Universally
+    details: "Query databases across runtime boundaries through a single protocol. LinkedQL lets clients query data directly, from local to remote."
 ---

@@ -11,7 +11,6 @@ export class EdgeClient extends BaseEdgeClient {
     #fetch;
     #worker;
 
-    #portBasedStreaming;
     #workerEventNamespace;
 
     static #resolveWorkerPort(worker, type) {
@@ -26,7 +25,6 @@ export class EdgeClient extends BaseEdgeClient {
         url,
         worker = null,
         type = 'http',
-        portBasedStreaming = true,
         workerEventNamespace = 'lnkd_',
         fetchApi = null,
         ...options
@@ -41,7 +39,6 @@ export class EdgeClient extends BaseEdgeClient {
         this.#type = type;
 
         this.#workerEventNamespace = workerEventNamespace;
-        this.#portBasedStreaming = portBasedStreaming;
 
         if (this.#type === 'http') {
             this.#fetch = async (...args) => {
@@ -66,23 +63,39 @@ export class EdgeClient extends BaseEdgeClient {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                ...(streamMode && !this.#portBasedStreaming
+                ...(streamMode && !args.options?.portBasedStreaming
                     ? {} : { 'Accept': 'application/json' }),
             },
         }).then(async (res) => {
-            if (streamMode) {
-                if (this.#portBasedStreaming) {
-                    const { port } = await LiveResponse.from(res).now();
-                    return this.#portToAsyncIterable(port);
-                } else return this.#streamToAsyncIterable(
+            if (streamMode && !args.options?.portBasedStreaming && res.headers.get('Content-Type') !== 'application/json') {
+                // AsyncIteratable responses won't have a Content-Type header of application/json
+                return this.#streamToAsyncIterable(
                     res.body,
                     { parse: 'ndjson' }
                 );
             }
-            if (liveMode) return (
-                ({ body: data, port }) => ({ data, port })
-            )(await LiveResponse.from(res).now());
-            return await res.json();
+
+            const resJson = streamMode || liveMode
+                ? await LiveResponse.from(res).now()
+                : await res.json();
+                
+            if (resJson?.__error || resJson?.body?.__error) {
+                const __error = resJson?.__error || resJson?.body?.__error;
+                const error = __error.name === 'ConflictError'
+                    ? new ConflictError(__error.message)
+                    : new Error(__error.message);
+                error.name = __error.name || error.name || 'Error';
+                if (__error.stack) error.stack = __error.stack;
+                throw error;
+            }
+
+            if (streamMode)
+                return this.#portToAsyncIterable(resJson.port);
+
+            if (liveMode)
+                return { data: resJson.body, port: resJson.port };
+
+            return resJson;
         });
     }
 
@@ -92,11 +105,12 @@ export class EdgeClient extends BaseEdgeClient {
             { once: !liveMode && !streamMode }
         ).then((e) => {
             if (e.data?.__error) {
-                const error = e.data.__error.name === 'ConflictError'
-                    ? new ConflictError(e.data.__error.message)
-                    : new Error(e.data.__error.message);
-                error.name = e.data.__error.name || error.name || 'Error';
-                if (e.data.__error.stack) error.stack = e.data.__error.stack;
+                const __error = e.data.__error;
+                const error = __error.name === 'ConflictError'
+                    ? new ConflictError(__error.message)
+                    : new Error(__error.message);
+                error.name = __error.name || error.name || 'Error';
+                if (__error.stack) error.stack = __error.stack;
                 throw error;
             }
             if (streamMode) return this.#portToAsyncIterable(e.target);

@@ -2,35 +2,7 @@
 
 This page documents FlashQL's current SQL surface as it exists in the codebase today.
 
-It is intentionally written as a usage reference, not as a speculative wishlist. Where support is partial or runtime-specific, that is stated plainly.
-
-Two framing points matter before anything else:
-
-- FlashQL speaks real SQL in PostgreSQL and MySQL flavors
-- FlashQL also adds LinkedQL-specific syntax such as DeepRefs and version binding
-
-Just as important is what this page is *not* saying:
-
-- it does not claim full PostgreSQL or full MySQL compatibility
-- it does not treat every parsed construct as fully supported at runtime
-- it does not treat storage-transaction APIs as identical to SQL DDL support
-
----
-
-## Reading This Page
-
-Use this page in three ways:
-
-- as a map of what statement families are already strong
-- as a guide to FlashQL-specific language additions
-- as a companion to the deeper capability docs
-
-For more focused guides, also see:
-
-- [DeepRefs](/lang/deeprefs)
-- [JSON Literals](/lang/json-literals)
-- [UPSERT](/lang/upsert)
-- [Version Binding](/lang/version-binding)
+It is intentionally written as a usage reference. Also, where support is partial or runtime-specific, that is stated plainly.
 
 ---
 
@@ -190,7 +162,8 @@ Common tested forms include:
 
 - single-row insert
 - multi-row insert
-- `DEFAULT VALUES`
+- `INSERT ... SELECT`
+- `INSERT ... DEFAULT VALUES`
 - `INSERT ... RETURNING`
 
 ### `UPDATE`
@@ -237,6 +210,7 @@ It supports:
 - expressions
 - function calls
 - subqueries
+- DeepRefs
 
 ```js
 const result = await db.query(`
@@ -248,7 +222,7 @@ const result = await db.query(`
 
 ### UPSERT
 
-FlashQL supports PostgreSQL-style `INSERT ... ON CONFLICT`.
+FlashQL supports `INSERT ... ON CONFLICT` operations.
 
 ```js
 const result = await db.query(`
@@ -331,35 +305,9 @@ At the storage-transaction level, support exists for:
 
 ### Important Nuance About Dialects
 
-The SQL surface is intentionally selective rather than claiming full PostgreSQL or MySQL DDL parity. The parser is dialect-aware and covers the supported overlap plus FlashQL-specific extensions such as:
-
-- schema options like `replication_origin`
-- persistence-qualified views such as `CREATE MATERIALIZED VIEW` and `CREATE REALTIME VIEW`
+The SQL surface is intentionally selective rather than claiming full PostgreSQL or MySQL DDL parity. The parser is dialect-aware and covers the supported overlap plus FlashQL-specific extensions.
 
 If your application depends on rarely used server-specific DDL clauses, validate those paths explicitly.
-
----
-
-## Transactions
-
-FlashQL supports transactions at the client API level:
-
-```js
-await db.transaction(async (tx) => {
-  const users = tx.getTable({ namespace: 'public', name: 'users' });
-  await users.insert({ id: 1, name: 'Ada' });
-});
-```
-
-That is the supported application-facing transaction model today.
-
-This does **not** mean the SQL command family:
-
-- `BEGIN`
-- `COMMIT`
-- `ROLLBACK`
-
-should be read as the primary way to control transactions in FlashQL. The JS transaction API is the intended surface.
 
 ---
 
@@ -448,44 +396,9 @@ That is separate from version binding inside a query.
 
 ---
 
-## Dialect Notes
-
-### PostgreSQL Flavor
-
-This is the strongest and most fully exercised dialect path today.
-
-Particularly strong areas include:
-
-- `RETURNING`
-- `ON CONFLICT`
-- `ROWS FROM`
-- `LATERAL`
-- version binding
-- many parser and execution tests
-
-### MySQL Flavor
-
-MySQL-flavored parsing is supported, and FlashQL can switch dialect per client or per query. But the broadest execution coverage still centers on PostgreSQL-style usage.
-
-That does not make MySQL support fake. It just means readers should calibrate expectations correctly.
-
----
-
-## Practical Reading of "Support"
-
-When evaluating whether FlashQL supports a given language feature, use this order of confidence:
-
-1. feature is exercised by parser, desugaring, and engine tests
-2. feature is exercised at least by parser and engine tests
-3. feature parses but is not yet documented here as runtime-stable
-
-That is why this page focuses on the features that are clearly alive in the current codebase rather than pretending every parsed form has equal runtime maturity.
-
----
-
 ## Additional Reading
 
 | If you want to learn about... | Go to... |
 | :-- | :-- |
-| the broader LinkedQL language additions surface | [Language Additions](/lang) |
-| the application-facing API | [API](/api) |
+| the broader LinkedQL language surface | [Language Surface](/lang) |
+| the common API contract | [API](/api) |

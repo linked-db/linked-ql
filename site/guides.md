@@ -1,6 +1,6 @@
-# LinkedQL Guides
+# Core Guides
 
-This section helps you plug LinkedQL into a real application — whether your database lives locally, on a server, or across runtime boundaries.
+This section helps you plug LinkedQL into a real application — whether your database lives locally, on a server, or across a runtime boundary.
 
 Your final setup remains: one query interface, regardless of where your data lives.
 
@@ -10,7 +10,7 @@ Your final setup remains: one query interface, regardless of where your data liv
 
 The following is a map of the LinkedQL guide that fits a specific scenario or application shape.
 
-| Shape                    | Use it when                                                                                      | Start here                                                                           |
+| Shape                    | Scenario                                                                                         | Start here                                                                           |
 | :----------------------- | :----------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------- |
 | Direct database querying | your app can connect to the database directly                                                    | [PostgreSQL](/guides/postgresql), [MySQL](/guides/mysql), [MariaDB](/guides/mariadb) |
 | Cross-runtime querying   | your app runs in the browser, edge, or another boundary and needs remote DB access               | [Edge](/guides/edge)                                                                 |
@@ -52,15 +52,9 @@ await db.transaction(fn);
 await db.wal.subscribe(selector, handler);
 ```
 
-This means you can switch between PostgreSQL, FlashQL, or Edge-backed queries without rewriting your data layer.
+This means you keep the same mental model and API contract across client-side and server-side codebases, for example.
 
-Some runtimes extend the base interface. For example, FlashQL adds a sync API:
-
-```js
-await db.sync.sync(); // (FlashQL)
-```
-
-See the [Core Query API](/api) section for details.
+See the [API](/api) section for details.
 
 ---
 
@@ -137,7 +131,7 @@ Leave it off when:
 
 ## Security and Access Control
 
-LinkedQL does not bypass or reimplement database security for the given database — it composes directly with it. This includes PostgreSQL's Row Level Security (RLS) architecture.
+LinkedQL does not bypass or reimplement database security for the given database — it composes directly with it. This includes PostgreSQL's Row Level Security (RLS) model.
 
 Security and Access Control concepts are documented alongside relevant LinkedQL features or capabilities. The table below is your map to those sections of the docs:
 
@@ -151,8 +145,8 @@ Security and Access Control concepts are documented alongside relevant LinkedQL 
 
 ## Additional Reading
 
-| If you want to learn about... | Go to... |
-| :---------------------------------------------------- | :--------------------------------------------------- |
-| the method-by-method contract             | [API](/api)                                         |
-| LinkedQL syntax extensions to SQL         | [Language](/lang)                                   |
-| LinkedQL realtime capabilities            | [Realtime](/realtime)                               |
+| If you want to learn about...                                 | Go to...                                                 |
+| :------------------------------------------------------------ | :------------------------------------------------------- |
+| the LinkedQL language surface                                 | [Language Surface](/lang)                                |
+| LinkedQL's realtime capabilities                              | [Realtime Capabilities](/realtime)                       |
+| the API contract                                              | [API](/api)                                              |

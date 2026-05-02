@@ -3,18 +3,14 @@
 _Follow relationships using simple arrow notation: `a ~> b`._
 
 ```sql
-SELECT author ~> name FROM posts
+SELECT author ~> name FROM posts;
 ```
 
-_Mutate nested relationships through the same path._
+_Mutate relationships through the same path._
 
-DeepRefs are one of LinkedQL's central language features.
-
-Use them when you want to:
-
-- traverse relationships directly in query syntax
-- shape related data without hand-writing every join
-- carry the same path language into DML through structured writes
+```sql
+UPDATE posts SET author ~> name = 'Ada Lovelace';
+```
 
 ---
 
@@ -25,26 +21,10 @@ SQL schemas already describe relationships —
 
 DeepRefs let you **traverse those foreign-key declarations directly**, inline, without writing a join.
 
-```sql
-SELECT author ~> name FROM posts
-```
-
 If you’ve declared any relationship, you can traverse it directly.
 LinkedQL resolves the path from the schema catalog.
 
----
-
-## How to Read This Page
-
-This page covers three related ideas:
-
-| Topic | What it covers | Jump to |
-| :-- | :-- | :-- |
-| Forward traversal | following foreign-key relationships with `~>` | [General Syntax](#general-syntax) |
-| Backward traversal | finding dependents with `<~` and understanding binding | [BackRef Binding](#backref-binding) |
-| Expression and write behavior | how DeepRefs behave in projections, expressions, and DML | [Projections](#projections), [Expressions](#expressions), [Mutations](#mutations) |
-
-The important mental model is that DeepRefs are schema-aware SQL syntax, not a separate ORM layer.
+DeepRefs are one of LinkedQL's central language features.
 
 ---
 
@@ -71,36 +51,31 @@ The `~>` arrow means:
 
 > “From this post, follow the `author` foreign key to the `users` table, then take the `name` column.”
 
-### Quick Cheatsheet
-
-| Type            | Syntax                    | Direction      | Meaning                                                                                                              | Example                                 |
-| :-------------- | :------------------------ | :------------- | :------------------------------------------------------------------------------------------------------------------- | :-------------------------------------- |
-| **DeepRef**     | `fk ~> col`               | forward        | From the current row (A), follow the foreign key `fk` to the referenced row (B) and read `B.col`.                    | `post.author ~> name`                   |
-| **Multi-hop DeepRef** | `fk ~> fk2 ~> col`        | forward depth  | Follow multiple foreign key hops: `A.fk → B.fk2 → C.col`.                                                                | `comment.post ~> author ~> email`       |
-| **BackRef**     | `(fk <~ T) ~> col`        | backward       | From the current row (A), find rows in table `T` whose foreign key `fk` points to A’s primary key; read their `col`. | `(author <~ posts) ~> title`            |
-| **Multi-hop BackRef** | `(fk <~ fk2 <~ T) ~> col` | backward depth | Walk backward through multiple foreign key hops.                                               | `(author <~ posts <~ comments) ~> text` |
-
-**_Legend_**:
-
-* **A** — the *current row* (the table you’re selecting from)
-* **B, C** — the rows reached by following arrows
-* Each `~>` or `<~` one foreign-key hop
-
-**_Variants_**:
-
-For BackRefs, a dot (`.`) may be used on the first outer hop:
-
-| Formal                                  | Shorthand                            |
-| :-------------------------------------- | :----------------------------------- |
-| `(author <~ posts) ~> title`            | `(author <~ posts).title`            |
-| `(author <~ comments) ~> post ~> title` | `(author <~ comments).post ~> title` |
-
 ---
 
-## DeepRefs as "Single" Column References
+## Grammar
 
-DeepRefs expose foreign-key relationships as **first-class** column references inside SQL.<br>
-They behave like columns — and work anywhere a column reference works.
+DeepRefs are **first-class column references**. They can participate in any expression exactly as ordinary columns do:
+
+```sql
+SELECT fk ~> col + 3        -- same as (fk ~> col) + 3
+FROM t;
+```
+
+Those operators — `~>` and `<~` — bind tighter than standard SQL expression operators (arithmetic, comparison, logical, etc.).<br>
+Thus, above, the `~>` operator resolves before the `+` operator.
+
+Essentially, DeepRefs hold together as indivisible units, just like ordinary columns. **Thus, parentheses around them aren't necessary.**
+
+```sql
+SELECT fk ~> value + 1;                    -- arithmetic
+SELECT LOWER(fk ~> name);                  -- function call
+SELECT COALESCE(fk ~> email, 'none');      -- null handling
+SELECT fk ~> title ILIKE '%draft%';        -- predicate
+SELECT fk ~> created_at > NOW() - INTERVAL '7 days'; -- comparison
+```
+
+Because they can appear anywhere a column reference do, they can be used in filtering, ordering, and various other contexts:
 
 * `SELECT fk ~> col FROM ...` (projection)
 * `fk ~> col + 2, LOWER(fk ~> col)` (expressions)
@@ -112,9 +87,136 @@ They behave like columns — and work anywhere a column reference works.
 * `SELECT v.fk ~> col FROM (SELECT fk) AS v` (derived queries)
 * `FROM t1 LEFT JOIN LATERAL (SELECT t1.fk ~> col)` (lateral joins)
 
-Essentially, wherever SQL expects a column-shaped value, you can often use a DeepRef expression instead.
+Another general rule is that DeepRefs are both *navigation operators* (traversing structure) and *composition operators* (building new structures).
 
-### BackRef Binding
+This is the biggest part of the rest of the document.
+
+### Nesting
+
+DeepRefs compose naturally across multiple relationship hops.
+
+Each hop is evaluated in the context of the previous result, preserving relational cardinality at each step:
+
+```sql
+SELECT
+  content,
+  author ~> name AS commenter,
+  post ~> author ~> name AS publisher
+FROM comments;
+```
+
+As a result:
+
++ chaining DeepRefs is equivalent to walking a path through the schema graph
++ DeepRefs can be nested to the level that the underlying relationships permit
+
+Chains are associative:
+
+> `post ~> author ~> name` is equivalent to `(post ~> author) ~> name`
+
+Chains can alternate direction to express more complex traversals:
+
+```sql
+SELECT
+  (author <~ posts) ~> author ~> email
+FROM users;
+```
+
+This reads as:
+
+> "From the current user, find all referencing posts, then for each post, follow its author again."
+
+Each change in direction introduces a new dependency edge, but composition remains consistent.
+
+### Object Syntax
+
+DeepRefs can project objects instead of scalars.
+
+Instead of selecting individual columns, you can describe the shape of the related data directly:
+
+```sql
+SELECT
+  title,
+  author ~> { username, email },
+  author ~> [ phone, mobile ] AS author_contacts
+FROM posts;
+```
+
+Object projections compose naturally across relationships:
+
+```sql
+SELECT
+  title,
+  author ~> {
+    username,
+    contact: { email, phone }
+  } AS author
+FROM posts;
+```
+
+And across DeepRef chains:
+
+```sql
+SELECT
+  post ~> {
+    title,
+    author: author ~> { name, email }
+  } AS post
+FROM comments;
+```
+
+Because object syntax works inside DeepRefs, you can combine:
+
++ traversal (`~>`, `<~`)
++ shaping (`{}`, `[]`)
++ aggregation (`AS field[]`)
+
+into a single expression:
+
+```sql
+SELECT
+  u.id,
+  (author <~ posts) ~> {
+    title,
+    author: author ~> { name }
+  } AS posts[]
+FROM users AS u;
+```
+
+This expresses:
+
+> "For each user, return their posts as structured objects, including nested author data."
+
+### Tuple Syntax
+
+DeepRefs can terminate as composite lists in contexts where composite lists apply:
+
+```sql
+SELECT *
+FROM posts
+WHERE $1 IN author ~> (username, email);
+```
+
+Since the left-hand side of the `IN` operator can be a composite list, we can also write:
+
+```sql
+SELECT *
+FROM posts
+WHERE author ~> (id, name) IN (1, 'Ada');
+```
+
+### BackRef: Alternative Dot Syntax
+
+BackRefs support a dot (`.`) syntax on the first outer hop:
+
+| Formal                                  | Shorthand                            |
+| :-------------------------------------- | :----------------------------------- |
+| `(author <~ posts) ~> title`            | `(author <~ posts).title`            |
+| `(author <~ comments) ~> post ~> title` | `(author <~ comments).post ~> title` |
+
+Dot syntax only applies after the base BackRef resolution.
+
+### BackRef: Optional Left Binding
 
 When using BackRefs in queries involving multiple instances of the same table (such as self-joins), its left-hand binding may be ambiguous.
 
@@ -135,14 +237,15 @@ This explicit aliasing ensures that DeepRefs and BackRefs resolve correctly in c
 
 ## Projections
 
-In addition to keeping queries short, consistent, and readable at any complexity, DeepRefs especially turn the query surface — the SELECT list — into a connected view of data.
+In SELECT statements, DeepRefs expand into relational joins derived from the schema.
 
-Internally, these expand into **LEFT JOIN** expressions derived from the schema.
 Multi-hop chains become hierarchies of nested LEFT JOINs, preserving nullability and order at every step.
 
 ### Projection Semantics
 
-Inside a projection list, DeepRefs work exactly like columns — being **first-class column references**. Each yields values from the referenced row. And being syntactic sugar for LEFT JOINs, a *ref* may return `NULL` where no *right* rows match — as standard JOIN cardinality applies.
+Inside a SELECT list, DeepRefs work exactly like columns — being **first-class column references**. Each yields values from the referenced row.
+
+Also, given their relational join semantics, a *ref* may return `NULL` where no *right* rows match — as standard JOIN cardinality applies.
 
 #### DeepRefs (`~>`)
 
@@ -171,7 +274,7 @@ SELECT c.id, c.text, c.post ~> author ~> email AS post_author_email
 FROM comments AS c;
 ```
 
-Those just follow the semantics of what they translate to — a hierarchy of LEFT JOINs:
+Those just follow the semantics of what they translate to — a hierarchy of joins:
 
 ```sql
 SELECT c.id, c.text, u.email AS post_author_email
@@ -191,7 +294,7 @@ SELECT u.id, (author <~ posts) ~> title AS post_title
 FROM users AS u;
 ```
 
-They project just identically as their JOIN equivalent — producing one output row for each matching *right-hand* record:
+They project just identically as their join equivalent — producing one output row for each matching *right-hand* record:
 
 ```sql
 SELECT u.id, p.title AS post_title
@@ -200,7 +303,7 @@ LEFT JOIN (SELECT author, title FROM posts) AS p
     ON p.author = u.id;
 ```
 
-Because these are also LEFT JOINs, a user without posts simply produces `NULL` for `post_title`.
+Because these are also joins, a user without posts simply produces `NULL` for `post_title`.
 
 When there are multiple matching *right-hand* rows, those naturally become additional output rows.<br>
 But those may also be aggregated into a single collection field:
@@ -249,11 +352,11 @@ This gives you aggregated results without requiring the `GROUP BY` clause on the
 | `JSON_AGG((fk <~ T) ~> col)` | outer query         | ✅ yes               | outer grouping semantics apply                                 |
 | `(fk <~ T) ~> col AS col[]`  | inner BackRef scope | ❌ no                | aggregation scoped to BackRef; outer query ungrouped |
 
-For chained backward refs, those also just follow the semantics of what they translate to — a hierarchy of LEFT JOINs, preserving both nullability and join order across depth.
+For chained backward refs, those also just follow the semantics of what they translate to — a hierarchy of joins, preserving both nullability and join order across depth.
 
 ### Structural Projection
 
-DeepRefs can project structures instead of scalars — returning object-shaped results from the referenced rows.
+DeepRefs that project structure return object-shaped results from the referenced rows.
 
 ```sql
 SELECT p.id, p.title, p.author ~> { id, name } AS author
@@ -334,76 +437,6 @@ In the SELECT surface, DeepRefs can project:
 * **structures** — shapes of related columns: `fk ~> { col1, col2 }`
 * **collections** — aggregated collections: `AS alias[]`
 
-Also, each follows the same join semantics:
-
-+ **DeepRefs (`~>`)** yield one related record (and nullable)
-+ **BackRefs (`<~`)** yield zero or more (and nullable, optionally aggregated)
-
----
-
-## Expressions
-
-Because DeepRefs are **first-class column references**, they can participate in any expression exactly as ordinary columns do:
-
-```sql
-SELECT fk ~> col + 3        -- same as (fk ~> col) + 3
-FROM t;
-```
-
-### Composability
-
-DeepRef operators — `~>` and `<~` — bind tighter than any other SQL operator (arithmetic, comparison, logical, etc.).<br>
-Thus, above, the `~>` operator resolves before the `+` operator.
-
-Essentially, DeepRefs hold together as indivisible units, just like ordinary columns. Thus,
-parentheses around them aren't necessary; but those are perfectly valid and can be used to clarify intent.
-
-Each expression is evaluated on the **dereferenced value**.
-
-```sql
-SELECT fk ~> value + 1;                    -- arithmetic
-SELECT LOWER(fk ~> name);                  -- function call
-SELECT COALESCE(fk ~> email, 'none');      -- null handling
-SELECT fk ~> title ILIKE '%draft%';        -- predicate
-SELECT fk ~> created_at > NOW() - INTERVAL '7 days'; -- comparison
-```
-
-Because they can appear anywhere a column reference can, they can be used in filtering, ordering, and conditional contexts:
-
-```sql
-SELECT * FROM posts
-WHERE author ~> email ILIKE '%@example.com'
-ORDER BY author ~> name;
-```
-
-### Structural Contexts
-
-DeepRefs can terminate as composite record types in contexts where record types apply:
-
-```sql
-SELECT *
-FROM posts
-WHERE $1 IN author ~> (username, email);
-```
-
-Since the left-hand side of the `IN` operator can be a tuple, we can also write:
-
-```sql
-SELECT *
-FROM posts
-WHERE author ~> (id, name) IN (1, 'Ada');
-```
-
-In each case, the tuple syntax applies to the dereferenced path, not to the path itself.
-
-### Expression Summary
-
-DeepRefs behave as atomic references in expressions:
-
-* **Binding:** `~>` and `<~` bind tighter than all other operators; no special parentheses required.
-* **Composability:** usable in any expression or clause where a column works.
-* **Structural forms:** may terminate as tuples in contexts expecting tuples.
-
 ---
 
 ## Mutations
@@ -445,8 +478,9 @@ VALUES
 This executes **depth-first**, with **primary keys binding to foreign keys up the structure**:
 
 ```
-Command:
-INSERT post → author → name  (create this structure)
+Command: create this structure:
+
+  INSERT post → author → name
 
 Execution order:
   1. CREATE user (name)
@@ -490,8 +524,9 @@ VALUES
 This executes depth-first, again, but reversed in direction — with parent primary keys binding to foreign keys down the structure:
 
 ```
-Command:
-INSERT user ← post → title  (create this structure)
+Command: create this structure:
+  
+  INSERT user ← post → title
 
 Execution order:
   1. CREATE user
@@ -543,8 +578,9 @@ VALUES
 Here, each direction change reverses the dependency orientation while preserving referential closure:
 
 ```
-Command:
-INSERT post → comment → author  (create this structure)
+Command: create this structure:
+
+  INSERT post → comment → author
 
 Execution order:
   1. CREATE post (title)
@@ -619,8 +655,9 @@ VALUES
 This executes depth-first, with dependency order preserved as in inserts:
 
 ```
-Command:
-UPSERT post → author → name  (materialize this structure — create or update)
+Command: materialize this structure — create or update:
+
+  UPSERT post → author → name
 
 Execution order:
   1. UPSERT user (name)
@@ -658,8 +695,9 @@ DO UPDATE SET author ~> name = 'Ada Lovelace';
 Here, if a post with the same title already exists, the `ON CONFLICT` clause updates the author’s name through the `author` reference, rather than overwriting the foreign key.
 
 ```
-Command:
-CONDITIONALLY UPDATE post → author → name  (update existing structure through refs)
+Command: update existing structure through refs:
+
+  CONDITIONALLY UPDATE post → author → name
 
 Execution order:
   1. UPDATE post (title)
@@ -680,8 +718,9 @@ WHERE p.title = 'Intro to DeepRefs';
 This resolves sequentially, so deeper mutations apply to the results of prior paths within the same statement:
 
 ```
-Command:
-UPDATE post → author → (name, email)  (update this structure)
+Command: update this structure:
+
+  UPDATE post → author → (name, email)
 
 Evaluation order:
   1. UPDATE post ()
@@ -712,32 +751,21 @@ WHERE (author <~ posts) ~> title = 'Intro to DeepRefs';
 ```
 
 ```
-Command:
-DELETE user (remove rows matching this relationship)
+Command: remove rows matching this relationship:
+
+  DELETE user
 ```
 
 ### Mutation Summary
 
-Structured writes are one of LinkedQL's most application-oriented language features.
-
-They let you express relationship-aware writes directly in SQL-shaped DML instead of splitting the operation across:
-
-- multiple imperative inserts
-- foreign-key bookkeeping
-- extra query-roundtrips just to wire ids together
-
-The key idea is that DeepRef syntax is not just for reading. It can also appear in write targets.
-
-#### The Core Idea
-
-A regular insert target looks like this:
+Compared to a regular write:
 
 ```sql
 INSERT INTO public.users (id, email)
 VALUES (1, 'ada@example.com')
 ```
 
-A structured write target can include relational paths:
+Deep writes let you mutate or create related records using paths:
 
 ```sql
 INSERT INTO public.users
@@ -745,34 +773,6 @@ INSERT INTO public.users
 VALUES
   ('ada@example.com', ROW (50, 'parent@example.com'))
 ```
-
-That tells LinkedQL:
-
-- insert a row into `public.users`
-- also ensure the related `parent_user1` payload is written
-- wire the relationship through the appropriate key path
-
-The rough rule is:
-
-- DeepRefs in `SELECT` help you traverse and shape reads
-- DeepRefs in DML targets help you traverse and shape writes
-
-#### Why This Exists
-
-Without structured writes, relationship-aware writes usually move into application code:
-
-1. insert one row
-2. collect its id
-3. insert another row
-4. collect another id
-5. update the linking row
-
-Structured writes let the query itself describe that intent.
-
-* **Resolution (`~>`, `<~`)** — dependencies resolve first, with primary keys binding up the structure.
-* **Atomicity** — every structural mutation, regardless of complexity, compiles into **one SQL statement**.
-* **Consistency** — referential integrity is always schema-driven.
-* **Determinism** — the same mutation yields the same dependency plan.
 
 ---
 
@@ -839,8 +839,8 @@ Essentially, any foreign key in scope — whether inherited or projected — ret
 
 | If you want to learn about... | Go to... |
 | :-- | :-- |
-| the broader LinkedQL language additions surface | [Language Additions](/lang) |
-| building structured objects and arrays around relationship traversal | [JSON Literals](/lang/json-literals) |
+| the related object syntax | [JSON Literals](/lang/json-literals) |
+| the broader LinkedQL language surface | [Language Surface](/lang) |
 
 ---
 

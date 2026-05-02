@@ -3,7 +3,7 @@ import { LinkedQlWal } from '../../../proc/timeline/LinkedQlWal.js';
 export class EdgeWal extends LinkedQlWal {
 
     #edgeClient;
-    #realtimeGc;
+    #walSub;
 
     constructor({ edgeClient, ...options }) {
         super({
@@ -11,9 +11,9 @@ export class EdgeWal extends LinkedQlWal {
             linkedQlClient: edgeClient,
             lifecycleHook: async (status) => {
                 if (status) {
-                    this.#realtimeGc = await this.#edgeClient._subscribe(async (commit) => this.dispatch(commit));
+                    this.#walSub = await this.#edgeClient._subscribe(async (commit) => this.dispatch(commit));
                 } else {
-                    await this.#realtimeGc();
+                    await this.#walSub?.abort();
                 }
             }
         });
@@ -27,7 +27,12 @@ export class EdgeWal extends LinkedQlWal {
             return await this.#edgeClient._subscribe(...args);
         }
 
-        return await super.subscribe(...args);
+        const walSub = await super.subscribe(...args);
+        this.#walSub.on('error', (e) => {
+            if (!walSub.aborted) walSub.emit('error', e);
+        });
+        
+        return walSub;
     }
 
     async applyDownstreamCommit(commit, options = {}) {

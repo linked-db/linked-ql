@@ -17,8 +17,6 @@ export default defineConfig({
         // Top nav
         nav: [
             { text: 'What is LinkedQL', link: '/overview', activeMatch: '/overview' },
-            { text: 'Language Additions', link: '/lang/', activeMatch: '/lang' },
-            { text: 'Realtime', link: '/realtime/', activeMatch: '/realtime' },
             { text: 'Guides', link: '/guides/', activeMatch: '/guides' },
             { text: 'API', link: '/api/', activeMatch: '/api' },
             { text: 'FlashQL', link: '/flashql', activeMatch: '/flashql' },
@@ -39,9 +37,9 @@ export default defineConfig({
                     ]
                 },
                 {
-                    text: 'Guides',
+                    text: 'Core Guides',
                     items: [
-                        { text: 'Getting Started', link: '/guides/' },
+                        { text: 'Getting Started', link: '/guides' },
                         { text: 'PostgreSQL', link: '/guides/postgresql' },
                         { text: 'MySQL', link: '/guides/mysql' },
                         { text: 'MariaDB', link: '/guides/mariadb' },
@@ -53,7 +51,7 @@ export default defineConfig({
                 {
                     text: 'API',
                     items: [
-                        { text: 'API Overview', link: '/api/' },
+                        { text: 'API Overview', link: '/api' },
                         { text: 'db.query()', link: '/api/query' },
                         { text: 'db.stream()', link: '/api/stream' },
                         { text: 'db.transaction()', link: '/api/transaction' },
@@ -61,9 +59,9 @@ export default defineConfig({
                     ]
                 },
                 {
-                    text: 'Language Additions',
+                    text: 'Language Surface',
                     items: [
-                        { text: 'Language Overview', link: '/lang/' },
+                        { text: 'Language Overview', link: '/lang' },
                         { text: 'DeepRefs', link: '/lang/deeprefs' },
                         { text: 'JSON Literals', link: '/lang/json-literals' },
                         { text: 'UPSERT', link: '/lang/upsert' },
@@ -71,9 +69,9 @@ export default defineConfig({
                     ]
                 },
                 {
-                    text: 'Realtime',
+                    text: 'Realtime Capabilities',
                     items: [
-                        { text: 'Realtime Overview', link: '/realtime/' },
+                        { text: 'Realtime Overview', link: '/realtime' },
                         { text: 'Live Queries', link: '/realtime/live-queries' },
                         { text: 'Changefeeds', link: '/realtime/changefeeds' },
                     ]

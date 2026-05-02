@@ -97,5 +97,5 @@ Once binary logging is available, LinkedQL can build on top of it for realtime f
 
 | If you want to learn about... | Go to... |
 | :-- | :-- |
-| the common application-facing methods | [API](/api) |
 | how this fits into larger app architectures | [Integration Patterns](/guides/integration-patterns) |
+| the common API contract | [API](/api) |

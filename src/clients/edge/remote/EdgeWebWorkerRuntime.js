@@ -16,11 +16,13 @@ export class EdgeWebWorkerRuntime {
     runIn(worker) {
         MessagePortPlus.upgradeInPlace(worker);
         worker.addRequestListener('message', async (e) => {
-            const { data: { op, args }, ports: [port] } = e;
+            const { data: { op, args }, ports: [replyPort] } = e;
             try {
-                await this.#edgeWorker.handle(op, args, port);
+                await this.#edgeWorker.handle(op, args, replyPort, (promise) => {
+                    promise.then(() => replyPort.close());
+                });
             } catch (error) {
-                port?.postMessage({
+                replyPort?.postMessage({
                     __error: {
                         name: error?.name || 'Error',
                         message: error?.message || String(error),

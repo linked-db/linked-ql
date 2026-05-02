@@ -225,6 +225,6 @@ await result.abort();
 
 | If you want to learn about... | Go to... |
 | :-- | :-- |
-| the related `stream()` API | [Query API](/api/stream) |
+| the related `stream()` API | [Stream API](/api/stream) |
 | live queries in detail | [Live Queries](/realtime/live-queries) |
 | querying within a transaction | [Transaction API](/api/transaction) |

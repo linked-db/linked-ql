@@ -379,7 +379,7 @@ Live views are not just auto-updating — they are also **observable**.
 
 LinkedQL exposes them through the [Observer API](https://github.com/webqit/observer). Observer is a general-purpose JavaScript API for observing object and array-level mutations.
 
-This makes `result.rows` observable like any object.
+This makes `result.rows` observable via `Observer.observe()`.
 
 ```js
 Observer.observe(result.rows, (mutations) => {
@@ -387,7 +387,7 @@ Observer.observe(result.rows, (mutations) => {
 });
 ```
 
-You pass a callback, as shown above, to observe root-level changes — which, for `result.rows`, means row additions and deletions.
+You pass just a callback, as shown above, to observe root-level changes — which, for `result.rows`, means row additions and deletions.
 
 You observe field-level changes by adding the `Observer.subtree()` directive:
 
@@ -429,7 +429,15 @@ Transactions are not split across multiple emissions. Each callback reflects a c
 
 ## Driving Application-Level Reactivity Directly
 
-Live Views are designed to directly drive application-level reactivity. They come from the database layer as **reactive state** that are themselves **observable**.
+Live Views are designed to directly drive application-level reactivity.
+
+The model is simple: as the result object flows through your application, application logic directly reacts to its changes – even as a regular JavaScript object.
+
+```js
+Observer.observe(result.rows, (mutations) => {
+    console.log(mutations);
+});
+```
 
 That removes an entire layer of work:
 
@@ -439,24 +447,9 @@ That removes an entire layer of work:
 
 The database result itself becomes the state your application works with.
 
-Here, the result object flows through your application as a regular object, your application logic directly reacts to its changes.
+When used within application stacks where mutation-based reactivity is a first-class concept ([Webflo](https://github.com/webqit/webflo), [OOHTML](https://github.com/webqit/oohtml), etc.), Live Views integrate even more natively.
 
-```js
-Observer.observe(result.rows, (mutations) => {
-    console.log(mutations);
-});
-```
-
-When used within application stacks where mutation-based reactivity is a first-class concept, Live Views integrate even more natively.
-
-For example:
-
-+ reactivity in frameworks like [Webflo](https://github.com/webqit/webflo) is driven both on the backend and on the frontend – universally – by live states.
-+ reactivity on the UI via [OOHTML](https://github.com/webqit/oohtml) can be driven entirely by live state.
-
-Essentially, with Observer as the shared vocabulary of change, `result.rows`'s "live state" nature can effectively drive reactivity universally for modern stacks without an explicit subscription.
-
-For older stacks, a minimal, explicit subscription line – `Observer.observe()` – helps you acheive the same.
+Essentially, with `Observer` as the shared vocabulary of change, `result.rows`'s "live state" nature effectively drives reactivity for modern stacks without an explicit subscription.
 
 ---
 
@@ -482,8 +475,8 @@ const liveHandle = await client.query(q, (commit) => {
 In this mode:
 
 + all changes are observed from the callback alone as events
-+ `result.rows` represents only the initial result of the query, and behaves as a static result set as against a live object
-+ `result.mode` is set to `'callback'` – indicating the consumption mode
++ `result.rows` represents only the initial result of the query, and behaves as a static result set instead of a live object
++ `result.mode` is set to `'callback'` – indicating the delivery mode
 
 Compared to the default live view concept, custom event handling sits closer to the wire.
 
@@ -511,11 +504,14 @@ A typical `diff` event contains one or more entries describing result-level chan
 
 ```js
 {
+  txId,
   type: 'diff',
   entries: [...],
-  ...commitMeta
 }
 ```
+
++ `txId` is the ID of the transaction
++ `entries` is an array of one or more change descriptors
 
 #### `insert` Descriptor
 
@@ -557,13 +553,14 @@ This event contains positional swaps that satisfy an `ORDER BY` clause.
 
 ```js
 {
+  txId,
   type: 'swap',
   entries: [...],
-  ...commitMeta
 }
 ```
 
-Entries are pairs of positional swaps by ID (the hashes):
++ `txId` is the ID of the transaction
++ `entries` are pairs of positional swaps of rows specified by IDs (the hashes):
 
 ```js
 [
@@ -584,14 +581,15 @@ This event represents a new snapshot of the query result – for when diffrentia
 
 ```js
 {
+  txId,
   type: 'result',
   rows: [{ id: 1, name: 'Ada' }, { id: 2, name: 'Jane' }],
   hashes: ['[[1]]', '[[2]]']
-  ...commitMeta
 }
 ```
 
-The `rows` and `hashes` array have the exact same meaning as the standard result's `rows` and `hashes`.
++ `txId` is the ID of the transaction
++ The `rows` and `hashes` array have the exact same meaning as the standard result's `rows` and `hashes`.
 
 The handler is expected to replace local state with the new result.
 
@@ -622,17 +620,16 @@ const result = await db.query(
 );
 ```
 
-That id is more than a label. It gives the query a durable slot identity, and LinkedQL binds that subscription to the same slot each time it is recreated with the same id.
+An ID gives the query a durable slot identity, and LinkedQL binds that subscription to the same slot each time it is recreated with the same id.
 
 ### Behaviour
 
-With a durable slot identity, the runtime:
+With a durable slot identity, the runtime is able to resume from the same logical slot on requeries:
 
-- is able to resume from the same logical slot on requeries
-- catches the subscriber up on commits that were missed while away
-- continues emitting to the subscriber from that state
+- delivers commits that were missed while subscriber was away
+- continues into the current commit stream
 
-State continuity also means:
+On resuming from a previous state, the following happens:
 
 - previous initial snapshot isn't redelivered; consequently...
 - `result.rows` is empty
@@ -642,6 +639,10 @@ That matters when live queries back application caches, replicas, sync workers, 
 
 ### Example
 
+The query below has a stable slot ID.
+
+`commits` is the array of changes observed over the query.
+
 ```js
 const commits = [];
 
@@ -650,26 +651,30 @@ const result = await db.query(
   (commit) => commits.push(commit),
   { live: true, id: 'posts_slot' }
 );
+```
 
+On executing the following, we get one commit event that describes two operation – `INSERT`, `UPDATE`:
+
+```js
 await db.query(`
   BEGIN;
   INSERT INTO public.posts (id, title) VALUES (1, 'Hello');
   UPDATE public.posts SET title = 'Hello World' WHERE id = 1;
   COMMIT;
 `);
+```
 
+After we abort, subsequent operations made while away are cached on the slot:
+
+```js
 await result.abort();
 
 await db.query(`DELETE FROM public.posts WHERE id = 1`);
 ```
 
-What happens:
-
-- you get one commit event containing two diffs: `insert` and `update`
-- you called `result.abort()` and don't get the second commit
+On re-issuing the query with the same slot ID, event delivery is resumed from last known state:
 
 ```js
-
 const result = await db.query(
   'SELECT * FROM posts ORDER BY id',
   (commit) => events.push(commit),
@@ -677,12 +682,10 @@ const result = await db.query(
 );
 ```
 
-What happens now:
-
-- you re-subscribed to the same subscription slot
-- you get the one commit event you missed: `delete`
+- the missed `delete` operation is delivered
 - `result.rows` is empty
 - `result.initial` is `false`
+- the slot is drained as the subscriber catches up over time
 
 ---
 
@@ -693,19 +696,69 @@ To drop the slot itself, pass `{ forget: true }` to the `abort()` call:
 ```js
 await result.abort({ forget: true });
 ```
+---
+
 ## Visibility and Security
 
-Live Queries follow the same fundamental rule as any SQL query where **visibility is policy-driven**. A live query run within a policy-driven context fulfills the same contract as a normal query within that same context.
+In many applications, access control and visibility policies are not enforced in application code. They are pushed into the database layer itself – e.g. via PostgreSQL's **Row-Level Security (RLS)**. The database decides which rows exist for a given query.
 
-Transactions are the primary way to define that context.
+Live queries issued within these policy contexts have the same behaviour as a regular query in that context. If a query would normally be subject to access control — whether through session variables, role-based permissions, or database-enforced policies — a Live Query does not bypass or reinterpret that logic. It executes *as-is*, under the exact same constraints.
 
-### Policy-Driven Execution
+That means there is no separate “realtime permission layer” to reason about. Whatever determines visibility for a one-off `SELECT` is the same thing that determines visibility for a Live Query — both at initial execution and at every subsequent internal re-evaluation.
 
-When you run a Live Query within a policy-bound transaction, the Live Query engine operates inside that same transaction. As a result, every re-evaluation of the query runs under the exact same security constraints – inheriting the visibility rules active at that time.
+**RLS** is where this model becomes concrete. Policies are defined at the table level and automatically applied to every query, based on the current execution context — typically the active role or session configuration.
 
-In systems like PostgreSQL, this pairs directly with **Row-Level Security (RLS)**.
+The general idea is: enable RLS on a table, create the policies:
 
-That typically looks like this:
+```js
+await db.query(`
+  ALTER TABLE public.posts ENABLE ROW LEVEL SECURITY;
+
+  CREATE POLICY "users can see their own posts"
+  ON public.posts
+  USING (author_id = current_setting('claims.user_id')::text);
+`);
+```
+
+That context (`claims.user_id` in this example) can be established in different ways depending on how you structure your system.
+
+At the connection/session level:
+
+```js
+await db.query(
+  `SELECT set_config('claims.user_id', 'user_abc_123', true)`
+);
+
+const rows = await db.query(
+  `SELECT id, title FROM public.posts`
+);
+```
+
+Or through role assumption:
+
+```js
+await db.query(`SET ROLE app_user`);
+
+const rows = await db.query(
+  `SELECT id, title FROM public.posts`
+);
+```
+
+Or any combination of both.
+
+In however the context is set, every query is implicitly evaluated under that policy
+
+Live Queries don’t introduce a new visibility model here — they inherit this one entirely.
+
+### Policy-Driven Transactions
+
+While the approach above establishes the policies at a global level for every query, a tighter pattern is to move that context into a transaction.
+
+Here, transactions become the unit where context is defined and consumed. The boundary is smaller, explicit, and composable — especially in systems where connections are pooled or reused.
+
+When a live query is run within a transaction, the Live Query engine operates inside that transaction. As a result, it inherits the same security constraints that may have been applied to the transaction.
+
+This is the same idea as before, just scoped differently:
 
 ```js
 const tx = await db.begin();
@@ -721,39 +774,42 @@ const result = await db.query(
 );
 ```
 
-Here:
+Above:
 
-* the transaction establishes the security context (`claims.user_id`). How you establish that context will depend on you. Regardless:
-* the Live Query runs inside that context
-* every update pushed to the client reflects only what that context is allowed to see
+* the context is established inside the transaction
+* the Live Query is created inside that same transaction
 
-The result stream stops being a simple "updates to this query" — it becomes:
+The engine stays scoped to the transaction, and every update pushed to the client reflects only what that context is allowed to see.
 
-> "updates to this query as visible under this policy"
+So while connection-level policy says:
 
-That distinction is the entire model.
+> "the database as seen through this connection"
+
+transaction-level policy says:
+
+> "the database as seen through this transaction"
+
+That shift in scope is what makes the model predictable under concurrency and reuse.
 
 ### Relationship to the Commit Stream
 
-Under the hood, Live Queries are powered by the same commit stream that powers commit-level subscriptions via `db.wal.subscribe()`.
+Under the hood, Live Queries are powered by the same commit stream that powers commit-level subscriptions at [`db.wal.subscribe()`](/realtime/changefeeds).
 
 But the visibility model is intentionally different.
 
-* Changefeeds expose **raw commit entries**. Visibility rules are enforced via explicit filtering – `resolveCommitVisibility()`
-* Live Queries expose **query results**; driven by the same commit stream but work at a higher-level. Visibility is enforced by the query execution itself via transactions
+* Changefeeds expose **raw commit entries**. It's concerned with **rows that changed**. Visibility rules are enforced via explicit filtering – at `resolveCommitVisibility()`
+* Live Queries expose **state**. It's concerned with **query results**. Visibility is enforced by the query context
 
-Because of that, Live-Query-originated subscriptions are **not passed through `resolveCommitVisibility()` by default**. Re-applying row-level filtering at the commit level would be redundant and wasteful.
-
-The engine already enforces visibility by re-running the query under the given context.
+With visibility naturally enforced by the query context for live queries, Live-Query-originated subscriptions are **not passed through `resolveCommitVisibility()` by default**. Applying row-level filtering through that model would be redundant and wasteful.
 
 ### Optional Commit-Level Gating
 
-That said, Live Queries can still participate in commit-level visibility control when needed. The effect would be:
+That said, Live Queries can still participate in commit-level visibility control when needed. The use-case is different:
 
-+ controlling what the Live Query engine itself sees
-+ while the engine's own execution model controls visibility for the user
+* for controlling what the Live Query engine *itself* sees
+* while the engine's own query context controls visibility for the user
 
-To centralize commit-level visibility at `resolveCommitVisibility()` this way, the `centralizeCommitVisibility` flag is set to `true`:
+The `centralizeCommitVisibility` flag is used opt in to this layered visibility model:
 
 ```js
 const db = new PGClient({
@@ -769,15 +825,14 @@ const db = new PGClient({
 });
 ```
 
-Live-Query-originated subscriptions will be routed through the same hook — with `sub.liveQueryOriginated === true`.
+Live-Query-originated subscriptions will be routed through this handler — each carrying `sub.liveQueryOriginated === true`.
 
-The `resolveCommitVisibility()` handler is expected to handle Live-Query-originated subscriptions at a more coarse-grained level than regular subscriptions.
+The handler is expected to handle Live-Query-originated subscriptions differently than regular subscriptions.
 
 Good use cases include:
 
-* blocking entire tables from ever reaching the Live Query engine
-* suppressing sensitive relations (e.g. `audit_log`)
-* enforcing column- or relation-level access rules
+* suppressing entire tables, like sensitive relations (e.g. `audit_log`), from ever reaching any subscriber – including the Live Query engine
+* enforcing column- or relation-level access rules at a coarse-grained level
 
 ```js
 const db = new PGClient({
@@ -790,34 +845,23 @@ const db = new PGClient({
       );
     }
 
-    // Normal changefeed behavior
+    // Normal fine-grained filtering
     return entries;
   },
 });
 ```
 
-What you should avoid for Live-Query-originated subscriptions is re-implementing row-level visibility lookups inside the hook (e.g. querying the database per entry). The Live Query engine's default behaviour already guarantees correctness at that level.
+Above, there is a single source of truth for a certain level of visibility for both regular subscriptions and Live-Query-originated subscriptions.
 
-### Mental Model
-
-A clean way to think about the split is:
-
-* **Changefeeds:** "What changed in the database?"  
-   → optional visibility enforcement: `resolveCommitVisibility()`
-
-* **Live Queries:** "What changed at the level of this query?"  
-  → visibility enforcement: transactions
-
-* **Cross-cutting visibility questions:** "What commit-level rules apply in both cases?"  
-  → visibility enforcement: `resolveCommitVisibility()` + `centralizeCommitVisibility: true`
+What you should avoid for Live-Query-originated subscriptions is re-implementing row-level visibility lookups inside the hook (e.g. querying the database per entry). The Live Query engine's query context already serves that need.
 
 ---
 
-## Scaling Model
+## Scaling Behaviour
 
 Live queries in LinkedQL are built on a shared execution model that drastically minimizes computation and database lookup costs. When one or more queries overlap, the engine organizes them into a **hierarchy of evaluation windows**.
 
-In this model, a broader query becomes a **canonical query window**, and any overlapping or more constrained queries become **derived windows** that inherit from the base.
+In this model, a broader query becomes a **canonical query window**, and any overlapping or more constrained queries become **derived windows** that inherit from that base.
 
 This is called **query inheritance**.
 
@@ -833,7 +877,7 @@ SELECT * FROM users WHERE active = true;
 
 The first statement establishes the canonical query window for `users`.
 
-The remaining queries are derived windows. They do not re-run the base query. Instead, they inherit its result stream and apply additional shaping rules:
+The remaining queries form derived windows. They do not re-run the base query. Instead, they inherit the base's result stream and apply additional shaping rules:
 
 * column projection (`SELECT id, name`)
 * filtering (`WHERE active = true`)
@@ -861,7 +905,7 @@ In other words:
 * one change to `users` produces one base evaluation
 * all derived windows are updated from that shared result
 
-In other words:
+Result:
 
 10,000 users subscribed to variations of `users` still all converge on the same canonical query window:
 
@@ -876,13 +920,13 @@ Query inheritance only applies when queries exist within the same execution boun
 
 Inheritance is evaluated only after confirming that queries share the same boundary conditions.
 
-This boundary is defined by:
+This boundary is defined by the factors below:
 
 #### Structural equivalence
 
 Queries must match in structure.
 
-This ensures inheritance is based on query intent, not just formatting or syntactic variation.
+Matching is based on **query intent**, not just formatting or syntactic equivalence.
 
 #### Parameter equivalence
 
@@ -890,21 +934,11 @@ All query parameters must match exactly.
 
 Any difference in parameter values creates a separate execution boundary, even when the SQL structure is identical.
 
-#### Transaction context
+#### Execution context
 
-Queries must share the same transaction or visibility scope.
+Queries must share the same transaction context – for transaction-scope queries.
 
-This ensures inheritance does not cross transactional or policy boundaries — including RLS rules, visibility constraints, or any session-level enforcement tied to the transaction context.
-
-#### In practice
-
-Query inheritance is not a global optimization layer. It is strictly scoped to a single execution boundary in which canonical and derived query windows are allowed to exist.
-
-Within that boundary:
-
-* execution does not leak across parameterized queries
-* transactional policies remain consistently enforced across all derived windows
-* structural overlap is only exploited when visibility context is identical
+This ensures inheritance does not cross transactional or policy boundaries — including RLS rules, visibility constraints, or session-level enforcement tied to transaction contexts.
 
 ---
 
@@ -912,9 +946,10 @@ Within that boundary:
 
 | If you want to learn about... | Go to... |
 | :-- | :-- |
-| the related changefeed subscription model | [Query API](/realtime/changefeeds) |
-| the `query()` in API detail | [Query API](/api/query) |
+| the internals of the Live Query engine | [LinkedQL Realtime Engineering](/engineering/realtime-engine) |
+| the related subscription model | [Changefeeds](/realtime/changefeeds) |
 | the transaction API in detail | [Transaction API](/api/transaction) |
+| the query API in detail | [Query API](/api/query) |
 
 ---
 

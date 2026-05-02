@@ -1,29 +1,12 @@
 # Version Binding
 
-> Only available currently in FlashQL. Comming soon to PostgreSQL, and MySQL/MariaDB
-
-Version binding lets a query state the relation versions it expects.
-
-It's a schema-contract feature that's especially useful for.
-
-- an application was written against a specific table version
-- you want queries to fail fast when storage no longer matches that expectation
-- you want joins to assert that both sides of the query still satisfy the version assumptions they were written against
-
----
-
-## Basic Form
-
-Version binding is attached directly to relation references:
+_Explicitly bind queries to specific schema versions._
 
 ```sql
-SELECT *
-FROM public.users@=3
+SELECT * FROM public.users@=3
 ```
 
-That query is saying:
-
-> "Run this query only if `public.users` satisfies the version spec `=3`."
+> Only available currently in FlashQL. Comming soon to PostgreSQL, and MySQL/MariaDB
 
 ---
 
@@ -153,5 +136,5 @@ Use it when:
 
 | If you want to learn about... | Go to... |
 | :-- | :-- |
-| the broader LinkedQL language additions surface | [Language Additions](/lang) |
-| the broader FlashQL language surface | [FlashQL Language Reference](/flashql/lang) |
+| FlashQL-specific language surface | [FlashQL Language Surface](/flashql/lang) |
+| the broader LinkedQL language surface | [Language Surface](/lang) |

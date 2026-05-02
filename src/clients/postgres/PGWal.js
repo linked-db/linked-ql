@@ -160,7 +160,7 @@ export class PGWal extends MainstreamWal {
             this.#pgClient.emit('warn', new Error(`Failed to stop WAL client: ${e.message}`));
         }
         this.#walService = null;
-        await this.#conn.disconnect();
+        await this.#conn.release?.(); // must not be end()
         this.#conn = null;
     }
 }

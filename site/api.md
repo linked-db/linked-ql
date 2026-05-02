@@ -1,18 +1,24 @@
 # API
 
-LinkedQL keeps the application-facing contract stable across its runtimes.
+LinkedQL exposes a small, stable application-facing API across its runtimes.
 
-The core API surface is:
+---
 
-- [`db.query()`](/api/query)
-- [`db.stream()`](/api/stream)
-- [`db.transaction()`](/api/transaction)
-- [`db.wal.subscribe()`](/api/wal-subscribe)
+## Core Methods
 
-Use this section for method-by-method reference.
+| Method                   | Description                                      | Docs                                     |
+| :----------------------- | :----------------------------------------------- | :--------------------------------------- |
+| **`db.query()`**         | Execute a query and return the full result       | [Query API](/api/query)                 |
+| **`db.stream()`**        | Execute a query as a streaming result set        | [Stream API](/api/stream)               |
+| **`db.transaction()`**   | Execute multiple operations within a transaction | [Transaction API](/api/transaction)     |
+| **`db.wal.subscribe()`** | Subscribe to database change events              | [Subscription API](/api/wal-subscribe) |
 
-For conceptual behavior, see:
+---
 
-- [Language Additions](/lang)
-- [Realtime Capabilities](/realtime)
-- [Guides](/guides)
+## The Concepts
+
+| Area         | Description                             | Docs                   |
+| :----------- | :-------------------------------------- | :--------------------- |
+| **Language** | LinkedQL syntax and query capabilities  | [Language Surface](/lang)         |
+| **Realtime** | Streaming and live data behavior        | [Realtime Capabilities](/realtime) |
+| **Guides**   | Usage patterns and integration examples | [Guides](/guides)     |

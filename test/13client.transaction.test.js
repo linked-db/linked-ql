@@ -403,7 +403,7 @@ describe('Client.transaction(cb)', () => {
         expect(client.calls[0][1].selector).to.deep.eq({ public: ['users'] });
         expect(client.calls[0][1].options).to.deep.include({ id: 'slot_remote', preferRemote: true });
 
-        await gc();
+        await gc.abort();
     });
 
     it('EdgeWal: preferRemote=false subscribes through local broker and still receives commits', async () => {
@@ -437,6 +437,6 @@ describe('Client.transaction(cb)', () => {
         expect(commits).to.have.length(1);
         expect(commits[0].entries[0].new).to.deep.eq({ id: 1, name: 'Ada' });
 
-        await gc();
+        await gc.abort();
     });
 });

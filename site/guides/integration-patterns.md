@@ -391,5 +391,5 @@ All patterns preserve the same database interface, so your application code rema
 
 | If you want to learn about... | Go to... |
 | :-- | :-- |
-| the common application-facing methods across these patterns | [API](/api) |
-| the broader LinkedQL set of guides | [LinkedQL Guides](/guides) |
+| the common LinkedQL guide | [Guides](/guides) |
+| the common API contract | [API](/api) |

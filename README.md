@@ -2,7 +2,7 @@
 
 # LinkedQL  
 
-The application-flavoured SQL that runs anywhere, with pluggable backends
+Portable query engine for modern applications and agents.
 
 [![npm version][npm-version-src]][npm-version-href]<!-- [![npm downloads][npm-downloads-src]][npm-downloads-href] -->
 [![coverage][coverage-src]][coverage-href]
@@ -59,7 +59,7 @@ The application-flavoured SQL that runs anywhere, with pluggable backends
 
 LinkedQL brings:
 
-+ live queries, streaming, changefeeds, and sync  
++ live queries, lazy fetching, changefeeds, and sync  
 + expressive shorthands for relationships and JSON  
 + automatic schema versioning and query-time version safety  
 
@@ -67,12 +67,10 @@ Runs across:
 
 + PostgreSQL, MySQL/MariaDB, and embedded/local storage  
 + server, browser, edge, and worker runtimes  
-+ both local and remote data as one relational graph  
++ local & remote data sources – in any combination  
 
-→ All in under `80 KiB` (min+zip)  
+→ All in just `~100 KiB` (min+zip)  
 → A single interface that drops into any application  
-
-> The application-flavoured SQL that runs anywhere, with pluggable backends
 
 **[See the overview ↗](https://linked-ql.netlify.app/overview)** for the full picture.
 
@@ -81,8 +79,8 @@ Runs across:
 ---
 
 > [!IMPORTANT]
-> LinkedQL is backed by **1,200+ tests today and growing**.<br>
-> Feedback, issues, and PRs help drive the next 1,000.<br>
+> LinkedQL is shaping up fast, and currently backed by over 1,200 tests.<br>
+> Feedback, issues, and PRs help drive us towards the next thousand and beyond.<br>
 > See [Contributing](#-contributing)
 
 ---
@@ -251,7 +249,7 @@ Deeper syntax and traversal patterns are fully covered in [DeepRefs ↗](https:/
 
 LinkedQL brings live queries to your database: **PostgreSQL**, **FlashQL**, **MySQL/MariaDB\***.
 
-With just a mode switch `{ live: true }`, you can get back a live, self-updating result set.
+With just a mode switch `{ live: true }`, you get back a live, self-updating result set.
 
 ```js
 const result = await db.query(`
@@ -288,7 +286,7 @@ const result = await db.query(`
 `, { live: true });
 ```
 
-→ Works with joins, filters, aggregates, and other constructs  
+→ Supports the full `SELECT` range – joins, filters, aggregates, etc.  
 → Supports the full set of LinkedQL syntax shorthands like **DeepRefs** and **JSON Literals**
 
 #### Backed by a robust live query engine

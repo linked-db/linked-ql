@@ -3,5 +3,4 @@
 !.vitepress
 !/.gitignore
 coverage
-demo
 node_modules

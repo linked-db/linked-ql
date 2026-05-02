@@ -52,11 +52,11 @@ export class RealtimeClient {
         }
 
         const realtimeResult = new RealtimeResult(resultJson, async ({ forget = false } = {}) => {
-            return await abortLine({ forget });
+            return await walSub.abort({ forget });
         }, signal);
 
         const changeHandler = callback || ((commit) => realtimeResult._apply(commit));
-        const abortLine = await queryWindow.wal.subscribe(changeHandler, { id });
+        const walSub = await queryWindow.wal.subscribe(changeHandler, { id });
 
         return realtimeResult;
     }

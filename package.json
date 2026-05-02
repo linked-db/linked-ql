@@ -17,7 +17,6 @@
     "FlashQL"
   ],
   "homepage": "https://linked-ql.netlify.app/",
-  "icon": "https://webqit.io/icon.svg",
   "version": "1.1.3",
   "license": "MIT",
   "repository": {
@@ -50,7 +49,7 @@
     "test": "mocha --extension .test.js --recursive --timeout 5000 --exit",
     "test:coverage": "rm -rf .coverage coverage && NODE_V8_COVERAGE=.coverage npm test && node scripts/generate-lcov.mjs",
     "coverage:upload": "npm run test:coverage && coveralls < coverage/lcov.info",
-    "build": "esbuild main=src/index.js flashql=src/flashql/FlashQL.js --bundle --minify --sourcemap --outdir=dist",
+    "build": "esbuild browser=src/index.browser.js --bundle --keep-names --minify --sourcemap --outdir=dist",
     "preversion": "npm run test && npm run build && git add -A dist",
     "postversion": "git push && git push --tags",
     "version:next": "npm version prerelease --preid=next",
@@ -59,7 +58,7 @@
     "site:preview": "vitepress preview site --port 4173"
   },
   "dependencies": {
-    "@webqit/util": "^0.8.14",
+    "@webqit/util": "^0.8.19",
     "dotenv": "^16.4.5",
     "enquirer": "^2.4.1",
     "mariadb": "^3.3.1",
@@ -70,15 +69,15 @@
     "yaml": "^2.5.0"
   },
   "peerDependencies": {
-    "@webqit/fetch-plus": "^0.1.33",
-    "@webqit/observer": "^3.8.19",
-    "@webqit/port-plus": "^0.1.23"
+    "@webqit/fetch-plus": "^0.1.34",
+    "@webqit/observer": "^3.8.22",
+    "@webqit/port-plus": "^0.1.24"
   },
   "devDependencies": {
-    "@webqit/fetch-plus": "^0.1.33",
+    "@webqit/fetch-plus": "^0.1.34",
     "@webqit/keyval": "^0.2.18",
-    "@webqit/observer": "^3.8.19",
-    "@webqit/port-plus": "^0.1.23",
+    "@webqit/observer": "^3.8.22",
+    "@webqit/port-plus": "^0.1.24",
     "c8": "^11.0.0",
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",

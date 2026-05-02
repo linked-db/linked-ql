@@ -1,0 +1,1 @@
+import{_ as a,o as t,c as s,ag as n}from"./chunks/framework.DXGyWiRo.js";const u=JSON.parse('{"title":"Language Surface","description":"","frontmatter":{},"headers":[],"relativePath":"lang.md","filePath":"lang.md"}'),l={name:"lang.md"};function o(i,e,r,p,c,d){return t(),s("div",null,[...e[0]||(e[0]=[n("",57)])])}const y=a(l,[["render",o]]);export{u as __pageData,y as default};

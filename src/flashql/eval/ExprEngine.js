@@ -778,8 +778,8 @@ export class ExprEngine {
                     case 'SECOND': return `${getYear2}-${String(getMonth2).padStart(2, '0')}-${String(getDay2).padStart(2, '0')}T${String(getHour2).padStart(2, '0')}:${String(getMinute2).padStart(2, '0')}:${String(getSecond2).padStart(2, '0')}`;
                     default: throw new Error(`Unsupported date/time unit ${dateUnit}`);
                 }
-
-            default: throw new Error(`ExprEngine: Unsupported function ${node.name()}`);
+            default:
+                throw new Error(`ExprEngine: Unsupported function ${node.name()}`);
         }
     }
 

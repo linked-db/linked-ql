@@ -203,7 +203,7 @@ export class QueryWindow extends SimpleEmitter {
     #options;
 
     #status = 0;
-    #abortLine;
+    #lifecycle;
 
     #exprEngine;
     #queryCtx;
@@ -430,7 +430,7 @@ export class QueryWindow extends SimpleEmitter {
         if (this.#tx !== parentWindow.#tx) return false;
         // Comparison excludes tx, and id - as those are excluded from options
         if (!_eq(this.#options, parentWindow.#options)) return false;
-        
+
         if (!_eq(this.#subwindowingRules, parentWindow.#subwindowingRules)) return false;
         const result = this.constructor.intersectQueries(
             parentWindow.#query,
@@ -457,8 +457,8 @@ export class QueryWindow extends SimpleEmitter {
     }
 
     async stop() {
-        await this.#abortLine?.();
-        this.#abortLine = null;
+        await this.#lifecycle?.abort();
+        this.#lifecycle = null;
         this.#status = 0;
         await this.#wal.close({ destroy: true });
     }
@@ -625,11 +625,14 @@ export class QueryWindow extends SimpleEmitter {
 
         // Connect to WAL events or equivalent
         // Drivers must implement the interface
-        this.#abortLine = await this.#linkedQlClient.wal.subscribe(analysis.fromItemsBySchema, (commit) => {
+        this.#lifecycle = await this.#linkedQlClient.wal.subscribe(analysis.fromItemsBySchema, (commit) => {
             this.#handleCommit(commit).catch((e) => {
                 this.emit('error', e);
             });
         }, { tx: this.#tx, liveQueryOriginated: SYSTEM_TAG, isSingleTableLiveQuery: analysis.isSingleTable });
+        this.#lifecycle.on('error', (e) => {
+            if (this.#status !== 0) this.emit('error', e);
+        });
     }
 
     async #initializeAsSub() {
@@ -665,9 +668,11 @@ export class QueryWindow extends SimpleEmitter {
         });
 
         // Set abortLine
-        this.#abortLine = () => {
-            abortLine1();
-            abortLine2();
+        this.#lifecycle = {
+            abort: () => {
+                abortLine1();
+                abortLine2();
+            }
         };
     }
 

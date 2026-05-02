@@ -1,6 +1,6 @@
 # FlashQL Sync API
 
-FlashQL sync is the orchestration engine for materialized and realtime views.
+FlashQL [sync](/flashql/federation-and-sync) is the orchestration engine for materialized and realtime views.
 
 If you have already read [Federation, Materialization, and Sync](/flashql/federation-and-sync), this page is the operational companion:
 
@@ -16,7 +16,7 @@ If you have already read [Federation, Materialization, and Sync](/flashql/federa
 - `materialized`
 - `realtime`
 
-Basic views aren't captured here as they participate in the wider federated graph and not sync-based.
+Regular views aren't part of this loop as they participate in the wider federated graph and not sync-based.
 
 The Sync engine has two complementary responsibilities:
 

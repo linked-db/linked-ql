@@ -252,7 +252,8 @@ This enables:
 
 ```js
 import http from 'node:http';
-import { enableLive } from 'node-live-response';
+import { enableLive } from '@webqit/node-live-response';
+import { LiveResponse } from '@webqit/fetch-plus';
 import { EdgeWorker } from '@linked-db/linked-ql/edge-worker';
 
 const worker = EdgeWorker.httpWorker({ db });
@@ -267,7 +268,7 @@ async function handler(request, response) {
   const event = {
     request: toStandardRequest(request),
     client: request.port,
-    respondWith: (payload) => response.send(payload),
+    respondWith: (payload) => response.send(new LiveResponse(payload)),
   };
 
   await worker.handle(event);
@@ -288,7 +289,8 @@ const toStandardRequest = (request) => {
 ```js
 import http from 'node:http';
 import express from 'express';
-import { enableLive } from 'node-live-response';
+import { enableLive } from '@webqit/node-live-response';
+import { LiveResponse } from '@webqit/fetch-plus';
 import { EdgeWorker } from '@linked-db/linked-ql/edge-worker';
 
 const app = express();
@@ -300,7 +302,7 @@ app.all('/db', liveMode(), async (request, response) => {
   const event = {
     request: toStandardRequest(request),
     client: request.port,
-    respondWith: (payload) => response.send(payload),
+    respondWith: (payload) => response.send(new LiveResponse(payload)),
   };
 
   await worker.handle(event);
@@ -324,5 +326,5 @@ const toStandardRequest = (request) => {
 
 | If you want to learn about... | Go to... |
 | :-- | :-- |
-| the common application-facing methods | [API](/api) |
 | how Edge composes into full application architectures | [Integration Patterns](/guides/integration-patterns) |
+| the common API contract | [API](/api) |
