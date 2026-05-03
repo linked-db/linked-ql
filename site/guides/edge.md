@@ -202,7 +202,7 @@ This excludes:
 
 ### `event.client`
 
-This is for backends that support interactive, bidirectional communication with the client. When present, `EdgeWorker` uses it to fulfill stateful parts of the LinkedQL protocol such as live queries.
+(**optional**) This is for backends that support interactive, bidirectional communication with the client. When present, `EdgeWorker` uses it to fulfill stateful parts of the LinkedQL protocol such as live queries.
 
 The expected contract is:
 
@@ -218,7 +218,7 @@ This enables Level 2 LinkedQL capabilities:
 
 ### `event.waitUntil`
 
-This is for backends that support extending the lifecycle of a request beyond the initial response.
+(**optional**) This is for backends that support extending the lifecycle of a request beyond the initial response.
 
 The expected contract is:
 
@@ -232,17 +232,17 @@ This adds lifecycle reliability to the stateful parts of the Edge protocol:
 
 ### `event.respondWith`
 
-This is for backends that provide explicit control over how HTTP responses are dispatched.
+(**optional**) This is for backends that provide explicit control over how HTTP responses are dispatched.
 
 The expected contract is:
 
-- `event.respondWith(response)`: a function for sending a `Response` object
+- `event.respondWith(result)`: a function for sending a response
 
 This enables:
 
 - direct response emission from `EdgeWorker`
 - integration with frameworks that manage response lifecycles
-- compatibility with environments where returning a `Response` is not the response model
+- compatibility with environments where returning a response (`return response`) is not the response model
 
 ---
 
@@ -298,7 +298,7 @@ const worker = EdgeWorker.httpWorker({ db });
 const server = http.createServer(app);
 const liveMode = enableLive(server);
 
-app.all('/db', liveMode(), async (request, response) => {
+app.all('/db', liveMode, async (request, response) => {
   const event = {
     request: toStandardRequest(request),
     client: request.port,
