@@ -407,27 +407,21 @@ This is fully covered in:
 
 ---
 
+## Pattern Playground
+
+A visual, interactive playground that lets you experiment with these integration patterns is coming soon.
+
+But here are real samples you can play with now, right in the `@webqit/node-live-response` repo:
+
+**[Go to the playground ↗](https://github.com/webqit/node-live-response/tree/main/playground)**
+
+---
+
 ## Deep Dive
 
 If you want to explore the full LinkedQL model, see:
 
-- **Capabilities overview** → an easy map of LinkedQL  
-  + [Overview ↗](https://linked-ql.netlify.app/overview)
-
-- **FlashQL and local-first architectures** → embedded engine, federation, and sync  
-  + [FlashQL ↗](https://linked-ql.netlify.app/flashql)
-
-- **Integration patterns** → how this fits into real applications  
-  + [Integration Patterns ↗](https://linked-ql.netlify.app/guides/integration-patterns)
-
-- **Core API** → the full interface surface  
-  + [The Core API ↗](https://linked-ql.netlify.app/api)
-
-* Or go from the start:
-
-  - **[The LinkedQL Docs ↗](https://linked-ql.netlify.app/overview)**
-
----
+**[LinkedQL Overview ↗](https://linked-ql.netlify.app/overview)**
 
 ## 🤝 Contributing
 
