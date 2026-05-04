@@ -181,10 +181,11 @@ HTTP does not provide a persistent channel. This means:
 
 These protocol-level constraints are handled in a layered approach:
 
-- the more features the host runtime can provide, the more of the LinkedQL contract you can have across the boundary
-- the event object passed to `edgeHandler.handle(event)` has a flexible contract that works incrementally depending on what features the host runtime can provide
+- **the more features the host runtime can provide, the more of the LinkedQL contract you can have across the boundary**
 
-The event object's standard shape is:
+The event object passed to `edgeHandler.handle(event)` thus has a flexible contract that works incrementally depending on what features the host runtime can provide.
+
+The standard contract is:
 
 ```typescript
 interface HostHttpRequestEvent {
