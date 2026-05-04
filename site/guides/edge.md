@@ -165,7 +165,7 @@ For realtime to work correctly across the transport layer, the backend must expo
 - This is automatically available in `Worker` and `SharedWorker` runtimes
 - For HTTP servers, this depends on whether the backend can provide that interactive channel exposed as `event.client`
 
-That transport/runtime capability determines how much of the LinkedQL contract can be projected across the boundary. See the next section.
+That transport/runtime capability determines how much of the LinkedQL contract can be projected across the boundary. This is what is covered below.
 
 ---
 
@@ -183,6 +183,28 @@ These protocol-level constraints are handled in a layered approach:
 
 - the more features your runtime can provide, the more of the LinkedQL contract you can have across the boundary
 - `EdgeWorker.handle(event)` accepts an event object that reflects exactly the capabilities of the host runtime
+
+The event object's standard shape is:
+
+```typescript
+interface HostHttpRequestEvent {
+  request: Request;
+  client?: MessagePortPlus;
+}
+```
+
+For backends that have a *managed* request lifecycle model and/or response path, `EdgeWorker` accepts an extended `HostHttpRequestEvent` interface:
+
+```typescript
+interface HostHttpRequestEvent {
+  request: Request;
+  client?: MessagePortPlus;
+  waitUntil?: (promise: Promise<unknown>) => void;
+  respondWith?: (response: Response) => void;
+}
+```
+
+Each option is documented below.
 
 ### `event.request`
 
