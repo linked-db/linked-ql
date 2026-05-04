@@ -181,7 +181,7 @@ HTTP does not provide a persistent channel. This means:
 
 These protocol-level constraints are handled in a layered approach:
 
-- **the more features the host runtime can provide, the more of the LinkedQL contract you can have across the boundary**
+> **The more features the host runtime can provide, the more of the LinkedQL contract you can have across the boundary**
 
 The event object passed to `edgeHandler.handle(event)` thus has a flexible contract that works incrementally depending on what features the host runtime can provide.
 
@@ -194,7 +194,7 @@ interface HostHttpRequestEvent {
 }
 ```
 
-For backends that have a *managed* request lifecycle model and/or response path, `EdgeWorker` accepts an extended `HostHttpRequestEvent` interface:
+For backends that have a *managed* request lifecycle model and/or a *dispatch-style* response model, `EdgeWorker` accepts an extended `HostHttpRequestEvent` interface:
 
 ```typescript
 interface HostHttpRequestEvent {
@@ -229,7 +229,7 @@ This excludes:
 
 The expected contract is:
 
-- `event.client`: a `MessagePortPlus` interface that provides a port-based communication channel
+- `event.client`: a [`MessagePortPlus`](https://github.com/webqit/port-plus) interface that provides a port-based communication channel
 
 This upgrades the interaction from a bounded request into a stateful session.
 
@@ -241,13 +241,13 @@ This enables Level 2 LinkedQL capabilities:
 
 ### `event.waitUntil`
 
-(**optional**) This is for backends that support extending the lifecycle of a request beyond the initial response.
+(**optional**) This is for backends that have a *managed* request lifecycle model and allow for extending the lifecycle of a request beyond the initial HTTP response.
 
 The expected contract is:
 
-- `event.waitUntil(promise)`: a function that signals ongoing work tied to the request
+- `event.waitUntil(promise)`: a function that takes a promise that the request lifecycle must wait for before terminating.
 
-This adds lifecycle reliability to the stateful parts of the Edge protocol:
+When present, `EdgeWorker` uses it to hold down the request lifecycle for the duration of long-lived operations and stateful interactions, such as:
 
 - live queries
 - long-lived subscriptions
@@ -255,17 +255,13 @@ This adds lifecycle reliability to the stateful parts of the Edge protocol:
 
 ### `event.respondWith`
 
-(**optional**) This is for backends that provide explicit control over how HTTP responses are dispatched.
+(**optional**) This is for backends that have a *dispatch-style* response model where responses are explicitly dispatched rather than returned.
 
 The expected contract is:
 
-- `event.respondWith(result)`: a function for sending a response
+- `event.respondWith(value: any)`: a function for dispatching a response – ranging from [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) objects and [`AsyncIterable`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/AsyncIterator)s, to plain JavaScript objects and primitive values.
 
-This enables:
-
-- direct response emission from `EdgeWorker`
-- integration with frameworks that manage response lifecycles
-- compatibility with environments where returning a response (`return response`) is not the response model
+When present, `EdgeWorker` uses it to directly dispatch the result of a given protocol call to the `EdgeClient`, rather than have it returned from the handler. When omitted, the handler returns the result and expects the host runtime to dispatch it in the standard way.
 
 ---
 
