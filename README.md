@@ -423,6 +423,8 @@ If you want to explore the full LinkedQL model, see:
 
 **[LinkedQL Overview ↗](https://linked-ql.netlify.app/overview)**
 
+---
+
 ## 🤝 Contributing
 
 LinkedQL is in active development — and contributions are welcome!  
