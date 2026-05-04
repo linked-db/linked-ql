@@ -181,9 +181,9 @@ HTTP does not provide a persistent channel. This means:
 
 These protocol-level constraints are handled in a layered approach:
 
-> **The more features the host runtime can provide, the more of the LinkedQL contract you can have across the boundary**
+> **the more capabilities the host runtime exposes via the event object, the more of the LinkedQL contract is possible across the boundary**
 
-The event object passed to `edgeHandler.handle(event)` thus has a flexible contract that works incrementally depending on what features the host runtime can provide.
+The event object passed to `edgeWorker.handle(event)` thus has a flexible contract that works for both standard host runtimes and those with additional capabilities.
 
 The standard contract is:
 
