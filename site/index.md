@@ -3,7 +3,7 @@ layout: home
 title: LinkedQL
 hero:
   name: LinkedQL
-  text: Universal query engine for modern apps
+  text: Universal query engine for modern apps and agents
   tagline:
     LinkedQL moves applications from manual capability scaffolding to full SQL power.
   actions:

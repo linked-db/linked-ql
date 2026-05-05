@@ -1,0 +1,77 @@
+{
+  "funding": {
+    "channels": [
+      {
+        "guid": "github-sponsors",
+        "type": "payment-provider",
+        "address": "https://github.com/sponsors/ox-harris",
+        "description": "Support development via GitHub Sponsors."
+      },
+      {
+        "guid": "open-collective",
+        "type": "payment-provider",
+        "address": "https://opencollective.com/webqit",
+        "description": "Contribute via Open Collective for transparent funding and community support."
+      },
+      {
+        "guid": "direct-contact",
+        "type": "other",
+        "address": "mailto:oxharris.dev@gmail.com",
+        "description": "For grants, enterprise sponsorships, and strategic partnerships."
+      }
+    ],
+
+    "plans": [
+      {
+        "guid": "community-support",
+        "status": "active",
+        "name": "Community Support",
+        "description": "Support LinkedQL as an individual user or developer. Helps sustain ongoing development, maintenance, and documentation.",
+        "amount": 0,
+        "currency": "USD",
+        "frequency": "one-time",
+        "channels": ["github-sponsors", "open-collective"]
+      },
+      {
+        "guid": "individual-recurring",
+        "status": "active",
+        "name": "Individual Monthly Support",
+        "description": "Recurring support from individual developers who rely on LinkedQL. Helps fund continuous improvements, bug fixes, and new features.",
+        "amount": 0,
+        "currency": "USD",
+        "frequency": "monthly",
+        "channels": ["github-sponsors", "open-collective"]
+      },
+      {
+        "guid": "ecosystem-support",
+        "status": "active",
+        "name": "Ecosystem Support",
+        "description": "Support from teams and small companies building with LinkedQL. Funds roadmap acceleration, integrations, and ecosystem tooling.",
+        "amount": 0,
+        "currency": "USD",
+        "frequency": "monthly",
+        "channels": ["open-collective"]
+      },
+      {
+        "guid": "feature-sponsorship",
+        "status": "active",
+        "name": "Feature Sponsorship",
+        "description": "Sponsor the development of specific features, integrations, or priorities. Ideal for teams that depend on particular capabilities.",
+        "amount": 0,
+        "currency": "USD",
+        "frequency": "one-time",
+        "channels": ["open-collective", "direct-contact"]
+      },
+      {
+        "guid": "strategic-partnerships",
+        "status": "active",
+        "name": "Strategic Partnerships",
+        "description": "Long-term partnerships with companies investing in LinkedQL’s direction. Includes roadmap collaboration, early access, and deeper integration support.",
+        "amount": 0,
+        "currency": "USD",
+        "frequency": "other",
+        "channels": ["direct-contact"]
+      }
+    ]
+  }
+}
