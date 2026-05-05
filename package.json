@@ -17,7 +17,7 @@
     "FlashQL"
   ],
   "homepage": "https://linked-ql.netlify.app/",
-  "version": "1.1.10",
+  "version": "1.1.11-next.0",
   "license": "MIT",
   "repository": {
     "type": "git",
