@@ -72,7 +72,7 @@ Runs across:
 → All in just `~100 KiB` (min+zip)  
 → A single interface that drops into any application  
 
-**[See the overview ↗](https://linked-ql.netlify.app/overview)** for the full picture.
+**[See the overview ↗](https://linked-ql.netlify.app/overview)** for the full picture. Too see live queries and sync in action, **[see the playground ↗](https://github.com/webqit/node-live-response/tree/main/playground)**
 
 </div>
 
