@@ -19,6 +19,13 @@ npm install @linked-db/linked-ql
 
 Each entry point corresponds to a deployment shape — you only import what your app needs.
 
+```js
+import { PGClient } from '@linked-db/linked-ql/postgres';
+
+const db = new PGClient();
+await db.connect();
+```
+
 | Client          | Import Path                        | Guide                            |
 | :-------------- | :--------------------------------- | :------------------------------- |
 | `PGClient`      | `@linked-db/linked-ql/postgres`    | [PostgreSQL](/guides/postgresql) |

@@ -1,4 +1,46 @@
 {
+  "$schema": "https://fundingjson.org/schema/v1.1.0.json",
+  "version": "v1.1.0",
+
+  "entity": {
+    "type": "individual",
+    "role": "owner",
+    "name": "Oxford Harrison",
+    "email": "you@example.com",
+    "description": "Creator of LinkedQL, Webflo, and Quantum JS. Focused on rethinking application architecture by bringing database querying, reactivity, and real-time systems closer to the language and runtime level. Building developer-first infrastructure that simplifies how modern apps and agents interact with data.",
+    "webpageUrl": {
+      "url": "https://github.com/webqit"
+    }
+  },
+
+  "projects": [
+    {
+      "guid": "linkedql",
+      "name": "LinkedQL",
+      "description": "LinkedQL is a universal query engine for modern applications and agents. It extends SQL into a full application-layer primitive—enabling cross-boundary querying, live query results, and tight integration with runtime systems. LinkedQL replaces fragmented data stacks with a unified model for querying, mutating, and reacting to data across databases, APIs, and services.",
+      "webpageUrl": {
+        "url": "https://linked-ql.netlify.app"
+      },
+      "repositoryUrl": {
+        "url": "https://github.com/linked-db/linked-ql"
+      },
+      "licenses": [
+        "spdx:MIT"
+      ],
+      "tags": [
+        "database",
+        "query-engine",
+        "sql",
+        "developer-tools",
+        "data-platform",
+        "realtime",
+        "reactivity",
+        "backend",
+        "api",
+        "programming"
+      ]
+    }
+  ],
   "funding": {
     "channels": [
       {
