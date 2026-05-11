@@ -72,20 +72,8 @@ Runs across:
 → All in just `~100 KiB` (min+zip)  
 → A single interface that drops into any application  
 
-**[See the overview ↗](https://linked-ql.netlify.app/overview)** for the full picture.
-
-</div>
-
----
-
-<div align="center">
-  
-_Below is a [simple TODO app](https://github.com/webqit/node-live-response/tree/main/playground#6_sync) built with **live queries** and **LinkedQL sync**.<br>(Click on the GIF to play actual video demo (~6min).)_
-
-[![Live Query Demo](https://github.com/webqit/node-live-response/blob/main/playground/6_sync/preview.gif?raw=true)](https://github.com/webqit/node-live-response/blob/main/playground/6_sync/demo.mp4?raw=true)
-
-To run *live queries* and *sync* demos yourself, **[go to the playground ↗](https://github.com/webqit/node-live-response/tree/main/playground)**.  
-(No long setups.)
+**[See the overview ↗](https://linked-ql.netlify.app/overview)** for the full picture.  
+**[Go to the playground ↗](https://github.com/webqit/node-live-response/tree/main/playground)** to run *live queries* and *sync* demos yourself.  
 
 </div>
 
