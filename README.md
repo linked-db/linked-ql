@@ -72,7 +72,7 @@ Runs across:
 → All in just `~100 KiB` (min+zip)  
 → A single interface that drops into any application  
 
-**[See the overview ↗](https://linked-ql.netlify.app/overview)** for the full picture.  
+**[See What's LinkedQL ↗](https://linked-ql.netlify.app/overview)** for the conceptual intro.  
 **[Go to the playground ↗](https://github.com/webqit/node-live-response/tree/main/playground)** to run *live queries* and *sync* demos yourself.  
 
 </div>
@@ -98,7 +98,14 @@ It provides clients for all supported SQL dialects — including **FlashQL**, th
 
 ### Clients, Runtimes & Dialects
 
-Import and use the client for your database.
+Import and use the client for your database:
+
+```js
+import { PGClient } from '@linked-db/linked-ql/postgres';
+
+const db = new PGClient();
+await db.connect();
+```
 
 | **Client/Model** | **Import Path**                    | **Guide**                                                               |
 | :--------------- | :--------------------------------- | :---------------------------------------------------------------------- |
@@ -138,11 +145,7 @@ See:
 
 ## What can you do with LinkedQL
 
-LinkedQL collapses the traditional data stack — database, API layer, and sync engine — into a single model.
-
-The [overview](https://linked-ql.netlify.app/overview) page is your map to what LinkedQL enables.
-
-Below are a few examples that build up that model step by step.
+LinkedQL introduces a model that lets you do more with SQL. It's presented below by examples.
 
 ### 1. Shape data directly in the query
 
