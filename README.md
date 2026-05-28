@@ -80,7 +80,7 @@ Runs across:
 ---
 
 > [!IMPORTANT]
-> LinkedQL is in active development. The core query model and interfaces are stable and backed by 1,200+ tests. MySQL/MariaDB live query support is still in progress. Feedback, issues, and PRs are welcome — see [Contributing](https://github.com/linked-db/linked-ql#-contributing).
+> LinkedQL is in active development. The core query model and interfaces are stabilizing and backed by 1,200+ tests. MySQL/MariaDB live query support is still in progress. Feedback, issues, and PRs are welcome — see [Contributing](https://github.com/linked-db/linked-ql#-contributing).
 
 ---
 

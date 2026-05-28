@@ -3,7 +3,7 @@ layout: home
 title: LinkedQL
 hero:
   name: LinkedQL
-  text: Universal database contract for applications and agents
+  text: Universal database contract for applications & agents
   tagline:
     "Query the database from anywhere: server, browser, worker, edge; run live queries, automatic sync, and more."
   actions:

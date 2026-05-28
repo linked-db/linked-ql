@@ -1,11 +1,11 @@
-# LinkedQL <br>— Universal Database Contract for Applications and Agents
+# LinkedQL <br>— Universal Database Contract for Applications & Agents
 
 **Welcome to the docs.** This page is the conceptual narrative of LinkedQL — the core thinking, the problem space it addresses, and the architectural model it introduces. It is not a setup guide. If you're here to get running, jump straight to the [Core Guides](/guides).
 
 ---
 
 > [!IMPORTANT]
-> LinkedQL is in active development. The core query model and interfaces are stable and backed by 1,200+ tests. MySQL/MariaDB live query support is still in progress. Feedback, issues, and PRs are welcome — see [Contributing](https://github.com/linked-db/linked-ql#-contributing).
+> LinkedQL is in active development. The core query model and interfaces are stabilizing and backed by 1,200+ tests. MySQL/MariaDB live query support is still in progress. Feedback, issues, and PRs are welcome — see [Contributing](https://github.com/linked-db/linked-ql#-contributing).
 
 ---
 
@@ -41,7 +41,7 @@ Application  ⇄  [ db.query(sql)           ]  ⇄  Database
 
 ### Result: _SQL as State Machine_
 
-> A paradigm shift in how the application contract is expressed and enforced: from a choreography of tools, compensatory layers, and purpose-built infrastructure to a self-enforcing contract at the query boundary.
+A paradigm shift in how the application contract is expressed and enforced: from a choreography of tools, compensatory layers, and purpose-built infrastructure to a self-enforcing contract at the query boundary.
 
 ```js
 const db = new PGClient(); // or: MySQLClient | FlashQL | EdgeClient
@@ -109,7 +109,9 @@ Application  ⇄  [ db.query(sql) ]  ⇄  [ 2. Edge Protocol + Database     ]
 
 ### Result: _A Universal Database Contract_
 
-> In addition to changing _how the application contract is expressed and enforced_ — from manual to automatic — LinkedQL also changes _how the application deals with the various database engineering details_ — engine, dialect, topology — from implementation-specific coupling to a universal contract that everything else sits behind, while the application maintains consistent logic.
+In addition to changing _how the application contract is expressed and enforced_ — from manual to automatic — LinkedQL also changes _how the application deals with the various database engineering details_ — engine, dialect, topology — from implementation-specific coupling to a universal contract that everything else sits behind, while the application maintains consistent logic.
+
+Combined, applications get a universal, self-governed database contract that automatically resolves all the moving parts — from logical, runtime, and lifecycle convergence, to engine, dialect, and topology details.
 
 ```js
 // The same interface — across backends and evironments
@@ -125,15 +127,17 @@ const result = await db.query(`
 );
 ```
 
-Combined, applications get a universal, self-governed database contract that automatically resolves all the moving parts — from logical, runtime, and lifecycle convergence, to engine, dialect, and topology details.
-
 ---
 
 ## Scenarios
 
-**Scenario 1: _Edge Protocol Standardizing Data APIs on SQL._** A team running a Node.js backend exposes a GraphQL API to their frontend. Every new feature request triggers a backend change: new resolvers, schema updates, redeployments. The frontend team is bottlenecked on the backend team's capacity. After adopting LinkedQL, the frontend queries the database directly through the Edge Protocol using plain SQL — with live updates replacing their Apollo subscription setup. The GraphQL layer is retired. The backend team stops being a bottleneck. The frontend team has full querying power at the same `db.query()` interface — with live queries, sync, and version safety included.
+### Scenario 1: _Edge Protocol Standardizing Data APIs on SQL._
 
-**Scenario 2: _FlashQL as State Machine for Agents._** An AI agent framework needs structured, persistent, and synchronizable memory across sessions. The agent uses FlashQL as its local state store — writing context in plain SQL, subscribing live to changes in its working memory as its reasoning evolves, and syncing state deterministically to a cloud Postgres instance between runs. When a reasoning step produces state that needs to be undone, the agent issues a rollback. FlashQL converges local and remote state without orchestration code. The agent's entire state lifecycle — read, write, subscribe, sync, rollback — is a single SQL interface. No vector database, no separate memory middleware, no custom sync logic.
+A team running a Node.js backend exposes a GraphQL API to their frontend. Every new feature request triggers a backend change: new resolvers, schema updates, redeployments. The frontend team is bottlenecked on the backend team's capacity. After adopting LinkedQL, the frontend queries the database directly through the Edge Protocol using plain SQL — with live updates replacing their Apollo subscription setup. The GraphQL layer is retired. The backend team stops being a bottleneck. The frontend team has full querying power at the same `db.query()` interface — with live queries, sync, and version safety included.
+
+### Scenario 2: _FlashQL as State Machine for Agents._
+
+An AI agent framework needs structured, persistent, and synchronizable memory across sessions. The agent uses FlashQL as its local state store — writing context in plain SQL, subscribing live to changes in its working memory as its reasoning evolves, and syncing state deterministically to a cloud Postgres instance between runs. When a reasoning step produces state that needs to be undone, the agent issues a rollback. FlashQL converges local and remote state without orchestration code. The agent's entire state lifecycle — read, write, subscribe, sync, rollback — is a single SQL interface. No vector database, no separate memory middleware, no custom sync logic.
 
 ---
 
