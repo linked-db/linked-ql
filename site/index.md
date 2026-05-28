@@ -3,9 +3,9 @@ layout: home
 title: LinkedQL
 hero:
   name: LinkedQL
-  text: Universal query engine for modern apps and agents
+  text: Universal database contract for applications and agents
   tagline:
-    LinkedQL moves applications from manual capability scaffolding to full SQL power.
+    "Query the database from anywhere: server, browser, worker, edge; run live queries, automatic sync, and more."
   actions:
     - theme: brand
       text: Get Started

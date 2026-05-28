@@ -2,7 +2,7 @@
 
 # LinkedQL  
 
-Portable query engine for modern applications and agents.
+Universal database contract for applications and agents.
 
 [![npm version][npm-version-src]][npm-version-href]<!-- [![npm downloads][npm-downloads-src]][npm-downloads-href] -->
 [![coverage][coverage-src]][coverage-href]
@@ -57,9 +57,9 @@ Portable query engine for modern applications and agents.
 
 <div align="left">
 
-LinkedQL brings:
+in the same `db.query()` interface, LinkedQL brings:
 
-+ live queries, lazy fetching, changefeeds, and sync  
++ live queries, lazy fetching, subscriptions, and sync  
 + expressive shorthands for relationships and JSON  
 + automatic schema versioning and query-time version safety  
 
@@ -80,9 +80,7 @@ Runs across:
 ---
 
 > [!IMPORTANT]
-> LinkedQL is shaping up fast, and currently backed by over 1,200 tests.<br>
-> Feedback, issues, and PRs help drive us towards the next thousand tests and beyond.<br>
-> See [Contributing](#-contributing)
+> LinkedQL is in active development. The core query model and interfaces are stable and backed by 1,200+ tests. MySQL/MariaDB live query support is still in progress. Feedback, issues, and PRs are welcome — see [Contributing](https://github.com/linked-db/linked-ql#-contributing).
 
 ---
 
@@ -425,7 +423,7 @@ But here are real samples you can play with now, right in the `@webqit/node-live
 
 If you want to explore the full LinkedQL model, see:
 
-**[LinkedQL Overview ↗](https://linked-ql.netlify.app/overview)**
+**[The LinkedQL docs ↗](https://linked-ql.netlify.app)**
 
 ---
 

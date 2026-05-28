@@ -2,7 +2,7 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
     title: 'LinkedQL',
-    description: 'A modern take on SQL and SQL databases — with reactivity, versioning, and more.',
+    description: 'Universal Database Contract for Applications and Agents — with Relationship Traversal, Live Queries and Sync, and Semantic Versioning.',
     themeConfig: {
         // Site logo
         logo: {
@@ -62,8 +62,8 @@ export default defineConfig({
                     text: 'Language Surface',
                     items: [
                         { text: 'Language Overview', link: '/lang' },
-                        { text: 'DeepRefs', link: '/lang/deeprefs' },
                         { text: 'JSON Literals', link: '/lang/json-literals' },
+                        { text: 'DeepRefs', link: '/lang/deeprefs' },
                         { text: 'UPSERT', link: '/lang/upsert' },
                         { text: 'Version Binding', link: '/lang/version-binding' },
                     ]
