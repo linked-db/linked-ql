@@ -11,7 +11,7 @@
 
 ## What is LinkedQL?
 
-LinkedQL is a query engine that internalizes the capabilities of the traditional database stack in the familiar `db.query()` model:
+LinkedQL is a query engine that internalizes the capabilities of the traditional database stack in the familiar `db.query()` interface:
 
 + live queries, lazy fetching, subscriptions, and sync
 + relationship traversal and object-relational syntax
@@ -47,9 +47,9 @@ LinkedQL closes that gap at the query boundary by formalizing these concerns as 
 
 Relationship traversal, live queries, and schema version safety are the formal spec of that relationship:
 
-+ object-relational syntax – **the application object model formalized at the query boundary** – rather than moved to a post-processing step: application-level data assembly lines, object-relational mapping (ORM)
-+ live queries, subscriptions, and sync – **state convergence formalized at the query boundary** – rather than handled via secondary infrastructure: API servers, subscription services, dedicated sync engines
-+ version safety – **schema assumptions formalized at the query boundary** – rather than handled via manual coordination, on a best-effort basis, or compensated through runtime failures
++ object-relational syntax: **the application object model formalized at the query boundary** – rather than moved to a post-processing step: application-level data assembly lines, object-relational mapping (ORM)
++ live queries, subscriptions, and sync: **state convergence formalized at the query boundary** – rather than handled via secondary infrastructure: API servers, subscription services, dedicated sync engines
++ version safety: **schema assumptions formalized at the query boundary** – rather than handled via manual coordination, on a best-effort basis, or compensated through runtime failures
 
 Applications simply *operate by contract* (formal spec) – and stay decoupled from implementation details.
 

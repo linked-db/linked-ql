@@ -70,6 +70,9 @@ Note on `portBasedStreaming`:
 + only applicable when `type` is `http`
 + `true` by default – meaning on calling `EdgeClient.stream(query)`, rows are delivered over a communication port rather than over native HTTP response streams
 
+> [!INFO]
+> An authorization model for `EdgeClient` → `EdgeWorker` identity passing is planned and coming. See [Issue #8](https://github.com/linked-db/linked-ql/issues/8).
+
 ---
 
 ## `EdgeWorker`
