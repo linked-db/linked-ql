@@ -57,30 +57,38 @@ Universal database contract for applications and agents.
 
 <div align="left">
 
-in the same `db.query()` interface, LinkedQL brings:
+LinkedQL is a query client (`db.query()`) that lets you do more with SQL – bringing:
 
 + live queries, lazy fetching, subscriptions, and sync  
-+ expressive shorthands for relationships and JSON  
-+ automatic schema versioning and query-time version safety  
-
-Runs across:
-
-+ PostgreSQL, MySQL/MariaDB, and embedded/local storage  
-+ server, browser, edge, and worker runtimes  
-+ local & remote data sources – in any combination  
++ object-relational syntax and structural notations  
++ automatic schema versioning and version safety  
++ data federation over disparate data sources  
 
 → All in just `~100 KiB` (min+zip)  
-→ A single interface that drops into any application  
+
+LinkedQL works across dialects:
+
++ PostgreSQL, MySQL/MariaDB  
+
+across environments:
+
++ server, browser, edge, worker – via EdgeClient
+
+and is embeddable as local database:
+
++ FlashQL  
+
+These are not separate features – they are part of a new query model: **universal database contract**.
 
 **[See What's LinkedQL ↗](https://linked-ql.netlify.app/overview)** for the conceptual intro.  
-**[Go to the playground ↗](https://github.com/webqit/node-live-response/tree/main/playground)** to run *live queries* and *sync* demos yourself.  
+**[Go to the playground ↗](https://github.com/webqit/node-live-response/tree/main/playground)** to run *live queries* and *sync* demos on your own database.  
 
 </div>
 
 ---
 
 > [!IMPORTANT]
-> LinkedQL is in active development. The core query model and interfaces are stabilizing and backed by 1,200+ tests. MySQL/MariaDB live query support is still in progress. Feedback, issues, and PRs are welcome — see [Contributing](https://github.com/linked-db/linked-ql#-contributing).
+> LinkedQL is in active development. The core query model and interfaces are stabilizing and backed by 1,200+ tests. MySQL/MariaDB live query support is still in progress. Feedback, issues, and PRs are welcome — see [Contributing](https://github.com/linked-db/linked-ql#-contributing); see [Issues](https://github.com/linked-db/linked-ql/issues).
 
 ---
 
@@ -92,7 +100,7 @@ LinkedQL is distributed as an npm package:
 npm install @linked-db/linked-ql
 ```
 
-It provides clients for all supported SQL dialects — including **FlashQL**, the embeddable SQL engine for local and offline use.
+It provides clients for all supported SQL dialects — including **FlashQL**, the embeddable SQL engine for local and offline storage.
 
 ### Clients, Runtimes & Dialects
 
