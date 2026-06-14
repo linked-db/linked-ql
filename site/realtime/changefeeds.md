@@ -482,6 +482,9 @@ That’s where transactions come in.
 
 ### Transaction-Scoped WAL Subscriptions
 
+> [!NOTE]
+> The transaction-scoped visibility model described here is under active discussion and expected to evolve. See [Issue #9](https://github.com/linked-db/linked-ql/issues/9).
+
 Transactions give you a way to bind a subscription to a specific execution context — the same mechanism used by RLS-backed queries.
 
 When you issue a subscription inside a transaction, that transaction becomes part of the subscription’s identity.

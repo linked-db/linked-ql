@@ -57,7 +57,7 @@ Universal database contract for applications and agents.
 
 <div align="left">
 
-LinkedQL is a database contract (`db.query()`) – bringing:
+LinkedQL brings:
 
 + live queries, lazy fetching, subscriptions, and sync  
 + object-relational syntax and structural notations  
@@ -74,7 +74,7 @@ across environments:
 
 + server, browser, edge, worker – via EdgeClient
 
-and is embeddable as local database:
+and ships with an embeddable local database:
 
 + FlashQL  
 

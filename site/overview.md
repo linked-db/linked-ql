@@ -11,7 +11,7 @@
 
 ## What is LinkedQL?
 
-LinkedQL is a query client (`db.query()`) that internalizes the capabilities of the traditional database stack:
+LinkedQL is a query engine that internalizes the capabilities of the traditional database stack in the familiar `db.query()` model:
 
 + live queries, lazy fetching, subscriptions, and sync
 + relationship traversal and object-relational syntax
@@ -20,7 +20,7 @@ LinkedQL is a query client (`db.query()`) that internalizes the capabilities of 
 
 → All in just `~100 KiB` (min+zip)
 
-Conceptually, these are not separate features – they are aspects of the same thing: the full application-database relationship *formalized* at the query boundary.
+Conceptually, these are not separate features – they are aspects of the same thing: the full application-database relationship, *formalized* at the query boundary.
 
 The model is delivered as a universal database contract that works across database engines, runtime environments, and deployment architectures.
 
@@ -45,13 +45,13 @@ LinkedQL closes that gap at the query boundary by formalizing these concerns as 
 
 ## The Application-Database Relationship – Formalized
 
-Relationship traversal, live queries, and schema version safety are the contract (formal spec) of that relationship:
+Relationship traversal, live queries, and schema version safety are the formal spec of that relationship:
 
 + object-relational syntax – **the application object model formalized at the query boundary** – rather than moved to a post-processing step: application-level data assembly lines, object-relational mapping (ORM)
 + live queries, subscriptions, and sync – **state convergence formalized at the query boundary** – rather than handled via secondary infrastructure: API servers, subscription services, dedicated sync engines
 + version safety – **schema assumptions formalized at the query boundary** – rather than handled via manual coordination, on a best-effort basis, or compensated through runtime failures
 
-Applications simply *operate by contract* – and stay decoupled from implementation details.
+Applications simply *operate by contract* (formal spec) – and stay decoupled from implementation details.
 
 LinkedQL makes the contract self-enforcing.
 
@@ -100,7 +100,7 @@ across environments:
 
 + server, browser, edge, worker – via EdgeClient
 
-and ships as an embeddable local database:
+and ships with an embeddable local database:
 
 + FlashQL  
 

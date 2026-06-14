@@ -149,7 +149,7 @@ Security and Access Control concepts are documented alongside relevant LinkedQL 
 | :---------------------------------------------------------------------- | :-------------------------------------------------------------------------------------- |
 | Establishing a security boundary for live queries                       | [Live Queries: Visibility and Security](/realtime/live-queries#visibility-and-security) |
 | Establishing a security boundary for changefeed subscriptions           | [Changefeeds: Visibility and Security](/realtime/changefeeds#visibility-and-security)   |
-| Implementing authentication or role-based connections over `EdgeClient` | [Edge Guide](/guides/edge)                                                              |
+| Implementing authentication or role-based connections over `EdgeClient` | [Edge Guide](/guides/edge). See also: [Issue #8](https://github.com/linked-db/linked-ql/issues/8)  |
 
 ---
 
