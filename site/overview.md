@@ -11,43 +11,47 @@
 
 ## What is LinkedQL?
 
-LinkedQL is a universal database contract for applications.
+LinkedQL is a query client (`db.query()`) that internalizes the capabilities of the traditional database stack:
 
-Traditionally, applications rely on several different systems to maintain
-their relationship with the database.
++ live queries, lazy fetching, subscriptions, and sync
++ relationship traversal and object-relational syntax
++ automatic schema versioning and version safety
++ data federation over disparate data sources
 
-LinkedQL moves those concerns into a unified query model –
-**formalizing** the application-database relationship at the query boundary, and making the whole model a **universal contract**.
+→ All in just `~100 KiB` (min+zip)
+
+Conceptually, these are not separate features – they are aspects of the same thing: the full application-database relationship *formalized* at the query boundary.
+
+The model is delivered as a universal database contract that works across database engines, runtime environments, and deployment architectures.
 
 ---
 
 ## Why LinkedQL
 
-Every application that has the database as a dependency suffers the same underlying issue: no proper way to express and enforce critical aspects of that relationship.
+A database and an application are two divergent systems that share little in common.
+Every application ends up building the same scaffolding around that relationship to make it work:
 
-- the application object model must be manually constructed from relational data – object-relational mapping
-- state synchronization requires secondary infrastructure – subscription servers, sync engines
-- schema changes require manual coordination
-- deployment topology leaks into application logic
++ an ORM to model objects from relational data
++ a subscription server for real-time capabilities
++ a sync engine for offline-first capabilities
++ manual schema coordination to keep lifecycles converged as the application evolves
 
-In each case, applications are forced to compensate via secondary infrastructure and human effort.
+Each is incidental to the application itself, and exists because the original query model does not natively
+cover those concerns.
 
-LinkedQL was created to formalize that relationship at the query boundary and make it self-enforcing.
-
-Live queries, synchronization, version safety, federation, and
-object-relational traversal emerge from that model. 
+LinkedQL closes that gap at the query boundary by formalizing these concerns as part of the application-database relationship – expressed together, enforced automatically.
 
 ---
 
 ## The Application-Database Relationship – Formalized
 
-Each part of the LinkedQL model maps to an aspect of that relationship – expressed more properly:
+Relationship traversal, live queries, and schema version safety are the contract (formal spec) of that relationship:
 
 + object-relational syntax – **the application object model formalized at the query boundary** – rather than moved to a post-processing step: application-level data assembly lines, object-relational mapping (ORM)
 + live queries, subscriptions, and sync – **state convergence formalized at the query boundary** – rather than handled via secondary infrastructure: API servers, subscription services, dedicated sync engines
 + version safety – **schema assumptions formalized at the query boundary** – rather than handled via manual coordination, on a best-effort basis, or compensated through runtime failures
 
-Applications simply *operate by contract* (formal spec) – and effectively stay decoupled from implementation details.
+Applications simply *operate by contract* – and stay decoupled from implementation details.
 
 LinkedQL makes the contract self-enforcing.
 
@@ -96,13 +100,13 @@ across environments:
 
 + server, browser, edge, worker – via EdgeClient
 
-and is embeddable as local database:
+and ships as an embeddable local database:
 
 + FlashQL  
 
 The same interface (`db.query()`) and capabilities apply whether the database is a local dependency or remote dependency, regardless of runtime environment or storage engine.
 
-Applications simply commit to a standard contract that everything else can sit behind.
+Applications simply commit to a standard contract that everything else sits behind.
 
 **_Before_:**
 
