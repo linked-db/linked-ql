@@ -57,7 +57,7 @@ Universal database contract for applications and agents.
 
 <div align="left">
 
-LinkedQL is a query client (`db.query()`) that lets you do more with SQL – bringing:
+LinkedQL is a database contract (`db.query()`) – bringing:
 
 + live queries, lazy fetching, subscriptions, and sync  
 + object-relational syntax and structural notations  
@@ -77,8 +77,6 @@ across environments:
 and is embeddable as local database:
 
 + FlashQL  
-
-These are not separate features – they are part of a new query model: **universal database contract**.
 
 **[See What's LinkedQL ↗](https://linked-ql.netlify.app/overview)** for the conceptual intro.  
 **[Go to the playground ↗](https://github.com/webqit/node-live-response/tree/main/playground)** to run *live queries* and *sync* demos on your own database.  
