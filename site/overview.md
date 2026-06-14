@@ -82,7 +82,7 @@ const result = await db.query(`
     id,
     profile: { name, email },
     parent: parent_user ~> { name, email }
-  } FROM users;`,
+  } FROM users@3_2;`,
 
   { live: true }
 );
