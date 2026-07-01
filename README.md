@@ -27,7 +27,7 @@ Universal database contract for applications and agents.
 >     id,
 >     profile: { name, email },
 >     parent: parent_user ~> { name, email }
->   } FROM users;`,
+>   } FROM users@3_2;`,
 > 
 >   { live: true }
 > );
