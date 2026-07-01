@@ -391,9 +391,9 @@ All patterns preserve the same database interface, so your application code rema
 
 A visual, interactive playground that lets you experiment with these integration patterns is coming soon.
 
-But here are real samples you can play with now, right in the `@webqit/node-live-response` repo:
+But here are real samples you can play with now, right in the `@webqit/playground` repo:
 
-**[Go to the playground ↗](https://github.com/webqit/node-live-response/tree/main/playground)**
+**[Go to the playground ↗](https://github.com/webqit/playground)**
 
 ---
 

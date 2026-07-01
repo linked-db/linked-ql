@@ -79,7 +79,7 @@ and ships with an embeddable local database:
 + FlashQL  
 
 **[See What's LinkedQL ↗](https://linked-ql.netlify.app/overview)** for the conceptual overview.  
-**[Go to the playground ↗](https://github.com/webqit/node-live-response/tree/main/playground)** to run *live queries* and *sync* demos on your own database.  
+**[Go to the playground ↗](https://github.com/webqit/playground)** to run *live queries* and *sync* demos on your own database.  
 
 </div>
 
@@ -419,9 +419,9 @@ This is fully covered in:
 
 A visual, interactive playground that lets you experiment with these integration patterns is coming soon.
 
-But here are real samples you can play with now, right in the `@webqit/node-live-response` repo:
+But here are real samples you can play with now, right in the `@webqit/playground` repo:
 
-**[Go to the playground ↗](https://github.com/webqit/node-live-response/tree/main/playground)**
+**[Go to the playground ↗](https://github.com/webqit/playground)**
 
 ---
 
