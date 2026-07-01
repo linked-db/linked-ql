@@ -59,10 +59,10 @@ Universal database contract for applications and agents.
 
 LinkedQL brings:
 
-+ live queries, lazy fetching, subscriptions, and sync  
-+ object-relational syntax and structural notations  
-+ automatic schema versioning and version safety  
-+ data federation over disparate data sources  
++ live queries, lazy fetching, subscriptions, and sync
++ relationship traversal and object-relational syntax
++ automatic schema versioning and version safety
++ data federation over disparate data sources
 
 → All in just `~100 KiB` (min+zip)  
 
@@ -78,7 +78,7 @@ and ships with an embeddable local database:
 
 + FlashQL  
 
-**[See What's LinkedQL ↗](https://linked-ql.netlify.app/overview)** for the conceptual intro.  
+**[See What's LinkedQL ↗](https://linked-ql.netlify.app/overview)** for the conceptual overview.  
 **[Go to the playground ↗](https://github.com/webqit/node-live-response/tree/main/playground)** to run *live queries* and *sync* demos on your own database.  
 
 </div>
