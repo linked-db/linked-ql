@@ -60,7 +60,7 @@ Universal database contract for applications and agents.
 LinkedQL brings:
 
 + live queries, lazy fetching, subscriptions, and sync
-+ relationship traversal and object-relational syntax
++ direct relationship traversal via an object-relational syntax
 + automatic schema versioning and version safety
 + data federation over disparate data sources
 
@@ -149,7 +149,13 @@ See:
 
 ## What can you do with LinkedQL
 
-LinkedQL introduces a model that lets you do more with SQL. It's presented below by examples.
+1. [Shape data directly in the query](#1-shape-data-directly-in-the-query)
+2. [Traverse relationships directly](#2-traverse-relationships-directly)
+3. [Run Live Queries](#3-run-live-queries)
+4. [Run SQL locally with FlashQL](#4-run-sql-locally-with-flashql)
+5. [Build distributed or offline-first architectures with Sync](#5-build-distributed-or-offline-first-architectures-with-sync)
+
+...and [more](#deep-dive)
 
 ### 1. Shape data directly in the query
 

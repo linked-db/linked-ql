@@ -11,16 +11,16 @@
 
 ## What is LinkedQL?
 
-LinkedQL is a query interface (`db.query()`) that gives applications a stable contract across runtimes and environments – server, browser, worker, edge – with the same idea:
+LinkedQL is a query interface (`db.query()`) that gives applications a stable database contract across runtimes and environments – server, browser, worker, edge – with the same idea:
 
 + live queries, lazy fetching, subscriptions, and sync
-+ relationship traversal and object-relational syntax
++ direct relationship traversal via an object-relational syntax
 + automatic schema versioning and version safety
 + data federation over disparate data sources
 
 → All in just `~100 KiB` (min+zip)
 
-Conceptually, these are not separate features – they are aspects of the same thing: the full application-database relationship, *formalized* at the query boundary.
+Conceptually, these are not separate features – they are aspects of the same thing: **the full application-database relationship, *formalized* at the query boundary**.
 
 The model is delivered as a universal database contract that works across database engines, runtime environments, and deployment architectures.
 
@@ -28,15 +28,15 @@ The model is delivered as a universal database contract that works across databa
 
 ## Why LinkedQL
 
-A database and an application are two divergent systems that share little in common.
-Every application ends up building the same scaffolding around that relationship to make it work:
+The database and an application are two divergent systems that share little in common.
+The relationship must often be supported by:
 
 + an ORM to model objects from relational data
-+ a subscription server for real-time capabilities
-+ a sync engine for offline-first capabilities
++ a subscription server for real-time synchronization
++ a sync engine for offline synchronization
 + manual schema coordination to keep lifecycles converged as the application evolves
 
-Each is incidental to the application itself, and exists because the original query model does not natively cover those concerns.
+Each of these is incidental to the application itself, and exists because the original query model does not natively cover these concerns.
 
 LinkedQL closes that gap at the query boundary by formalizing these concerns as part of the application-database relationship – expressed together, enforced automatically.
 
@@ -46,9 +46,9 @@ LinkedQL closes that gap at the query boundary by formalizing these concerns as 
 
 Relationship traversal, live queries, and schema version safety are the formal spec of that relationship:
 
-+ object-relational syntax: **the application object model formalized at the query boundary** – rather than moved to a post-processing step: application-level data assembly lines, object-relational mapping (ORM)
-+ live queries, subscriptions, and sync: **state convergence formalized at the query boundary** – rather than handled via secondary infrastructure: API servers, subscription services, dedicated sync engines
-+ version safety: **schema assumptions formalized at the query boundary** – rather than handled via manual coordination, on a best-effort basis, or compensated through runtime failures
++ with an object-relational syntax, **the application object model is formalized at the query boundary** – rather than moved to a post-processing step: application-level data assembly lines, object-relational mapping (ORM)
++ with live queries, subscriptions, and sync, **state convergence is formalized at the query boundary** – rather than handled via secondary infrastructure: API servers, subscription services, dedicated sync engines
++ with version safety, **schema assumptions is formalized at the query boundary** – rather than handled via manual coordination, on a best-effort basis, or compensated through runtime failures
 
 Applications simply *operate by contract* (formal spec) – and stay decoupled from implementation details.
 
