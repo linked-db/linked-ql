@@ -11,7 +11,7 @@
 
 ## What is LinkedQL?
 
-LinkedQL is a database contract that gives applications a stable query interface (`db.query()`) across runtimes and environments – server, browser, worker, edge – with the same idea:
+LinkedQL is a query framework that gives applications and agents a universal database interface (`db.query()`) across runtimes and environments – server, browser, worker, edge – with the same idea:
 
 + live queries, lazy fetching, subscriptions, and sync
 + direct relationship traversal via an object-relational syntax
@@ -20,15 +20,13 @@ LinkedQL is a database contract that gives applications a stable query interface
 
 → All in just `~100 KiB` (min+zip)
 
-Conceptually, these are not separate features – they are aspects of the same thing: **the full application-database relationship, *formalized* at the query boundary**.
-
-The model is delivered as a universal database contract that works across database engines, runtime environments, and deployment architectures.
+Conceptually, these are not separate features – they are aspects of the same thing: **the application-database relationship, *formalized* at the query boundary**.
 
 ---
 
 ## Why LinkedQL
 
-There's a whole category of technology stacks and manual labour required to expose, query, and sync data between an application and the database:
+There's a whole category of tooling, infrastructure, and manual effort dedicated to exposing and querying the dabatade, and keeping runtime and lifecycle states in sync:
 
 + an ORM to query and model objects from relational data
 + an API server (REST/GRAPHQL) to expose data to application clients
@@ -36,7 +34,7 @@ There's a whole category of technology stacks and manual labour required to expo
 + a sync engine for offline synchronization
 + manual schema coordination to keep lifecycles converged as the application evolves
 
-Each appears to address a distinct concern but reflects a structural gap in the original `db.query()` model: no proper way to express that aspect of the application-database relationship.
+Each addresses what appears to be a distinct concern but reflects a structural gap in the original `db.query()` model: **no proper way to express that aspect of the application-database relationship**.
 
 LinkedQL closes that gap at the query boundary by formalizing these concerns as part of the application-database relationship – expressed together, enforced automatically.
 
