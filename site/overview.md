@@ -11,7 +11,7 @@
 
 ## What is LinkedQL?
 
-LinkedQL is a query framework that gives applications and agents a universal database interface (`db.query()`) across runtimes and environments – server, browser, worker, edge – with the same idea:
+LinkedQL is a query framework that gives applications and agents a universal database contract (`db.query()`) across runtimes and environments – server, browser, worker, edge – with the same idea:
 
 + live queries, lazy fetching, subscriptions, and sync
 + direct relationship traversal via an object-relational syntax
