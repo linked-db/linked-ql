@@ -11,7 +11,7 @@
 
 ## What is LinkedQL?
 
-LinkedQL is the real-time, object-relational, and version-aware SQL for applications and agents. LinkedQL extends the exisiting language with:
+LinkedQL is the real-time, object-relational, and version-aware SQL for applications and agents, enabling a new programming model: **database queries as automatic contracts**. LinkedQL extends the exisiting relational database model with:
 
 + live queries, streaming, and subscriptions
 + direct relationship traversal via an object-relational syntax
@@ -21,7 +21,7 @@ LinkedQL is the real-time, object-relational, and version-aware SQL for applicat
 
 It comes with a unified set of drivers that makes it work across PostgreSQL, and MySQL/MariaDB, and across runtimes and environments – server, browser, worker, edge.
 
-Applications and agents get a universal database contract (`db.query()`) that works as a single replacement for the traditional database stack.
+Applications and agents get a universal database interface (`db.query()`) that works as a single replacement for the traditional database stack.
 
 LinkedQL also ships with an embeddable, in-process database: [**FlashQL**](/flashql) — that lets you have the full LinkedQL contract locally. FlashQL extends LinkedQL with:
 
@@ -46,7 +46,7 @@ LinkedQL closes that gap at the query boundary by formalizing these concerns as 
 
 ---
 
-## The Application-Database Relationship – Formalized
+## Database Queries as Self-Enforcing Contracts
 
 Relationship traversal, live queries, and schema version safety are the formal spec of that relationship:
 
