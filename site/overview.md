@@ -11,7 +11,7 @@
 
 ## What is LinkedQL?
 
-LinkedQL is a query interface (`db.query()`) that gives applications a stable database contract across runtimes and environments – server, browser, worker, edge – with the same idea:
+LinkedQL is a database contract that gives applications a stable query interface (`db.query()`) across runtimes and environments – server, browser, worker, edge – with the same idea:
 
 + live queries, lazy fetching, subscriptions, and sync
 + direct relationship traversal via an object-relational syntax
@@ -28,15 +28,15 @@ The model is delivered as a universal database contract that works across databa
 
 ## Why LinkedQL
 
-The database and an application are two divergent systems that share little in common.
-The relationship must often be supported by:
+There's a whole category of technology stacks and manual labour required to expose, query, and sync data between an application and the database:
 
-+ an ORM to model objects from relational data
++ an ORM to query and model objects from relational data
++ an API server (REST/GRAPHQL) to expose data to application clients
 + a subscription server for real-time synchronization
 + a sync engine for offline synchronization
 + manual schema coordination to keep lifecycles converged as the application evolves
 
-Each of these is incidental to the application itself, and exists because the original query model does not natively cover these concerns.
+Each appears to address a distinct concern but reflects a structural gap in the original `db.query()` model: no proper way to express that aspect of the application-database relationship.
 
 LinkedQL closes that gap at the query boundary by formalizing these concerns as part of the application-database relationship – expressed together, enforced automatically.
 
