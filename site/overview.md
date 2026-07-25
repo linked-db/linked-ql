@@ -1,4 +1,4 @@
-# LinkedQL <br>— Universal Database Contract for Applications & Agents
+# LinkedQL <br>— Real-time, Object-Relational, and Version-Aware SQL
 
 **Welcome to the docs.** This page is the conceptual narrative of LinkedQL — the core thinking, the problem space it addresses, and the architectural model it introduces. It is not a setup guide. If you're here to get running, jump straight to the [Core Guides](/guides).
 
@@ -11,16 +11,24 @@
 
 ## What is LinkedQL?
 
-LinkedQL is a query framework that gives applications and agents a universal database contract (`db.query()`) across runtimes and environments – server, browser, worker, edge – with the same idea:
+LinkedQL is a universal database driver (`db.query()`) for realtime, object-relational, and version-aware SQL.
 
-+ live queries, lazy fetching, subscriptions, and sync
+It gives applications and agents a stable  database contract  across runtimes and environments – server, browser, worker, edge – with the same idea:
+
++ live queries, streaming, and subscriptions
 + direct relationship traversal via an object-relational syntax
 + automatic schema versioning and version safety
-+ data federation over disparate data sources
 
 → All in just `~100 KiB` (min+zip)
 
 Conceptually, these are not separate features – they are aspects of the same thing: **the application-database relationship, *formalized* at the query boundary**.
+
+LinkedQL ships with a cross-runtime protocol that makes it usable from the browser — and virtually any JavaScript environment. (See [the guide](/guides/edge))
+
+It also ships with an embeddable, in-procews database: [**FlashQL**](/flashql) — that lets you have the full LinkedQL contract locally. FlashQL extens LinkedQL with:
+
++ offline sync as an engine-level capability
++ data federation over disparate data sources
 
 ---
 
