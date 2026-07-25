@@ -11,9 +11,7 @@
 
 ## What is LinkedQL?
 
-LinkedQL is a universal database driver (`db.query()`) for realtime, object-relational, and version-aware SQL.
-
-It gives applications and agents a stable  database contract  across runtimes and environments – server, browser, worker, edge – with the same idea:
+LinkedQL is the real-time, object-relational, and version-aware SQL for applications and agents. LinkedQL extends the exisiting language with:
 
 + live queries, streaming, and subscriptions
 + direct relationship traversal via an object-relational syntax
@@ -21,20 +19,20 @@ It gives applications and agents a stable  database contract  across runtimes an
 
 → All in just `~100 KiB` (min+zip)
 
-Conceptually, these are not separate features – they are aspects of the same thing: **the application-database relationship, *formalized* at the query boundary**.
+It comes with a unified set of drivers that makes it work across PostgreSQL, and MySQL/MariaDB, and across runtimes and environments – server, browser, worker, edge.
 
-LinkedQL ships with a cross-runtime protocol that makes it usable from the browser — and virtually any JavaScript environment. (See [the guide](/guides/edge))
+Applications and agents get a universal database contract (`db.query()`) that works as a single replacement for the traditional database stack.
 
-It also ships with an embeddable, in-procews database: [**FlashQL**](/flashql) — that lets you have the full LinkedQL contract locally. FlashQL extens LinkedQL with:
+LinkedQL also ships with an embeddable, in-process database: [**FlashQL**](/flashql) — that lets you have the full LinkedQL contract locally. FlashQL extends LinkedQL with:
 
 + offline sync as an engine-level capability
 + data federation over disparate data sources
 
----
+The entire model lets you build realtime, local-first, and offline-first applications without an extra dependency or secondary infrastructure.
 
 ## Why LinkedQL
 
-There's a whole category of tooling, infrastructure, and manual effort dedicated to exposing and querying the dabatade, and keeping runtime and lifecycle states in sync:
+There's a whole category of tooling, infrastructure, and manual effort dedicated to exposing and querying the database, and keeping runtime and lifecycle states in sync:
 
 + an ORM to query and model objects from relational data
 + an API server (REST/GRAPHQL) to expose data to application clients
