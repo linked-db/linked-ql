@@ -40,11 +40,9 @@ There's a whole category of tooling, infrastructure, and manual effort dedicated
 + a sync engine for offline synchronization
 + manual schema coordination to keep lifecycles converged as the application evolves
 
-Each addresses what appears to be a distinct concern but reflects a structural gap in the original `db.query()` model: **no proper way to express that aspect of the application-database relationship**.
+Each addresses what appears to be a distinct concern but reflects a structural gap in the original relational database model: **no proper way to express that aspect of the application-database relationship**.
 
 LinkedQL closes that gap at the query boundary by formalizing these concerns as part of the application-database relationship – expressed together, enforced automatically.
-
----
 
 ## Database Queries as Self-Enforcing Contracts
 
