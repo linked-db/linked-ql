@@ -48,6 +48,18 @@ LinkedQL closes that gap at the query boundary by formalizing these concerns as 
 
 ## Database Queries as Self-Enforcing Contracts
 
+The core idea behind LinkedQL's extension to the relational database model is to formalize how application-level assumptions and expectations implied by a query are treated. Rather than left implicit, or constructed through extra tooling and secondary infrastructure, LinkedQL formalizes them at the query boundary.
+
+Object-relational syntax, live queries and sync, and version safety are the core components of that model:
+
+- with object-relational syntax, the query itself becomes a formal spec of the application's object model — eliminating the traditional post-processing step and the object-relational mapping (ORM) overhead 
+- with live queries and sync, the query itself becomes the subscription, and the database itself becomes the sync engine — eliminating the traditional subscription server and dedicated sync engines
+- with version safety, the query itself becomes the version control surface — eliminating the traditional manual schema coordination work and lifecycle drifts inherent to the relationship
+
+The query becomes a complete specification of the application-database relationship — a self-enforcing contract.
+
+<!--
+
 Relationship traversal, live queries, and schema version safety are the formal spec of that relationship:
 
 + with an object-relational syntax, **the application object model is formalized at the query boundary** – rather than moved to a post-processing step: application-level data assembly lines, object-relational mapping (ORM)
@@ -57,6 +69,8 @@ Relationship traversal, live queries, and schema version safety are the formal s
 Applications simply *operate by contract* (formal spec) – and stay decoupled from implementation details.
 
 LinkedQL makes the contract self-enforcing.
+
+-->
 
 **_Before_:**
 
