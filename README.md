@@ -59,7 +59,7 @@ Universal database contract for applications and agents.
 
 LinkedQL brings:
 
-+ live queries, lazy fetching, subscriptions, and sync
++ live queries, streaming, subscriptions, and sync
 + direct relationship traversal via an object-relational syntax
 + automatic schema versioning and version safety
 + data federation over disparate data sources
