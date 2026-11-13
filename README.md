@@ -313,6 +313,8 @@ See the [Realtime Engine ↗](https://linked-ql.netlify.app/engineering/realtime
 > * databases: **PostgreSQL**, **FlashQL**, etc. (**MySQL/MariaDB** support coming soon)
 > * runtimes and deployment models: **client** / **server** / **worker** / **edge**
 
+<a name="flashql"></a>
+
 ### 4. Run SQL locally with FlashQL
 
 Meet FlashQL – a full SQL engine that runs anywhere + inside your application.
