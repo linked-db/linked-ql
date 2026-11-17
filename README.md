@@ -78,6 +78,12 @@ and ships with an embeddable local database:
 
 + FlashQL  
 
+---
+
+https://github.com/user-attachments/assets/402c2918-36f1-4785-97ec-0bacc4ab179e
+
+---
+
 **[See What's LinkedQL ↗](https://linked-ql.netlify.app/overview)** for the conceptual overview.  
 **[Go to the playground ↗](https://github.com/webqit/playground)** to run *live queries* and *sync* demos on your own database.  
 
