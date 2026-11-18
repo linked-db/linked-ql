@@ -57,7 +57,7 @@ Universal database contract for applications and agents.
 
 <div align="left">
 
-LinkedQL brings:
+LinkedQL is a superset of SQL, with:
 
 + live queries, streaming, subscriptions, and sync
 + direct relationship traversal via an object-relational syntax
@@ -66,11 +66,11 @@ LinkedQL brings:
 
 → All in just `~100 KiB` (min+zip)  
 
-LinkedQL works across dialects:
+LinkedQL supports multiple dialects:
 
 + PostgreSQL, MySQL/MariaDB  
 
-across environments:
+can be run from any environment:
 
 + server, browser, edge, worker – via EdgeClient
 
